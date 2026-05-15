@@ -4,7 +4,7 @@ require("dotenv").config();
 
 const runtime = createServer();
 
-process.on("SIGINT", () => {
+const shutdownHandler = () => {
   logger.info("\n[SpectraX] Shutting down — saving all sessions...");
   runtime
     .shutdown()
@@ -16,12 +16,23 @@ process.on("SIGINT", () => {
       logger.error("[SpectraX] Shutdown failed:", error.message);
       process.exit(1);
     });
-});
+};
 
-runtime.start().then(() => {
-  logger.info(
-    `\n🚀 SpectraX Backend running on http://localhost:${runtime.config.port}`,
-  );
-  logger.info(`   WebSocket: ws://localhost:${runtime.config.port}`);
-  logger.info(`   Health:    http://localhost:${runtime.config.port}/health\n`);
-});
+process.on("SIGINT", shutdownHandler);
+process.on("SIGTERM", shutdownHandler);
+
+runtime
+  .start()
+  .then(() => {
+    logger.info(
+      `\n🚀 SpectraX Backend running on http://localhost:${runtime.config.port}`,
+    );
+    logger.info(`   WebSocket: ws://localhost:${runtime.config.port}`);
+    logger.info(
+      `   Health:    http://localhost:${runtime.config.port}/health\n`,
+    );
+  })
+  .catch((error) => {
+    logger.error("[SpectraX] Failed to start server:", error.message);
+    process.exit(1);
+  });

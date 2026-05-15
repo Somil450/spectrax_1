@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 
 function createSessionService({
   sessionStore,
@@ -17,7 +18,7 @@ function createSessionService({
     sessionStore.setSessionFrames(socketId, sessionFrames);
   }
 
-  function saveSession(frames, socketId) {
+  async function saveSession(frames, socketId) {
     try {
       const sessionData = {
         savedAt: new Date().toISOString(),
@@ -26,7 +27,15 @@ function createSessionService({
         frames,
       };
 
-      fs.writeFileSync(sessionPath, JSON.stringify(sessionData, null, 2));
+      const dir = path.dirname(sessionPath);
+      const ext = path.extname(sessionPath);
+      const base = path.basename(sessionPath, ext);
+      const uniquePath = path.join(dir, `${base}-${socketId}${ext}`);
+      await fs.promises.writeFile(
+        uniquePath,
+        JSON.stringify(sessionData, null, 2),
+      );
+
       logger.info(`[SpectraX] session.json saved (${frames.length} frames)`);
     } catch (error) {
       logger.error("[SpectraX] Failed to save session:", error.message);

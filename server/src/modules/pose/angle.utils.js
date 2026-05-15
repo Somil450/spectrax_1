@@ -1,5 +1,5 @@
 function calculateAngle(a, b, c) {
-  if (!a || !b || !c) return 0;
+  if (!a || !b || !c) return null;
 
   const radians =
     Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
@@ -13,6 +13,9 @@ function calculateAngle(a, b, c) {
 }
 
 function getBestSide(landmarks) {
+  if (!landmarks) {
+    return "left"; // or throw an error
+  }
   const leftVisibility =
     [11, 13, 15, 23, 25, 27].reduce(
       (sum, index) =>

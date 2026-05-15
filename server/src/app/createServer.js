@@ -43,8 +43,12 @@ function createServer(overrides = {}) {
   });
 
   function start() {
-    return new Promise((resolve) => {
-      server.listen(config.port, () => resolve(server));
+    return new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(config.port, () => {
+        server.removeListener("error", reject);
+        resolve(server);
+      });
     });
   }
 

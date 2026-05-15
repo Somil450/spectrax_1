@@ -5,7 +5,7 @@ function createSocketOptions(config) {
       methods: ["GET", "POST"],
     },
     pingInterval: 5000,
-    pingTimeout: 3000,
+    pingTimeout: 10000,
     transports: ["websocket"],
     path: config.socketPath,
   };
