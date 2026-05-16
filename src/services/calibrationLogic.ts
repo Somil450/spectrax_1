@@ -1,4 +1,4 @@
-import { Results } from '@mediapipe/pose';
+import type { Results } from '@mediapipe/pose';
 
 /**
  * calibrationLogic.ts

@@ -75,10 +75,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart }) => {
   }, []);
 
   return (
-    <div className="screen-container" style={{
-      background: 'radial-gradient(ellipse at bottom, #0f1b3e 0%, #0a0a1a 100%)',
+    <div className="screen-container welcome-screen" style={{
       justifyContent: 'center', alignItems: 'center', textAlign: 'center'
     }}>
+
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, opacity: 0.6 }} />
 
       <div className="animate-in" style={{ position: 'relative', zIndex: 10 }}>

@@ -69,14 +69,15 @@ function App() {
   };
 
   return (
-    <main className="spectrax-app">
+    <main className="spectrax-app" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
       <button
         onClick={toggleTheme}
         className="theme-toggle"
         aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
       >
-        {theme === 'dark' ? '☀ Light' : '☾ Dark'}
+        {theme === 'dark' ? '☾ Dark Mode' : '☀ Light Mode'}
       </button>
+
 
       
       {currentScreen === 'welcome' && (

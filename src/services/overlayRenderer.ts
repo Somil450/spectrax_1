@@ -1,5 +1,10 @@
-import { Results, POSE_CONNECTIONS } from '@mediapipe/pose';
-import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
+import type { Results } from '@mediapipe/pose';
+
+// MediaPipe's npm packages are not ESM-compatible. We use globals from the CDN scripts.
+const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
+const drawConnectors = (window as any).drawConnectors;
+const drawLandmarks = (window as any).drawLandmarks;
+
 
 /**
  * overlayRenderer.ts (Updated for Multi-Exercise)
