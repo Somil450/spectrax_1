@@ -137,6 +137,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
   const [panelsLocked, setPanelsLocked] = useState(true);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions())
 
   const [engineState, setEngineState] = useState<EngineState>({
@@ -421,8 +422,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           frameId.current = requestAnimationFrame(loop);
         };
         frameId.current = requestAnimationFrame(loop);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Workout camera error:", err);
+        if (err.message === 'PERMISSION_DENIED') {
+          setCameraError('CAMERA_PERMISSION_DENIED');
+        } else {
+          setCameraError('UNKNOWN_ERROR');
+        }
       }
     };
 
@@ -558,6 +564,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       className="screen-container"
       style={{ background: "var(--bg-primary)" }}
     >
+      {cameraError === 'CAMERA_PERMISSION_DENIED' && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)' }}>
+          <div style={{ fontSize: '48px', marginBottom: '20px' }}>📷</div>
+          <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>Camera Access Required</h2>
+          <p style={{ maxWidth: '400px', color: '#94a3b8', lineHeight: 1.6 }}>
+            You have denied camera permissions. SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
+          </p>
+        </div>
+      )}
       {/* Background Video Layer */}
       <div
         className="camera-viewport"

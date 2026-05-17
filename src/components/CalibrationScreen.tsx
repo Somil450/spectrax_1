@@ -96,9 +96,13 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           frameId.current = requestAnimationFrame(processLoop);
         };
         frameId.current = requestAnimationFrame(processLoop);
-      } catch (err) {
+      } catch (err: any) {
         if (isMounted) {
-          setError("Hardware synchronization error. Verify camera and refresh.");
+          if (err.message === 'PERMISSION_DENIED') {
+            setError('CAMERA_PERMISSION_DENIED');
+          } else {
+            setError("Hardware synchronization error. Verify camera and refresh.");
+          }
           setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
         }
       }
@@ -284,7 +288,14 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
         {/* Center Feedback Area */}
         <div style={{ alignSelf: 'center', textAlign: 'center' }}>
-          {error ? (
+          {error === 'CAMERA_PERMISSION_DENIED' ? (
+            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>CAMERA ACCESS DENIED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>RELOAD</button>
+            </div>
+          ) : error ? (
             <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
               <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
               <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
