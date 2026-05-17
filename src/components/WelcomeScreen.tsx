@@ -161,12 +161,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             gap: "16px",
           }}
         >
-          <button onClick={onStart} className="btn-neon">
+          <button onClick={onStart} className="btn-neon" aria-label="Initialize System" tabIndex={0}>
             INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
           </button>
 
           <button
             onClick={onViewHistory}
+            aria-label="View Workout History"
+            tabIndex={0}
             style={{
               display: "inline-flex",
               alignItems: "center",
