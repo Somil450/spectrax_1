@@ -18,6 +18,16 @@ export function SignUpScreen({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  React.useEffect(() => {
+    if (timeLeft <= 0) return;
+    const timer = setTimeout(() => {
+      setTimeLeft(t => t - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [timeLeft]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,15 +49,29 @@ export function SignUpScreen({
       return;
     }
 
+    if (timeLeft > 0) {
+      setLocalError(`Too many failed attempts. Try again in ${timeLeft}s`);
+      return;
+    }
+
     try {
       await signUp(email, password, displayName);
       setDisplayName("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
+      setFailedAttempts(0);
       onSignUpSuccess();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Sign up error:", err);
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+      if (newAttempts >= 5) {
+        setTimeLeft(60);
+        setLocalError("Too many failed attempts. Account creation locked for 60 seconds.");
+      } else {
+        setLocalError(err.message || "Failed to create account. Please try again.");
+      }
     }
   };
 
@@ -140,13 +164,15 @@ export function SignUpScreen({
           <button
             type="submit"
             className="auth-button primary"
-            disabled={loading}
+            disabled={loading || timeLeft > 0}
           >
             {loading ? (
               <>
                 <Loader size={18} className="spinner-icon" />
                 Creating account...
               </>
+            ) : timeLeft > 0 ? (
+              `Locked (${timeLeft}s)`
             ) : (
               "Create Account"
             )}

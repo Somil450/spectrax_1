@@ -18,6 +18,16 @@ export function LoginScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  React.useEffect(() => {
+    if (timeLeft <= 0) return;
+    const timer = setTimeout(() => {
+      setTimeLeft(t => t - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [timeLeft]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,13 +38,27 @@ export function LoginScreen({
       return;
     }
 
+    if (timeLeft > 0) {
+      setLocalError(`Too many failed attempts. Try again in ${timeLeft}s`);
+      return;
+    }
+
     try {
       await signIn(email, password);
       setEmail("");
       setPassword("");
+      setFailedAttempts(0);
       onLoginSuccess();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Login error:", err);
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+      if (newAttempts >= 5) {
+        setTimeLeft(60);
+        setLocalError("Too many failed attempts. Account locked for 60 seconds.");
+      } else {
+        setLocalError(err.message || "Invalid credentials. Please try again.");
+      }
     }
   };
 
@@ -107,13 +131,15 @@ export function LoginScreen({
           <button
             type="submit"
             className="auth-button primary"
-            disabled={loading}
+            disabled={loading || timeLeft > 0}
           >
             {loading ? (
               <>
                 <Loader size={18} className="spinner-icon" />
                 Signing in...
               </>
+            ) : timeLeft > 0 ? (
+              `Locked (${timeLeft}s)`
             ) : (
               "Sign In"
             )}
