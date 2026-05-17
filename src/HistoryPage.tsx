@@ -1,6 +1,7 @@
 // src/HistoryPage.tsx
 import React, { useEffect, useState } from "react";
 import { History, Trash2, ArrowLeft, TrendingUp } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import SessionCard from "./SessionCard";
@@ -213,16 +214,35 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
         )}
 
         {/* Session grid */}
+        {/* Chart and Session grid */}
         {!loading && !error && sessions.length > 0 && (
-          <div className="sessions-grid">
-            {sessions.map((session: WorkoutSession) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                onDelete={removeSession}
-              />
-            ))}
-          </div>
+          <>
+            <div className="chart-container" style={{ marginBottom: '30px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <h2 style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px', fontFamily: "'Space Mono', monospace" }}>WEEKLY REP VOLUME</h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={[...sessions].reverse().slice(-7)} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="timestamp" stroke="#475569" fontSize={10} tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { weekday: 'short' })} />
+                  <YAxis stroke="#475569" fontSize={10} />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                    contentStyle={{ background: '#080c14', border: '1px solid rgba(34, 211, 160, 0.2)', borderRadius: '8px', color: '#fff' }}
+                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                  />
+                  <Bar dataKey="totalReps" name="Total Reps" fill="var(--neon-cyan, #06b6d4)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="sessions-grid">
+              {sessions.map((session: WorkoutSession) => (
+                <SessionCard
+                  key={session.id}
+                  session={session}
+                  onDelete={removeSession}
+                />
+              ))}
+            </div>
+          </>
         )}
       </main>
 
