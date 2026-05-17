@@ -71,11 +71,17 @@ export class OverlayRenderer {
       color: '#ffffff',
       fillColor: (data: any) => {
           // Highlight primary joints with stronger color
-          return primaryJoints.includes(data.index!) ? color : 'rgba(255,255,255,0.5)';
+          if (primaryJoints.includes(data.index!)) return color;
+          
+          if (data.index! >= 11) {
+            if (data.index! % 2 !== 0) return 'rgba(0, 240, 255, 0.8)'; // Neon Blue (Left)
+            if (data.index! % 2 === 0) return 'rgba(157, 78, 221, 0.8)'; // Neon Purple (Right)
+          }
+          return 'rgba(255,255,255,0.5)';
       },
       lineWidth: 1,
       radius: (data: any) => {
-        return primaryJoints.includes(data.index!) ? 6 : 2;
+        return primaryJoints.includes(data.index!) ? 6 : 3;
       }
     });
 
