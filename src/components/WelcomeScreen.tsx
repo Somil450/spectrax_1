@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Play, Sparkles, History } from 'lucide-react';
 
+
+
 interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
@@ -77,7 +79,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, onViewHis
 
   return (
     <div className="screen-container welcome-screen" style={{
-      justifyContent: 'center', alignItems: 'center', textAlign: 'center'
+      justifyContent: 'center', alignItems: 'center', textAlign: 'center', minHeight: '200vh'
     }}>
 
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, opacity: 0.6 }} />
@@ -130,6 +132,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, onViewHis
 
       <div style={{ position: 'absolute', bottom: '40px', left: '0', right: '0', color: 'var(--text-dim)', fontSize: '0.7rem', letterSpacing: '4px', textTransform: 'uppercase' }}>
         Precision Performance Research Lab
+      </div>
+      <div style={{ marginTop: '120vh', color: 'white' }}>
+      Scroll Test Area
       </div>
     </div>
   );

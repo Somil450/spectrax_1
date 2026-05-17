@@ -8,6 +8,7 @@ import { exercises, ExerciseConfig } from './config/exercises';
 import { BodyType } from './services/bodyTypeEngine';
 import { useTheme } from './context/ThemeContext';
 import HistoryPage from "./HistoryPage";
+import BackToTopButton from './components/BackToTopButton';
 
 type Screen = 'welcome' | 'calibration' | 'workout' | 'summary' | 'replay' | 'history';
 
@@ -70,59 +71,69 @@ function App() {
   };
 
   return (
-    <main className="spectrax-app" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
-      <button
-        onClick={toggleTheme}
-        className="theme-toggle"
-        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-      >
-        {theme === 'dark' ? '☾ Dark Mode' : '☀ Light Mode'}
-      </button>
+  <main
+    className="spectrax-app"
+    style={{
+      background: 'var(--bg-primary)',
+      minHeight: '100vh'
+    }}
+  >
+    <button
+      onClick={toggleTheme}
+      className="theme-toggle"
+      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+    >
+      {theme === 'dark' ? '☾ Dark Mode' : '☀ Light Mode'}
+    </button>
 
-
-      
-      {currentScreen === 'welcome' && (
+    {currentScreen === 'welcome' && (
       <WelcomeScreen
         onStart={() => navigateTo('calibration')}
-        onViewHistory={() => navigateTo('history')}  // add this
-       />
-      )}
-      
-      {currentScreen === 'calibration' && (
-        <CalibrationScreen 
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo('workout')} 
-          onBack={() => navigateTo('welcome')}
-          onBodyTypeDetected={setBodyType} 
-        />
-      )}
-      
-      {currentScreen === 'workout' && (
-        <WorkoutScreen 
-          exercise={selectedExercise}
-          onEnd={handleWorkoutEnd} 
-          onAutoDetect={handleAutoDetect}
-          bodyType={bodyType}
-        />
-      )}
-      
-      {currentScreen === 'summary' && (
-        <SummaryScreen 
-          stats={stats}
-          onRestart={() => navigateTo('welcome')} 
-          onViewReplay={() => navigateTo('replay')} 
-        />
-      )}
-      
-      {currentScreen === 'replay' && (
-      <ReplayScreen onBack={() => navigateTo('summary')} stats={stats} />
-      )}
-      {currentScreen === 'history' && (
+        onViewHistory={() => navigateTo('history')}
+      />
+    )}
+
+    {currentScreen === 'calibration' && (
+      <CalibrationScreen
+        selectedExercise={selectedExercise}
+        onSelectExercise={handleSelectExercise}
+        onNext={() => navigateTo('workout')}
+        onBack={() => navigateTo('welcome')}
+        onBodyTypeDetected={setBodyType}
+      />
+    )}
+
+    {currentScreen === 'workout' && (
+      <WorkoutScreen
+        exercise={selectedExercise}
+        onEnd={handleWorkoutEnd}
+        onAutoDetect={handleAutoDetect}
+        bodyType={bodyType}
+      />
+    )}
+
+    {currentScreen === 'summary' && (
+      <SummaryScreen
+        stats={stats}
+        onRestart={() => navigateTo('welcome')}
+        onViewReplay={() => navigateTo('replay')}
+      />
+    )}
+
+    {currentScreen === 'replay' && (
+      <ReplayScreen
+        onBack={() => navigateTo('summary')}
+        stats={stats}
+      />
+    )}
+
+    {currentScreen === 'history' && (
       <HistoryPage onBack={() => navigateTo('welcome')} />
-      )}
-    </main>
-  );
+    )}
+
+    <BackToTopButton />
+  </main>
+);
 }
 
 export default App;
