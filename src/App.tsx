@@ -1,15 +1,22 @@
-import { useState, useRef } from 'react';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import { CalibrationScreen } from './components/CalibrationScreen';
-import { WorkoutScreen } from './components/WorkoutScreen';
-import { SummaryScreen } from './components/SummaryScreen';
-import { ReplayScreen } from './components/ReplayScreen';
-import { exercises, ExerciseConfig } from './config/exercises';
-import { BodyType } from './services/bodyTypeEngine';
-import { useTheme } from './context/ThemeContext';
+import { useState, useRef } from "react";
+import { WelcomeScreen } from "./components/WelcomeScreen";
+import { CalibrationScreen } from "./components/CalibrationScreen";
+import { WorkoutScreen } from "./components/WorkoutScreen";
+import { SummaryScreen } from "./components/SummaryScreen";
+import { ReplayScreen } from "./components/ReplayScreen";
+import { exercises, ExerciseConfig } from "./config/exercises";
+import { BodyType } from "./services/bodyTypeEngine";
+import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
+import { SummaryScreenSkeleton } from   './components/SummaryScreenSkeleton';
 
-type Screen = 'welcome' | 'calibration' | 'workout' | 'summary' | 'replay' | 'history';
+type Screen =
+  | "welcome"
+  | "calibration"
+  | "workout"
+  | "summary"
+  | "replay"
+  | "history";
 
 interface WorkoutStats {
   reps: number;
@@ -25,30 +32,37 @@ interface WorkoutStats {
 }
 
 function App() {
-  const { theme, toggleTheme } = useTheme(); 
-  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(exercises.squat);
-  const [bodyType, setBodyType] = useState<BodyType>('scanning');
-  const [stats, setStats] = useState<WorkoutStats>({ 
-    reps: 0, 
+  const { theme, toggleTheme } = useTheme();
+  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
+    exercises.squat,
+  );
+  const [bodyType, setBodyType] = useState<BodyType>("scanning");
+  const [stats, setStats] = useState<WorkoutStats>({
+    reps: 0,
     totalReps: 0,
     correctReps: 0,
     repScores: [],
-    duration: 0, 
-    accuracy: 0, 
+    duration: 0,
+    accuracy: 0,
     exerciseName: exercises.squat.name,
     mistakes: {},
-    bestStreak: 0
+    bestStreak: 0,
   });
+
+  const [statsLoading, setStatsLoading] = useState(false);
+
   const lastSwitchTime = useRef<number>(0);
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
   };
 
-  const handleWorkoutEnd = (finalStats: Omit<WorkoutStats, 'exerciseName'> & { tags?: string[] }) => {
+  const handleWorkoutEnd = (
+    finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
+  ) => {
     setStats({ ...finalStats, exerciseName: selectedExercise.name });
-    navigateTo('summary');
+    navigateTo("summary");
   };
 
   const handleAutoDetect = (exerciseKey: string) => {
@@ -70,56 +84,60 @@ function App() {
   };
 
   return (
-    <main className="spectrax-app" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
+    <main
+      className="spectrax-app"
+      style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
+    >
       <button
         onClick={toggleTheme}
         className="theme-toggle"
-        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       >
-        {theme === 'dark' ? '☾ Dark Mode' : '☀ Light Mode'}
+        {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
       </button>
 
-
-      
-      {currentScreen === 'welcome' && (
-      <WelcomeScreen
-        onStart={() => navigateTo('calibration')}
-        onViewHistory={() => navigateTo('history')}  // add this
-       />
-      )}
-      
-      {currentScreen === 'calibration' && (
-        <CalibrationScreen 
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo('workout')} 
-          onBack={() => navigateTo('welcome')}
-          onBodyTypeDetected={setBodyType} 
+      {currentScreen === "welcome" && (
+        <WelcomeScreen
+          onStart={() => navigateTo("calibration")}
+          onViewHistory={() => navigateTo("history")} // add this
         />
       )}
-      
-      {currentScreen === 'workout' && (
-        <WorkoutScreen 
+
+      {currentScreen === "calibration" && (
+        <CalibrationScreen
+          selectedExercise={selectedExercise}
+          onSelectExercise={handleSelectExercise}
+          onNext={() => navigateTo("workout")}
+          onBack={() => navigateTo("welcome")}
+          onBodyTypeDetected={setBodyType}
+        />
+      )}
+
+      {currentScreen === "workout" && (
+        <WorkoutScreen
           exercise={selectedExercise}
-          onEnd={handleWorkoutEnd} 
+          onEnd={handleWorkoutEnd}
           onAutoDetect={handleAutoDetect}
           bodyType={bodyType}
         />
       )}
-      
-      {currentScreen === 'summary' && (
-        <SummaryScreen 
-          stats={stats}
-          onRestart={() => navigateTo('welcome')} 
-          onViewReplay={() => navigateTo('replay')} 
-        />
+
+      {currentScreen === "summary" &&
+        (statsLoading ? (
+          <SummaryScreenSkeleton />
+        ) : (
+          <SummaryScreen
+            stats={stats}
+            onRestart={() => navigateTo("welcome")}
+            onViewReplay={() => navigateTo("replay")}
+          />
+        ))}
+
+      {currentScreen === "replay" && (
+        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
       )}
-      
-      {currentScreen === 'replay' && (
-      <ReplayScreen onBack={() => navigateTo('summary')} stats={stats} />
-      )}
-      {currentScreen === 'history' && (
-      <HistoryPage onBack={() => navigateTo('welcome')} />
+      {currentScreen === "history" && (
+        <HistoryPage onBack={() => navigateTo("welcome")} />
       )}
     </main>
   );
