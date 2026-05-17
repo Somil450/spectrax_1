@@ -21,7 +21,7 @@ export function calculateAngle(
   return angle;
 }
 
-function getBestSide(landmarks: any): 'left' | 'right' {
+function getBestSide(landmarks: NormalizedLandmark[]): 'left' | 'right' {
   const leftIndices = [11, 13, 15, 23, 25, 27];
   const rightIndices = [12, 14, 16, 24, 26, 28];
 
@@ -31,7 +31,7 @@ function getBestSide(landmarks: any): 'left' | 'right' {
   return leftVis >= rightVis ? 'left' : 'right';
 }
 
-export function getJointAngles(landmarks: any): Record<string, number> {
+export function getJointAngles(landmarks: NormalizedLandmark[]): Record<string, number> {
   if (!landmarks) return {};
   const side = getBestSide(landmarks);
   
@@ -67,7 +67,7 @@ export function getJointAngles(landmarks: any): Record<string, number> {
   };
 }
 
-export function getJointVisibility(landmarks: any): Record<string, number> {
+export function getJointVisibility(landmarks: NormalizedLandmark[]): Record<string, number> {
   if (!landmarks) return {};
   const side = getBestSide(landmarks);
   
