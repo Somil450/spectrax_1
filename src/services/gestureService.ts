@@ -16,6 +16,7 @@ export interface GestureResult {
   isPoseLost: boolean;
   isThumbsUp?: boolean;
   isThumbsDown?: boolean;
+  isCrossedArms?: boolean;
   swipeDirection?: 'left' | 'right' | null;
   event?: GestureEvent | null;
 }
@@ -104,6 +105,7 @@ class GestureService {
         isPoseLost: true,
         isThumbsUp: false,
         isThumbsDown: false,
+        isCrossedArms: false,
         swipeDirection: null,
         event: 'poseLost',
       };
@@ -132,6 +134,7 @@ class GestureService {
         isPoseLost: true,
         isThumbsUp: false,
         isThumbsDown: false,
+        isCrossedArms: false,
         swipeDirection: null,
         event: 'poseLost',
       };
@@ -173,7 +176,29 @@ class GestureService {
     const isThumbsDownDetected = leftThumbsDown || rightThumbsDown;
     const swipeDirection = this.detectSwipe(landmarks);
 
-    this.frameBuffer.push(bothHandsRaised || isThumbsUpDetected);
+    let isCrossedArms = false;
+    const leftWrist = landmarks[leftWristIdx];
+    const rightWrist = landmarks[rightWristIdx];
+    const leftShoulder = landmarks[leftShoulderIdx];
+    const leftHip = landmarks[leftHipIdx];
+
+    if (leftWrist && rightWrist && leftShoulder && leftHip) {
+      if (
+        leftWrist.visibility > VISIBILITY_THRESHOLD &&
+        rightWrist.visibility > VISIBILITY_THRESHOLD
+      ) {
+        const wristDistX = Math.abs(leftWrist.x - rightWrist.x);
+        const wristDistY = Math.abs(leftWrist.y - rightWrist.y);
+        const isBetweenShoulderAndHip =
+          leftWrist.y > leftShoulder.y && leftWrist.y < leftHip.y;
+
+        if (wristDistX < 0.15 && wristDistY < 0.15 && isBetweenShoulderAndHip) {
+          isCrossedArms = true;
+        }
+      }
+    }
+
+    this.frameBuffer.push(bothHandsRaised || isThumbsUpDetected || isCrossedArms);
     if (this.frameBuffer.length > this.bufferSize) {
       this.frameBuffer.shift();
     }
@@ -213,6 +238,7 @@ class GestureService {
       isPoseLost: false,
       isThumbsUp: isThumbsUpDetected,
       isThumbsDown: isThumbsDownDetected,
+      isCrossedArms,
       swipeDirection,
       event,
     };
