@@ -79,46 +79,57 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, onViewHis
     <div className="screen-container welcome-screen" style={{
       justifyContent: 'center', alignItems: 'center', textAlign: 'center'
     }}>
-
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, opacity: 0.6 }} />
 
       <div className="animate-in" style={{ position: 'relative', zIndex: 10 }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(0, 240, 255, 0.2)', background: 'rgba(0, 240, 255, 0.05)', marginBottom: '24px' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '8px 16px', borderRadius: '20px',
+          border: '1px solid rgba(0, 240, 255, 0.2)',
+          background: 'rgba(0, 240, 255, 0.05)', marginBottom: '24px'
+        }}>
           <Sparkles size={14} color="var(--neon-cyan)" />
-          <span style={{ fontSize: '0.65rem', letterSpacing: '2px', color: 'var(--neon-cyan)', fontWeight: 700 }}>AI CALIBRATION SYSTEM 2.0</span>
+          <span style={{ fontSize: '0.65rem', letterSpacing: '2px', color: 'var(--neon-cyan)', fontWeight: 700 }}>
+            AI CALIBRATION SYSTEM 2.0
+          </span>
         </div>
 
         <h1 style={{
-          fontFamily: 'var(--font-heading)', fontSize: 'clamp(3rem, 12vw, 6rem)', fontWeight: 900,
-          letterSpacing: '12px', color: 'var(--neon-cyan)', textShadow: '0 0 30px rgba(0,240,255,0.7)',
-          margin: '20px 0'
+          fontFamily: 'var(--font-heading)', fontSize: 'clamp(3rem, 12vw, 6rem)',
+          fontWeight: 900, letterSpacing: '12px', color: 'var(--neon-cyan)',
+          textShadow: '0 0 30px rgba(0,240,255,0.7)', margin: '20px 0'
         }}>
           SPECTRAX
         </h1>
 
-        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', letterSpacing: '3px', fontWeight: 300, marginBottom: '48px' }}>
-          Real-time Pose Tracking & Performance Analysis
+        <p style={{
+          color: 'var(--text-secondary)', fontSize: '1rem',
+          letterSpacing: '3px', fontWeight: 300, marginBottom: '48px'
+        }}>
+          Real-time Pose Tracking and Performance Analysis
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-          <button onClick={onStart} className="btn-neon">
+          <button onClick={onStart} className="btn-neon" data-tour="start-button">
             INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
           </button>
 
-          <button onClick={onViewHistory} style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            background: 'transparent',
-            border: '1px solid rgba(0, 240, 255, 0.25)',
-            borderRadius: '8px',
-            color: 'var(--neon-cyan)',
-            cursor: 'pointer',
-            padding: '10px 24px',
-            fontSize: '0.75rem',
-            letterSpacing: '2px',
-            fontWeight: 600,
-            opacity: 0.75,
-            transition: 'opacity 0.2s ease, border-color 0.2s ease',
-          }}
+          <button
+            onClick={onViewHistory}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              background: 'transparent',
+              border: '1px solid rgba(0, 240, 255, 0.25)',
+              borderRadius: '8px',
+              color: 'var(--neon-cyan)',
+              cursor: 'pointer',
+              padding: '10px 24px',
+              fontSize: '0.75rem',
+              letterSpacing: '2px',
+              fontWeight: 600,
+              opacity: 0.75,
+              transition: 'opacity 0.2s ease, border-color 0.2s ease',
+            }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '0.75')}
           >
@@ -128,7 +139,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onStart, onViewHis
         </div>
       </div>
 
-      <div style={{ position: 'absolute', bottom: '40px', left: '0', right: '0', color: 'var(--text-dim)', fontSize: '0.7rem', letterSpacing: '4px', textTransform: 'uppercase' }}>
+      <div style={{
+        position: 'absolute', bottom: '40px', left: '0', right: '0',
+        color: 'var(--text-dim)', fontSize: '0.7rem',
+        letterSpacing: '4px', textTransform: 'uppercase'
+      }}>
         Precision Performance Research Lab
       </div>
     </div>

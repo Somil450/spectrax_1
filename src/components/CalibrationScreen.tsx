@@ -206,7 +206,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
             </div>
           </div>
 
-          <div className="glass" style={{ padding: '16px', minWidth: '240px' }}>
+          <div className="glass" style={{ padding: '16px', minWidth: '240px', overflow: 'visible' }}>
              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Dumbbell size={14} color="var(--neon-purple)" />
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>

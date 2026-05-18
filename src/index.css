@@ -242,3 +242,37 @@ body {
   transition: background 0.3s ease;
 }
 
+/* Fix tooltip content visibility */
+.__floater__body,
+.__floater__body *,
+.react-joyride__tooltip,
+.react-joyride__tooltip * {
+  color: #ffffff !important;
+  background-color: #0d1127 !important;
+}
+
+.react-joyride__tooltip h4,
+.react-joyride__tooltip [class*="title"] {
+  color: #00f0ff !important;
+  font-weight: 700 !important;
+  letter-spacing: 2px !important;
+}
+
+.react-joyride__tooltip [class*="content"] {
+  color: #ffffff !important;
+}
+
+[data-test-id="button-primary"] {
+  background-color: #00f0ff !important;
+  color: #000000 !important;
+  border-radius: 6px !important;
+  font-weight: 700 !important;
+}
+
+[data-test-id="button-skip"] {
+  color: #a855f7 !important;
+  border: 1px solid #a855f7 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  font-weight: 700 !important;
+}

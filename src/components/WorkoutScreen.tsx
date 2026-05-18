@@ -7,25 +7,24 @@ import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
-import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
+import { skeletalSense } from '../services/skeletalSense';
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 
-// ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
   new Worker(new URL('../workers/poseWorker.ts', import.meta.url), { type: 'module' });
 
 interface WorkoutScreenProps {
   exercise: ExerciseConfig;
-  onEnd: (stats: { 
-    reps: number; 
-    totalReps: number; 
-    correctReps: number; 
-    repScores: number[]; 
-    duration: number; 
-    accuracy: number; 
-    mistakes: Record<string, number>; 
+  onEnd: (stats: {
+    reps: number;
+    totalReps: number;
+    correctReps: number;
+    repScores: number[];
+    duration: number;
+    accuracy: number;
+    mistakes: Record<string, number>;
     bestStreak: number;
     tags?: string[];
   }) => void;
@@ -69,13 +68,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const lastProcessTime = useRef<number>(0);
   const countRef = useRef<number>(0);
   const startTimeRef = useRef<number>(Date.now());
-  const frameSkipRef = useRef<number>(0);          // frame-skip counter
-  const workerRef = useRef<Worker | null>(null);    // pose worker
-  const pendingLandmarksRef = useRef<any>(null);    // latest landmarks for worker
+  const frameSkipRef = useRef<number>(0);
+  const workerRef = useRef<Worker | null>(null);
+  const pendingLandmarksRef = useRef<any>(null);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
-  const FPS_LIMIT = 20; // ↑ Raised from 15 → 20 for smoother tracking
+  const FPS_LIMIT = 20;
 
-  // Use refs for real-time logic to avoid state lags in the pose callback
   const mutableState = useRef<EngineState>({
     reps: 0,
     stage: 'up',
@@ -101,29 +99,24 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100
   });
 
-
   useEffect(() => {
     let isMounted = true;
+    startTimeRef.current = Date.now();
 
-      startTimeRef.current = Date.now();
-
-    // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
     let workerAngles: Record<string, number> = {};
 
-    // Worker posts back computed angles — exercise detection stays on main thread
     worker.onmessage = (evt: MessageEvent) => {
       const { angles } = evt.data;
       workerAngles = angles;
     };
 
-    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
     let wsSocket: WebSocket | null = null;
     try {
       wsSocket = new WebSocket('ws://localhost:3001/socket.io/?EIO=4&transport=websocket');
       wsSocket.onopen = () => console.log('[SpectraX WS] connected to backend');
-      wsSocket.onerror = () => { wsSocket = null; }; // Silently degrade if backend offline
+      wsSocket.onerror = () => { wsSocket = null; };
     } catch (_) { wsSocket = null; }
 
     const startWorkout = async () => {
@@ -154,14 +147,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         poseService.onResults(async (results) => {
           if (!isMounted) return;
 
-          // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
           const filteredResults = poseLockService.filter(results);
           if (!filteredResults || !filteredResults.poseLandmarks) return;
 
-          // ── Frame skipping: process every other frame ─────────────────────
           frameSkipRef.current++;
           if (frameSkipRef.current % 2 !== 0) {
-            // Still render overlay on skipped frames for smooth display
             if (!offscreenEnabled) {
               const primaryJoints = exercise.joints?.flat() || [];
               overlayRenderer.draw(results, mutableState.current.status, primaryJoints);
@@ -169,7 +159,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             return;
           }
 
-          // ── SKELETAL SENSE: auto-detect & mismatch (main thread, lightweight) ──
           const skeletalResult = skeletalSense.analyze(results.poseLandmarks);
           if (skeletalResult && skeletalResult.confidence > 0.85) {
             const label = skeletalResult.label.toLowerCase();
@@ -189,10 +178,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             }
           }
 
-          // ── Offload angle computation to Web Worker ────────────────────────
           pendingLandmarksRef.current = results.poseLandmarks;
           const primaryJoints = exercise.joints?.flat() || [];
-          
+
           worker.postMessage({
             landmarks: results.poseLandmarks,
             exercise: exercise.key,
@@ -201,24 +189,21 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             primaryJoints: primaryJoints
           });
 
-          // Use last worker result for angles (may be 1 frame stale — acceptable)
           const angles = Object.keys(workerAngles).length > 0
             ? workerAngles
-            : getJointAngles(results.poseLandmarks); // Fallback if worker not ready yet
+            : getJointAngles(results.poseLandmarks);
 
           const visibility = getJointVisibility(results.poseLandmarks);
 
-          // Adjust structural thresholds dynamically based on active detected body type
           const activeConfig = { ...exercise };
           if (bodyType === 'endo' && activeConfig.key === 'squat') {
-            activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
+            activeConfig.downThreshold += 5;
           } else if (bodyType === 'ecto' && activeConfig.key === 'squat') {
-            activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
+            activeConfig.downThreshold -= 5;
           } else if (bodyType === 'endo' && activeConfig.key === 'pushup') {
-            activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
+            activeConfig.downThreshold -= 5;
           }
 
-          // 2. Process through multi-exercise engine (stays on main thread — manages state)
           const nextState = await exerciseEngine.process(activeConfig, angles, visibility, mutableState.current);
 
           mutableState.current = nextState;
@@ -232,7 +217,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             exercise: exercise.key
           });
 
-          // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
           if (!offscreenEnabled) {
             overlayRenderer.draw(results, nextState.status, primaryJoints);
           }
@@ -270,10 +254,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     startWorkout();
 
     const timer = setInterval(() => {
-      const elapsed = Math.floor(
-        (Date.now() - startTimeRef.current) / 1000
-      );
-      
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
       setSeconds(elapsed);
     }, 1000);
 
@@ -281,7 +262,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       isMounted = false;
       cancelAnimationFrame(frameId.current);
       worker.terminate();
-      if (wsSocket) { try { wsSocket.close(); } catch(_) {} }
+      if (wsSocket) { try { wsSocket.close(); } catch (_) {} }
       cameraService.stopCamera();
       clearInterval(timer);
     };
@@ -318,12 +299,21 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     return `${mins}:${secs}`;
   };
 
-  const statusColor = engineState.status === 'green' ? 'var(--neon-green)' : (engineState.status === 'yellow' ? 'var(--neon-yellow)' : 'var(--neon-red)');
+  const statusColor = engineState.status === 'green'
+    ? 'var(--neon-green)'
+    : engineState.status === 'yellow'
+      ? 'var(--neon-yellow)'
+      : 'var(--neon-red)';
 
   return (
     <div className="screen-container" style={{ background: 'var(--bg-primary)' }}>
-      {/* Background Video Layer */}
-      <div className="camera-viewport" style={{ position: 'absolute', inset: 0 }}>
+
+      {/* ✅ data-tour moved to wrapper div */}
+      <div
+        className="camera-viewport"
+        data-tour="camera-feed"
+        style={{ position: 'absolute', inset: 0 }}
+      >
         <video
           ref={videoRef}
           playsInline
@@ -338,11 +328,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         />
       </div>
 
-      {/* Model Loading Status Overlay */}
       {clipEngine.isBusy() && (
         <div style={{
           position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0,0,0,0.8)', padding: '10px 20px', borderRadius: '30px', 
+          background: 'rgba(0,0,0,0.8)', padding: '10px 20px', borderRadius: '30px',
           zIndex: 100, color: 'var(--neon-cyan)', border: '1px solid var(--neon-cyan)',
           fontSize: '0.65rem', fontWeight: 800, letterSpacing: '2px'
         }}>
@@ -350,7 +339,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       )}
 
-      {/* Top Header Controls */}
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', padding: '30px', pointerEvents: 'none' }}>
         <div className="glass animate-in" style={{ padding: '16px 24px' }}>
           <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Session Focus</div>
@@ -365,7 +353,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       </div>
 
-      {/* MID-SET MISMATCH ALERT */}
       {mismatchError && (
         <div style={{
           position: 'absolute', top: 200, left: '50%', transform: 'translateX(-50%)',
@@ -380,7 +367,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       )}
 
-      {/* Center Focus Area */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', pointerEvents: 'none' }}>
         <div className="glass animate-in" style={{
           padding: '24px 40px',
@@ -408,10 +394,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       </div>
 
-      {/* Bottom Metrics Bar */}
-      <div style={{ position: 'relative', zIndex: 10, padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+      {/* ✅ data-tour="stats-panel" wraps the entire bottom section */}
+      <div
+        data-tour="stats-panel"
+        style={{ position: 'relative', zIndex: 10, padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}
+      >
         <div className="rep-counter" style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '7rem', fontWeight: 900, lineHeight: 1, color: '#fff', textShadow: `0 0 40px ${statusColor}44` }}>{engineState.reps}</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '7rem', fontWeight: 900, lineHeight: 1, color: '#fff', textShadow: `0 0 40px ${statusColor}44` }}>
+            {engineState.reps}
+          </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '4px', textTransform: 'uppercase' }}>Repetitions</div>
         </div>
 
@@ -427,20 +418,27 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               <div className="glass animate-in" style={{ padding: '12px 20px', borderLeft: '3px solid #9D4EDD', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div className="radar-ping" style={{ width: '8px', height: '8px', background: '#9D4EDD', borderRadius: '50%' }}></div>
                 <div style={{ fontSize: '0.75rem', color: '#9D4EDD', fontWeight: 700 }}>
-                  VLM SENSE: {clipEngine.getMode() === 'cloud' ? (clipResult ? `CLOUD: ${clipResult.label.toUpperCase()}` : 'CLOUD ACTIVATING...') : (clipResult ? clipResult.label.toUpperCase() : 'SCANNING...')} ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
+                  VLM SENSE: {clipEngine.getMode() === 'cloud'
+                    ? (clipResult ? `CLOUD: ${clipResult.label.toUpperCase()}` : 'CLOUD ACTIVATING...')
+                    : (clipResult ? clipResult.label.toUpperCase() : 'SCANNING...')} ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
                 </div>
               </div>
             ) : (
-                <div className="glass animate-in" style={{ padding: '12px 20px', borderLeft: '3px solid var(--neon-cyan)' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--neon-cyan)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                     <div className="radar-ping loading" style={{ width: '8px', height: '8px', background: 'var(--neon-cyan)', borderRadius: '50%' }}></div>
-                    OFFLINE AI SENSE: READY
-                  </div>
+              <div className="glass animate-in" style={{ padding: '12px 20px', borderLeft: '3px solid var(--neon-cyan)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--neon-cyan)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="radar-ping loading" style={{ width: '8px', height: '8px', background: 'var(--neon-cyan)', borderRadius: '50%' }}></div>
+                  OFFLINE AI SENSE: READY
                 </div>
+              </div>
             )}
           </div>
 
-          <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
+          {/* ✅ data-tour="start-button" removed from here */}
+          <button
+            onClick={handleEnd}
+            className="btn-neon"
+            style={{ background: 'var(--neon-red)', color: '#fff' }}
+          >
             FINISH SESSION <StopCircle size={18} />
           </button>
         </div>
