@@ -1,6 +1,7 @@
 // src/SessionCard.tsx
-import React, { useState } from "react";
-import { Trash2, Clock, Zap, Target, Calendar } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { toPng } from "html-to-image";
+import { Trash2, Clock, Zap, Target, Calendar, Share2 } from "lucide-react";
 import type { WorkoutSession } from "./useWorkoutHistory";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,6 +43,39 @@ interface SessionCardProps {
 
 const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const handleShare = async () => {
+    if (!cardRef.current || sharing) return;
+    setSharing(true);
+    try {
+      const dataUrl = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2 });
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `spectrax-${session.exerciseType}.png`, { type: 'image/png' });
+      const shareText = `${session.exerciseType}: ${session.totalReps} reps at ${session.accuracyScore}% accuracy!`;
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: 'SpectraX Workout',
+          text: shareText,
+          files: [file],
+        });
+      } else if (navigator.share) {
+        await navigator.share({ title: 'SpectraX Workout', text: shareText });
+      } else {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `spectrax-${session.id}.png`;
+        link.click();
+      }
+    } catch {
+      // User cancelled share or capture failed silently
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const handleDeleteClick = () => {
     if (confirmDelete) {
@@ -55,7 +89,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
   const color = accuracyColor(session.accuracyScore);
 
   return (
-    <div className="session-card">
+    <div className="session-card" ref={cardRef}>
       {/* Left accent bar colored by accuracy */}
       <div className="card-accent" style={{ background: color }} />
 
@@ -64,7 +98,18 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
         <div className="card-header">
           <span className="exercise-badge">{session.exerciseType}</span>
 
-          <button
+          <div className="card-actions">
+            <button
+              className="share-btn"
+              onClick={handleShare}
+              disabled={sharing}
+              title="Share workout"
+              aria-label="Share workout"
+            >
+              <Share2 size={15} />
+            </button>
+
+            <button
             className={`delete-btn ${confirmDelete ? "confirm" : ""}`}
             onClick={handleDeleteClick}
             title={confirmDelete ? "Click again to confirm" : "Delete session"}
@@ -73,6 +118,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
             <Trash2 size={15} />
             {confirmDelete && <span className="confirm-label">Confirm?</span>}
           </button>
+          </div>
         </div>
 
         {/* Stats grid */}
@@ -129,6 +175,30 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           display: flex;
           justify-content: space-between;
           align-items: center;
+        }
+        .card-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .share-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 240, 255, 0.08);
+          border: 1px solid rgba(0, 240, 255, 0.25);
+          border-radius: 7px;
+          color: #00f0ff;
+          cursor: pointer;
+          padding: 4px 8px;
+          transition: all 0.15s ease;
+        }
+        .share-btn:hover:not(:disabled) {
+          background: rgba(0, 240, 255, 0.15);
+        }
+        .share-btn:disabled {
+          opacity: 0.5;
+          cursor: wait;
         }
         .exercise-badge {
           font-family: 'Space Mono', monospace;

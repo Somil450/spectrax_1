@@ -17,12 +17,24 @@ export interface ClipResult {
   confidence: number;
 }
 
+export interface ManualHighlightClip {
+  id: string;
+  timestamp: number;
+  label: string;
+  blob: Blob;
+  previewUrl: string;
+}
+
 class ClipEngine {
-  private classifier: any = null;
+  private classifier: unknown = null;
   private isLoading = false;
   private isAnalyzing = false;
   private mode: 'local' | 'cloud' = 'cloud';
   private progress = 0; // 0 to 100
+  private manualClips: ManualHighlightClip[] = [];
+  private frameBuffer: { blob: Blob; timestamp: number }[] = [];
+  private readonly CLIP_WINDOW_MS = 5000;
+  private readonly MAX_BUFFER = 90;
   // Note: For production, this should be in an .env file
   private readonly hfToken: string = ""; // Removed for security
 
@@ -191,6 +203,61 @@ class ClipEngine {
       };
       reader.readAsDataURL(blob);
     });
+  }
+
+  bufferFrame(canvas: HTMLCanvasElement) {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const timestamp = Date.now();
+        this.frameBuffer.push({ blob, timestamp });
+        this.frameBuffer = this.frameBuffer.filter(
+          (f) => timestamp - f.timestamp <= this.CLIP_WINDOW_MS,
+        );
+        if (this.frameBuffer.length > this.MAX_BUFFER) {
+          this.frameBuffer = this.frameBuffer.slice(-this.MAX_BUFFER);
+        }
+      },
+      'image/jpeg',
+      0.7,
+    );
+  }
+
+  saveManualClip(timestamp = Date.now(), label = 'Workout Highlight'): ManualHighlightClip | null {
+    const windowStart = timestamp - this.CLIP_WINDOW_MS / 2;
+    const windowEnd = timestamp + this.CLIP_WINDOW_MS / 2;
+    const frames = this.frameBuffer.filter(
+      (f) => f.timestamp >= windowStart && f.timestamp <= windowEnd,
+    );
+
+    if (!frames.length) return null;
+
+    const clip: ManualHighlightClip = {
+      id: `clip-${timestamp}`,
+      timestamp,
+      label,
+      blob: frames[Math.floor(frames.length / 2)].blob,
+      previewUrl: URL.createObjectURL(frames[Math.floor(frames.length / 2)].blob),
+    };
+
+    this.manualClips.push(clip);
+    return clip;
+  }
+
+  getManualClips(): ManualHighlightClip[] {
+    return [...this.manualClips];
+  }
+
+  removeManualClip(id: string) {
+    const clip = this.manualClips.find((c) => c.id === id);
+    if (clip) URL.revokeObjectURL(clip.previewUrl);
+    this.manualClips = this.manualClips.filter((c) => c.id !== id);
+  }
+
+  clearManualClips() {
+    this.manualClips.forEach((c) => URL.revokeObjectURL(c.previewUrl));
+    this.manualClips = [];
+    this.frameBuffer = [];
   }
 
   generateSessionTags(stats: {

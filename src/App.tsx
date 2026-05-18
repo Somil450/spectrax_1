@@ -1,96 +1,23 @@
-import { useState, useRef } from "react";
-import { WelcomeScreen } from "./components/WelcomeScreen";
-import { CalibrationScreen } from "./components/CalibrationScreen";
-import { WorkoutScreen } from "./components/WorkoutScreen";
-import { SummaryScreen } from "./components/SummaryScreen";
-import { ReplayScreen } from "./components/ReplayScreen";
-import { exercises, ExerciseConfig } from "./config/exercises";
-import { BodyType } from "./services/bodyTypeEngine";
-import { useTheme } from "./context/ThemeContext";
-import HistoryPage from "./HistoryPage";
-import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import { useTheme } from './context/ThemeContext';
+import { useWorkoutFlow } from './context/WorkoutFlowContext';
+import { WelcomeScreen } from './components/WelcomeScreen';
+import { CalibrationScreen } from './components/CalibrationScreen';
+import { WorkoutScreen } from './components/WorkoutScreen';
+import { SummaryScreen } from './components/SummaryScreen';
+import { ReplayScreen } from './components/ReplayScreen';
+import { SummaryScreenSkeleton } from './components/SummaryScreenSkeleton';
+import { LoginScreen } from './components/LoginScreen';
+import { SignUpScreen } from './components/SignUpScreen';
+import { ForgotPasswordScreen } from './components/ForgotPasswordScreen';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import HistoryPage from './HistoryPage';
+import { exercises } from './config/exercises';
 
-type Screen =
-  | "welcome"
-  | "calibration"
-  | "workout"
-  | "summary"
-  | "replay"
-  | "history";
-
-interface WorkoutStats {
-  reps: number;
-  totalReps: number;
-  correctReps: number;
-  repScores: number[];
-  duration: number;
-  accuracy: number;
-  exerciseName: string;
-  mistakes: Record<string, number>;
-  bestStreak: number;
-  tags?: string[];
-}
-
-function App() {
-  const { theme, toggleTheme } = useTheme();
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
-    exercises.squat,
-  );
-  const [bodyType, setBodyType] = useState<BodyType>("scanning");
-  const [stats, setStats] = useState<WorkoutStats>({
-    reps: 0,
-    totalReps: 0,
-    correctReps: 0,
-    repScores: [],
-    duration: 0,
-    accuracy: 0,
-    exerciseName: exercises.squat.name,
-    mistakes: {},
-    bestStreak: 0,
-  });
-
-  const [statsLoading, setStatsLoading] = useState(false);
-
-  const lastSwitchTime = useRef<number>(0);
-
-  const navigateTo = (screen: Screen) => {
-    setCurrentScreen(screen);
-  };
-
-  const handleWorkoutEnd = (
-    finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
-  ) => {
-    setStatsLoading(true);
-    setStats({ ...finalStats, exerciseName: selectedExercise.name });
-    navigateTo("summary");
-
-    // Show skeleton briefly before rendering real summary
-    setTimeout(() => {
-      setStatsLoading(false);
-    }, 1500);
-  };
-
-  const handleAutoDetect = (exerciseKey: string) => {
-    const now = Date.now();
-    // 5-second cooldown
-    if (now - lastSwitchTime.current < 5000) return;
-
-    if (exercises[exerciseKey] && selectedExercise.key !== exerciseKey) {
-      console.log(`CLIP: Auto-switching to ${exerciseKey.toUpperCase()}`);
-      lastSwitchTime.current = now;
-      setSelectedExercise(exercises[exerciseKey]);
-    }
-  };
-
-  const handleSelectExercise = (key: string) => {
-    if (exercises[key]) {
-      setSelectedExercise(exercises[key]);
-    }
-  };
-
-  // Show loading state while auth is being checked
-  if (authLoading) {
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
     return (
       <div className="loading-container">
         <div className="spinner"></div>
@@ -98,89 +25,122 @@ function App() {
       </div>
     );
   }
+  if (user) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
 
-  // If not authenticated, show auth screens
-  if (!user) {
-    return (
-      <main className="spectrax-app">
-        {currentScreen === "login" && (
-          <LoginScreen
-            onLoginSuccess={() => navigateTo("welcome")}
-            onSignUpClick={() => navigateTo("signup")}
-            onForgotPasswordClick={() => navigateTo("forgot-password")}
-          />
-        )}
-        {currentScreen === "signup" && (
-          <SignUpScreen
-            onSignUpSuccess={() => navigateTo("welcome")}
-            onLoginClick={() => navigateTo("login")}
-          />
-        )}
-        {currentScreen === "forgot-password" && (
-          <ForgotPasswordScreen onBack={() => navigateTo("login")} />
-        )}
-      </main>
-    );
-  }
+function AppShell() {
+  const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const {
+    selectedExercise,
+    setSelectedExercise,
+    bodyType,
+    setBodyType,
+    stats,
+    setStats,
+    statsLoading,
+    setStatsLoading,
+    lastSwitchTime,
+  } = useWorkoutFlow();
 
-  // If authenticated, show main app with theme toggle and workout screens
+  const handleWorkoutEnd = (
+    finalStats: Omit<typeof stats, 'exerciseName'> & { tags?: string[] },
+  ) => {
+    setStatsLoading(true);
+    setStats({ ...finalStats, exerciseName: selectedExercise.name });
+    navigate('/summary');
+    window.setTimeout(() => setStatsLoading(false), 1500);
+  };
+
+  const handleAutoDetect = (exerciseKey: string) => {
+    const now = Date.now();
+    if (now - lastSwitchTime.current < 5000) return;
+    if (exercises[exerciseKey] && selectedExercise.key !== exerciseKey) {
+      lastSwitchTime.current = now;
+      setSelectedExercise(exercises[exerciseKey]);
+    }
+  };
+
   return (
-    <main
-      className="spectrax-app"
-      style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
-    >
+    <main className="spectrax-app" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
       <button
         onClick={toggleTheme}
-        className={`theme-toggle ${currentScreen === "workout" ? "workout-active" : ""}`}
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        className="theme-toggle"
+        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
       >
-        {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
+        {theme === 'dark' ? '☾ Dark Mode' : '☀ Light Mode'}
       </button>
 
-      {currentScreen === "welcome" && (
-        <WelcomeScreen
-          onStart={() => navigateTo("calibration")}
-          onViewHistory={() => navigateTo("history")} // add this
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <WelcomeScreen
+              onStart={() => navigate('/calibration')}
+              onViewHistory={() => navigate('/history')}
+            />
+          }
         />
-      )}
-
-      {currentScreen === "calibration" && (
-        <CalibrationScreen
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo("workout")}
-          onBack={() => navigateTo("welcome")}
-          onBodyTypeDetected={setBodyType}
+        <Route
+          path="/calibration"
+          element={
+            <CalibrationScreen
+              selectedExercise={selectedExercise}
+              onSelectExercise={(key) => exercises[key] && setSelectedExercise(exercises[key])}
+              onNext={() => navigate('/workout')}
+              onBack={() => navigate('/')}
+              onBodyTypeDetected={setBodyType}
+            />
+          }
         />
-      )}
-
-      {currentScreen === "workout" && (
-        <WorkoutScreen
-          exercise={selectedExercise}
-          onEnd={handleWorkoutEnd}
-          onAutoDetect={handleAutoDetect}
-          bodyType={bodyType}
+        <Route
+          path="/workout"
+          element={
+            <WorkoutScreen
+              exercise={selectedExercise}
+              onEnd={handleWorkoutEnd}
+              onAutoDetect={handleAutoDetect}
+              bodyType={bodyType}
+            />
+          }
         />
-      )}
-
-      {currentScreen === "summary" &&
-        (statsLoading ? (
-          <SummaryScreenSkeleton />
-        ) : (
-          <SummaryScreen
-            stats={stats}
-            onRestart={() => navigateTo("welcome")}
-            onViewReplay={() => navigateTo("replay")}
-          />
-        ))}
-
-      {currentScreen === "replay" && (
-        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
-      )}
-      {currentScreen === "history" && (
-        <HistoryPage onBack={() => navigateTo("welcome")} />
-      )}
+        <Route
+          path="/summary"
+          element={
+            statsLoading ? (
+              <SummaryScreenSkeleton />
+            ) : (
+              <SummaryScreen
+                stats={stats}
+                onRestart={() => navigate('/')}
+                onViewReplay={() => navigate('/replay')}
+              />
+            )
+          }
+        />
+        <Route
+          path="/replay"
+          element={<ReplayScreen onBack={() => navigate('/summary')} stats={stats} />}
+        />
+        <Route path="/history" element={<HistoryPage onBack={() => navigate('/')} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </main>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<AuthGate><LoginScreen /></AuthGate>} />
+      <Route path="/signup" element={<AuthGate><SignUpScreen /></AuthGate>} />
+      <Route path="/forgot-password" element={<AuthGate><ForgotPasswordScreen /></AuthGate>} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/*" element={<AppShell />} />
+      </Route>
+    </Routes>
   );
 }
 

@@ -1,12 +1,7 @@
-import React from "react";
-import { useAuth } from "../context/AuthContext";
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}
-
-export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
+export function ProtectedRoute() {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -19,8 +14,8 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    return fallback || null;
+    return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 }

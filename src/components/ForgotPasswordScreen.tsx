@@ -1,21 +1,39 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useAuthRateLimit } from "../hooks/useAuthRateLimit";
 import { Mail, Loader, ArrowLeft } from "lucide-react";
 import "../styles/auth.css";
 
 interface ForgotPasswordScreenProps {
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
+  const navigate = useNavigate();
   const { resetPassword, error, clearError, loading } = useAuth();
+  const {
+    isLocked,
+    secondsLeft,
+    recordFailure,
+    recordSuccess,
+    isRateLimitError,
+  } = useAuthRateLimit('forgot-password');
   const [email, setEmail] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (error && isRateLimitError(error)) {
+      recordFailure();
+    }
+  }, [error, isRateLimitError, recordFailure]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+
+    if (isLocked) return;
 
     if (!email) {
       setLocalError("Please enter your email");
@@ -24,10 +42,11 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
 
     try {
       await resetPassword(email);
+      recordSuccess();
       setSuccess(true);
       setEmail("");
-    } catch (err) {
-      console.error("Reset password error:", err);
+    } catch {
+      recordFailure();
     }
   };
 
@@ -36,7 +55,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <button className="back-button" onClick={onBack}>
+        <button className="back-button" onClick={() => { onBack?.(); navigate('/login'); }}>
           <ArrowLeft size={20} />
           Back
         </button>
@@ -62,7 +81,8 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
               className="auth-button primary"
               onClick={() => {
                 setSuccess(false);
-                onBack();
+                onBack?.();
+                navigate('/login');
               }}
             >
               Back to Sign In
@@ -70,7 +90,13 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
           </div>
         ) : (
           <>
-            {displayError && (
+            {isLocked && (
+              <div className="error-alert rate-limit-alert">
+                <span>Too many attempts. Try again in {secondsLeft}s</span>
+              </div>
+            )}
+
+            {displayError && !isLocked && (
               <div className="error-alert">
                 <span>{displayError}</span>
                 <button
@@ -96,7 +122,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || isLocked}
                   />
                 </div>
               </div>
@@ -104,7 +130,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
               <button
                 type="submit"
                 className="auth-button primary"
-                disabled={loading}
+                disabled={loading || isLocked}
               >
                 {loading ? (
                   <>

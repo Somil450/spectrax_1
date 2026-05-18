@@ -279,8 +279,13 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
-  background: radial-gradient(ellipse at 50% 80%, #0f1b3d 0%, #0a0a1a 65%);
+  background: radial-gradient(ellipse at 50% 80%, #0f1b3d 0%, var(--bg-primary) 65%);
   overflow: hidden;
+  color: var(--text-primary);
+}
+
+[data-theme="light"] #welcome-screen {
+  background: radial-gradient(ellipse at 50% 80%, #dbe9ff 0%, var(--bg-primary) 65%);
 }
 
 #welcome-screen .particle-canvas {

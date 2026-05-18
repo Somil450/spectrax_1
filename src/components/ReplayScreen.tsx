@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Play, Pause, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { LayoutDashboard, Play, Pause, CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import { Replay3DModel } from './Replay3DModel';
 import { sessionRecorder } from '../services/sessionRecorder';
+import { exportCanvasHighlight } from '../utils/replayExport';
 
 interface ReplayScreenProps {
   onBack: () => void;
@@ -13,9 +14,11 @@ interface ReplayScreenProps {
 }
 
 export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => {
-  const frames = (sessionRecorder as any).frames || [];
+  const frames = sessionRecorder.frames || [];
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Derive live vectors from current frame
   const currentFrame = frames[currentFrameIdx];
@@ -53,6 +56,18 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
     }, 66); // ~15fps
     return () => clearInterval(interval);
   }, [isPlaying, frames.length]);
+
+  const handleExport = async () => {
+    if (!canvasRef.current || exporting) return;
+    setExporting(true);
+    setIsPlaying(true);
+    try {
+      await exportCanvasHighlight(canvasRef.current, 5000);
+    } finally {
+      setExporting(false);
+      setIsPlaying(false);
+    }
+  };
 
   return (
     <div style={{
@@ -224,6 +239,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
           onFrameChange={setCurrentFrameIdx}
           onPlayToggle={() => setIsPlaying(p => !p)}
           hideControls
+          onCanvasReady={(canvas) => { canvasRef.current = canvas; }}
         />
       </div>
 
@@ -238,21 +254,50 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
         {/* Play/Pause */}
         <button
           onClick={() => setIsPlaying(p => !p)}
+          aria-label={isPlaying ? 'Pause replay' : 'Play replay'}
+          title={isPlaying ? 'Pause' : 'Play'}
           style={{
-            width: '40px', height: '40px',
-            borderRadius: '50%',
+            minWidth: '96px', height: '40px',
+            borderRadius: '20px',
             background: 'var(--neon-purple, #9D4EDD)',
             border: 'none',
             cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            color: '#fff',
+            fontSize: '0.7rem',
+            fontWeight: 700,
+            letterSpacing: '1px',
             boxShadow: '0 0 20px rgba(157,78,221,0.5)',
             transition: 'transform 0.1s ease',
             flexShrink: 0,
+            padding: '0 14px',
           }}
-          onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
-          onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
         >
-          {isPlaying ? <Pause size={16} fill="#fff" color="#fff" /> : <Play size={16} fill="#fff" color="#fff" />}
+          {isPlaying ? <><Pause size={14} /> PAUSE</> : <><Play size={14} /> PLAY</>}
+        </button>
+
+        <button
+          onClick={handleExport}
+          disabled={exporting || !frames.length}
+          aria-label="Export 5 second highlight"
+          title="Export Highlight"
+          style={{
+            minWidth: '110px', height: '40px',
+            borderRadius: '20px',
+            background: 'rgba(0,240,255,0.15)',
+            border: '1px solid rgba(0,240,255,0.4)',
+            cursor: exporting ? 'wait' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            color: 'var(--neon-cyan, #00f0ff)',
+            fontSize: '0.65rem',
+            fontWeight: 700,
+            letterSpacing: '1px',
+            flexShrink: 0,
+            padding: '0 12px',
+          }}
+        >
+          <Download size={14} />
+          {exporting ? 'EXPORTING...' : 'EXPORT'}
         </button>
 
         {/* Scrubber */}

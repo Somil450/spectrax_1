@@ -155,13 +155,29 @@ function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[])
   });
 }
 
+function cleanupResources() {
+  if (offscreenCtx) {
+    offscreenCtx.clearRect(0, 0, offscreenCtx.canvas.width, offscreenCtx.canvas.height);
+    offscreenCtx = null;
+  }
+  scanY = 0;
+  scanDirection = 1;
+}
+
 // ─── Message handler ──────────────────────────────────────────────────────────
 self.onmessage = (event: MessageEvent) => {
   const { type, canvas, landmarks, status, primaryJoints, frameId } = event.data;
 
+  if (type === 'cleanup' || type === 'terminate') {
+    cleanupResources();
+    if (type === 'terminate') {
+      self.close();
+    }
+    return;
+  }
+
   if (type === 'initCanvas') {
     offscreenCtx = canvas.getContext('2d');
-    console.log("[PoseWorker] OffscreenCanvas initialized.");
     return;
   }
 

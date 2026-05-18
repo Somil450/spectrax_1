@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useAuthRateLimit } from "../hooks/useAuthRateLimit";
 import { Mail, Lock, Loader } from "lucide-react";
 import "../styles/auth.css";
 
 interface LoginScreenProps {
-  onLoginSuccess: () => void;
-  onSignUpClick: () => void;
-  onForgotPasswordClick: () => void;
+  onLoginSuccess?: () => void;
+  onSignUpClick?: () => void;
+  onForgotPasswordClick?: () => void;
 }
 
 export function LoginScreen({
@@ -14,14 +16,32 @@ export function LoginScreen({
   onSignUpClick,
   onForgotPasswordClick,
 }: LoginScreenProps) {
+  const navigate = useNavigate();
   const { signIn, signInWithGoogle, error, clearError, loading } = useAuth();
+  const {
+    isLocked,
+    secondsLeft,
+    attempts,
+    maxAttempts,
+    recordFailure,
+    recordSuccess,
+    isRateLimitError,
+  } = useAuthRateLimit('login');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (error && isRateLimitError(error)) {
+      recordFailure();
+    }
+  }, [error, isRateLimitError, recordFailure]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+
+    if (isLocked) return;
 
     if (!email || !password) {
       setLocalError("Please fill in all fields");
@@ -30,25 +50,31 @@ export function LoginScreen({
 
     try {
       await signIn(email, password);
+      recordSuccess();
       setEmail("");
       setPassword("");
-      onLoginSuccess();
-    } catch (err) {
-      console.error("Login error:", err);
+      onLoginSuccess?.();
+      navigate("/");
+    } catch {
+      recordFailure();
     }
   };
 
   const handleGoogleSignIn = async () => {
+    if (isLocked) return;
     setLocalError(null);
     try {
       await signInWithGoogle();
-      onLoginSuccess();
-    } catch (err) {
-      console.error("Google sign-in error:", err);
+      recordSuccess();
+      onLoginSuccess?.();
+      navigate("/");
+    } catch {
+      recordFailure();
     }
   };
 
   const displayError = localError || error;
+  const submitDisabled = loading || isLocked;
 
   return (
     <div className="auth-container">
@@ -58,7 +84,13 @@ export function LoginScreen({
           <p>Sign in to continue your fitness journey</p>
         </div>
 
-        {displayError && (
+        {isLocked && (
+          <div className="error-alert rate-limit-alert">
+            <span>Too many attempts. Try again in {secondsLeft}s</span>
+          </div>
+        )}
+
+        {displayError && !isLocked && (
           <div className="error-alert">
             <span>{displayError}</span>
             <button
@@ -84,7 +116,7 @@ export function LoginScreen({
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
+                disabled={submitDisabled}
               />
             </div>
           </div>
@@ -99,7 +131,7 @@ export function LoginScreen({
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
+                disabled={submitDisabled}
               />
             </div>
           </div>
@@ -107,25 +139,33 @@ export function LoginScreen({
           <button
             type="submit"
             className="auth-button primary"
-            disabled={loading}
+            disabled={submitDisabled}
           >
             {loading ? (
               <>
                 <Loader size={18} className="spinner-icon" />
                 Signing in...
               </>
+            ) : isLocked ? (
+              `Locked (${secondsLeft}s)`
             ) : (
               "Sign In"
             )}
           </button>
         </form>
 
+        {!isLocked && attempts > 0 && attempts < maxAttempts && (
+          <p className="auth-attempt-hint">
+            {maxAttempts - attempts} attempt{maxAttempts - attempts === 1 ? '' : 's'} remaining
+          </p>
+        )}
+
         <div className="divider">or</div>
 
         <button
           className="auth-button google"
           onClick={handleGoogleSignIn}
-          disabled={loading}
+          disabled={submitDisabled}
         >
           {loading ? (
             <>
@@ -161,7 +201,10 @@ export function LoginScreen({
           <button
             type="button"
             className="link-button"
-            onClick={onForgotPasswordClick}
+            onClick={() => {
+              onForgotPasswordClick?.();
+              navigate('/forgot-password');
+            }}
           >
             Forgot password?
           </button>
@@ -170,7 +213,10 @@ export function LoginScreen({
             <button
               type="button"
               className="link-button"
-              onClick={onSignUpClick}
+              onClick={() => {
+                onSignUpClick?.();
+                navigate('/signup');
+              }}
             >
               Sign up
             </button>

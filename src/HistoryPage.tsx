@@ -1,8 +1,10 @@
 // src/HistoryPage.tsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { History, Trash2, ArrowLeft, TrendingUp } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
+import { WorkoutChart } from "./components/WorkoutChart";
 import SessionCard from "./SessionCard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -21,10 +23,15 @@ function totalReps(sessions: { totalReps: number }[]): number {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface HistoryPageProps {
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
+  const navigate = useNavigate();
+  const goBack = () => {
+    onBack?.();
+    navigate('/');
+  };
   const {
     sessions,
     loading,
@@ -63,7 +70,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* ── Header ── */}
       <header className="history-header">
-        <button className="back-btn" onClick={onBack}>
+        <button className="back-btn" onClick={goBack}>
           <ArrowLeft size={16} />
           Back
         </button>
@@ -182,6 +189,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* ── Body ── */}
       <main className="history-body">
+        {!loading && !error && sessions.length > 0 && (
+          <WorkoutChart sessions={sessions} />
+        )}
+
         {/* Loading */}
         {loading && (
           <div className="state-center">
@@ -206,7 +217,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
             <div className="empty-icon">🏋️</div>
             <h2>No sessions yet</h2>
             <p>Complete a workout and your session will appear here.</p>
-            <button className="start-btn" onClick={onBack}>
+            <button className="start-btn" onClick={goBack}>
               Start a Workout
             </button>
           </div>
@@ -232,8 +243,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
         .history-root {
           min-height: 100vh;
-          background: #080c14;
-          color: #e2e8f0;
+          background: var(--bg-primary, #080c14);
+          color: var(--text-primary, #e2e8f0);
           font-family: 'Syne', sans-serif;
           position: relative;
           overflow-x: hidden;

@@ -130,13 +130,11 @@ export async function getUnsyncedWorkouts(
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readonly");
     const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index("synced");
-    const req = index.getAll(false);
+    const req = store.getAll();
 
     req.onsuccess = () => {
-      const allUnsynced = req.result as WorkoutRecord[];
-      // Filter for current user
-      const userUnsynced = allUnsynced.filter((w) => w.userId === userId);
+      const allRecords = req.result as WorkoutRecord[];
+      const userUnsynced = allRecords.filter((w) => w.userId === userId && !w.synced);
       resolve(userUnsynced);
     };
     req.onerror = () => reject(req.error);
@@ -146,7 +144,7 @@ export async function getUnsyncedWorkouts(
 /**
  * Update sync status of a workout in IndexedDB
  */
-async function markWorkoutAsSynced(localId: number): Promise<void> {
+async function markWorkoutAsSynced(localId: IDBValidKey): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");

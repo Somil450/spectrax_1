@@ -1,24 +1,28 @@
-    import React, { useEffect, useState } from 'react';
-    import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
-    
-    interface SummaryScreenProps {
-      stats: { 
-        reps: number; 
-        totalReps: number;
-        correctReps: number;
-        repScores: number[];
-        duration: number; 
-        accuracy: number; 
-        mistakes: Record<string, number>; 
-        bestStreak: number; 
-        tags?: string[];
-      };
-      onRestart: () => void;
-      onViewReplay: () => void;
-    }
-    
-    export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, onViewReplay }) => {
-      const [accuracy, setAccuracy] = useState(0);
+﻿import React, { useEffect, useState } from 'react';
+import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
+
+interface SummaryScreenProps {
+  stats: {
+    reps: number;
+    totalReps: number;
+    correctReps: number;
+    repScores: number[];
+    duration: number;
+    accuracy: number;
+    exerciseName?: string;
+    mistakes: Record<string, number>;
+    bestStreak: number;
+    tags?: string[];
+  };
+  onRestart: () => void;
+  onViewReplay: () => void;
+}
+
+export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, onViewReplay }) => {
+  const { addWorkout } = useWorkoutSync();
+  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
+  const [accuracy, setAccuracy] = useState(0);
 
   useEffect(() => {
     // Animate accuracy ring on mount
@@ -34,7 +38,7 @@
       try {
         setIsSavingWorkout(true);
         const exerciseName = stats.exerciseName || "unknown_exercise";
-        console.log("💾 Saving workout to Firestore...", stats);
+        console.log("≡ƒÆ╛ Saving workout to Firestore...", stats);
 
         await addWorkout({
           exerciseType: exerciseName.toLowerCase().replace(/\s+/g, "_"),
@@ -44,9 +48,9 @@
           timestamp: Date.now(),
         });
 
-        console.log("✅ Workout saved successfully!");
+        console.log("Γ£à Workout saved successfully!");
       } catch (error) {
-        console.error("❌ Failed to save workout:", error);
+        console.error("Γ¥î Failed to save workout:", error);
       } finally {
         setIsSavingWorkout(false);
       }
@@ -71,14 +75,14 @@
 
   const getWorstMistake = () => {
     const entries = Object.entries(stats.mistakes);
-    if (entries.length === 0) return "None — Perfect Form! ✨";
+    if (entries.length === 0) return "None ΓÇö Perfect Form! Γ£¿";
     return entries.sort((a, b) => b[1] - a[1])[0][0];
   };
 
   const getPerformanceHighlight = () => {
-    if (stats.accuracy > 90) return "Elite Precision 🏆";
-    if (stats.accuracy > 75) return "Solid Technique 💪";
-    return "Needs Calibration ⚙️";
+    if (stats.accuracy > 90) return "Elite Precision ≡ƒÅå";
+    if (stats.accuracy > 75) return "Solid Technique ≡ƒÆ¬";
+    return "Needs Calibration ΓÜÖ∩╕Å";
   };
 
   // Rep Quality Insights
@@ -197,7 +201,7 @@
               gap: "8px",
             }}
           >
-            💾 Saving to cloud...
+            ≡ƒÆ╛ Saving to cloud...
           </p>
         )}
       </div>
@@ -576,7 +580,6 @@
               </div>
             ))}
          </div>
-      </div>
       </div>
       <div className="animate-in glass" style={{ width: '100%', maxWidth: '600px', padding: '15px', textAlign: 'center', marginBottom: '40px', borderColor: accuracyColor }}>
          <div style={{ color: accuracyColor, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '2px' }}>SESSION RATING: {getPerformanceHighlight()}</div>

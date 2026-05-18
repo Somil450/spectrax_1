@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { cameraService } from '../services/cameraService';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { cameraService, CameraError } from '../services/cameraService';
+import { CameraErrorState } from './CameraErrorState';
+import { CalibrationSilhouette } from './CalibrationSilhouette';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
@@ -31,6 +33,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     totalCount: 8,
   });
   const [error, setError] = useState<string | null>(null);
+  const [cameraErrorType, setCameraErrorType] = useState<CameraError['type'] | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [bodyTypeRes, setBodyTypeRes] = useState<BodyTypeResult | null>(null);
   const [gestureResult, setGestureResult] = useState<GestureResult>({
     isHandRaised: false,
@@ -57,6 +61,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       if (!videoRef.current || !canvasRef.current) return;
 
       try {
+        setError(null);
+        setCameraErrorType(null);
         setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
         
         const ctx = canvasRef.current.getContext('2d');
@@ -98,7 +104,13 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         frameId.current = requestAnimationFrame(processLoop);
       } catch (err) {
         if (isMounted) {
-          setError("Hardware synchronization error. Verify camera and refresh.");
+          if (err instanceof CameraError) {
+            setCameraErrorType(err.type);
+            setError(err.message);
+          } else {
+            setCameraErrorType('unknown');
+            setError('Hardware synchronization error. Verify camera and refresh.');
+          }
           setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
         }
       }
@@ -116,7 +128,12 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, [selectedExercise, onBodyTypeDetected]);
+  }, [selectedExercise, onBodyTypeDetected, retryKey]);
+
+  const handleCameraRetry = useCallback(() => {
+    cameraService.stopCamera();
+    setRetryKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
@@ -195,6 +212,14 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           height={720}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }} 
         />
+        <CalibrationSilhouette visible={!result.isReady && !cameraErrorType} />
+        {cameraErrorType && error && (
+          <CameraErrorState
+            errorType={cameraErrorType}
+            message={error}
+            onRetry={handleCameraRetry}
+          />
+        )}
       </div>
 
       <div className="ui-layer" style={{ position: 'relative', zIndex: 10, height: '100%', padding: '40px', pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>

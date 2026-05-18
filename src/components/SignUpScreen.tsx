@@ -1,17 +1,19 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Mail, Lock, User, Loader } from "lucide-react";
 import "../styles/auth.css";
 
 interface SignUpScreenProps {
-  onSignUpSuccess: () => void;
-  onLoginClick: () => void;
+  onSignUpSuccess?: () => void;
+  onLoginClick?: () => void;
 }
 
 export function SignUpScreen({
   onSignUpSuccess,
   onLoginClick,
 }: SignUpScreenProps) {
+  const navigate = useNavigate();
   const { signUp, error, clearError, loading } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,7 +47,8 @@ export function SignUpScreen({
       setEmail("");
       setPassword("");
       setConfirmPassword("");
-      onSignUpSuccess();
+      onSignUpSuccess?.();
+      navigate('/');
     } catch (err) {
       console.error("Sign up error:", err);
     }
@@ -159,7 +162,10 @@ export function SignUpScreen({
             <button
               type="button"
               className="link-button"
-              onClick={onLoginClick}
+              onClick={() => {
+                onLoginClick?.();
+                navigate('/login');
+              }}
             >
               Sign in
             </button>

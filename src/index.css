@@ -285,6 +285,22 @@ body {
   box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
 }
 
+[data-theme="light"] .workout-lock-toggle {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
+}
+
+.auth-attempt-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: -8px;
+}
+
+.rate-limit-alert {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
 .workout-lock-toggle.is-unlocked {
   color: var(--neon-yellow);
   border-color: rgba(255, 214, 0, 0.38);
