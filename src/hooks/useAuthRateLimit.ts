@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+/**
+ * Client-side auth rate limiting persisted in localStorage.
+ * This is a UX anti-spam layer only — it can be bypassed in DevTools.
+ * Server-side 429 enforcement is still required for real security.
+ */
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
 const STORAGE_KEY = 'spectrax.authRateLimit';
@@ -27,6 +32,16 @@ export function useAuthRateLimit(scope: 'login' | 'forgot-password' = 'login') {
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const attemptsRef = useRef(attempts);
+  const lockedUntilRef = useRef(lockedUntil);
+
+  useEffect(() => {
+    attemptsRef.current = attempts;
+  }, [attempts]);
+
+  useEffect(() => {
+    lockedUntilRef.current = lockedUntil;
+  }, [lockedUntil]);
 
   useEffect(() => {
     const stored = loadState(scope);
@@ -58,16 +73,17 @@ export function useAuthRateLimit(scope: 'login' | 'forgot-password' = 'login') {
   const isLocked = secondsLeft > 0;
 
   const recordFailure = useCallback(() => {
-    if (isLocked) return;
+    const currentLockedUntil = lockedUntilRef.current;
+    if (currentLockedUntil && currentLockedUntil > Date.now()) return;
 
-    const nextAttempts = attempts + 1;
+    const nextAttempts = attemptsRef.current + 1;
     const nextLockedUntil =
       nextAttempts >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_SECONDS * 1000 : null;
 
     setAttempts(nextAttempts);
     setLockedUntil(nextLockedUntil);
     saveState(scope, { attempts: nextAttempts, lockedUntil: nextLockedUntil });
-  }, [attempts, isLocked, scope]);
+  }, [scope]);
 
   const recordSuccess = useCallback(() => {
     setAttempts(0);

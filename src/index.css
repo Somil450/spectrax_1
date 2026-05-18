@@ -279,6 +279,33 @@ body {
   transition: all 0.3s var(--ease-out);
 }
 
+.workout-capture-clip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 148px;
+  margin-right: 8px;
+  padding: 8px 20px;
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  border-radius: 999px;
+  background: rgba(13, 17, 39, 0.82);
+  color: #00ff88;
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  backdrop-filter: blur(16px);
+  transition: all 0.3s var(--ease-out);
+}
+
+.workout-capture-clip:hover {
+  transform: translateY(-2px);
+  border-color: #00ff88;
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+}
+
 .workout-lock-toggle:hover {
   transform: translateY(-2px);
   border-color: var(--neon-cyan);

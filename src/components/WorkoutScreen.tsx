@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
 import { cameraService } from '../services/cameraService';
@@ -14,10 +14,13 @@ import { clipEngine } from '../services/clipEngine';
 import { gestureService } from '../services/gestureService';
 import { exercises } from '../config/exercises';
 import { BodyType } from '../services/bodyTypeEngine';
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
 
-// ΓöÇΓöÇ Web Worker (Vite native worker bundling) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// Web Worker (Vite native worker bundling)
 const createPoseWorker = () =>
   new Worker(new URL('../workers/poseWorker.ts', import.meta.url), { type: 'module' });
+
+const EXERCISE_KEYS = Object.keys(exercises);
 
 interface WorkoutScreenProps {
   exercise: ExerciseConfig;
@@ -112,7 +115,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [clipResult, setClipResult] = useState<any>(null);
   const [clipSavedMsg, setClipSavedMsg] = useState<string | null>(null);
   const [difficultyOffset, setDifficultyOffset] = useState(0);
-  const exerciseKeys = Object.keys(exercises);
+  const difficultyOffsetRef = useRef(0);
+  const { isOnline } = useWorkoutSync();
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
 
@@ -149,7 +153,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const workerRef = useRef<Worker | null>(null);    // pose worker
   const pendingLandmarksRef = useRef<any>(null);    // latest landmarks for worker
   const [mismatchError, setMismatchError] = useState<string | null>(null);
-  const FPS_LIMIT = 20; // Γåæ Raised from 15 ΓåÆ 20 for smoother tracking
+  const FPS_LIMIT = 20;
+
+  useEffect(() => {
+    difficultyOffsetRef.current = difficultyOffset;
+  }, [difficultyOffset]);
 
   const clampPanelPositions = (positions: PanelPositions) => {
     const { width, height } = getViewportSize();
@@ -200,18 +208,18 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
       startTimeRef.current = Date.now();
 
-    // ΓöÇΓöÇ Spawn Web Worker ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // Spawn Web Worker
     const worker = createPoseWorker();
     workerRef.current = worker;
     let workerAngles: Record<string, number> = {};
 
-    // Worker posts back computed angles ΓÇö exercise detection stays on main thread
+    // Worker posts back computed angles; exercise detection stays on main thread
     worker.onmessage = (evt: MessageEvent) => {
       const { angles } = evt.data;
       workerAngles = angles;
     };
 
-    // ΓöÇΓöÇ WebSocket connection to backend (optional, non-blocking) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // WebSocket connection to backend (optional, non-blocking)
     let wsSocket: WebSocket | null = null;
     try {
       wsSocket = new WebSocket('ws://localhost:3001/socket.io/?EIO=4&transport=websocket');
@@ -247,11 +255,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         poseService.onResults(async (results) => {
           if (!isMounted) return;
 
-          // ΓöÇΓöÇ SINGLE USER LOCK: Filter out erratic detections or second people ΓöÇΓöÇ
+          // Single-user lock: filter out erratic detections or second people
           const filteredResults = poseLockService.filter(results);
           if (!filteredResults || !filteredResults.poseLandmarks) return;
 
-          // ΓöÇΓöÇ Frame skipping: process every other frame ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+          // Frame skipping: process every other frame
           frameSkipRef.current++;
           if (frameSkipRef.current % 2 !== 0) {
             // Still render overlay on skipped frames for smooth display
@@ -262,7 +270,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             return;
           }
 
-          // ΓöÇΓöÇ SKELETAL SENSE: auto-detect & mismatch (main thread, lightweight) ΓöÇΓöÇ
+          // Skeletal sense: auto-detect and mismatch (main thread, lightweight)
           const skeletalResult = skeletalSense.analyze(results.poseLandmarks);
           if (skeletalResult && skeletalResult.confidence > 0.85) {
             const label = skeletalResult.label.toLowerCase();
@@ -282,7 +290,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             }
           }
 
-          // ΓöÇΓöÇ Offload angle computation to Web Worker ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+          // Offload angle computation to Web Worker
           pendingLandmarksRef.current = results.poseLandmarks;
           const primaryJoints = exercise.joints?.flat() || [];
           
@@ -294,7 +302,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             primaryJoints: primaryJoints
           });
 
-          // Use last worker result for angles (may be 1 frame stale ΓÇö acceptable)
+          // Use last worker result for angles (may be 1 frame stale)
           const angles = Object.keys(workerAngles).length > 0
             ? workerAngles
             : getJointAngles(results.poseLandmarks); // Fallback if worker not ready yet
@@ -302,20 +310,23 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           const visibility = getJointVisibility(results.poseLandmarks);
 
           const gesture = gestureService.analyze(results.poseLandmarks);
-          if (gesture.event === 'swipeLeft' || gesture.event === 'swipeRight') {
-            const currentIdx = exerciseKeys.indexOf(exercise.key);
+          if (
+            (gesture.event === 'swipeLeft' || gesture.event === 'swipeRight') &&
+            mutableState.current.reps < 2
+          ) {
+            const currentIdx = EXERCISE_KEYS.indexOf(exercise.key);
             const nextIdx =
               gesture.event === 'swipeRight'
-                ? (currentIdx + 1) % exerciseKeys.length
-                : (currentIdx - 1 + exerciseKeys.length) % exerciseKeys.length;
-            onAutoDetect?.(exerciseKeys[nextIdx]);
+                ? (currentIdx + 1) % EXERCISE_KEYS.length
+                : (currentIdx - 1 + EXERCISE_KEYS.length) % EXERCISE_KEYS.length;
+            onAutoDetect?.(EXERCISE_KEYS[nextIdx]);
           } else if (gesture.event === 'thumbsDown') {
             setDifficultyOffset((prev) => Math.min(prev + 5, 20));
           }
 
           // Adjust structural thresholds dynamically based on active detected body type
           const activeConfig = { ...exercise };
-          activeConfig.downThreshold += difficultyOffset;
+          activeConfig.downThreshold += difficultyOffsetRef.current;
           if (bodyType === 'endo' && activeConfig.key === 'squat') {
             activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
           } else if (bodyType === 'ecto' && activeConfig.key === 'squat') {
@@ -324,7 +335,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
           }
 
-          // 2. Process through multi-exercise engine (stays on main thread ΓÇö manages state)
+          // Process through multi-exercise engine (stays on main thread)
           const nextState = await exerciseEngine.process(activeConfig, angles, visibility, mutableState.current);
 
           mutableState.current = nextState;
@@ -388,7 +399,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       isMounted = false;
       cancelAnimationFrame(frameId.current);
       worker.postMessage({ type: 'cleanup' });
-      worker.postMessage({ type: 'terminate' });
       worker.terminate();
       clipEngine.clearManualClips();
       gestureService.reset();
@@ -422,21 +432,30 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));
   }, [panelPositions]);
 
-  const handleCaptureClip = () => {
-    const clip = clipEngine.saveManualClip(Date.now(), `${exercise.name} Highlight`);
+  const handleCaptureClip = useCallback(() => {
+    const clip = clipEngine.saveManualClip(Date.now(), `${exercise.name} Snapshot`);
     if (clip) {
-      setClipSavedMsg('Highlight clip saved!');
+      setClipSavedMsg('Highlight snapshot saved!');
       window.setTimeout(() => setClipSavedMsg(null), 2000);
     }
-  };
+  }, [exercise.name]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === 'c') handleCaptureClip();
+      if (e.key.toLowerCase() !== 'c') return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable)
+      ) {
+        return;
+      }
+      handleCaptureClip();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [exercise.name]);
+  }, [handleCaptureClip]);
 
   const handleEnd = () => {
     const accuracy = mutableState.current.totalReps > 0
@@ -554,15 +573,39 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       )}
 
+      {!isOnline && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            background: 'rgba(239, 68, 68, 0.2)',
+            border: '1px solid rgba(239, 68, 68, 0.5)',
+            color: '#fca5a5',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            zIndex: 100,
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <span style={{ fontSize: '1.2em' }}>⚠️</span>
+          <span>Offline - Data will sync</span>
+        </div>
+      )}
+
       <div className="workout-layout-controls">
         <button
           type="button"
-          className="workout-lock-toggle"
+          className="workout-capture-clip"
           onClick={handleCaptureClip}
-          title="Capture 10s highlight (C)"
-          style={{ marginRight: 8 }}
+          title="Capture snapshot (C)"
         >
-          Capture Clip
+          Capture Snapshot
         </button>
         <button
           type="button"

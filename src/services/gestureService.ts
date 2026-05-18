@@ -75,8 +75,10 @@ class GestureService {
   private detectSwipe(landmarks: PoseLandmarks): 'left' | 'right' | null {
     const leftWrist = landmarks[15];
     const rightWrist = landmarks[16];
-    const wrist = leftWrist?.visibility > (rightWrist?.visibility ?? 0) ? leftWrist : rightWrist;
-    if (!wrist) return null;
+    const leftVis = leftWrist?.visibility ?? 0;
+    const rightVis = rightWrist?.visibility ?? 0;
+    const wrist = leftVis >= rightVis ? leftWrist : rightWrist;
+    if (!wrist || (wrist.visibility ?? 0) < VISIBILITY_THRESHOLD) return null;
 
     const now = Date.now();
     this.wristHistory.push({ x: wrist.x, t: now });

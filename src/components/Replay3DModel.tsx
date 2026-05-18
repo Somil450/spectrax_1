@@ -41,20 +41,25 @@ const COLOR_YELLOW = new THREE.Color(0xffff00);
 const COLOR_RED = new THREE.Color(0xff0000);
 
 const parseFeedback = (feedback: string) => {
-  if (typeof feedback !== 'string' || feedback.includes("ESTABLISHING") || feedback.includes("Get into position") || feedback.includes("READY ≡ƒƒó")) {
+  if (
+    typeof feedback !== 'string' ||
+    feedback.includes("ESTABLISHING") ||
+    feedback.includes("Get into position") ||
+    feedback.includes("READY 🟢")
+  ) {
     return { baseColor: COLOR_YELLOW, badJoints: new Set<number>() };
   }
-  if (feedback.includes("Good form Γ£à")) {
+  if (feedback.includes("Good form ✅")) {
     return { baseColor: COLOR_GREEN, badJoints: new Set<number>() };
   }
-  
+
   const badJoints = new Set<number>();
   let baseColor = COLOR_YELLOW;
   const mistakeColor = COLOR_RED;
 
-  if (feedback.includes("Keep your back straight Γ¥î")) {
-    baseColor = COLOR_RED; 
-    [11, 12, 23, 24].forEach(j => badJoints.add(j));
+  if (feedback.includes("Keep your back straight ❌")) {
+    baseColor = COLOR_RED;
+    [11, 12, 23, 24].forEach((j) => badJoints.add(j));
   }
   if (feedback.includes("Go lower for full range")) {
     [13, 14].forEach(j => badJoints.add(j));
@@ -137,6 +142,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.autoUpdate = true;
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
     onCanvasReady?.(renderer.domElement);
@@ -155,14 +163,27 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     // Cinematic Three-Point Lighting
     const keyLight = new THREE.DirectionalLight(0x00ffff, 1.2); // Neon Cyan
     keyLight.position.set(2, 4, 3);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.camera.left = -5;
+    keyLight.shadow.camera.right = 5;
+    keyLight.shadow.camera.top = 5;
+    keyLight.shadow.camera.bottom = -5;
+    keyLight.shadow.camera.near = 0.1;
+    keyLight.shadow.camera.far = 50;
     scene.add(keyLight);
 
     const fillLight = new THREE.DirectionalLight(0x9D4EDD, 0.7); // Neon Purple
     fillLight.position.set(-2, 2, 2);
+    fillLight.castShadow = true;
+    fillLight.shadow.mapSize.width = 512;
+    fillLight.shadow.mapSize.height = 512;
     scene.add(fillLight);
 
     const rimLight = new THREE.PointLight(0xffffff, 1);
     rimLight.position.set(0, 3, -4);
+    rimLight.castShadow = true;
     scene.add(rimLight);
 
     // --- Environment: The Grid ---
@@ -172,7 +193,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
     scene.add(grid);
 
-    // Floor Glow
+    // Floor Glow & Shadow Receiver
     const floorGeo = new THREE.PlaneGeometry(10, 10);
     const floorMat = new THREE.MeshPhongMaterial({
       color: 0x000000,
@@ -184,6 +205,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -1.02;
+    floor.receiveShadow = true;
     scene.add(floor);
 
     // --- Create Fallback Skeleton ---
@@ -197,6 +219,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const createdJoints: THREE.Mesh[] = [];
     for (let i = 0; i < 33; i++) {
         const sphere = new THREE.Mesh(jointGeometry, jointMaterial.clone());
+        sphere.castShadow = true;
+        sphere.receiveShadow = true;
         scene.add(sphere);
         createdJoints.push(sphere);
     }
@@ -262,6 +286,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
               emissive: 0x00ff00,
               emissiveIntensity: 0.1
            });
+           mesh.castShadow = true;
+           mesh.receiveShadow = true;
         }
       });
       boneMapRef.current = bones;
@@ -310,15 +336,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       
       if (bones.spine && bones.spine1) recordRest('spine', 'spine1');
       if (bones.neck && bones.head) recordRest('neck', 'head');
-
-      recordRest('leftShoulder', 'leftElbow');
-      recordRest('leftElbow', 'leftWrist');
-      recordRest('rightShoulder', 'rightElbow');
-      recordRest('rightElbow', 'rightWrist');
-      recordRest('leftHip', 'leftKnee');
-      recordRest('leftKnee', 'leftAnkle');
-      recordRest('rightHip', 'rightKnee');
-      recordRest('rightKnee', 'rightAnkle');
 
       setModelLoaded(true);
 
@@ -517,10 +534,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         applyPose('rightHip', 24, 26);
         applyPose('rightKnee', 26, 28);
         applyPose('rightAnkle', 28, 30);
-        applyPose('leftKnee', 25, 27);
-        applyPose('rightHip', 24, 26);
-        applyPose('rightKnee', 26, 28);
-        
+
         // --- 3D to 2D HUD Projection ---
         const newLabels: any[] = [];
         const projectJoint = (idx: number, boneKey: string, label: string, p1: number, p2: number, p3: number) => {
@@ -556,10 +570,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         projectJoint(24, 'rightHip', 'R HIP', 12, 24, 26);
         
         setHudLabels(newLabels);
-        applyPose('leftKnee', 25, 27);
-        applyPose('rightHip', 24, 26);
-        applyPose('rightKnee', 26, 28);
-        
+
         // Error Highlight logic for GLTF model
         skinnedMeshesRef.current.forEach(mesh => {
             if (!mesh.material) return;

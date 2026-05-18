@@ -20,7 +20,6 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-draggable": "^4.5.0",
-    "react-is": "^19.2.6",
     "react-router-dom": "^7.15.1",
     "recharts": "^3.8.1",
     "three": "^0.162.0"

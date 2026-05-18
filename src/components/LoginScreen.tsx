@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAuthRateLimit } from "../hooks/useAuthRateLimit";
@@ -25,17 +25,10 @@ export function LoginScreen({
     maxAttempts,
     recordFailure,
     recordSuccess,
-    isRateLimitError,
   } = useAuthRateLimit('login');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error && isRateLimitError(error)) {
-      recordFailure();
-    }
-  }, [error, isRateLimitError, recordFailure]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

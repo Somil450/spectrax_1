@@ -223,7 +223,7 @@ class ClipEngine {
     );
   }
 
-  saveManualClip(timestamp = Date.now(), label = 'Workout Highlight'): ManualHighlightClip | null {
+  saveManualClip(timestamp = Date.now(), label = 'Workout Snapshot'): ManualHighlightClip | null {
     const windowStart = timestamp - this.CLIP_WINDOW_MS / 2;
     const windowEnd = timestamp + this.CLIP_WINDOW_MS / 2;
     const frames = this.frameBuffer.filter(

@@ -10,11 +10,13 @@ export interface ChartDataPoint {
   calories: number;
 }
 
+const DEFAULT_WEIGHT_KG = 70;
+
 function estimateCalories(session: WorkoutSession): number {
   const met = 5.5;
   const hours = session.duration / 3600;
-  const weightKg = 70;
-  return Math.round(met * weightKg * hours * session.totalReps * 0.05 + session.totalReps * 0.3);
+  const perRepKcal = 0.3;
+  return Math.round(met * DEFAULT_WEIGHT_KG * hours + session.totalReps * perRepKcal);
 }
 
 function startOfDay(ts: number): number {

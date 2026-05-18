@@ -38,7 +38,7 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
       try {
         setIsSavingWorkout(true);
         const exerciseName = stats.exerciseName || "unknown_exercise";
-        console.log("≡ƒÆ╛ Saving workout to Firestore...", stats);
+        console.log("💾 Saving workout to Firestore...", stats);
 
         await addWorkout({
           exerciseType: exerciseName.toLowerCase().replace(/\s+/g, "_"),
@@ -48,9 +48,9 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
           timestamp: Date.now(),
         });
 
-        console.log("Γ£à Workout saved successfully!");
+        console.log("✅ Workout saved successfully!");
       } catch (error) {
-        console.error("Γ¥î Failed to save workout:", error);
+        console.error("❌ Failed to save workout:", error);
       } finally {
         setIsSavingWorkout(false);
       }
@@ -75,14 +75,14 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
 
   const getWorstMistake = () => {
     const entries = Object.entries(stats.mistakes);
-    if (entries.length === 0) return "None ΓÇö Perfect Form! Γ£¿";
+    if (entries.length === 0) return "None — Perfect Form! ✨";
     return entries.sort((a, b) => b[1] - a[1])[0][0];
   };
 
   const getPerformanceHighlight = () => {
-    if (stats.accuracy > 90) return "Elite Precision ≡ƒÅå";
-    if (stats.accuracy > 75) return "Solid Technique ≡ƒÆ¬";
-    return "Needs Calibration ΓÜÖ∩╕Å";
+    if (stats.accuracy > 90) return "Elite Precision 🏆";
+    if (stats.accuracy > 75) return "Solid Technique 💪";
+    return "Needs Calibration ⚙️";
   };
 
   // Rep Quality Insights
@@ -201,7 +201,7 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
               gap: "8px",
             }}
           >
-            ≡ƒÆ╛ Saving to cloud...
+            💾 Saving to cloud...
           </p>
         )}
       </div>

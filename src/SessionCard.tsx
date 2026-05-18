@@ -44,11 +44,13 @@ interface SessionCardProps {
 const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleShare = async () => {
     if (!cardRef.current || sharing) return;
     setSharing(true);
+    setShareError(null);
     try {
       const dataUrl = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2 });
       const response = await fetch(dataUrl);
@@ -70,8 +72,9 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
         link.download = `spectrax-${session.id}.png`;
         link.click();
       }
-    } catch {
-      // User cancelled share or capture failed silently
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setShareError('Could not share this workout. Please try again.');
     } finally {
       setSharing(false);
     }
@@ -110,16 +113,20 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
             </button>
 
             <button
-            className={`delete-btn ${confirmDelete ? "confirm" : ""}`}
-            onClick={handleDeleteClick}
-            title={confirmDelete ? "Click again to confirm" : "Delete session"}
-            aria-label="Delete session"
-          >
-            <Trash2 size={15} />
-            {confirmDelete && <span className="confirm-label">Confirm?</span>}
-          </button>
+              className={`delete-btn ${confirmDelete ? "confirm" : ""}`}
+              onClick={handleDeleteClick}
+              title={confirmDelete ? "Click again to confirm" : "Delete session"}
+              aria-label="Delete session"
+            >
+              <Trash2 size={15} />
+              {confirmDelete && <span className="confirm-label">Confirm?</span>}
+            </button>
           </div>
         </div>
+
+        {shareError && (
+          <p className="share-error" role="alert">{shareError}</p>
+        )}
 
         {/* Stats grid */}
         <div className="stats-grid">
@@ -199,6 +206,11 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
         .share-btn:disabled {
           opacity: 0.5;
           cursor: wait;
+        }
+        .share-error {
+          margin: 0;
+          font-size: 12px;
+          color: #ef4444;
         }
         .exercise-badge {
           font-family: 'Space Mono', monospace;

@@ -3,6 +3,12 @@ export async function exportCanvasHighlight(
   durationMs = 5000,
   filename = 'spectrax-replay.webm',
 ): Promise<void> {
+  if (typeof canvas.captureStream !== 'function' || typeof MediaRecorder === 'undefined') {
+    throw new Error(
+      'Video export is not supported in this browser. Try Chrome or Firefox on desktop.',
+    );
+  }
+
   const stream = canvas.captureStream(30);
   const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
     ? 'video/webm;codecs=vp9'

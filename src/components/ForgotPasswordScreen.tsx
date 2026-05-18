@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAuthRateLimit } from "../hooks/useAuthRateLimit";
@@ -17,17 +17,10 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
     secondsLeft,
     recordFailure,
     recordSuccess,
-    isRateLimitError,
   } = useAuthRateLimit('forgot-password');
   const [email, setEmail] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    if (error && isRateLimitError(error)) {
-      recordFailure();
-    }
-  }, [error, isRateLimitError, recordFailure]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
