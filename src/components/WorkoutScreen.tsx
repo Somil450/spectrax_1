@@ -392,7 +392,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       worker.terminate();
       clipEngine.clearManualClips();
       gestureService.reset();
-      if (wsSocket) { try { wsSocket.close(); } catch(_) {} }
+      if (wsSocket) {
+        try {
+          wsSocket.close();
+        } catch {
+          /* ignore socket close errors */
+        }
+      }
       cameraService.stopCamera();
       clearInterval(timer);
     };
