@@ -1,5 +1,6 @@
     import React, { useEffect, useState } from 'react';
     import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+    import { useWorkoutSync } from "../hooks/useWorkoutSync";
     
     interface SummaryScreenProps {
       stats: { 
@@ -12,6 +13,7 @@
         mistakes: Record<string, number>; 
         bestStreak: number; 
         tags?: string[];
+        exerciseName?: string;
       };
       onRestart: () => void;
       onViewReplay: () => void;
@@ -19,6 +21,8 @@
     
     export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, onViewReplay }) => {
       const [accuracy, setAccuracy] = useState(0);
+      const [isSavingWorkout, setIsSavingWorkout] = useState(false);
+      const { addWorkout } = useWorkoutSync();
 
   useEffect(() => {
     // Animate accuracy ring on mount
@@ -576,7 +580,6 @@
               </div>
             ))}
          </div>
-      </div>
       </div>
       <div className="animate-in glass" style={{ width: '100%', maxWidth: '600px', padding: '15px', textAlign: 'center', marginBottom: '40px', borderColor: accuracyColor }}>
          <div style={{ color: accuracyColor, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '2px' }}>SESSION RATING: {getPerformanceHighlight()}</div>

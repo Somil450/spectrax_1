@@ -9,6 +9,10 @@ import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+import { useAuth } from "./hooks/useAuth";
+import { LoginScreen } from "./components/LoginScreen";
+import { SignUpScreen } from "./components/SignUpScreen";
+import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 
 type Screen =
   | "welcome"
@@ -16,7 +20,10 @@ type Screen =
   | "workout"
   | "summary"
   | "replay"
-  | "history";
+  | "history"
+  | "login"
+  | "signup"
+  | "forgot-password";
 
 interface WorkoutStats {
   reps: number;
@@ -32,6 +39,7 @@ interface WorkoutStats {
 }
 
 function App() {
+  const { user, loading: authLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
@@ -101,22 +109,28 @@ function App() {
 
   // If not authenticated, show auth screens
   if (!user) {
+    const isAuthScreen =
+      currentScreen === "login" ||
+      currentScreen === "signup" ||
+      currentScreen === "forgot-password";
+    const activeAuthScreen = isAuthScreen ? currentScreen : "login";
+
     return (
       <main className="spectrax-app">
-        {currentScreen === "login" && (
+        {activeAuthScreen === "login" && (
           <LoginScreen
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
             onForgotPasswordClick={() => navigateTo("forgot-password")}
           />
         )}
-        {currentScreen === "signup" && (
+        {activeAuthScreen === "signup" && (
           <SignUpScreen
             onSignUpSuccess={() => navigateTo("welcome")}
             onLoginClick={() => navigateTo("login")}
           />
         )}
-        {currentScreen === "forgot-password" && (
+        {activeAuthScreen === "forgot-password" && (
           <ForgotPasswordScreen onBack={() => navigateTo("login")} />
         )}
       </main>

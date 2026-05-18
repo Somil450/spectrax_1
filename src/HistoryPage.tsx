@@ -38,7 +38,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
   useEffect(() => {
     fetchHistory();
-  }, [fetchHistory]);
+  }, [fetchHistory, syncStatus.lastSyncTime]);
 
   const handleClear = () => {
     if (showClearConfirm) {

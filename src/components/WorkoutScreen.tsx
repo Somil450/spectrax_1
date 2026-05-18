@@ -1,23 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  Activity,
-  StopCircle,
-  ArrowUpCircle,
-  ArrowDownCircle,
-} from "lucide-react";
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
-import { overlayRenderer } from "../services/overlayRenderer";
-import { getJointAngles, getJointVisibility } from "../services/angleUtils";
-import { exerciseEngine, EngineState } from "../services/exerciseEngine";
-import { ExerciseConfig } from "../config/exercises";
-import { sessionRecorder } from "../services/sessionRecorder";
-import { skeletalSense } from "../services/skeletalSense"; // Kept on main thread for reliable auto-detect
-import { poseLockService } from "../services/poseLockService";
-import { clipEngine } from "../services/clipEngine";
-import { BodyType } from "../services/bodyTypeEngine";
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
 import React, { useState, useEffect, useRef } from 'react';
+import { useWorkoutSync } from "../hooks/useWorkoutSync";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
 import { cameraService } from '../services/cameraService';
@@ -56,12 +38,6 @@ interface WorkoutScreenProps {
   bodyType?: BodyType;
 }
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
-  exercise,
-  onEnd,
-  onAutoDetect,
-  bodyType,
-}) => {
 type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
 
 type PanelPosition = {
@@ -707,6 +683,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             {formatTime(seconds)}
           </div>
         </div>
+      </div>
       <div className="workout-layout-controls">
         <button
           type="button"
@@ -879,156 +856,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       </div>
-      {/* Bottom Metrics Bar */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 10,
-          padding: "40px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "20px",
-        }}
-      >
-        <div className="rep-counter" style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "7rem",
-              fontWeight: 900,
-              lineHeight: 1,
-              color: "#fff",
-              textShadow: `0 0 40px ${statusColor}44`,
-            }}
-          >
-            {engineState.reps}
-          </div>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--text-dim)",
-              letterSpacing: "4px",
-              textTransform: "uppercase",
-            }}
-          >
-            Repetitions
-          </div>
-        </div>
-
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            pointerEvents: "all",
-          }}
-        >
-          <div style={{ display: "flex", gap: "20px" }}>
-            <div
-              className="glass animate-in"
-              style={{
-                padding: "12px 20px",
-                borderLeft: `3px solid ${statusColor}`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: statusColor,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontWeight: 700,
-                }}
-              >
-                <Activity size={14} /> AI ENGINE:{" "}
-                {engineState.status === "green"
-                  ? "STABLE"
-                  : "CORRECTION REQUIRED"}
-              </div>
-            </div>
-
-            {clipEngine.isReady() || clipEngine.getMode() === "cloud" ? (
-              <div
-                className="glass animate-in"
-                style={{
-                  padding: "12px 20px",
-                  borderLeft: "3px solid #9D4EDD",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                }}
-              >
-                <div
-                  className="radar-ping"
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    background: "#9D4EDD",
-                    borderRadius: "50%",
-                  }}
-                ></div>
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#9D4EDD",
-                    fontWeight: 700,
-                  }}
-                >
-                  VLM SENSE:{" "}
-                  {clipEngine.getMode() === "cloud"
-                    ? clipResult
-                      ? `CLOUD: ${clipResult.label.toUpperCase()}`
-                      : "CLOUD ACTIVATING..."
-                    : clipResult
-                      ? clipResult.label.toUpperCase()
-                      : "SCANNING..."}{" "}
-                  ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
-                </div>
-              </div>
-            ) : (
-              <div
-                className="glass animate-in"
-                style={{
-                  padding: "12px 20px",
-                  borderLeft: "3px solid var(--neon-cyan)",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--neon-cyan)",
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <div
-                    className="radar-ping loading"
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      background: "var(--neon-cyan)",
-                      borderRadius: "50%",
-                    }}
-                  ></div>
-                  OFFLINE AI SENSE: READY
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={handleEnd}
-            className="btn-neon"
-            style={{ background: "var(--neon-red)", color: "#fff" }}
-          >
-            FINISH SESSION <StopCircle size={18} />
-          </button>
-        </div>
       <div className="workout-finish-action">
         <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
           FINISH SESSION <StopCircle size={18} />
