@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
@@ -61,6 +61,26 @@ function App() {
   const [statsLoading, setStatsLoading] = useState(false);
 
   const lastSwitchTime = useRef<number>(0);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        setCurrentScreen((prev) => {
+          if (prev !== "login" && prev !== "signup" && prev !== "forgot-password") {
+            return "login";
+          }
+          return prev;
+        });
+      } else {
+        setCurrentScreen((prev) => {
+          if (prev === "login" || prev === "signup" || prev === "forgot-password") {
+            return "welcome";
+          }
+          return prev;
+        });
+      }
+    }
+  }, [user, authLoading]);
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
