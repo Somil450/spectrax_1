@@ -10,10 +10,6 @@
   box-sizing: border-box;
 }
 
-  /* Transitions */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
 :root {
   /* Fonts */
   --font-heading: 'Orbitron', sans-serif;
@@ -24,6 +20,7 @@
   --radius-md: 14px;
   --radius-lg: 22px;
   --radius-xl: 32px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Explicit Dark Mode (Default) */
@@ -116,7 +113,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 16px 40px;
+  padding: 14px 36px;
   font-family: var(--font-heading);
   font-size: 0.9rem;
   font-weight: 700;
@@ -125,11 +122,12 @@ body {
   color: var(--bg-primary);
   background: var(--neon-cyan);
   border: none;
-  border-radius: var(--radius-xl);
+  border-radius: 18px;
   cursor: pointer;
   position: relative;
-  transition: all 0.4s var(--ease-out);
+  transition: all 0.3s ease;
   text-decoration: none;
+  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.3);
 }
 
 .btn-neon:disabled {
@@ -142,7 +140,12 @@ body {
 
 .btn-neon:not(:disabled):hover {
   transform: translateY(-3px);
-  box-shadow: 0 0 30px rgba(0, 240, 255, 0.6);
+  box-shadow: 0 6px 24px rgba(0, 240, 255, 0.5);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--neon-purple);
+  outline-offset: 3px;
 }
 
 .btn-outline {
@@ -150,23 +153,23 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 34px;
+  padding: 12px 32px;
   font-family: var(--font-heading);
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--neon-cyan);
-  background: transparent;
+  background: rgba(0, 240, 255, 0.05);
   border: 1.5px solid rgba(0, 240, 255, 0.4);
-  border-radius: var(--radius-xl);
+  border-radius: 14px;
   cursor: pointer;
-  transition: all 0.35s var(--ease-out);
+  transition: all 0.3s ease;
   text-decoration: none;
 }
 
 .btn-outline:hover {
-  background: rgba(0, 240, 255, 0.1);
+  background: rgba(0, 240, 255, 0.15);
   border-color: var(--neon-cyan);
 }
 
@@ -220,6 +223,10 @@ body {
   transition: all 0.3s var(--ease-out);
 }
 
+.theme-toggle.workout-active {
+  right: 196px;
+}
+
 .theme-toggle:hover {
   transform: translateY(-2px);
   border-color: var(--neon-cyan);
@@ -241,7 +248,7 @@ body {
   min-height: 100vh;
   transition: background 0.3s ease;
 }
-
+onboarding-tour
 /* Fix tooltip content visibility */
 .__floater__body,
 .__floater__body *,
@@ -276,3 +283,149 @@ body {
   background: transparent !important;
   font-weight: 700 !important;
 }
+.workout-layout-controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  pointer-events: all;
+}
+
+.workout-lock-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 168px;
+  padding: 8px 20px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(13, 17, 39, 0.82);
+  color: var(--neon-cyan);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  backdrop-filter: blur(16px);
+  box-shadow: var(--glass-shadow);
+  transition: all 0.3s var(--ease-out);
+}
+
+.workout-lock-toggle:hover {
+  transform: translateY(-2px);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.workout-lock-toggle.is-unlocked {
+  color: var(--neon-yellow);
+  border-color: rgba(255, 214, 0, 0.38);
+  box-shadow: var(--glass-shadow), 0 0 24px rgba(255, 214, 0, 0.16);
+}
+
+.workout-panel-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.workout-draggable-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: fit-content;
+  max-width: min(460px, calc(100vw - 24px));
+  pointer-events: all;
+  touch-action: none;
+  user-select: none;
+}
+
+.workout-draggable-panel.is-locked {
+  cursor: default;
+}
+
+.workout-draggable-panel.is-unlocked {
+  cursor: grab;
+}
+
+.workout-draggable-panel.is-unlocked:active {
+  cursor: grabbing;
+}
+
+.workout-stat-card {
+  padding: 12px 20px;
+}
+
+.workout-timer-panel {
+  text-align: right;
+}
+
+.workout-reps-panel {
+  min-width: 220px;
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(10, 10, 26, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.workout-sense-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-left: 3px solid #9D4EDD;
+}
+
+.workout-finish-action {
+  position: absolute;
+  right: 40px;
+  bottom: 40px;
+  z-index: 30;
+  pointer-events: all;
+}
+
+@media (max-width: 640px) {
+  .theme-toggle {
+    top: 12px;
+    right: 12px;
+    padding: 6px 12px;
+    font-size: 0.6rem;
+  }
+
+  .theme-toggle.workout-active {
+    right: 136px;
+  }
+
+  .workout-layout-controls {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+  }
+
+  .workout-lock-toggle {
+    min-width: auto;
+    padding: 6px 12px;
+    font-size: 0.58rem;
+  }
+
+  .workout-stat-card {
+    padding: 10px 14px;
+  }
+
+  .workout-reps-panel {
+    min-width: 160px;
+  }
+
+  .workout-reps-panel > div:first-child {
+    font-size: 4.7rem !important;
+  }
+
+  .workout-finish-action {
+    right: 18px;
+    bottom: 18px;
+  }
+}
+
+main

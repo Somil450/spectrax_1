@@ -13,7 +13,7 @@ const Pose = (window as any).Pose as typeof PoseType;
  */
 
 export class PoseService {
-  private pose: Pose | null = null;
+  private pose: PoseType | null = null;
   private isLoaded: boolean = false;
   private inProgress: boolean = false;
   private errorCount: number = 0;
@@ -54,7 +54,7 @@ export class PoseService {
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
     
-    this.pose.onResults((results) => {
+    this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0; // Reset error count on success
       if (results) {

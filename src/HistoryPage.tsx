@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { History, Trash2, ArrowLeft, TrendingUp } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
+import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import SessionCard from "./SessionCard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -9,7 +10,7 @@ import SessionCard from "./SessionCard";
 function avgAccuracy(sessions: { accuracyScore: number }[]): number {
   if (!sessions.length) return 0;
   return Math.round(
-    sessions.reduce((sum, s) => sum + s.accuracyScore, 0) / sessions.length
+    sessions.reduce((sum, s) => sum + s.accuracyScore, 0) / sessions.length,
   );
 }
 
@@ -24,8 +25,15 @@ interface HistoryPageProps {
 }
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
-  const { sessions, loading, error, fetchHistory, removeSession, clearHistory } =
-    useWorkoutHistory();
+  const {
+    sessions,
+    loading,
+    error,
+    fetchHistory,
+    removeSession,
+    clearHistory,
+  } = useWorkoutHistory();
+  const { syncStatus, isOnline, manualSync } = useWorkoutSync();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
@@ -90,6 +98,87 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           />
         </div>
       )}
+
+      {/* ── Sync Status Indicator ── */}
+      <div
+        style={{
+          padding: "12px 28px",
+          background: isOnline
+            ? "rgba(34, 211, 160, 0.05)"
+            : "rgba(239, 68, 68, 0.05)",
+          borderBottom: `1px solid ${isOnline ? "rgba(34, 211, 160, 0.2)" : "rgba(239, 68, 68, 0.2)"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "16px",
+          flexWrap: "wrap",
+          fontSize: "0.85rem",
+          fontFamily: "'Space Mono', monospace",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flex: "1 1 auto",
+          }}
+        >
+          <span style={{ fontSize: "1.2em" }}>
+            {!isOnline
+              ? "⚠️ Offline"
+              : syncStatus.isSyncing
+                ? "🔄 Syncing"
+                : "✅ Online"}
+          </span>
+          <span
+            style={{ color: isOnline ? "#22d3a0" : "#ef4444", fontWeight: 600 }}
+          >
+            {!isOnline
+              ? "Offline Mode"
+              : syncStatus.isSyncing
+                ? "Syncing..."
+                : "All synced"}
+          </span>
+          {syncStatus.pendingUploads > 0 && (
+            <span style={{ color: "#fbbf24", marginLeft: "8px" }}>
+              ({syncStatus.pendingUploads} pending)
+            </span>
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            flex: "0 1 auto",
+          }}
+        >
+          {isOnline && !syncStatus.isSyncing && (
+            <button
+              onClick={manualSync}
+              style={{
+                background: "rgba(34, 211, 160, 0.2)",
+                border: "1px solid rgba(34, 211, 160, 0.4)",
+                color: "#22d3a0",
+                padding: "4px 10px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                fontFamily: "'Space Mono', monospace",
+              }}
+            >
+              Sync Now
+            </button>
+          )}
+          {syncStatus.lastSyncTime && (
+            <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+              Last: {new Date(syncStatus.lastSyncTime).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* ── Body ── */}
       <main className="history-body">

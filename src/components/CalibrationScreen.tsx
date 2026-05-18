@@ -27,6 +27,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     status: 'red',
     message: 'Initializing system...',
     isReady: false,
+    visibleCount: 0,
+    totalCount: 8,
   });
   const [error, setError] = useState<string | null>(null);
   const [bodyTypeRes, setBodyTypeRes] = useState<BodyTypeResult | null>(null);
@@ -36,6 +38,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     leftWristAboveShoulder: false,
     rightWristAboveShoulder: false,
     isPoseLost: false,
+    isThumbsUp: false,
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
@@ -45,7 +48,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
   const FPS_LIMIT = 15;
-  const countdownIntervalRef = useRef<number | null>(null);
+  const countdownIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,10 +119,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   }, [selectedExercise, onBodyTypeDetected]);
 
   useEffect(() => {
-    if (gestureResult.isHandRaised && result.isReady && !gestureResult.isPoseLost && !countdownActive) {
+    const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
+    if (gestureTriggered && result.isReady && !gestureResult.isPoseLost && !countdownActive) {
       setCountdownActive(true);
       setCountdownSeconds(3);
-    } else if (!gestureResult.isHandRaised || gestureResult.isPoseLost) {
+    } else if (!gestureTriggered || gestureResult.isPoseLost) {
       if (countdownActive) {
         setCountdownActive(false);
         if (countdownIntervalRef.current) {
@@ -128,11 +132,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         }
       }
     }
-  }, [gestureResult.isHandRaised, result.isReady, gestureResult.isPoseLost, countdownActive]);
+  }, [gestureResult.isHandRaised, gestureResult.isThumbsUp, result.isReady, gestureResult.isPoseLost, countdownActive]);
 
   useEffect(() => {
     if (countdownActive && countdownSeconds > 0) {
-      countdownIntervalRef.current = setInterval(() => {
+      countdownIntervalRef.current = window.setInterval(() => {
         setCountdownSeconds(prev => prev - 1);
       }, 1000);
       return () => {
@@ -174,6 +178,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   return (
     <div className="screen-container" style={{ background: 'var(--bg-primary)' }}>
+
       <div className="camera-viewport" style={{ 
         position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'radial-gradient(circle at center, #111a3d 0%, #0a0a1a 100%)'
@@ -291,11 +296,20 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                <p style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44` }}>
                 {result.message.toUpperCase()}
                </p>
-               <div style={{ height: '2px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', inset: 0, width: result.isReady ? '100%' : '40%', background: statusColor, transition: 'width 0.5s ease', boxShadow: `0 0 10px ${statusColor}` }} />
+               <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
+                  <div style={{ 
+                    position: 'absolute', 
+                    inset: 0, 
+                    width: `${result.isReady ? 100 : (result.totalCount > 0 ? (result.visibleCount / result.totalCount) * 100 : 0)}%`, 
+                    background: statusColor, 
+                    transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease', 
+                    boxShadow: `0 0 12px ${statusColor}` 
+                  }} />
                </div>
                <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px' }}>
-                 {result.isReady ? 'OPTIMAL POSITION ACHIEVED' : 'ACQUIRING BODY LANDMARKS...'}
+                 {result.isReady 
+                   ? 'OPTIMAL POSITION ACHIEVED' 
+                   : `ACQUIRING BODY LANDMARKS... (${result.visibleCount || 0}/${result.totalCount || 8})`}
                </p>
             </div>
           )}
@@ -308,7 +322,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid var(--neon-cyan)', background: 'rgba(0, 240, 255, 0.05)', boxShadow: '0 0 20px rgba(0, 240, 255, 0.3)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>STARTING IN</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: '4rem', color: 'var(--neon-cyan)', letterSpacing: '4px', textShadow: '0 0 20px rgba(0, 240, 255, 0.8)', animation: 'pulse 0.5s ease-in-out' }}>{countdownSeconds}</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>KEEP YOUR HANDS UP</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>KEEP POSITION STEADY</div>
             </div>
           ) : gestureResult.isPoseLost ? (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', border: '2px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.05)', boxShadow: '0 0 20px rgba(255, 59, 92, 0.3)' }}>
@@ -322,10 +336,10 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                 <Hand color="var(--neon-purple)" size={28} style={{ animation: 'pulse 1.5s ease-in-out infinite' }} />
                 <div>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>READY TO START</div>
-                  <div style={{ color: 'var(--neon-cyan)', fontWeight: 700, fontSize: '0.85rem' }}>RAISE BOTH HANDS</div>
+                  <div style={{ color: 'var(--neon-cyan)', fontWeight: 700, fontSize: '0.85rem' }}>RAISE HANDS OR THUMBS UP</div>
                 </div>
               </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>Lift both hands above your shoulders to begin analysis</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>Lift both hands or give a thumbs up to begin analysis</div>
               {gestureResult.confidence > 0 && gestureResult.confidence < 1 && (
                 <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{ width: `${gestureResult.confidence * 100}%`, height: '100%', background: 'var(--neon-purple)', transition: 'width 0.3s ease', boxShadow: '0 0 10px var(--neon-purple)' }} />

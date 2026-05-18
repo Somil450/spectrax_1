@@ -1,40 +1,46 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
 
-  optimizeDeps: {
-    exclude: [
-      '@mediapipe/pose',
-      '@mediapipe/camera_utils',
-      '@mediapipe/drawing_utils',
-      '@xenova/transformers',
-    ],
-  },
+    VitePWA({
+      registerType: "autoUpdate",
 
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
-  },
+      includeAssets: [
+        "favicon.svg",
+        "robots.txt",
+        "apple-touch-icon.png"
+      ],
 
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'three': ['three'],
-          'mediapipe': [
-            '@mediapipe/pose',
-            '@mediapipe/camera_utils',
-            '@mediapipe/drawing_utils',
-          ],
-          'transformers': ['@xenova/transformers'],
-          'react-vendor': ['react', 'react-dom'],
-        },
+      manifest: {
+        name: "SpectraX",
+        short_name: "SpectraX",
+        description: "AI-powered gesture recognition platform",
+        theme_color: "#000000",
+        background_color: "#000000",
+        display: "standalone",
+        start_url: "/",
+
+        icons: [
+          {
+            src: "/pwa-192x192.png",
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: "/pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png"
+          }
+        ]
       },
-    },
-  },
-})
+
+      workbox: {
+        maximumFileSizeToCacheInBytes: 30 * 1024 * 1024
+      }
+    })
+  ]
+});

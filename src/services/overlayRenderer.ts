@@ -69,12 +69,12 @@ export class OverlayRenderer {
     // 3. Draw Landmarks with dynamic size/glow
     drawLandmarks(this.ctx, results.poseLandmarks, {
       color: '#ffffff',
-      fillColor: (data) => {
+      fillColor: (data: any) => {
           // Highlight primary joints with stronger color
           return primaryJoints.includes(data.index!) ? color : 'rgba(255,255,255,0.5)';
       },
       lineWidth: 1,
-      radius: (data) => {
+      radius: (data: any) => {
         return primaryJoints.includes(data.index!) ? 6 : 2;
       }
     });

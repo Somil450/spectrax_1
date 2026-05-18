@@ -1,6 +1,7 @@
 import { pipeline, env } from '@xenova/transformers';
 
 // Skip local model check (fetch from Hugging Face)
+// @ts-ignore
 env.allowLocalModels = false;
 
 let classifier: any = null;
@@ -22,7 +23,7 @@ async function loadModel() {
 }
 
 self.onmessage = async (event) => {
-  const { frames, image, labels, type, frameId } = event.data;
+  const { image, labels, type } = event.data;
 
   if (type === 'init') {
     await loadModel();

@@ -1,16 +1,26 @@
-import { useState, useRef } from 'react';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import { CalibrationScreen } from './components/CalibrationScreen';
-import { WorkoutScreen } from './components/WorkoutScreen';
-import { SummaryScreen } from './components/SummaryScreen';
-import { ReplayScreen } from './components/ReplayScreen';
-import { exercises, ExerciseConfig } from './config/exercises';
-import { BodyType } from './services/bodyTypeEngine';
-import { useTheme } from './context/ThemeContext';
+import { useState, useRef } from "react";
+import { WelcomeScreen } from "./components/WelcomeScreen";
+import { CalibrationScreen } from "./components/CalibrationScreen";
+import { WorkoutScreen } from "./components/WorkoutScreen";
+import { SummaryScreen } from "./components/SummaryScreen";
+import { ReplayScreen } from "./components/ReplayScreen";
+import { exercises, ExerciseConfig } from "./config/exercises";
+import { BodyType } from "./services/bodyTypeEngine";
+import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
+ onboarding-tour
 import OnboardingTour from './tour';
 
-type Screen = 'welcome' | 'calibration' | 'workout' | 'summary' | 'replay' | 'history';
+import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+ main
+
+type Screen =
+  | "welcome"
+  | "calibration"
+  | "workout"
+  | "summary"
+  | "replay"
+  | "history";
 
 interface WorkoutStats {
   reps: number;
@@ -27,9 +37,17 @@ interface WorkoutStats {
 
 function App() {
   const { theme, toggleTheme } = useTheme();
+ onboarding-tour
   const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(exercises.squat);
   const [bodyType, setBodyType] = useState<BodyType>('scanning');
+
+  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
+    exercises.squat,
+  );
+  const [bodyType, setBodyType] = useState<BodyType>("scanning");
+ main
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
     totalReps: 0,
@@ -39,18 +57,31 @@ function App() {
     accuracy: 0,
     exerciseName: exercises.squat.name,
     mistakes: {},
-    bestStreak: 0
+    bestStreak: 0,
   });
 
+ onboarding-tour
+
+  const [statsLoading, setStatsLoading] = useState(false);
+
+ main
   const lastSwitchTime = useRef<number>(0);
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
   };
 
-  const handleWorkoutEnd = (finalStats: Omit<WorkoutStats, 'exerciseName'> & { tags?: string[] }) => {
+  const handleWorkoutEnd = (
+    finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
+  ) => {
+    setStatsLoading(true);
     setStats({ ...finalStats, exerciseName: selectedExercise.name });
-    navigateTo('summary');
+    navigateTo("summary");
+
+    // Show skeleton briefly before rendering real summary
+    setTimeout(() => {
+      setStatsLoading(false);
+    }, 1500);
   };
 
   const handleAutoDetect = (exerciseKey: string) => {
@@ -69,17 +100,60 @@ function App() {
     }
   };
 
+  // Show loading state while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // If not authenticated, show auth screens
+  if (!user) {
+    return (
+      <main className="spectrax-app">
+        {currentScreen === "login" && (
+          <LoginScreen
+            onLoginSuccess={() => navigateTo("welcome")}
+            onSignUpClick={() => navigateTo("signup")}
+            onForgotPasswordClick={() => navigateTo("forgot-password")}
+          />
+        )}
+        {currentScreen === "signup" && (
+          <SignUpScreen
+            onSignUpSuccess={() => navigateTo("welcome")}
+            onLoginClick={() => navigateTo("login")}
+          />
+        )}
+        {currentScreen === "forgot-password" && (
+          <ForgotPasswordScreen onBack={() => navigateTo("login")} />
+        )}
+      </main>
+    );
+  }
+
+  // If authenticated, show main app with theme toggle and workout screens
   return (
+onboarding-tour
     <main className="spectrax-app" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
 
   
 <OnboardingTour currentScreen={currentScreen} />
 
+
+    <main
+      className="spectrax-app"
+      style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
+    >
+main
       <button
         onClick={toggleTheme}
-        className="theme-toggle"
-        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        className={`theme-toggle ${currentScreen === "workout" ? "workout-active" : ""}`}
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       >
+ onboarding-tour
         {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
       </button>
 
@@ -96,11 +170,31 @@ function App() {
           onSelectExercise={handleSelectExercise}
           onNext={() => navigateTo('workout')}
           onBack={() => navigateTo('welcome')}
+
+        {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
+      </button>
+
+      {currentScreen === "welcome" && (
+        <WelcomeScreen
+          onStart={() => navigateTo("calibration")}
+          onViewHistory={() => navigateTo("history")} // add this
+        />
+      )}
+
+      {currentScreen === "calibration" && (
+        <CalibrationScreen
+          selectedExercise={selectedExercise}
+          onSelectExercise={handleSelectExercise}
+          onNext={() => navigateTo("workout")}
+          onBack={() => navigateTo("welcome")}
+ main
           onBodyTypeDetected={setBodyType}
         />
       )}
 
+ onboarding-tour
       {currentScreen === 'workout' && (
+      {currentScreen === "workout" && ( main
         <WorkoutScreen
           exercise={selectedExercise}
           onEnd={handleWorkoutEnd}
@@ -109,6 +203,7 @@ function App() {
         />
       )}
 
+ onboarding-tour
       {currentScreen === 'summary' && (
         <SummaryScreen
           stats={stats}
@@ -123,6 +218,24 @@ function App() {
 
       {currentScreen === 'history' && (
         <HistoryPage onBack={() => navigateTo('welcome')} />
+
+      {currentScreen === "summary" &&
+        (statsLoading ? (
+          <SummaryScreenSkeleton />
+        ) : (
+          <SummaryScreen
+            stats={stats}
+            onRestart={() => navigateTo("welcome")}
+            onViewReplay={() => navigateTo("replay")}
+          />
+        ))}
+
+      {currentScreen === "replay" && (
+        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+      )}
+      {currentScreen === "history" && (
+        <HistoryPage onBack={() => navigateTo("welcome")} />
+ main
       )}
     </main>
   );

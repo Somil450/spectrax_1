@@ -1,0 +1,277 @@
+/* Profile Button */
+.profile-button {
+  position: fixed;
+  top: 20px;
+  right: 160px;
+  z-index: 100;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: var(--accent-primary, #667eea);
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.profile-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.profile-button:active {
+  transform: scale(0.95);
+}
+
+[data-theme="dark"] .profile-button {
+  background: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Theme Toggle adjustments */
+.theme-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--neon-cyan, #00f0ff);
+  color: var(--bg-primary, #0a0a1a);
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(0, 240, 255, 0.3);
+}
+
+.theme-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 240, 255, 0.5);
+}
+
+/* Spectrax App Container */
+.spectrax-app {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg-primary, #f5f5f5);
+  color: var(--text-primary, #1a1a1a);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+[data-theme="dark"] .spectrax-app {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Rounded Button & Panel Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Exercise Selection Panel - Rounded */
+.exercise-panel,
+.select-exercise-panel {
+  position: fixed;
+  right: 20px;
+  top: 100px;
+  background: rgba(13, 17, 39, 0.9);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  border-radius: 24px;
+  padding: 24px;
+  backdrop-filter: blur(10px);
+  z-index: 50;
+  min-width: 260px;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.exercise-panel h3,
+.select-exercise-panel h3 {
+  color: var(--neon-cyan, #00f0ff);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Rounded Exercise Buttons */
+.exercise-button,
+.select-exercise-btn {
+  width: 100%;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 14px;
+  color: var(--text-secondary, rgba(232, 236, 244, 0.85));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.exercise-button:hover,
+.select-exercise-btn:hover {
+  background: rgba(168, 85, 247, 0.35);
+  border-color: var(--neon-purple, #a855f7);
+  transform: translateX(-4px);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+}
+
+.exercise-button.active,
+.select-exercise-btn.active {
+  background: var(--neon-purple, #a855f7);
+  border-color: var(--neon-purple, #a855f7);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.6);
+}
+
+/* Primary Action Buttons - Rounded */
+.btn-primary,
+.btn-start,
+button[type="submit"]:not(.theme-toggle) {
+  background: linear-gradient(
+    135deg,
+    var(--neon-cyan, #00f0ff) 0%,
+    var(--neon-purple, #a855f7) 100%
+  );
+  color: var(--bg-primary, #0a0a1a);
+  padding: 14px 32px;
+  border: none;
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.3);
+}
+
+.btn-primary:hover,
+.btn-start:hover,
+button[type="submit"]:not(.theme-toggle):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 240, 255, 0.5);
+}
+
+.btn-primary:active,
+.btn-start:active,
+button[type="submit"]:not(.theme-toggle):active {
+  transform: translateY(0);
+}
+
+/* Secondary Buttons - Rounded */
+.btn-secondary,
+.btn-cancel {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1.5px solid rgba(0, 240, 255, 0.5);
+  color: var(--neon-cyan, #00f0ff);
+  padding: 12px 28px;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+}
+
+.btn-secondary:hover,
+.btn-cancel:hover {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--neon-cyan, #00f0ff);
+  box-shadow: 0 4px 12px rgba(0, 240, 255, 0.3);
+}
+
+/* Loading Container */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-primary, #0a0a1a);
+  gap: 20px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(0, 240, 255, 0.2);
+  border-top-color: var(--neon-cyan, #00f0ff);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-container p {
+  color: var(--text-secondary, rgba(232, 236, 244, 0.85));
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .exercise-panel,
+  .select-exercise-panel {
+    right: 10px;
+    top: 80px;
+    min-width: 220px;
+    max-width: 280px;
+    border-radius: 20px;
+    padding: 16px;
+  }
+
+  .profile-button {
+    right: 120px;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .theme-toggle {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .exercise-button,
+  .select-exercise-btn {
+    padding: 12px 16px;
+    font-size: 12px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+  }
+
+  .btn-primary,
+  .btn-start {
+    padding: 12px 24px;
+    font-size: 13px;
+    border-radius: 12px;
+  }
+}

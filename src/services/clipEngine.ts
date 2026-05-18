@@ -71,7 +71,7 @@ class ClipEngine {
       );
 
       this.worker.onmessage = (event) => {
-        const { type, progress, results, error } = event.data;
+        const { type, progress, error } = event.data;
         if (type === 'progress') {
           this.progress = progress;
         } else if (type === 'ready') {
