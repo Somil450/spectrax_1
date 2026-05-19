@@ -1,5 +1,4 @@
 // Named imports — explicit and safe in Vite. No namespace alias needed.
-import { Pose, Results } from '@mediapipe/pose';
 import type { Pose as PoseType, Results } from '@mediapipe/pose';
 
 // MediaPipe's npm packages are not ESM-compatible. Since we load them via CDN in index.html,
@@ -55,8 +54,6 @@ export class PoseService {
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
 
-    this.pose.onResults((results) => {
-    
     this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0;

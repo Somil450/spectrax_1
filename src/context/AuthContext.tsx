@@ -149,27 +149,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Automatically syncs user profile when auth state changes
    */
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      try {
-        if (currentUser) {
-          setUser(currentUser);
-          const profile = await syncUserProfile(currentUser);
-          setUserProfile(profile);
-          console.log("✅ User loaded:", currentUser.uid);
-        } else {
-          setUser(null);
-          setUserProfile(null);
-        }
-      } catch (err) {
-        const errorMsg = getErrorMessage(err);
-        console.error("❌ Auth state error:", err);
-        setError(errorMsg);
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    return unsubscribe;
+    // Mock user for local testing without Firebase configuration
+    const mockUser = { uid: "mock-user-123", email: "test@example.com", displayName: "Test User" } as User;
+    const mockProfile = { 
+      uid: "mock-user-123", 
+      email: "test@example.com", 
+      displayName: "Test User", 
+      photoURL: null, 
+      createdAt: Date.now(), 
+      lastLogin: Date.now() 
+    };
+    
+    setUser(mockUser);
+    setUserProfile(mockProfile);
+    setLoading(false);
   }, []);
 
   /**

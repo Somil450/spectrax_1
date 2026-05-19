@@ -52,12 +52,8 @@ const srOnly: React.CSSProperties = {
   clipPath: 'inset(50%)',
   whiteSpace: 'nowrap',
   border: 0,
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
-  exercise,
-  onEnd,
-  onAutoDetect,
-  bodyType,
-}) => {
+};
+
 type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
 
 type PanelPosition = {
