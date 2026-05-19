@@ -61,7 +61,7 @@ const parseFeedback = (feedback: string) => {
 
   const badJoints = new Set<number>();
   let baseColor = COLOR_YELLOW;
-  let mistakeColor = COLOR_RED;
+  const mistakeColor = COLOR_RED;
 
   if (feedback.includes("Keep your back straight ❌")) {
     baseColor = COLOR_RED;

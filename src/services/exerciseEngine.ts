@@ -66,8 +66,8 @@ export class ExerciseEngine {
   ): Promise<EngineState> {
     const currentTime = Date.now();
 
-    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
-      currentState;
+    const { reps, lastRepTime, history } = currentState;
+    let { stage, isCalibrated, stageStartTime } = currentState;
 
     const rawAngle = angles[config.primaryJoint];
     const currentVisibility = visibility[config.primaryJoint];
@@ -200,7 +200,7 @@ export class ExerciseEngine {
     let nextBestStreak = currentState.bestStreak;
     let nextTotalReps = currentState.totalReps;
     let nextCorrectReps = currentState.correctReps;
-    let nextRepScores = [...currentState.repScores];
+    const nextRepScores = [...currentState.repScores];
 
     let allowRep = currentState.allowRep;
 
