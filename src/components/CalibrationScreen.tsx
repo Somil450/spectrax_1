@@ -195,6 +195,15 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           height={720}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }} 
         />
+        
+        {/* Silhouette Guide Overlay */}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: result.isReady ? 0 : 0.4, transition: 'opacity 0.5s ease' }}>
+          <svg viewBox="0 0 200 400" style={{ height: '85%', maxHeight: '650px', filter: 'drop-shadow(0 0 10px var(--neon-cyan))' }}>
+            <circle cx="100" cy="50" r="25" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" />
+            <path d="M 60 95 C 100 80, 100 80, 140 95 L 130 200 L 140 370 L 115 370 L 100 230 L 85 370 L 60 370 L 70 200 Z" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" strokeLinejoin="round" />
+            <path d="M 60 95 L 35 180 M 140 95 L 165 180" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" strokeLinecap="round" />
+          </svg>
+        </div>
       </div>
 
       <div className="ui-layer" style={{ position: 'relative', zIndex: 10, height: '100%', padding: '40px', pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
