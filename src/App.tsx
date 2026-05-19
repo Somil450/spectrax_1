@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
@@ -17,17 +17,21 @@ import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
 
-type Screen =
-  | "welcome"
-  | "calibration"
-  | "workout"
-  | "summary"
-  | "replay"
-  | "history"
-  | "login"
-  | "signup"
-  | "forgot-password"
-  | "trophy";
+// ─── FSM ──────────────────────────────────────────────────────────────────────
+type AppState = "welcome" | "calibration" | "workout" | "summary" | "replay" | "history" | "trophy";
+type AuthScreen = "login" | "signup" | "forgot-password";
+
+// Only these edges are legal. Anything else is a no-op.
+const TRANSITIONS: Record<AppState, AppState[]> = {
+  welcome:     ["calibration", "history", "trophy"],
+  calibration: ["workout", "welcome"],
+  workout:     ["summary"],
+  summary:     ["welcome", "replay"],
+  replay:      ["summary"],
+  history:     ["welcome"],
+  trophy:      ["welcome"],
+};
+
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -44,10 +48,11 @@ interface WorkoutStats {
 function App() {
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
-    exercises.squat,
-  );
+
+  const [state, setState] = useState<AppState>("welcome");
+  const [authScreen, setAuthScreen] = useState<AuthScreen>("login");
+
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(exercises.squat);
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
@@ -62,42 +67,43 @@ function App() {
   });
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
-
   const [statsLoading, setStatsLoading] = useState(false);
-
   const lastSwitchTime = useRef<number>(0);
+  const prevState = useRef<AppState>(state);
 
-  const navigateTo = (screen: Screen) => {
-    setCurrentScreen(screen);
+  const go = (next: AppState) => {
+    if (!TRANSITIONS[state]?.includes(next)) {
+      console.warn(`invalid transition: ${state} → ${next}`);
+      return;
+    }
+    setState(next);
   };
 
-  const handleWorkoutEnd = (
-    finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
-  ) => {
-    setStatsLoading(true);
-    const fullStats = { ...finalStats, exerciseName: selectedExercise.name };
-    setStats(fullStats);
-    navigateTo("summary");
+  // Camera / WebGL cleanup when leaving workout — WorkoutScreen unmounts and
+  // handles its own teardown, but this catches any app-level resources.
+  useEffect(() => {
+    if (prevState.current === "workout" && state !== "workout") {
+      // workout exited — app-level cleanup goes here if needed
+    }
+    prevState.current = state;
+  }, [state]);
 
-    // Award badges based on completed session
+  const handleWorkoutEnd = (finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] }) => {
+    setStatsLoading(true);
+    setStats({ ...finalStats, exerciseName: selectedExercise.name });
+    go("summary");
     checkAndAwardBadges({
       totalReps: finalStats.totalReps,
       accuracy: finalStats.accuracy,
       exerciseName: selectedExercise.name,
       bestStreak: finalStats.bestStreak,
     });
-
-    // Show skeleton briefly before rendering real summary
-    setTimeout(() => {
-      setStatsLoading(false);
-    }, 1500);
+    setTimeout(() => setStatsLoading(false), 1500);
   };
 
   const handleAutoDetect = (exerciseKey: string) => {
     const now = Date.now();
-    // 5-second cooldown
     if (now - lastSwitchTime.current < 5000) return;
-
     if (exercises[exerciseKey] && selectedExercise.key !== exerciseKey) {
       console.log(`CLIP: Auto-switching to ${exerciseKey.toUpperCase()}`);
       lastSwitchTime.current = now;
@@ -106,12 +112,9 @@ function App() {
   };
 
   const handleSelectExercise = (key: string) => {
-    if (exercises[key]) {
-      setSelectedExercise(exercises[key]);
-    }
+    if (exercises[key]) setSelectedExercise(exercises[key]);
   };
 
-  // Show loading state while auth is being checked
   if (authLoading) {
     return (
       <div className="loading-container">
@@ -121,67 +124,58 @@ function App() {
     );
   }
 
-  // If not authenticated, show auth screens
   if (!user) {
-    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
-      ? currentScreen
-      : "login";
-
     return (
       <main className="spectrax-app">
-        {activeAuthScreen === "login" && (
+        {authScreen === "login" && (
           <LoginScreen
-            onLoginSuccess={() => navigateTo("welcome")}
-            onSignUpClick={() => navigateTo("signup")}
-            onForgotPasswordClick={() => navigateTo("forgot-password")}
+            onLoginSuccess={() => setState("welcome")}
+            onSignUpClick={() => setAuthScreen("signup")}
+            onForgotPasswordClick={() => setAuthScreen("forgot-password")}
           />
         )}
-        {activeAuthScreen === "signup" && (
+        {authScreen === "signup" && (
           <SignUpScreen
-            onSignUpSuccess={() => navigateTo("welcome")}
-            onLoginClick={() => navigateTo("login")}
+            onSignUpSuccess={() => setState("welcome")}
+            onLoginClick={() => setAuthScreen("login")}
           />
         )}
-        {activeAuthScreen === "forgot-password" && (
-          <ForgotPasswordScreen onBack={() => navigateTo("login")} />
+        {authScreen === "forgot-password" && (
+          <ForgotPasswordScreen onBack={() => setAuthScreen("login")} />
         )}
       </main>
     );
   }
 
-  // If authenticated, show main app with theme toggle and workout screens
   return (
-    <main
-      className="spectrax-app"
-      style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
-    >
+    <main className="spectrax-app" style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
       <button
         onClick={toggleTheme}
-        className={`theme-toggle ${currentScreen === "workout" ? "workout-active" : ""}`}
+        className={`theme-toggle ${state === "workout" ? "workout-active" : ""}`}
         aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       >
         {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
       </button>
 
-      {currentScreen === "welcome" && (
+      {state === "welcome" && (
         <WelcomeScreen
-          onStart={() => navigateTo("calibration")}
-          onViewHistory={() => navigateTo("history")}
-          onViewTrophies={() => navigateTo("trophy")}
+          onStart={() => go("calibration")}
+          onViewHistory={() => go("history")}
+          onViewTrophies={() => go("trophy")}
         />
       )}
 
-      {currentScreen === "calibration" && (
+      {state === "calibration" && (
         <CalibrationScreen
           selectedExercise={selectedExercise}
           onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo("workout")}
-          onBack={() => navigateTo("welcome")}
+          onNext={() => go("workout")}
+          onBack={() => go("welcome")}
           onBodyTypeDetected={setBodyType}
         />
       )}
 
-      {currentScreen === "workout" && (
+      {state === "workout" && (
         <WorkoutScreen
           exercise={selectedExercise}
           onEnd={handleWorkoutEnd}
@@ -190,31 +184,29 @@ function App() {
         />
       )}
 
-      {currentScreen === "summary" &&
+      {state === "summary" &&
         (statsLoading ? (
           <SummaryScreenSkeleton />
         ) : (
           <SummaryScreen
             stats={stats}
-            onRestart={() => navigateTo("welcome")}
-            onViewReplay={() => navigateTo("replay")}
+            onRestart={() => go("welcome")}
+            onViewReplay={() => go("replay")}
           />
         ))}
 
-      {currentScreen === "replay" && (
-        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+      {state === "replay" && (
+        <ReplayScreen onBack={() => go("summary")} stats={stats} />
       )}
 
-      {currentScreen === "history" && (
-        <HistoryPage onBack={() => navigateTo("welcome")} />
+      {state === "history" && (
+        <HistoryPage onBack={() => go("welcome")} />
       )}
 
-      {currentScreen === "trophy" && (
-        <TrophyRoom onBack={() => navigateTo("welcome")} />
+      {state === "trophy" && (
+        <TrophyRoom onBack={() => go("welcome")} />
       )}
 
-      {/* Global badge unlock notification — rendered at the app root so it's
-          always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
     </main>
   );
