@@ -15,7 +15,7 @@ export interface WorkoutSession {
 // ── DB bootstrap ─────────────────────────────────────────────────────────────
 
 const DB_NAME = "spectrax_db";
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const STORE = "workout_sessions";
 
 function openDB(): Promise<IDBDatabase> {
@@ -24,13 +24,19 @@ function openDB(): Promise<IDBDatabase> {
 
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, {
-          keyPath: "id",
-          autoIncrement: true,
-        });
-        store.createIndex("timestamp", "timestamp", { unique: false });
+
+      // Recreate workouts store to change keyPath from "id" to "localId"
+      if (db.objectStoreNames.contains(STORE)) {
+        db.deleteObjectStore(STORE);
       }
+
+      const store = db.createObjectStore(STORE, {
+        keyPath: "localId",
+        autoIncrement: true,
+      });
+      store.createIndex("timestamp", "timestamp", { unique: false });
+      store.createIndex("userId", "userId", { unique: false });
+      store.createIndex("synced", "synced", { unique: false });
     };
 
     req.onsuccess = () => resolve(req.result);
@@ -55,12 +61,16 @@ async function getAllSessions(): Promise<WorkoutSession[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
     const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () =>
+    req.onsuccess = () => {
+      const results = req.result as any[];
+      const sessions = results.map((r) => ({
+        ...r,
+        id: r.localId, // Map localId to id for compatibility with the rest of the application
+      })) as WorkoutSession[];
       resolve(
-        (req.result as WorkoutSession[]).sort(
-          (a, b) => b.timestamp - a.timestamp
-        )
+        sessions.sort((a, b) => b.timestamp - a.timestamp)
       );
+    };
     req.onerror = () => reject(req.error);
   });
 }
