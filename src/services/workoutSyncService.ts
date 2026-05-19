@@ -133,7 +133,7 @@ export async function getUnsyncedWorkouts(
     const tx = db.transaction(WORKOUTS_STORE, "readonly");
     const store = tx.objectStore(WORKOUTS_STORE);
     const index = store.index("synced");
-    const req = index.getAll(false);
+    const req = index.getAll(false as any);
 
     req.onsuccess = () => {
       const allUnsynced = req.result as WorkoutRecord[];
