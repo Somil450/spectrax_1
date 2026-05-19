@@ -1,4 +1,6 @@
-import type { Pose as PoseType, Results } from '@mediapipe/pose';
+// Import MediaPipe types only; the runtime Pose constructor is provided via CDN on window.
+import type { Results } from '@mediapipe/pose';
+import type { Pose as PoseType } from '@mediapipe/pose';
 
 // Read the runtime constructor from `window` instead of importing `Pose` as a value
 // from `@mediapipe/pose`, because the global script path is the Vite/ESM-safe option.
@@ -310,8 +312,9 @@ export class PoseService {
    * Sets the callback function when pose results are available.
    */
   onResults(callback: (results: Results) => void) {
-    if (!this.pose) return;
+  if (!this.pose) return;
 
+<<<<<<< HEAD
     this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0;
@@ -321,6 +324,16 @@ export class PoseService {
       }
     });
   }
+=======
+  this.pose.onResults((results: any) => {
+    this.inProgress = false;
+    this.errorCount = 0;
+    if (results) {
+      callback(results);
+    }
+  });
+}
+>>>>>>> 6aba145 (fix: resolve Vite build failures in poseService.ts and WorkoutScreen.tsx)
 
   /**
    * Processes a single video frame.
