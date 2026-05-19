@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History } from "lucide-react";
+import { Play, Sparkles, History, Trophy } from "lucide-react";
 
 interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
+  onViewTrophies: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
+  onViewTrophies,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -227,6 +229,44 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           >
             <History size={15} />
             VIEW HISTORY
+          </button>
+
+          <button
+            onClick={onViewTrophies}
+            aria-label="View Trophy Room"
+            tabIndex={0}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "rgba(255, 214, 0, 0.08)",
+              border: "1.5px solid rgba(255, 214, 0, 0.35)",
+              borderRadius: "14px",
+              color: "var(--neon-yellow)",
+              cursor: "pointer",
+              padding: "12px 28px",
+              fontSize: "0.75rem",
+              letterSpacing: "2px",
+              fontWeight: 700,
+              transition: "all 0.3s ease",
+              textTransform: "uppercase",
+              boxShadow: "0 2px 8px rgba(255, 214, 0, 0.1)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255, 214, 0, 0.15)";
+              e.currentTarget.style.borderColor = "var(--neon-yellow)";
+              e.currentTarget.style.boxShadow = "0 4px 16px rgba(255, 214, 0, 0.25)";
+              e.currentTarget.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255, 214, 0, 0.08)";
+              e.currentTarget.style.borderColor = "rgba(255, 214, 0, 0.35)";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(255, 214, 0, 0.1)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
+            <Trophy size={15} />
+            TROPHY ROOM
           </button>
         </div>
       </div>

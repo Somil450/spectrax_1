@@ -4,6 +4,8 @@ import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
 import { ReplayScreen } from "./components/ReplayScreen";
+import { TrophyRoom } from "./components/TrophyRoom";
+import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
@@ -13,6 +15,7 @@ import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
+import { useBadges } from "./hooks/useBadges";
 
 type Screen =
   | "welcome"
@@ -24,6 +27,7 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password";
+  | "trophy";
 
 interface WorkoutStats {
   reps: number;
@@ -58,6 +62,8 @@ function App() {
     bestStreak: 0,
   });
 
+  const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
+
   const [statsLoading, setStatsLoading] = useState(false);
 
   const lastSwitchTime = useRef<number>(0);
@@ -70,8 +76,17 @@ function App() {
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
     setStatsLoading(true);
-    setStats({ ...finalStats, exerciseName: selectedExercise.name });
+    const fullStats = { ...finalStats, exerciseName: selectedExercise.name };
+    setStats(fullStats);
     navigateTo("summary");
+
+    // Award badges based on completed session
+    checkAndAwardBadges({
+      totalReps: finalStats.totalReps,
+      accuracy: finalStats.accuracy,
+      exerciseName: selectedExercise.name,
+      bestStreak: finalStats.bestStreak,
+    });
 
     // Show skeleton briefly before rendering real summary
     setTimeout(() => {
@@ -152,7 +167,8 @@ function App() {
       {currentScreen === "welcome" && (
         <WelcomeScreen
           onStart={() => navigateTo("calibration")}
-          onViewHistory={() => navigateTo("history")} // add this
+          onViewHistory={() => navigateTo("history")}
+          onViewTrophies={() => navigateTo("trophy")}
         />
       )}
 
@@ -189,9 +205,18 @@ function App() {
       {currentScreen === "replay" && (
         <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
       )}
+
       {currentScreen === "history" && (
         <HistoryPage onBack={() => navigateTo("welcome")} />
       )}
+
+      {currentScreen === "trophy" && (
+        <TrophyRoom onBack={() => navigateTo("welcome")} />
+      )}
+
+      {/* Global badge unlock notification — rendered at the app root so it's
+          always visible regardless of which screen is active */}
+      <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
     </main>
   );
 }
