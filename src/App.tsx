@@ -26,7 +26,7 @@ type Screen =
   | "history"
   | "login"
   | "signup"
-  | "forgot-password";
+  | "forgot-password"
   | "trophy";
 
 interface WorkoutStats {
