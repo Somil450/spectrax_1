@@ -322,6 +322,9 @@ class SessionRecorder {
   private _frameCount = 0;
   private lastRawFrame: FrameData | null = null;
 
+  private lastCentroid: { x: number; y: number } | null = null;
+  private displacements: number[] = [];
+
   start() {
     this.compressedFrames = [];
     this._frameCount = 0;
@@ -406,6 +409,51 @@ class SessionRecorder {
         ? archive.frameCount
         : RLDCompressionDriver.decompress(this.compressedFrames).length;
     this.lastRawFrame = this.frames[this.frames.length - 1] || null;
+  }
+
+  private getCentroid(landmarks: any[]) {
+    if (!landmarks || landmarks.length === 0) return null;
+
+    let x = 0;
+    let y = 0;
+
+    for (const p of landmarks) {
+      x += p.x;
+      y += p.y;
+    }
+
+    return {
+      x: x / landmarks.length,
+      y: y / landmarks.length,
+    };
+  }
+
+  getStabilityReport() {
+    if (this.displacements.length === 0) {
+      return {
+        stabilityScore: 100,
+        avgDrift: 0,
+        maxDrift: 0,
+        status: "No movement data",
+      };
+    }
+    const sum = this.displacements.reduce((a, b) => a + b, 0);
+    const avg = sum / this.displacements.length;
+    const max = Math.max(...this.displacements);
+
+    // Simple scoring model (you can improve later)
+    const stabilityScore = Math.max(0, 100 - avg * 10);
+
+    let status = "Stable";
+    if (avg > 5) status = "Unstable";
+    else if (avg > 2) status = "Moderate";
+
+    return {
+      stabilityScore: Math.round(stabilityScore),
+      avgDrift: Number(avg.toFixed(3)),
+      maxDrift: Number(max.toFixed(3)),
+      status,
+    };
   }
 
   download() {
@@ -542,5 +590,5 @@ class TelemetryBroker {
     URL.revokeObjectURL(url);
   }
 }
-
 export const telemetryBroker = new TelemetryBroker();
+(window as any).sessionRecorder = sessionRecorder;

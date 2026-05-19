@@ -444,7 +444,7 @@ export class PoseService {
 
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
-
+    
     this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0;

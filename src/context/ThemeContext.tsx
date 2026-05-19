@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
+import React from "react";
 
 export type Theme = 'cyber-dark' | 'retro' | 'light';
 
@@ -62,4 +63,4 @@ export function useTheme(): ThemeContextType {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error('useTheme must be used inside ThemeProvider');
   return ctx;
-}
+}
