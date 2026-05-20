@@ -67,6 +67,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
   const countRef = useRef<number>(0);
+  const isProcessingRef = useRef<boolean>(false);
+  const isClipProcessingRef = useRef<boolean>(false);
   const frameSkipRef = useRef<number>(0);          // frame-skip counter
   const workerRef = useRef<Worker | null>(null);    // pose worker
   const pendingLandmarksRef = useRef<any>(null);    // latest landmarks for worker
@@ -133,8 +135,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
         await cameraService.startCamera(videoRef.current);
 
-        poseService.onResults(async (results) => {
-          if (!isMounted || !results.poseLandmarks) return;
+  poseService.onResults(async (results) => {
+  cameraService.onFrameComplete(); 
+  if (!isMounted || !results.poseLandmarks) return;
 
           // ── Frame skipping: process every other frame ─────────────────────
           frameSkipRef.current++;
@@ -209,29 +212,20 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           overlayRenderer.draw(results, nextState.status, primaryJoints);
         });
 
-        const loop = (timestamp: number) => {
-          if (!isMounted) return;
-          const elapsed = timestamp - lastProcessTime.current;
-          if (elapsed > (1000 / FPS_LIMIT)) {
-            if (videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused) {
-              poseService.send(videoRef.current);
+cameraService.startFrameLoop((video) => {
+  poseService.send(video);
 
-              countRef.current++;
-              if (countRef.current % 5 === 0) setVlmProgress(clipEngine.getProgress());
+  countRef.current++;
+  if (countRef.current % 5 === 0) setVlmProgress(clipEngine.getProgress());
 
-              if (countRef.current % 15 === 0 && canvasRef.current) {
-                clipEngine.analyzeFrame(canvasRef.current).then(res => {
-                  if (res && isMounted) {
-                    setClipResult(res);
-                  }
-                });
-              }
-            }
-            lastProcessTime.current = timestamp;
-          }
-          frameId.current = requestAnimationFrame(loop);
-        };
-        frameId.current = requestAnimationFrame(loop);
+  if (countRef.current % 15 === 0 && canvasRef.current && !isClipProcessingRef.current) {
+    isClipProcessingRef.current = true;
+    clipEngine.analyzeFrame(canvasRef.current).then(res => {
+      if (res && isMounted) setClipResult(res);
+      isClipProcessingRef.current = false;
+    });
+  }
+}, 20); // FPS limit
 
       } catch (err) {
         console.error("Workout camera error:", err);
@@ -246,10 +240,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     return () => {
       isMounted = false;
-      cancelAnimationFrame(frameId.current);
+      cameraService.stopCamera();
       worker.terminate();
       if (wsSocket) { try { wsSocket.close(); } catch(_) {} }
-      cameraService.stopCamera();
       clearInterval(timer);
     };
   }, [exercise]);
