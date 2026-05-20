@@ -1,33 +1,78 @@
 # 🚀 Pull Request Template
 
-## 📝 Description
-Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
+## 📌 Related Issue
 
-Fixes # (issue)
+Fixes #issue_number
+
+---
+
+## 📝 Description
+
+Please provide a clear and concise description of the changes made in this pull request.
+
+### 🔹 What has been changed?
+- 
+- 
+- 
+
+### 🔹 Why are these changes needed?
+Explain the purpose or problem being solved.
+
+---
 
 ## 🛠️ Type of Change
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📖 Documentation update
-- [ ] 🎨 UI/UX improvement
 
-## 🧪 How Has This Been Tested?
-Please describe the tests that you ran to verify your changes.
+Please mark the relevant option(s):
 
-- [ ] Manual test in Chrome/Firefox
-- [ ] Lint checks passed
-- [ ] Build passed
+- [ ] 🐛 Bug Fix
+- [ ] ✨ New Feature
+- [ ] 🎨 UI/UX Improvement
+- [ ] 📖 Documentation Update
+- [ ] ⚡ Performance Improvement
+- [ ] 🔧 Refactoring
+- [ ] 💥 Breaking Change
 
-## 📷 Screenshots (if applicable)
-Please provide screenshots or a GIF for UI changes.
+---
 
-## ✅ Checklist:
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
-- [ ] Any dependent changes have been merged and published in downstream modules
+## 🧪 Testing
+
+Describe how you tested your changes.
+
+### ✅ Tests Performed
+- [ ] Tested locally
+- [ ] Build runs successfully
+- [ ] No console errors
+- [ ] Responsive design checked
+- [ ] Existing functionality verified
+
+### 🌐 Browsers Tested
+- [ ] Chrome
+- [ ] Firefox
+- [ ] Edge
+- [ ] Safari
+
+---
+
+## 📷 Screenshots / Demo (if applicable)
+
+Please attach screenshots, GIFs, or demo videos for UI-related changes.
+
+---
+
+## 📋 Checklist
+
+Before submitting this PR, please confirm the following:
+
+- [ ] I have read the project's CONTRIBUTING guidelines
+- [ ] My code follows the project style guidelines
+- [ ] I have performed a self-review of my code
+- [ ] I have tested my changes locally
+- [ ] I have added/updated documentation where necessary
+- [ ] My changes do not introduce new warnings or errors
+- [ ] This PR is linked to an existing issue
+
+---
+
+## 💬 Additional Notes
+
+Add any additional context, references, or information for reviewers here.

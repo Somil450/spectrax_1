@@ -1,11 +1,15 @@
-import { ExerciseConfig } from '../config/exercises';
-import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
+import { ExerciseConfig } from "../config/exercises";
+import {
+  getFeedback,
+  resetFeedbackEngine,
+  FeedbackResult,
+} from "../engine/feedbackEngine";
 
 export interface EngineState {
   reps: number;
-  stage: 'up' | 'down';
+  stage: "up" | "down";
   feedback: string;
-  status: 'green' | 'yellow' | 'red';
+  status: "green" | "yellow" | "red";
   lastRepTime: number;
   isCalibrated: boolean;
   history: number[];
@@ -37,9 +41,9 @@ export class ExerciseEngine {
   private isValidExercisePosture(
     history: number[],
     config: ExerciseConfig,
-    stage: 'up' | 'down'
+    stage: "up" | "down",
   ): boolean {
-    if (stage === 'down') return true;
+    if (stage === "down") return true;
 
     const firstAngle = history[0];
     const lastAngle = history[history.length - 1];
@@ -58,18 +62,12 @@ export class ExerciseEngine {
     config: ExerciseConfig,
     angles: Record<string, number>,
     visibility: Record<string, number>,
-    currentState: EngineState
+    currentState: EngineState,
   ): Promise<EngineState> {
     const currentTime = Date.now();
 
-    let {
-      reps,
-      stage,
-      lastRepTime,
-      isCalibrated,
-      history,
-      stageStartTime
-    } = currentState;
+    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
+      currentState;
 
     const rawAngle = angles[config.primaryJoint];
     const currentVisibility = visibility[config.primaryJoint];
@@ -79,22 +77,33 @@ export class ExerciseEngine {
       return {
         ...currentState,
         feedback: "SENSORS BLURRED — POSITION BODY",
-        status: 'yellow',
-        isInExercisePosture: false
+        status: "yellow",
+        isInExercisePosture: false,
       };
     }
 
     // ───────── SMOOTHING ─────────
     const newHistory = [...history, rawAngle].slice(-this.SMOOTHING_WINDOW);
-    const smoothedAngle = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
+    const smoothedAngle =
+      newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
 
     // ───────── CALIBRATION ─────────
     if (!isCalibrated) {
       const isUpPosture = smoothedAngle > config.upThreshold - 5;
+      const isDownPosture = smoothedAngle < config.downThreshold + 5;
 
-      if (isUpPosture && newHistory.length >= this.SMOOTHING_WINDOW) {
+      // For jumping jacks, start from DOWN position (arms at sides)
+      // For other exercises, start from UP position
+      const shouldCalibrateFromDown =
+        config.key === "jumpingJack" && isDownPosture;
+      const shouldCalibrateFromUp = config.key !== "jumpingJack" && isUpPosture;
+
+      if (
+        (shouldCalibrateFromDown || shouldCalibrateFromUp) &&
+        newHistory.length >= this.SMOOTHING_WINDOW
+      ) {
         isCalibrated = true;
-        stage = 'up';
+        stage = shouldCalibrateFromDown ? "down" : "up";
         stageStartTime = currentTime;
         resetFeedbackEngine();
       }
@@ -106,8 +115,8 @@ export class ExerciseEngine {
         stage,
         stageStartTime,
         feedback: "ESTABLISHING POSTURE...",
-        status: 'yellow',
-        isInExercisePosture: false
+        status: "yellow",
+        isInExercisePosture: false,
       };
     }
 
@@ -117,35 +126,42 @@ export class ExerciseEngine {
     let nextLastRepTime = lastRepTime;
     let downAngleReached = currentState.downAngleReached;
 
-    if (smoothedAngle < (config.downThreshold - this.HYSTERESIS / 2)) {
-      if (stage === 'up') {
-        nextStage = 'down';
+    if (smoothedAngle < config.downThreshold - this.HYSTERESIS / 2) {
+      if (stage === "up") {
+        nextStage = "down";
         stageStartTime = currentTime;
         downAngleReached = smoothedAngle;
       }
 
-      if (nextStage === 'down') {
+      if (nextStage === "down") {
         downAngleReached = Math.min(downAngleReached, smoothedAngle);
       }
     }
 
     let repJustCounted = false;
 
-    if (smoothedAngle > (config.upThreshold + this.HYSTERESIS / 2) && stage === 'down') {
+    if (
+      smoothedAngle > config.upThreshold + this.HYSTERESIS / 2 &&
+      stage === "down"
+    ) {
       const durationInDown = currentTime - stageStartTime;
 
       if (
         currentTime - lastRepTime > this.REP_COOLDOWN &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
-        nextStage = 'up';
+        nextStage = "up";
         stageStartTime = currentTime;
         repJustCounted = true;
       }
     }
 
     // ───────── POSTURE VALIDATION ─────────
-    const isInExercisePosture = this.isValidExercisePosture(history, config, nextStage);
+    const isInExercisePosture = this.isValidExercisePosture(
+      history,
+      config,
+      nextStage,
+    );
 
     const context: any = {
       ...angles,
@@ -153,7 +169,7 @@ export class ExerciseEngine {
       lateralScore: angles.lateralScore,
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
-      downAngleReached
+      downAngleReached,
     };
 
     let feedbackResult: FeedbackResult;
@@ -165,9 +181,9 @@ export class ExerciseEngine {
     } else {
       feedbackResult = {
         score: 100,
-        color: 'green',
-        message: 'READY 🟢',
-        issues: []
+        color: "green",
+        message: "READY 🟢",
+        issues: [],
       };
       frameScore = 100;
     }
@@ -216,11 +232,11 @@ export class ExerciseEngine {
 
     // ───────── FEEDBACK ─────────
     let displayFeedback: string;
-    let displayStatus: 'green' | 'yellow' | 'red';
+    let displayStatus: "green" | "yellow" | "red";
 
     if (!isInExercisePosture) {
       displayFeedback = "Get into position...";
-      displayStatus = 'yellow';
+      displayStatus = "yellow";
     } else {
       displayFeedback = feedbackResult.message;
       displayStatus = feedbackResult.color;
@@ -228,7 +244,11 @@ export class ExerciseEngine {
 
     const nextMistakes = { ...currentState.mistakes };
 
-    if (isInExercisePosture && displayStatus !== 'green' && displayFeedback !== "Good form ✅") {
+    if (
+      isInExercisePosture &&
+      displayStatus !== "green" &&
+      displayFeedback !== "Good form ✅"
+    ) {
       nextMistakes[displayFeedback] = (nextMistakes[displayFeedback] || 0) + 1;
     }
 
@@ -242,9 +262,10 @@ export class ExerciseEngine {
       : currentState.totalFrames;
 
     // 🔥 FINAL ACCURACY %
-    const accuracy = nextTotalReps > 0
-      ? Math.round((nextCorrectReps / nextTotalReps) * 100)
-      : 100;
+    const accuracy =
+      nextTotalReps > 0
+        ? Math.round((nextCorrectReps / nextTotalReps) * 100)
+        : 100;
 
     return {
       reps: nextReps,
@@ -269,7 +290,7 @@ export class ExerciseEngine {
       correctReps: nextCorrectReps,
       minScoreInRep: nextMinScoreInRep,
       repScores: nextRepScores,
-      accuracy
+      accuracy,
     };
   }
 }

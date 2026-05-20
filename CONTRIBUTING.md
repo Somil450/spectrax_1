@@ -1,38 +1,98 @@
-# Contributing to SpectraX 🚀
+# 🚀 Contributing to SpectraX
 
-First off, thank you for considering contributing to SpectraX! It's people like you who make SpectraX such a great tool. SpectraX is a proud participant in **GSSoC 2026**.
+First off, thank you for considering contributing to **SpectraX**!  
+We truly appreciate your time and effort in helping improve the project.
 
-## 🌟 GSSoC 2026 Guidelines
-- **Issue Assignment**: Comment on an issue to get it assigned. Please wait for an admin to assign it to you before you start working.
-- **Levels**: Issues are categorized into Level 1, Level 2, and Level 3 based on complexity.
-- **Labels**: Look for `gssoc-26` and `good first issue` labels.
+SpectraX is proudly participating in **GirlScript Summer of Code 2026 (GSSoC'26)** 💙
 
 ---
 
-## 🛠️ Getting Started
+# 🌟 GSSoC'26 Contribution Guidelines
 
-### 1. Fork the Repository
-Click the 'Fork' button at the top right of this page to create a copy of this repository in your account.
+## 📌 Issue Assignment
+- Browse available issues from the Issues section.
+- Comment on the issue you want to work on.
+- Wait until a maintainer assigns the issue to you before starting work.
 
-### 2. Clone the Repository
+Example:
+
+```text
+I would like to work on this issue under GSSoC'26.
+Please assign it to me.
+```
+
+---
+
+## 🏷️ Issue Labels
+
+Common labels used in this repository:
+
+| Label | Meaning |
+|-------|---------|
+| `gssoc-26` | GSSoC contribution issue |
+| `good first issue` | Beginner-friendly issue |
+| `bug` | Bug fixes |
+| `enhancement` | Feature improvements |
+| `documentation` | Documentation-related tasks |
+
+---
+
+# 🛠️ Project Setup
+
+## 1️⃣ Fork the Repository
+
+Click the **Fork** button on the top-right corner of this repository.
+
+---
+
+## 2️⃣ Clone Your Fork
+
 ```bash
 git clone https://github.com/YOUR_USERNAME/spectrax_1.git
 cd spectrax_1
 ```
 
-### 3. Create a Branch
-Always create a new branch for your changes.
+---
+
+## 3️⃣ Create a New Branch
+
+Always create a separate branch for your work.
+
 ```bash
-# Naming convention: feature/your-feature-name or bugfix/issue-description
-git checkout -b feature/amazing-feature
+git checkout -b feature/your-feature-name
 ```
 
-### 4. Install Dependencies
-```bash
-# Frontend
-npm install
+### 📌 Branch Naming Conventions
 
-# Backend
+| Prefix | Usage |
+|--------|------|
+| `feature/` | New features |
+| `bugfix/` | Bug fixes |
+| `docs/` | Documentation updates |
+| `refactor/` | Code refactoring |
+| `test/` | Adding tests |
+
+Examples:
+
+```bash
+feature/add-dark-mode
+bugfix/fix-navbar-overlap
+docs/update-contributing-guide
+```
+
+---
+
+# 📦 Install Dependencies
+
+## Frontend
+
+```bash
+npm install
+```
+
+## Backend
+
+```bash
 cd server
 npm install
 cd ..
@@ -40,64 +100,140 @@ cd ..
 
 ---
 
-## 📝 Branch Naming Conventions
-- `feature/` for new features
-- `bugfix/` for bug fixes
-- `docs/` for documentation changes
-- `refactor/` for code refactoring
-- `test/` for adding tests
+# ▶️ Running the Project
 
-Example: `feature/add-dark-mode` or `bugfix/fix-camera-leak`
+## Start Frontend
 
----
+```bash
+npm run dev
+```
 
-## 💬 Commit Message Format
-We follow a simple commit message convention:
-- `feat:` for new features
-- `fix:` for bug fixes
-- `docs:` for documentation
-- `style:` for formatting/UI changes
-- `refactor:` for code changes that neither fix a bug nor add a feature
+## Start Backend
 
-Example: `feat: add real-time landmark smoothing`
+```bash
+cd server
+npm start
+```
 
 ---
 
-## 🏗️ Pull Request Guidelines
-1. Ensure your code follows the existing style.
-2. Update documentation if necessary.
-3. Link the issue you are solving in the PR description (e.g., `Closes #123`).
-4. Ensure all CI/CD checks pass.
-5. Provide screenshots or a short video for UI changes.
+# 💬 Commit Message Guidelines
+
+Use meaningful commit messages.
+
+## Recommended Format
+
+| Prefix | Purpose |
+|--------|---------|
+| `feat:` | New feature |
+| `fix:` | Bug fix |
+| `docs:` | Documentation |
+| `style:` | UI/Formatting |
+| `refactor:` | Code restructuring |
+| `test:` | Testing |
+
+### ✅ Examples
+
+```bash
+feat: add dark mode support
+fix: resolve navbar alignment issue
+docs: update installation instructions
+```
 
 ---
 
-## 🧪 Testing Instructions
-- **Linting**: Run `npm run lint` to check for code style issues.
-- **Build**: Ensure the project builds successfully using `npm run build`.
-- **Manual Test**: Test the feature in the browser and ensure no console errors.
+# 🧪 Testing Instructions
+
+Before submitting your PR:
+
+## Run Lint Checks
+
+```bash
+npm run lint
+```
+
+## Build Project
+
+```bash
+npm run build
+```
+
+## Manual Testing
+- Test your feature locally
+- Check browser responsiveness
+- Ensure there are no console errors
 
 ---
 
-## 🎨 Code Style Rules
-- Use **Prettier** for formatting.
-- Use **ESLint** for code quality.
-- Follow **TypeScript** best practices (avoid `any` where possible).
-- Use functional components and hooks for React.
+# 🎨 Code Style Guidelines
+
+Please follow these practices:
+
+- Use **Prettier** for formatting
+- Follow **ESLint** rules
+- Write clean and readable code
+- Prefer reusable components
+- Use React functional components and hooks
+- Avoid unnecessary dependencies
 
 ---
 
-## 🔄 Issue Assignment Workflow
-1. Browse the [Issues](https://github.com/Somil450/spectrax_1/issues).
-2. Comment on an unassigned issue: "I would like to work on this. Please assign it to me."
-3. Wait for an admin to assign the issue (look for your avatar in the "Assignees" section).
-4. Once assigned, you have **3 days** to submit a PR. If you need more time, please update us in the comments.
+# 🔄 Pull Request Process
+
+## Before Creating PR
+
+Make sure:
+- Your branch is updated
+- Code is tested locally
+- Documentation is updated if needed
 
 ---
 
-## 🛡️ Protecting the Repo (Anti-Spam)
-- PRs without a linked issue will be closed.
-- Low-quality PRs (e.g., adding a single comment or fixing a typo in a non-visible file) will be marked as spam.
-- Automated CI must pass before review.
+## Creating Pull Request
 
-Thank you for contributing! Happy coding! 💻
+1. Push your branch to GitHub
+
+```bash
+git push origin your-branch-name
+```
+
+2. Open a Pull Request
+3. Link the issue number in PR description
+
+Example:
+
+```text
+Fixes #123
+```
+
+4. Add screenshots/videos for UI changes
+
+---
+
+# 🛡️ Contribution Rules
+
+To maintain quality contributions:
+
+- PRs without linked issues may be closed
+- Spam or low-quality PRs will not be accepted
+- Avoid unnecessary file changes
+- Follow repository structure properly
+
+---
+
+# 🤝 Need Help?
+
+If you face setup issues or need guidance:
+- Open a discussion
+- Ask in issue comments
+- Reach out to maintainers politely
+
+We are happy to help contributors learn and grow 🌱
+
+---
+
+# ❤️ Thank You
+
+Thank you for contributing to SpectraX and being part of the open-source community.
+
+Happy Coding! 🚀

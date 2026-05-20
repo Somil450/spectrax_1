@@ -1,29 +1,86 @@
 name: ✨ Feature Request
-description: Suggest an idea for SpectraX
-title: "[FEATURE]: <Short description>"
-labels: ["enhancement"]
+description: Suggest a new feature or enhancement for SpectraX
+title: "[FEATURE]: "
+labels: ["enhancement", "gssoc-26"]
+
 body:
-  - type: textarea
-    id: feature-description
+
+  - type: markdown
     attributes:
-      label: Is your feature request related to a problem? Please describe.
-      description: A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+      value: |
+        ## Thanks for suggesting a feature! 🚀
+
+        Please provide as much detail as possible so maintainers can better understand your idea.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: ❓ Problem Statement
+      description: Is your feature request related to a problem? Describe the issue clearly.
+      placeholder: |
+        Example:
+        I'm frustrated when...
+        Users currently cannot...
     validations:
       required: true
+
   - type: textarea
     id: solution
     attributes:
-      label: Describe the solution you'd like
-      description: A clear and concise description of what you want to happen.
+      label: 💡 Proposed Solution
+      description: Describe the solution or feature you would like to see implemented.
+      placeholder: |
+        Explain your proposed feature in detail...
     validations:
       required: true
+
+  - type: textarea
+    id: benefits
+    attributes:
+      label: 🎯 Benefits
+      description: Explain how this feature would improve the project or user experience.
+      placeholder: |
+        This feature would help users by...
+    validations:
+      required: true
+
   - type: textarea
     id: alternatives
     attributes:
-      label: Describe alternatives you've considered
-      description: A clear and concise description of any alternative solutions or features you've considered.
+      label: 🔄 Alternatives Considered
+      description: Describe any alternative solutions or features you've considered.
+      placeholder: |
+        Alternative approaches or ideas...
+
   - type: textarea
-    id: context
+    id: implementation
     attributes:
-      label: Additional context
-      description: Add any other context or screenshots about the feature request here.
+      label: 🛠️ Possible Implementation
+      description: If you have technical ideas for implementation, describe them here.
+      placeholder: |
+        Example:
+        - Add new React component
+        - Create API endpoint
+        - Update database schema
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 Mockups / References
+      description: Add screenshots, UI references, or mockups if applicable.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      options:
+        - label: I have searched existing issues before creating this feature request
+          required: true
+        - label: I am willing to work on this feature
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 📌 Additional Context
+      description: Add any additional information related to the feature request.

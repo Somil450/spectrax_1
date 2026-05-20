@@ -1,13 +1,18 @@
-name: SpectraX CI
+name: 🚀 SpectraX CI Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
+
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     strategy:
@@ -15,30 +20,48 @@ jobs:
         node-version: [18.x, 20.x]
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
 
-    - name: Install Frontend Dependencies
-      run: npm install
+      # Checkout Repository
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Lint Frontend
-      run: npm run lint
+      # Setup Node.js
+      - name: 🟢 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
 
-    - name: Build Frontend
-      run: npm run build
+      # Install Frontend Dependencies
+      - name: 📦 Install Frontend Dependencies
+        run: npm install
 
-    - name: Install Backend Dependencies
-      run: |
-        cd server
-        npm install
+      # Run Frontend Lint
+      - name: 🧹 Run Frontend Lint Checks
+        run: npm run lint
 
-    - name: Check Backend
-      run: |
-        cd server
-        # Add backend test/lint if exists
-        # npm test 
+      # Build Frontend
+      - name: 🏗️ Build Frontend
+        run: npm run build
+
+      # Install Backend Dependencies
+      - name: 📦 Install Backend Dependencies
+        run: |
+          cd server
+          npm install
+
+      # Backend Validation
+      - name: 🔍 Backend Validation
+        run: |
+          cd server
+
+          # Run backend tests if available
+          if npm run | grep -q "test"; then
+            npm test
+          else
+            echo "No backend tests found."
+          fi
+
+      # Success Message
+      - name: ✅ CI Completed Successfully
+        run: echo "SpectraX CI pipeline completed successfully!"
