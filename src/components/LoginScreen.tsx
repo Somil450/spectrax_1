@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Mail, Lock, Loader } from "lucide-react";
 import "../styles/auth.css";
@@ -18,6 +18,61 @@ export function LoginScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  // Safe localStorage helper to prevent private-browsing crashes
+  const safeGetItem = (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const safeSetItem = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {}
+  };
+
+  const safeRemoveItem = (key: string) => {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {}
+  };
+
+  // Load lockout state from localStorage when email changes
+  useEffect(() => {
+    if (!email) {
+      setFailedAttempts(0);
+      setTimeLeft(0);
+      return;
+    }
+    const attemptsKey = `auth_attempts_login_${email}`;
+    const lockoutKey = `auth_lockout_login_${email}`;
+
+    const storedAttempts = parseInt(safeGetItem(attemptsKey) || "0", 10);
+    const storedLockout = parseInt(safeGetItem(lockoutKey) || "0", 10);
+
+    setFailedAttempts(storedAttempts);
+
+    const now = Date.now();
+    if (storedLockout > now) {
+      setTimeLeft(Math.ceil((storedLockout - now) / 1000));
+    } else {
+      setTimeLeft(0);
+    }
+  }, [email]);
+
+  // Handle countdown timer ticking
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const timer = setTimeout(() => {
+      setTimeLeft(t => t - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [timeLeft]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,13 +83,63 @@ export function LoginScreen({
       return;
     }
 
+    if (timeLeft > 0) {
+      setLocalError(`Too many failed attempts. Try again in ${timeLeft}s`);
+      return;
+    }
+
     try {
       await signIn(email, password);
+      
+      // Reset attempts and lockout on success
+      const attemptsKey = `auth_attempts_login_${email}`;
+      const lockoutKey = `auth_lockout_login_${email}`;
+      safeRemoveItem(attemptsKey);
+      safeRemoveItem(lockoutKey);
+
       setEmail("");
       setPassword("");
+      setFailedAttempts(0);
+      setTimeLeft(0);
       onLoginSuccess();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Login error:", err);
+      
+      const errorCode = err.code || "";
+      const isAuthFailure =
+        errorCode === "auth/wrong-password" ||
+        errorCode === "auth/user-not-found" ||
+        errorCode === "auth/invalid-credential";
+
+      const isRateLimit = errorCode === "auth/too-many-requests";
+
+      const attemptsKey = `auth_attempts_login_${email}`;
+      const lockoutKey = `auth_lockout_login_${email}`;
+
+      if (isRateLimit) {
+        const cooldown = 60;
+        const lockoutTime = Date.now() + cooldown * 1000;
+        safeSetItem(lockoutKey, lockoutTime.toString());
+        setTimeLeft(cooldown);
+        setLocalError("Too many failed attempts. Account locked for 60 seconds.");
+      } else if (isAuthFailure) {
+        const newAttempts = failedAttempts + 1;
+        setFailedAttempts(newAttempts);
+        safeSetItem(attemptsKey, newAttempts.toString());
+
+        if (newAttempts >= 5) {
+          const cooldown = 60;
+          const lockoutTime = Date.now() + cooldown * 1000;
+          safeSetItem(lockoutKey, lockoutTime.toString());
+          setTimeLeft(cooldown);
+          setLocalError("Too many failed attempts. Account locked for 60 seconds.");
+        } else {
+          setLocalError(err.message || "Invalid credentials. Please try again.");
+        }
+      } else {
+        // Validation/network/other errors shouldn't increment failure attempts
+        setLocalError(err.message || "Invalid credentials. Please try again.");
+      }
     }
   };
 
@@ -107,13 +212,15 @@ export function LoginScreen({
           <button
             type="submit"
             className="auth-button primary"
-            disabled={loading}
+            disabled={loading || timeLeft > 0}
           >
             {loading ? (
               <>
                 <Loader size={18} className="spinner-icon" />
                 Signing in...
               </>
+            ) : timeLeft > 0 ? (
+              `Locked (${timeLeft}s)`
             ) : (
               "Sign In"
             )}

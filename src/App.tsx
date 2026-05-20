@@ -11,6 +11,10 @@ import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+import { useAuth } from "./context/AuthContext";
+import { LoginScreen } from "./components/LoginScreen";
+import { SignUpScreen } from "./components/SignUpScreen";
+import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
 import { useAuth } from "./hooks/useAuth";
 import { LoginScreen } from "./components/LoginScreen";
@@ -47,6 +51,7 @@ function App() {
   const { user, loading: authLoading } = useAuth();
 
   const { theme, toggleTheme } = useTheme();
+  const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
     exercises.squat,
@@ -131,20 +136,20 @@ function App() {
   if (firebaseConfigured && !user) {
     return (
       <main className="spectrax-app">
-        {currentScreen === "login" && (
+        {activeAuthScreen === "login" && (
           <LoginScreen
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
             onForgotPasswordClick={() => navigateTo("forgot-password")}
           />
         )}
-        {currentScreen === "signup" && (
+        {activeAuthScreen === "signup" && (
           <SignUpScreen
             onSignUpSuccess={() => navigateTo("welcome")}
             onLoginClick={() => navigateTo("login")}
           />
         )}
-        {currentScreen === "forgot-password" && (
+        {activeAuthScreen === "forgot-password" && (
           <ForgotPasswordScreen onBack={() => navigateTo("login")} />
         )}
       </main>

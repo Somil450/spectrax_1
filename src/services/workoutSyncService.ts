@@ -147,7 +147,7 @@ export async function getUnsyncedWorkouts(
 /**
  * Update sync status of a workout in IndexedDB
  */
-async function markWorkoutAsSynced(localId: number): Promise<void> {
+async function markWorkoutAsSynced(localId: number | string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");
