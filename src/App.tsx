@@ -27,7 +27,6 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password";
-  | "trophy";
 
 interface WorkoutStats {
   reps: number;
@@ -123,6 +122,7 @@ function App() {
   }
 
   // If not authenticated, show auth screens
+  
   if (!user) {
     const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
       ? currentScreen
@@ -149,6 +149,7 @@ function App() {
       </main>
     );
   }
+    
 
   // If authenticated, show main app with theme toggle and workout screens
   return (
