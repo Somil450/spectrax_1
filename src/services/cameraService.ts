@@ -8,7 +8,10 @@ export class CameraService {
   private videoElement: HTMLVideoElement | null = null;
   private captureHandle: number | null = null;
   private captureCanvas: HTMLCanvasElement | OffscreenCanvas | null = null;
-  private captureCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
+  private captureCtx:
+    | CanvasRenderingContext2D
+    | OffscreenCanvasRenderingContext2D
+    | null = null;
 
   /**
    * Requests camera permission and starts the stream.
@@ -16,19 +19,19 @@ export class CameraService {
    */
   async startCamera(videoElement: HTMLVideoElement): Promise<MediaStream> {
     this.videoElement = videoElement;
-    
+
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          frameRate: { ideal: 30 }
+          frameRate: { ideal: 30 },
         },
-        audio: false
+        audio: false,
       });
-      
+
       this.videoElement.srcObject = this.stream;
-      
+
       return new Promise((resolve) => {
         if (!this.videoElement) return;
         this.videoElement.onloadedmetadata = () => {
@@ -47,7 +50,7 @@ export class CameraService {
    */
   stopCamera() {
     if (this.stream) {
-      this.stream.getTracks().forEach(track => track.stop());
+      this.stream.getTracks().forEach((track) => track.stop());
       this.stream = null;
     }
     if (this.videoElement) {
@@ -58,7 +61,10 @@ export class CameraService {
   /**
    * Read battery status if available. Returns level [0..1] and charging flag.
    */
-  private async getBatteryInfo(): Promise<{ level: number; charging: boolean }> {
+  private async getBatteryInfo(): Promise<{
+    level: number;
+    charging: boolean;
+  }> {
     // navigator.getBattery is not available in all browsers; fallback to defaults
     try {
       // @ts-ignore - lib.dom may not include getBattery in some TS configs
@@ -85,7 +91,8 @@ export class CameraService {
       maxScale?: number; // 1.0
     },
   ) {
-    if (!this.videoElement) throw new Error('Video element not attached. Call startCamera first.');
+    if (!this.videoElement)
+      throw new Error("Video element not attached. Call startCamera first.");
 
     const opts = {
       targetFps: 15,
@@ -97,7 +104,9 @@ export class CameraService {
       ...(options || {}),
     };
 
-    const batteryInfo = opts.batteryAware ? await this.getBatteryInfo() : { level: 1, charging: true };
+    const batteryInfo = opts.batteryAware
+      ? await this.getBatteryInfo()
+      : { level: 1, charging: true };
 
     // Decide scale based on battery
     let scale = 1;
@@ -114,16 +123,18 @@ export class CameraService {
     const targetH = Math.max(1, Math.round(opts.baseHeight * scale));
 
     // Prepare canvas (offscreen if supported)
-    if (typeof OffscreenCanvas !== 'undefined') {
+    if (typeof OffscreenCanvas !== "undefined") {
       this.captureCanvas = new OffscreenCanvas(targetW, targetH);
       // @ts-ignore
-      this.captureCtx = (this.captureCanvas as OffscreenCanvas).getContext('2d');
+      this.captureCtx = (this.captureCanvas as OffscreenCanvas).getContext(
+        "2d",
+      );
     } else {
-      const c = document.createElement('canvas');
+      const c = document.createElement("canvas");
       c.width = targetW;
       c.height = targetH;
       this.captureCanvas = c;
-      this.captureCtx = c.getContext('2d');
+      this.captureCtx = c.getContext("2d");
     }
 
     let lastTime = performance.now();
@@ -139,13 +150,24 @@ export class CameraService {
 
         // Draw current video frame scaled-down
         // @ts-ignore
-        this.captureCtx.drawImage(this.videoElement, 0, 0, (this.captureCanvas as any).width, (this.captureCanvas as any).height);
+        this.captureCtx.drawImage(
+          this.videoElement,
+          0,
+          0,
+          (this.captureCanvas as any).width,
+          (this.captureCanvas as any).height,
+        );
 
         // Prefer ImageBitmap for transferable performance
-        if (typeof (this.captureCanvas as any).transferToImageBitmap === 'function') {
+        if (
+          typeof (this.captureCanvas as any).transferToImageBitmap ===
+          "function"
+        ) {
           // OffscreenCanvas -> ImageBitmap
           // @ts-ignore
-          const bitmap: ImageBitmap = (this.captureCanvas as any).transferToImageBitmap();
+          const bitmap: ImageBitmap = (
+            this.captureCanvas as any
+          ).transferToImageBitmap();
           callback(bitmap);
           // bitmap.close(); // consumer may close
         } else {
@@ -155,7 +177,7 @@ export class CameraService {
           }
         }
       } catch (err) {
-        console.warn('Frame capture error', err);
+        console.warn("Frame capture error", err);
       }
     };
 
@@ -172,7 +194,10 @@ export class CameraService {
     }
     if (this.captureCanvas) {
       // If OffscreenCanvas, no DOM cleanup required
-      if (this.captureCanvas instanceof HTMLCanvasElement && this.captureCanvas.parentElement) {
+      if (
+        this.captureCanvas instanceof HTMLCanvasElement &&
+        this.captureCanvas.parentElement
+      ) {
         this.captureCanvas.parentElement.removeChild(this.captureCanvas);
       }
       this.captureCanvas = null;
