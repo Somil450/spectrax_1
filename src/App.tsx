@@ -26,8 +26,13 @@ type Screen =
   | "history"
   | "login"
   | "signup"
+ feature/ai-workout-recommendations
   | "forgot-password";
 
+
+  | "forgot-password"
+  | "trophy";
+main
 interface WorkoutStats {
   reps: number;
   totalReps: number;
