@@ -577,7 +577,6 @@
             ))}
          </div>
       </div>
-      </div>
       <div className="animate-in glass" style={{ width: '100%', maxWidth: '600px', padding: '15px', textAlign: 'center', marginBottom: '40px', borderColor: accuracyColor }}>
          <div style={{ color: accuracyColor, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '2px' }}>SESSION RATING: {getPerformanceHighlight()}</div>
       </div>

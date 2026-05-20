@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
+import Draggable from "react-draggable";
 import {
   Activity,
   StopCircle,
   ArrowUpCircle,
   ArrowDownCircle,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
 import { overlayRenderer } from "../services/overlayRenderer";
 import { getJointAngles, getJointVisibility } from "../services/angleUtils";
-import { exerciseEngine, EngineState } from "../services/exerciseEngine";
+import { exerciseEngine, EngineState, createPlankCalibration } from "../services/exerciseEngine";
 import { ExerciseConfig } from "../config/exercises";
 import { sessionRecorder } from "../services/sessionRecorder";
 import { skeletalSense } from "../services/skeletalSense"; // Kept on main thread for reliable auto-detect
@@ -17,21 +20,7 @@ import { poseLockService } from "../services/poseLockService";
 import { clipEngine } from "../services/clipEngine";
 import { BodyType } from "../services/bodyTypeEngine";
 import { useWorkoutSync } from "../hooks/useWorkoutSync";
-import React, { useState, useEffect, useRef } from 'react';
-import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
-import { cameraService } from '../services/cameraService';
-import { poseService } from '../services/poseService';
-import { overlayRenderer } from '../services/overlayRenderer';
-import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState } from '../services/exerciseEngine';
-import { ExerciseConfig } from '../config/exercises';
-import { sessionRecorder } from '../services/sessionRecorder';
-import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
-import { poseLockService } from '../services/poseLockService';
-import { clipEngine } from '../services/clipEngine';
-import { BodyType } from '../services/bodyTypeEngine';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from "./WorkoutPanels";
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -56,13 +45,7 @@ interface WorkoutScreenProps {
   bodyType?: BodyType;
 }
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
-  exercise,
-  onEnd,
-  onAutoDetect,
-  bodyType,
-}) => {
-type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
 
 type PanelPosition = {
   x: number;
@@ -71,11 +54,11 @@ type PanelPosition = {
 
 type PanelPositions = Record<WorkoutPanelId, PanelPosition>;
 
-const PANEL_POSITION_STORAGE_KEY = 'spectrax.workoutPanelPositions.v1';
+const PANEL_POSITION_STORAGE_KEY = "spectrax.workoutPanelPositions.v1";
 
 const getViewportSize = () => ({
-  width: typeof window === 'undefined' ? 1280 : window.innerWidth,
-  height: typeof window === 'undefined' ? 720 : window.innerHeight
+  width: typeof window === "undefined" ? 1280 : window.innerWidth,
+  height: typeof window === "undefined" ? 720 : window.innerHeight,
 });
 
 const getDefaultPanelPositions = (): PanelPositions => {
@@ -86,28 +69,28 @@ const getDefaultPanelPositions = (): PanelPositions => {
     timer: { x: Math.max(width - 230, 30), y: 30 },
     reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
     engine: { x: 40, y: Math.max(height - 110, 30) },
-    sense: { x: 280, y: Math.max(height - 110, 30) }
+    sense: { x: 280, y: Math.max(height - 110, 30) },
   };
 };
 
 const getStoredPanelPositions = (): PanelPositions => {
   const defaults = getDefaultPanelPositions();
 
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return defaults;
   }
 
   try {
     const storedPositions = JSON.parse(
-      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || '{}'
+      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || "{}",
     ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
 
     return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
       const storedPosition = storedPositions[panelId];
 
       positions[panelId] = {
-        x: typeof storedPosition?.x === 'number' ? storedPosition.x : defaults[panelId].x,
-        y: typeof storedPosition?.y === 'number' ? storedPosition.y : defaults[panelId].y
+        x: typeof storedPosition?.x === "number" ? storedPosition.x : defaults[panelId].x,
+        y: typeof storedPosition?.y === "number" ? storedPosition.y : defaults[panelId].y,
       };
 
       return positions;
@@ -117,7 +100,12 @@ const getStoredPanelPositions = (): PanelPositions => {
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
+  exercise,
+  onEnd,
+  onAutoDetect,
+  bodyType,
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRefs = useRef<Record<WorkoutPanelId, React.RefObject<HTMLDivElement>> | null>(null);
@@ -163,6 +151,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
+    plankSpline: createPlankCalibration(),
+    hipSplineDeviation: 0,
   });
 
   const frameId = useRef<number>(0);
@@ -216,6 +206,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
+    plankSpline: createPlankCalibration(),
+    hipSplineDeviation: 0,
   });
 
   useEffect(() => {
@@ -375,6 +367,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             angles,
             visibility,
             mutableState.current,
+            results.poseLandmarks,
           );
 
           mutableState.current = nextState;
@@ -707,6 +700,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             {formatTime(seconds)}
           </div>
         </div>
+      </div>
       <div className="workout-layout-controls">
         <button
           type="button"
@@ -1059,6 +1053,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           75% { transform: translateX(-48%); }
         }
       `}</style>
+    </div>
     </div>
   );
 };
