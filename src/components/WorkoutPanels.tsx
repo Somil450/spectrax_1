@@ -26,7 +26,20 @@ export const TimerPanel = ({ seconds }: { seconds: number }) => {
 
 export const RepsPanel = ({ reps, statusColor }: { reps: number, statusColor: string }) => (
   <div className="rep-counter workout-reps-panel animate-in" style={{ textAlign: 'center' }}>
-    <div style={{ fontFamily: 'var(--font-heading)', fontSize: '7rem', fontWeight: 900, lineHeight: 1, color: '#fff', textShadow: `0 0 40px ${statusColor}44` }}>{reps}</div>
+    <div
+  aria-live="polite"
+  aria-atomic="true"
+  style={{
+    fontFamily: 'var(--font-heading)',
+    fontSize: '7rem',
+    fontWeight: 900,
+    lineHeight: 1,
+    color: '#fff',
+    textShadow: `0 0 40px ${statusColor}44`
+  }}
+>
+  Rep Count: {reps}
+</div>
     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '4px', textTransform: 'uppercase' }}>Repetitions</div>
   </div>
 );
