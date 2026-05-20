@@ -4,12 +4,12 @@
  * Provides dynamic cyberpunk atmosphere responding to lighting
  */
 
-import * as THREE from 'three';
+import * as THREE from "three";
 import {
   volumetricFogFragmentShader,
   volumetricFogVertexShader,
   screenSpaceFogFragmentShader,
-} from './volumetricFogShaders';
+} from "./volumetricFogShaders";
 
 export interface VolumetricFogConfig {
   density: number; // 0.0 - 1.0, default 0.3
@@ -27,14 +27,14 @@ export class VolumetricFogEngine {
   private material: THREE.ShaderMaterial | null = null;
   private quadMesh: THREE.Mesh | null = null;
   private renderTarget: THREE.WebGLRenderTarget | null = null;
-  
+
   private config: VolumetricFogConfig = {
     density: 0.3,
     intensity: 0.8,
     enabled: true,
     useScreenSpace: true,
   };
-  
+
   private lights: THREE.Light[] = [];
   private time: number = 0;
 
@@ -45,19 +45,19 @@ export class VolumetricFogEngine {
     scene: THREE.Scene,
     camera: THREE.PerspectiveCamera,
     renderer: THREE.WebGLRenderer,
-    config?: Partial<VolumetricFogConfig>
+    config?: Partial<VolumetricFogConfig>,
   ) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
-    
+
     if (config) {
       this.config = { ...this.config, ...config };
     }
-    
+
     // Collect lights from scene
     this.updateLights();
-    
+
     // Initialize post-processing
     this.initializePostProcessing();
   }
@@ -83,7 +83,7 @@ export class VolumetricFogEngine {
     // Create render target for post-processing
     const width = this.renderer.domElement.clientWidth;
     const height = this.renderer.domElement.clientHeight;
-    
+
     this.renderTarget = new THREE.WebGLRenderTarget(width, height, {
       format: THREE.RGBAFormat,
       type: THREE.UnsignedByteType,
@@ -115,23 +115,15 @@ export class VolumetricFogEngine {
     // Create full-screen quad for post-processing
     const quadGeometry = new THREE.BufferGeometry();
     const positionArray = new Float32Array([
-      -1, 1, 0,
-      -1, -1, 0,
-      1, 1, 0,
-      1, -1, 0,
+      -1, 1, 0, -1, -1, 0, 1, 1, 0, 1, -1, 0,
     ]);
-    const uvArray = new Float32Array([
-      0, 1,
-      0, 0,
-      1, 1,
-      1, 0,
-    ]);
+    const uvArray = new Float32Array([0, 1, 0, 0, 1, 1, 1, 0]);
 
     quadGeometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(positionArray, 3)
+      "position",
+      new THREE.BufferAttribute(positionArray, 3),
     );
-    quadGeometry.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
+    quadGeometry.setAttribute("uv", new THREE.BufferAttribute(uvArray, 2));
     quadGeometry.setIndex([0, 1, 2, 1, 3, 2]);
 
     this.quadMesh = new THREE.Mesh(quadGeometry, this.material);
@@ -157,10 +149,9 @@ export class VolumetricFogEngine {
 
     // Update inverse matrices for ray reconstruction
     this.material.uniforms.inverseProjection.value.copy(
-      this.camera.projectionMatrixInverse
+      this.camera.projectionMatrixInverse,
     );
-    this.material.uniforms.inverseView.value
-      .copy(this.camera.matrixWorld);
+    this.material.uniforms.inverseView.value.copy(this.camera.matrixWorld);
   }
 
   /**
@@ -187,13 +178,14 @@ export class VolumetricFogEngine {
         const lightPos = this.camera.position
           .clone()
           .add(direction.multiplyScalar(10));
-        
+
         this.material.uniforms.lightPosition.value = lightPos;
         this.material.uniforms.lightDir.value = direction;
       } else if (primaryLight instanceof THREE.PointLight) {
-        this.material.uniforms.lightPosition.value = primaryLight.position.clone();
+        this.material.uniforms.lightPosition.value =
+          primaryLight.position.clone();
       }
-      
+
       this.material.uniforms.lightColor.value = primaryLight.color.clone();
     }
   }
@@ -211,12 +203,9 @@ export class VolumetricFogEngine {
     // Render to target
     const previousTarget = this.renderer.getRenderTarget();
     this.renderer.setRenderTarget(this.renderTarget);
-    
+
     if (this.quadMesh) {
-      this.renderer.render(
-        new THREE.Scene().add(this.quadMesh),
-        this.camera
-      );
+      this.renderer.render(new THREE.Scene().add(this.quadMesh), this.camera);
     }
 
     this.renderer.setRenderTarget(previousTarget);
@@ -315,7 +304,7 @@ export class VolumetricFogEngine {
 export function createDefaultVolumetricFog(
   scene: THREE.Scene,
   camera: THREE.PerspectiveCamera,
-  renderer: THREE.WebGLRenderer
+  renderer: THREE.WebGLRenderer,
 ): VolumetricFogEngine {
   return new VolumetricFogEngine(scene, camera, renderer, {
     density: 0.3,
