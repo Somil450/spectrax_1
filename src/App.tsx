@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
@@ -45,6 +45,18 @@ function App() {
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (currentScreen !== "workout") {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    }
+  }, [currentScreen]);
+
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
     exercises.squat,
   );

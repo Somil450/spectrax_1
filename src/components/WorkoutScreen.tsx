@@ -51,7 +51,9 @@ const srOnly: React.CSSProperties = {
   overflow: 'hidden',
   clipPath: 'inset(50%)',
   whiteSpace: 'nowrap',
-  border: 0,
+  border: 0
+};
+
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   exercise,
   onEnd,
@@ -1158,4 +1160,4 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       `}</style>
     </div>
   );
-};
+}};
