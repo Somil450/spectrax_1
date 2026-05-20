@@ -131,7 +131,8 @@ export async function getUnsyncedWorkouts(
     const tx = db.transaction(WORKOUTS_STORE, "readonly");
     const store = tx.objectStore(WORKOUTS_STORE);
     const index = store.index("synced");
-    const req = index.getAll(false);
+    // Use boolean false (not numeric 0) because the 'synced' field is a boolean
+    const req = index.getAll(IDBKeyRange.only(false));
 
     req.onsuccess = () => {
       const allUnsynced = req.result as WorkoutRecord[];
@@ -146,7 +147,7 @@ export async function getUnsyncedWorkouts(
 /**
  * Update sync status of a workout in IndexedDB
  */
-async function markWorkoutAsSynced(localId: number): Promise<void> {
+async function markWorkoutAsSynced(localId: number | string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");
@@ -299,8 +300,10 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
     for (const workout of unsyncedWorkouts) {
       try {
         await uploadWorkoutToFirestore(workout);
-        if (workout.id) {
-          await markWorkoutAsSynced(workout.id);
+        // Use localId (the IndexedDB auto-increment key) rather than workout.id
+        // which may be a Firestore string and would produce NaN when cast to Number.
+        if (workout.localId != null) {
+          await markWorkoutAsSynced(workout.localId);
           syncedCount++;
         }
       } catch (error) {
