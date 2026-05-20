@@ -12,6 +12,10 @@ import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { useBadges } from "./hooks/useBadges";
+import { useAuth } from "./hooks/useAuth";
+import { LoginScreen } from "./components/LoginScreen";
+import { SignUpScreen } from "./components/SignUpScreen";
+import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 
 type Screen =
   | "welcome"
@@ -20,7 +24,10 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
-  | "trophy";
+  | "trophy"
+  | "login"
+  | "signup"
+  | "forgot-password";
 
 interface WorkoutStats {
   reps: number;
@@ -36,7 +43,8 @@ interface WorkoutStats {
 }
 
 function App() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setTheme } = useTheme();
+  const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
     exercises.squat,
@@ -118,7 +126,7 @@ function App() {
   if (!user) {
     return (
       <main className="spectrax-app">
-        {currentScreen === "login" && (
+        {(currentScreen === "login" || (currentScreen !== "signup" && currentScreen !== "forgot-password")) && (
           <LoginScreen
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
@@ -144,13 +152,30 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
-      <button
-        onClick={toggleTheme}
-        className={`theme-toggle ${currentScreen === "workout" ? "workout-active" : ""}`}
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      >
-        {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
-      </button>
+      <div className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""}`}>
+        <div className={`selector-indicator theme-${theme}`} />
+        <button
+          className={`selector-btn ${theme === "cyber-dark" ? "active" : ""}`}
+          onClick={() => setTheme("cyber-dark")}
+          aria-label="Switch to Cyber theme"
+        >
+          🌌 Cyber
+        </button>
+        <button
+          className={`selector-btn ${theme === "retro" ? "active" : ""}`}
+          onClick={() => setTheme("retro")}
+          aria-label="Switch to Retro theme"
+        >
+          📻 Retro
+        </button>
+        <button
+          className={`selector-btn ${theme === "light" ? "active" : ""}`}
+          onClick={() => setTheme("light")}
+          aria-label="Switch to Light theme"
+        >
+          ☀️ Light
+        </button>
+      </div>
 
       {currentScreen === "welcome" && (
         <WelcomeScreen

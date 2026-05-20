@@ -200,7 +200,7 @@ export class ExerciseEngine {
     let nextBestStreak = currentState.bestStreak;
     let nextTotalReps = currentState.totalReps;
     let nextCorrectReps = currentState.correctReps;
-    let nextRepScores = [...currentState.repScores];
+    const nextRepScores = [...currentState.repScores];
 
     let allowRep = currentState.allowRep;
 
