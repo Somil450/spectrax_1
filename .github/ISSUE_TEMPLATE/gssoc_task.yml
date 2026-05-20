@@ -1,31 +1,80 @@
 name: 🎯 GSSoC Task Request
-description: Request to work on a specific GSSoC task or suggest a new one
-title: "[GSSoC-26]: <Task Name>"
+description: Request assignment for a GSSoC'26 contribution task or propose a new contribution idea
+title: "[GSSoC-26]: "
 labels: ["gssoc-26", "help wanted"]
+
 body:
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Welcome to SpectraX GSSoC'26 Contributions 🚀
+
+        Please fill out the details below carefully before requesting assignment for a task.
+
   - type: dropdown
-    id: level
+    id: task-level
     attributes:
-      label: Task Level
-      description: Select the complexity level of the task
+      label: 📊 Task Difficulty Level
+      description: Select the complexity level of the contribution task.
       options:
-        - Level 1 (Easy / Documentation)
-        - Level 2 (Intermediate / UI / Features)
-        - Level 3 (Advanced / Logic / Backend)
+        - Level 1 — Beginner Friendly (Documentation / Small UI Fixes)
+        - Level 2 — Intermediate (Features / Components / UI Improvements)
+        - Level 3 — Advanced (Backend / Logic / Integrations)
     validations:
       required: true
+
   - type: textarea
-    id: assignment
+    id: issue-description
     attributes:
-      label: Assignment Request
-      description: Are you requesting this issue to be assigned to you?
-      value: "I would like to work on this issue. Please assign it to me."
+      label: 📝 Task / Issue Description
+      description: Describe the task you want to work on or propose.
+      placeholder: |
+        Example:
+        - Improve mobile responsiveness
+        - Add authentication feature
+        - Fix dashboard alignment issue
     validations:
       required: true
+
   - type: textarea
-    id: contribution-plan
+    id: assignment-request
     attributes:
-      label: How do you plan to contribute?
-      description: Briefly describe your approach to solving this issue.
+      label: 🙋 Assignment Request
+      description: Mention whether you would like this task to be assigned to you.
+      value: |
+        I would like to work on this issue under GSSoC'26.
+        Please assign it to me.
     validations:
       required: true
+
+  - type: textarea
+    id: implementation-plan
+    attributes:
+      label: 🛠️ Contribution Plan
+      description: Briefly explain how you plan to solve or implement the task.
+      placeholder: |
+        Example:
+        - Identify related components/files
+        - Implement the feature/fix
+        - Test locally before submitting PR
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Contributor Checklist
+      options:
+        - label: I have read the CONTRIBUTING guidelines
+          required: true
+        - label: I have checked existing issues before creating this request
+          required: true
+        - label: I am willing to follow the project's code of conduct
+          required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📌 Additional Context
+      description: Add screenshots, references, or any additional details if needed.

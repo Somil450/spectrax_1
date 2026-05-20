@@ -1,4 +1,4 @@
-import { NormalizedLandmark } from '@mediapipe/pose';
+import type { NormalizedLandmark } from '@mediapipe/pose';
 
 /**
  * angleUtils.ts (Lateral Optimization version)

@@ -52,14 +52,40 @@ class ClipEngine {
     return this.progress;
   }
 
+  private worker: Worker | null = null;
+  private workerReady = false;
+
   /**
    * Initializes the CLIP model. 
    * Uses quantized INT8 weights for ~150MB download size.
    */
   public async init() {
-    this.mode = 'cloud';
-    this.isLoading = false;
-    // Local init disabled
+    this.mode = 'local';
+    this.isLoading = true;
+    this.progress = 0;
+
+    if (!this.worker) {
+      this.worker = new Worker(
+        new URL('../workers/activityWorker.ts', import.meta.url),
+        { type: 'module' }
+      );
+
+      this.worker.onmessage = (event) => {
+        const { type, progress, error } = event.data;
+        if (type === 'progress') {
+          this.progress = progress;
+        } else if (type === 'ready') {
+          this.workerReady = true;
+          this.isLoading = false;
+          this.progress = 100;
+        } else if (type === 'error') {
+          console.error("CLIP Worker Error:", error);
+          this.isLoading = false;
+        }
+      };
+
+      this.worker.postMessage({ type: 'init' });
+    }
   }
 
   /**
@@ -69,21 +95,34 @@ class ClipEngine {
     if (this.isAnalyzing) return null;
 
     if (this.mode === 'local') {
-      // Local mode disabled for now to bypass Vite 500 errors
-      return null;
-      try {
-        this.isAnalyzing = true;
-        const results = await this.classifier(image, this.labels);
-        return {
-          label: results[0]?.label || "unknown",
-          confidence: results[0]?.score || 0
+      if (!this.workerReady) return null;
+
+      return new Promise((resolve) => {
+        const handleMessage = (event: MessageEvent) => {
+          const { type, results } = event.data;
+          if (type === 'prediction') {
+            this.worker?.removeEventListener('message', handleMessage);
+            this.isAnalyzing = false;
+            resolve({
+              label: results[0]?.label || "unknown",
+              confidence: results[0]?.score || 0
+            });
+          }
         };
-      } catch (error) {
-        console.error("CLIP: Local Inference Error:", error);
-        return null;
-      } finally {
-        this.isAnalyzing = false;
-      }
+
+        this.isAnalyzing = true;
+        this.worker?.addEventListener('message', handleMessage);
+
+        // Send image data to worker
+        if (image instanceof HTMLCanvasElement) {
+          const imageData = image.getContext('2d')?.getImageData(0, 0, image.width, image.height);
+          this.worker?.postMessage({
+            type: 'analyze',
+            image: imageData,
+            labels: this.labels
+          });
+        }
+      });
     } else if (this.mode === 'cloud') {
       return this.analyzeFrameCloud(image);
     }

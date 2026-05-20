@@ -85,18 +85,99 @@ function detectExercise(landmarks: any[], angles: Record<string, number>): {
   return { label: 'unknown', confidence: 0.4 };
 }
 
+// ─── OffscreenCanvas Rendering Logic ────────────────────────────────────────
+let offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
+let scanY = 0;
+let scanDirection = 1;
+
+function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[]) {
+  if (!offscreenCtx) return;
+  const ctx = offscreenCtx;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+
+  // Clear
+  ctx.clearRect(0, 0, width, height);
+
+  // Status colors
+  const color = status === 'green' ? '#00ff88' : (status === 'yellow' ? '#ffd600' : '#ff3b5c');
+  
+  // 1. Draw Scanning Line
+  scanY += 3 * scanDirection;
+  if (scanY > height || scanY < 0) scanDirection *= -1;
+  ctx.beginPath();
+  ctx.moveTo(0, scanY);
+  ctx.lineTo(width, scanY);
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 2. Draw Connections
+  const connections = [
+    [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // Upper
+    [11, 23], [12, 24], [23, 24], // Torso
+    [23, 25], [25, 27], [24, 26], [26, 28], // Lower
+  ];
+
+  const baseLinePath = new Path2D();
+  const highlightPath = new Path2D();
+
+  connections.forEach(([i, j]) => {
+    const a = landmarks[i];
+    const b = landmarks[j];
+    if (a && b && a.visibility > 0.5 && b.visibility > 0.5) {
+      const isPrimary = primaryJoints.includes(i) || primaryJoints.includes(j);
+      const targetPath = isPrimary ? highlightPath : baseLinePath;
+      targetPath.moveTo(a.x * width, a.y * height);
+      targetPath.lineTo(b.x * width, b.y * height);
+    }
+  });
+
+  // Stroke background connections
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.stroke(baseLinePath);
+
+  // Stroke primary connections
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = color;
+  ctx.stroke(highlightPath);
+
+  // 3. Draw Landmarks
+  landmarks.forEach((lm, i) => {
+    if (lm.visibility > 0.5) {
+      const isPrimary = primaryJoints.includes(i);
+      ctx.beginPath();
+      ctx.arc(lm.x * width, lm.y * height, isPrimary ? 6 : 2, 0, Math.PI * 2);
+      ctx.fillStyle = isPrimary ? color : 'rgba(255, 255, 255, 0.5)';
+      ctx.fill();
+    }
+  });
+}
+
 // ─── Message handler ──────────────────────────────────────────────────────────
 self.onmessage = (event: MessageEvent) => {
-  const { landmarks, exercise: _exercise, frameId } = event.data;
+  const { type, canvas, landmarks, status, primaryJoints, frameId } = event.data;
+
+  if (type === 'initCanvas') {
+    offscreenCtx = canvas.getContext('2d');
+    console.log("[PoseWorker] OffscreenCanvas initialized.");
+    return;
+  }
 
   if (!landmarks || landmarks.length === 0) {
     self.postMessage({ frameId, angles: {}, detectedExercise: 'unknown', confidence: 0 });
     return;
   }
 
+  // Draw if canvas is available
+  if (offscreenCtx) {
+    drawSkeleton(landmarks, status || 'green', primaryJoints || []);
+  }
+
   const angles = computeAngles(landmarks);
   const { label: detectedExercise, confidence } = detectExercise(landmarks, angles);
 
-  // Minimal payload — no deep copies, no metadata overhead
   self.postMessage({ frameId, angles, detectedExercise, confidence });
 };
+

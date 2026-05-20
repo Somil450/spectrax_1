@@ -57,7 +57,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
   return (
     <div style={{
       width: '100vw', height: '100vh',
-      background: '#000',
+      background: 'var(--bg-primary)',
       position: 'relative',
       overflow: 'hidden',
       fontFamily: "'Rajdhani', 'Orbitron', 'Inter', sans-serif",
