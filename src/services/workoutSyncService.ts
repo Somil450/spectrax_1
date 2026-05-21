@@ -286,8 +286,10 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
     for (const workout of unsyncedWorkouts) {
       try {
         await uploadWorkoutToFirestore(workout);
-        if (workout.id) {
-          await markWorkoutAsSynced(workout.id);
+        // Use localId (the IndexedDB auto-increment key) rather than workout.id
+        // which may be a Firestore string and would produce NaN when cast to Number.
+        if (workout.localId != null) {
+          await markWorkoutAsSynced(workout.localId);
           syncedCount++;
         }
       } catch (error) {
