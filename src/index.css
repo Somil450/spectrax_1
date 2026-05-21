@@ -143,6 +143,11 @@ body {
   box-shadow: 0 6px 24px rgba(0, 240, 255, 0.5);
 }
 
+*:focus-visible {
+  outline: 2px solid var(--neon-purple);
+  outline-offset: 3px;
+}
+
 .btn-outline {
   display: inline-flex;
   align-items: center;

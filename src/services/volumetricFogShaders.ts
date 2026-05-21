@@ -213,8 +213,13 @@ export const rayMarchingFragmentShader = `
   }
   
   void main() {
+
     // Reconstruct world position from depth
     vec4 ndc = vec4(vUv * 2.0 - 1.0, 0.0, 1.0);
+
+    // Reconstruct a world-space ray by projecting the far plane point.
+    vec4 ndc = vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
+
     vec4 viewPos = inverseProjection * ndc;
     viewPos /= viewPos.w;
     vec4 worldPos = inverseView * viewPos;
@@ -258,9 +263,15 @@ export const screenSpaceFogFragmentShader = `
   #define SAMPLES 8
   
   uniform sampler2D tDiffuse;
+
   uniform vec3 lightPos;
   uniform vec3 lightColor;
   uniform float fogAmount;
+
+  uniform vec3 lightPosition;
+  uniform vec3 lightColor;
+  uniform float fogIntensity;
+
   uniform float time;
   
   varying vec2 vUv;
@@ -291,7 +302,11 @@ export const screenSpaceFogFragmentShader = `
     }
     
     // Create fog effect
+
     fogColor = lightColor * illumination * fogAmount;
+
+    fogColor = lightColor * illumination * fogIntensity;
+
     
     // Blend with scene
     vec3 final = baseColor.rgb + fogColor;

@@ -4,11 +4,20 @@ import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
 import { ReplayScreen } from "./components/ReplayScreen";
+import { TrophyRoom } from "./components/TrophyRoom";
+import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
+import { useLeveling } from './hooks/useLeveling';
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+import { useAuth } from "./context/AuthContext";
+import { LoginScreen } from "./components/LoginScreen";
+import { SignUpScreen } from "./components/SignUpScreen";
+import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
+import { useBadges } from "./hooks/useBadges";
+
 
 type Screen =
   | "welcome"
@@ -16,7 +25,11 @@ type Screen =
   | "workout"
   | "summary"
   | "replay"
-  | "history";
+  | "history"
+  | "trophy"
+  | "login"
+  | "signup"
+  | "forgot-password";
 
 interface WorkoutStats {
   reps: number;
@@ -29,10 +42,12 @@ interface WorkoutStats {
   mistakes: Record<string, number>;
   bestStreak: number;
   tags?: string[];
+  gainedXp?: number;
 }
 
 function App() {
   const { theme, toggleTheme } = useTheme();
+  const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
     exercises.squat,
@@ -50,9 +65,12 @@ function App() {
     bestStreak: 0,
   });
 
+  const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
+
   const [statsLoading, setStatsLoading] = useState(false);
 
   const lastSwitchTime = useRef<number>(0);
+  const leveling = useLeveling();
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -62,8 +80,18 @@ function App() {
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
     setStatsLoading(true);
-    setStats({ ...finalStats, exerciseName: selectedExercise.name });
+    const gainedXp = leveling.addXpFromReps(finalStats.reps);
+    const fullStats = { ...finalStats, exerciseName: selectedExercise.name, gainedXp };
+    setStats(fullStats);
     navigateTo("summary");
+
+    // Award badges based on completed session
+    checkAndAwardBadges({
+      totalReps: finalStats.totalReps,
+      accuracy: finalStats.accuracy,
+      exerciseName: selectedExercise.name,
+      bestStreak: finalStats.bestStreak,
+    });
 
     // Show skeleton briefly before rendering real summary
     setTimeout(() => {
@@ -89,8 +117,11 @@ function App() {
     }
   };
 
+  // Skip auth gate when Firebase is not configured (no .env)
+  const firebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
+
   // Show loading state while auth is being checked
-  if (authLoading) {
+  if (firebaseConfigured && authLoading) {
     return (
       <div className="loading-container">
         <div className="spinner"></div>
@@ -99,24 +130,27 @@ function App() {
     );
   }
 
-  // If not authenticated, show auth screens
-  if (!user) {
+  // If not authenticated and Firebase is configured, show auth screens
+  if (firebaseConfigured && !user) {
+    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
+      ? currentScreen
+      : "login";
     return (
       <main className="spectrax-app">
-        {currentScreen === "login" && (
+        {activeAuthScreen === "login" && (
           <LoginScreen
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
             onForgotPasswordClick={() => navigateTo("forgot-password")}
           />
         )}
-        {currentScreen === "signup" && (
+        {activeAuthScreen === "signup" && (
           <SignUpScreen
             onSignUpSuccess={() => navigateTo("welcome")}
             onLoginClick={() => navigateTo("login")}
           />
         )}
-        {currentScreen === "forgot-password" && (
+        {activeAuthScreen === "forgot-password" && (
           <ForgotPasswordScreen onBack={() => navigateTo("login")} />
         )}
       </main>
@@ -140,7 +174,9 @@ function App() {
       {currentScreen === "welcome" && (
         <WelcomeScreen
           onStart={() => navigateTo("calibration")}
-          onViewHistory={() => navigateTo("history")} // add this
+          onViewHistory={() => navigateTo("history")}
+          onViewTrophies={() => navigateTo("trophy")}
+          leveling={leveling}
         />
       )}
 
@@ -162,13 +198,13 @@ function App() {
           bodyType={bodyType}
         />
       )}
-
       {currentScreen === "summary" &&
         (statsLoading ? (
           <SummaryScreenSkeleton />
         ) : (
           <SummaryScreen
             stats={stats}
+            leveling={leveling}
             onRestart={() => navigateTo("welcome")}
             onViewReplay={() => navigateTo("replay")}
           />
@@ -177,9 +213,18 @@ function App() {
       {currentScreen === "replay" && (
         <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
       )}
+
       {currentScreen === "history" && (
         <HistoryPage onBack={() => navigateTo("welcome")} />
       )}
+
+      {currentScreen === "trophy" && (
+        <TrophyRoom onBack={() => navigateTo("welcome")} />
+      )}
+
+      {/* Global badge unlock notification — rendered at the app root so it's
+          always visible regardless of which screen is active */}
+      <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
     </main>
   );
 }

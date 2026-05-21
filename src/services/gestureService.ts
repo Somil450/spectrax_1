@@ -5,6 +5,7 @@ export interface GestureResult {
   rightWristAboveShoulder: boolean;
   isPoseLost: boolean;
   isThumbsUp?: boolean;
+  isCrossedArms: boolean;
 }
 
 const VISIBILITY_THRESHOLD = 0.5;
@@ -45,6 +46,7 @@ class GestureService {
         rightWristAboveShoulder: false,
         isPoseLost: true,
         isThumbsUp: false,
+        isCrossedArms: false,
       };
     }
 
@@ -70,6 +72,7 @@ class GestureService {
         rightWristAboveShoulder: false,
         isPoseLost: true,
         isThumbsUp: false,
+        isCrossedArms: false,
       };
     }
 
@@ -105,7 +108,27 @@ class GestureService {
 
     const isThumbsUpDetected = leftThumbsUp || rightThumbsUp;
 
-    this.frameBuffer.push(bothHandsRaised || isThumbsUpDetected);
+    // Detect Crossed Arms (Wrists close together near chest level)
+    let isCrossedArms = false;
+    const leftWrist = landmarks[leftWristIdx];
+    const rightWrist = landmarks[rightWristIdx];
+    const leftShoulder = landmarks[leftShoulderIdx];
+    const leftHip = landmarks[leftHipIdx];
+    
+    if (leftWrist && rightWrist && leftShoulder && leftHip) {
+      if (leftWrist.visibility > VISIBILITY_THRESHOLD && rightWrist.visibility > VISIBILITY_THRESHOLD) {
+        const wristDistX = Math.abs(leftWrist.x - rightWrist.x);
+        const wristDistY = Math.abs(leftWrist.y - rightWrist.y);
+        const isBetweenShoulderAndHip = leftWrist.y > leftShoulder.y && leftWrist.y < leftHip.y;
+        
+        // Wrists are very close to each other horizontally and vertically, and at chest level
+        if (wristDistX < 0.15 && wristDistY < 0.15 && isBetweenShoulderAndHip) {
+          isCrossedArms = true;
+        }
+      }
+    }
+
+    this.frameBuffer.push(bothHandsRaised || isThumbsUpDetected || isCrossedArms);
     if (this.frameBuffer.length > this.bufferSize) {
       this.frameBuffer.shift();
     }
@@ -120,6 +143,7 @@ class GestureService {
       rightWristAboveShoulder,
       isPoseLost: false,
       isThumbsUp: isThumbsUpDetected,
+      isCrossedArms,
     };
   }
 
