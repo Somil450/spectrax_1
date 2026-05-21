@@ -17,10 +17,6 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
-import { useAuth } from "./hooks/useAuth";
-import { LoginScreen } from "./components/LoginScreen";
-import { SignUpScreen } from "./components/SignUpScreen";
-import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 
 
 type Screen =

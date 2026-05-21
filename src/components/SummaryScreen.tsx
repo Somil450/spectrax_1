@@ -13,28 +13,6 @@ interface SummaryScreenProps {
     mistakes: Record<string, number>; 
     bestStreak: number; 
     tags?: string[];
-    exerciseName?: string;
-  };
-  onRestart: () => void;
-  onViewReplay: () => void;
-}
-
-export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, onViewReplay }) => {
-  const [accuracy, setAccuracy] = useState(0);
-  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
-  const { addWorkout } = useWorkoutSync();
-
-interface SummaryScreenProps {
-  stats: { 
-    reps: number; 
-    totalReps: number;
-    correctReps: number;
-    repScores: number[];
-    duration: number; 
-    accuracy: number; 
-    mistakes: Record<string, number>; 
-    bestStreak: number; 
-    tags?: string[];
     gainedXp?: number;
     exerciseName?: string;
   };
