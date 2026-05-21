@@ -19,18 +19,29 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase (only when config values are present)
+let auth: ReturnType<typeof getAuth>;
+let db: ReturnType<typeof getFirestore>;
+let app: ReturnType<typeof initializeApp>;
 
-// Initialize Firebase Authentication
-const auth = getAuth(app);
+try {
+  if (!firebaseConfig.apiKey) throw new Error("Missing Firebase config");
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
 
-// Set persistence to LOCAL so users stay logged in across sessions
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error("Failed to set Firebase persistence:", error);
-});
+  // Set persistence to LOCAL so users stay logged in across sessions
+  setPersistence(auth, browserLocalPersistence).catch((error) => {
+    console.warn("Failed to set Firebase persistence:", error);
+  });
 
-// Initialize Firestore Database
-const db = getFirestore(app);
+  console.log("✅ Firebase initialized");
+} catch (e) {
+  console.warn("⚠️ Firebase not configured — running in offline/demo mode", e);
+  // Create a minimal app stub so imports don't crash
+  app = initializeApp({ apiKey: "demo", projectId: "demo", appId: "demo" }, "demo");
+  auth = getAuth(app);
+  db = getFirestore(app);
+}
 
 export { auth, db, app };
