@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+ feature/ai-workout-recommendations
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import AIRecommendations from './AIRecommendations';
 import { generateRecommendations } from '../engine/recommendationEngine';
+=======
+import { useWorkoutSync } from "../hooks/useWorkoutSync";
+
+ main
 interface SummaryScreenProps {
   stats: { 
     reps: number; 
@@ -14,17 +19,23 @@ interface SummaryScreenProps {
     mistakes: Record<string, number>; 
     bestStreak: number; 
     tags?: string[];
+    gainedXp?: number;
     exerciseName?: string;
+  };
+  leveling?: {
+    xp: number;
+    level: number;
+    progress: number;
+    nextLevelXp: number;
   };
   onRestart: () => void;
   onViewReplay: () => void;
 }
 
-export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, onViewReplay }) => {
+export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, onRestart, onViewReplay }) => {
   const [accuracy, setAccuracy] = useState(0);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const { addWorkout } = useWorkoutSync();
-
   useEffect(() => {
     // Animate accuracy ring on mount
     const timer = setTimeout(() => setAccuracy(stats.accuracy), 300);
@@ -487,6 +498,22 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
           </div>
         </div>
       </div>
+
+      {stats.gainedXp ? (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderColor: 'var(--neon-yellow)', background: 'rgba(255, 235, 59, 0.05)' }}>
+           <div style={{ fontSize: '0.8rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px', fontWeight: 700 }}>XP Gained</div>
+           <div style={{ color: '#fff', fontSize: '2rem', fontWeight: 900, marginBottom: '8px' }}>+{stats.gainedXp} XP</div>
+           {leveling && (
+             <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', fontWeight: 'bold' }}>LVL {leveling.level}</span>
+                <div style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${leveling.progress}%`, height: '100%', background: 'var(--neon-yellow)' }}></div>
+                </div>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{leveling.nextLevelXp} XP</span>
+             </div>
+           )}
+        </div>
+      ) : null}
 
       {/* Mistake & Streak Insights */}
       <div

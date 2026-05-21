@@ -10,12 +10,14 @@ import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
+import { useLeveling } from './hooks/useLeveling';
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+
 
 type Screen =
   | "welcome"
@@ -24,14 +26,20 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
+  | "trophy"
   | "login"
   | "signup"
+ feature/ai-workout-recommendations
  feature/ai-workout-recommendations
   | "forgot-password";
 
 
   | "forgot-password"
   | "trophy";
+main
+=======
+  | "forgot-password";
+
 main
 interface WorkoutStats {
   reps: number;
@@ -44,6 +52,7 @@ interface WorkoutStats {
   mistakes: Record<string, number>;
   bestStreak: number;
   tags?: string[];
+  gainedXp?: number;
 }
 
 function App() {
@@ -71,6 +80,7 @@ function App() {
   const [statsLoading, setStatsLoading] = useState(false);
 
   const lastSwitchTime = useRef<number>(0);
+  const leveling = useLeveling();
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -80,7 +90,8 @@ function App() {
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
     setStatsLoading(true);
-    const fullStats = { ...finalStats, exerciseName: selectedExercise.name };
+    const gainedXp = leveling.addXpFromReps(finalStats.reps);
+    const fullStats = { ...finalStats, exerciseName: selectedExercise.name, gainedXp };
     setStats(fullStats);
     navigateTo("summary");
 
@@ -116,8 +127,11 @@ function App() {
     }
   };
 
+  // Skip auth gate when Firebase is not configured (no .env)
+  const firebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
+
   // Show loading state while auth is being checked
-  if (authLoading) {
+  if (firebaseConfigured && authLoading) {
     return (
       <div className="loading-container">
         <div className="spinner"></div>
@@ -126,13 +140,17 @@ function App() {
     );
   }
 
+ feature/ai-workout-recommendations
   // If not authenticated, show auth screens
   
   if (!user) {
+=======
+  // If not authenticated and Firebase is configured, show auth screens
+  if (firebaseConfigured && !user) {
+ main
     const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
       ? currentScreen
       : "login";
-
     return (
       <main className="spectrax-app">
         {activeAuthScreen === "login" && (
@@ -175,6 +193,7 @@ function App() {
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
+          leveling={leveling}
         />
       )}
 
@@ -196,13 +215,13 @@ function App() {
           bodyType={bodyType}
         />
       )}
-
       {currentScreen === "summary" &&
         (statsLoading ? (
           <SummaryScreenSkeleton />
         ) : (
           <SummaryScreen
             stats={stats}
+            leveling={leveling}
             onRestart={() => navigateTo("welcome")}
             onViewReplay={() => navigateTo("replay")}
           />

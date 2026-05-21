@@ -1,7 +1,19 @@
 // src/HistoryPage.tsx
-import React, { useEffect, useState } from "react";
-import { History, Trash2, ArrowLeft, TrendingUp } from "lucide-react";
+import React, { useEffect, useState, useMemo } from "react";
+import { History, Trash2, ArrowLeft, TrendingUp, Filter } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
+
+// ── Debounce Hook ─────────────────────────────────────────────────────────────
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import SessionCard from "./SessionCard";
 
@@ -36,9 +48,36 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
   const { syncStatus, isOnline, manualSync } = useWorkoutSync();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+  // Filter state
+  const [filterType, setFilterType] = useState<string>("All");
+  const [filterCalories, setFilterCalories] = useState<string>("");
+  const debouncedCalories = useDebounce(filterCalories, 150);
+
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
+
+  const availableTypes = useMemo(() => {
+    const types = new Set(sessions.map((s) => s.exerciseType));
+    return ["All", ...Array.from(types)];
+  }, [sessions]);
+
+  useEffect(() => {
+    if (!availableTypes.includes(filterType)) {
+      setFilterType("All");
+    }
+  }, [availableTypes, filterType]);
+
+  const filteredSessions = useMemo(() => {
+    const calGoal = parseInt(debouncedCalories || "0", 10);
+    return sessions.filter((s) => {
+      // Calorie estimation: 1.5 calories per rep
+      const estimatedCals = s.totalReps * 1.5;
+      const matchType = filterType === "All" || s.exerciseType === filterType;
+      const matchCals = estimatedCals >= calGoal;
+      return matchType && matchCals;
+    });
+  }, [sessions, filterType, debouncedCalories]);
 
   const handleClear = () => {
     if (showClearConfirm) {
@@ -87,13 +126,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
       {/* ── Summary bar (only when data exists) ── */}
       {sessions.length > 0 && (
         <div className="summary-bar">
-          <SummaryPill label="Sessions" value={sessions.length} />
+          <SummaryPill label="Sessions" value={filteredSessions.length} />
           <div className="summary-divider" />
-          <SummaryPill label="Total Reps" value={totalReps(sessions)} />
+          <SummaryPill label="Total Reps" value={totalReps(filteredSessions)} />
           <div className="summary-divider" />
           <SummaryPill
             label="Avg Accuracy"
-            value={`${avgAccuracy(sessions)}%`}
+            value={`${avgAccuracy(filteredSessions)}%`}
             icon={<TrendingUp size={12} />}
           />
         </div>
@@ -182,6 +221,63 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* ── Body ── */}
       <main className="history-body">
+        {/* ── Filter Panel ── */}
+        {!loading && !error && sessions.length > 0 && (
+          <div className="filter-panel" style={{ marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "16px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#94a3b8" }}>
+              <Filter size={16} />
+              <span style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'Space Mono', monospace" }}>Filters</span>
+            </div>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="type-filter" style={{ fontSize: "12px", color: "#e2e8f0" }}>Type:</label>
+              <select
+                id="type-filter"
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                style={{
+                  background: "rgba(8,12,20,0.8)",
+                  color: "#e2e8f0",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontFamily: "'Space Mono', monospace",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                {availableTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="calorie-filter" style={{ fontSize: "12px", color: "#e2e8f0" }}>Min Cals (est):</label>
+              <input
+                id="calorie-filter"
+                type="number"
+                min="0"
+                placeholder="e.g. 50"
+                value={filterCalories}
+                onChange={(e) => setFilterCalories(e.target.value)}
+                style={{
+                  background: "rgba(8,12,20,0.8)",
+                  color: "#e2e8f0",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontFamily: "'Space Mono', monospace",
+                  outline: "none",
+                  width: "100px"
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Loading */}
         {loading && (
           <div className="state-center">
@@ -212,10 +308,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           </div>
         )}
 
+        {/* Sessions empty after filter */}
+        {!loading && !error && sessions.length > 0 && filteredSessions.length === 0 && (
+          <div className="state-center empty-state" style={{ minHeight: "150px" }}>
+            <p>No sessions match your filters.</p>
+          </div>
+        )}
+
         {/* Session grid */}
-        {!loading && !error && sessions.length > 0 && (
+        {!loading && !error && filteredSessions.length > 0 && (
           <div className="sessions-grid">
-            {sessions.map((session: WorkoutSession) => (
+            {filteredSessions.map((session: WorkoutSession) => (
               <SessionCard
                 key={session.id}
                 session={session}
