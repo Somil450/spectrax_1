@@ -43,6 +43,8 @@ jobs:
       # Build Frontend
       - name: 🏗️ Build Frontend
         run: npm run build
+        env:
+          NODE_OPTIONS: "--import ./scripts/crypto-polyfill.mjs"
 
       # Install Backend Dependencies
       - name: 📦 Install Backend Dependencies
