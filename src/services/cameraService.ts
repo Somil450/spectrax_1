@@ -79,7 +79,12 @@ export class CameraService {
       ) {
         this.isProcessing = true;      // Lock — prevent overlapping calls
         this.lastFrameTime = timestamp;
-        this.frameCallback(this.videoElement);
+        try {
+          this.frameCallback(this.videoElement);
+        } catch (error) {
+          this.isProcessing = false;
+          console.error("Frame callback failed:", error);
+        }
       }
 
       // Schedule next tick synchronized with browser repaint
