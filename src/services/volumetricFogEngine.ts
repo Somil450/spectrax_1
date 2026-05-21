@@ -205,7 +205,9 @@ export class VolumetricFogEngine {
     this.renderer.setRenderTarget(this.renderTarget);
 
     if (this.quadMesh) {
-      this.renderer.render(new THREE.Scene().add(this.quadMesh), this.camera);
+      const postProcessScene = new THREE.Scene();
+      postProcessScene.add(this.quadMesh);
+      this.renderer.render(postProcessScene, this.camera);
     }
 
     this.renderer.setRenderTarget(previousTarget);
