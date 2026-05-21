@@ -22,8 +22,6 @@ export class VolumetricFogEngine {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private composer: any; // PostProcessing composer
-  private pass: any; // Post-processing pass
   private material: THREE.ShaderMaterial | null = null;
   private quadMesh: THREE.Mesh | null = null;
   private renderTarget: THREE.WebGLRenderTarget | null = null;
