@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import {
   Activity,
@@ -100,6 +100,12 @@ const getStoredPanelPositions = (): PanelPositions => {
 };
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+  const bodyTypeRef = useRef(bodyType);
+  bodyTypeRef.current = bodyType;
+
+  const onAutoDetectRef = useRef(onAutoDetect);
+  onAutoDetectRef.current = onAutoDetect;
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRefs = useRef<Record<WorkoutPanelId, React.RefObject<HTMLDivElement>> | null>(null);
@@ -157,7 +163,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const FPS_LIMIT = 20; // ↑ Raised from 15 → 20 for smoother tracking
 
-  const clampPanelPositions = (positions: PanelPositions) => {
+  const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
 
     return (Object.keys(positions) as WorkoutPanelId[]).reduce((nextPositions, panelId) => {
@@ -172,7 +178,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
       return nextPositions;
     }, {} as PanelPositions);
-  };
+  }, [panelRefsById]);
 
   // Use refs for real-time logic to avoid state lags in the pose callback
   const mutableState = useRef<EngineState>({
@@ -308,7 +314,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               detectedKey !== exercise.key &&
               mutableState.current.reps < 2
             ) {
-              onAutoDetect?.(detectedKey);
+              onAutoDetectRef.current?.(detectedKey);
             }
             if (
               detectedKey &&
@@ -343,11 +349,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
           // Adjust structural thresholds dynamically based on active detected body type
           const activeConfig = { ...exercise };
-          if (bodyType === "endo" && activeConfig.key === "squat") {
+          if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
             activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
-          } else if (bodyType === "ecto" && activeConfig.key === "squat") {
+          } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
             activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
-          } else if (bodyType === "endo" && activeConfig.key === "pushup") {
+          } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
             activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
           }
 
@@ -424,7 +430,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       if (wsSocket) {
         try {
           wsSocket.close();
-        } catch (_) {}
+        } catch (_) {
+          // ignore error
+        }
       }
       cameraService.stopCamera();
       clearInterval(timer);
@@ -443,7 +451,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [clampPanelPositions]);
 
   useEffect(() => {
     window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));

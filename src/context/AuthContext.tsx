@@ -1,5 +1,7 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * AuthContext.tsx
+
  *
  * Global authentication context managing:
  * - Firebase Authentication (Email/Password, Google Sign-In)

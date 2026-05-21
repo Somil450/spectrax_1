@@ -434,10 +434,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     };
     window.addEventListener("resize", handleResize);
 
+    const currentMount = mountRef.current;
+
     return () => {
       window.removeEventListener("resize", handleResize);
-      if (mountRef.current && rendererRef.current) {
-        mountRef.current.removeChild(rendererRef.current.domElement);
+      if (currentMount && rendererRef.current) {
+        currentMount.removeChild(rendererRef.current.domElement);
       }
       controlsRef.current?.dispose();
       rendererRef.current?.dispose();
@@ -758,7 +760,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded]);
+  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx]);
 
   if (!frames || frames.length === 0) {
     return (
