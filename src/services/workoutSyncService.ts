@@ -141,6 +141,8 @@ export async function getUnsyncedWorkouts(
     };
     req.onerror = () => reject(req.error);
   });
+  const all = await getLocalWorkouts(userId);
+  return all.filter((w) => !w.synced);
 }
 
 /**
