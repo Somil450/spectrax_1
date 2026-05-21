@@ -1,3 +1,12 @@
+// Node 18.x compatibility: expose the web crypto API globally so that
+// workbox-build's serialize-javascript can access it during the PWA build step.
+// In Node 20.x this is already available by default.
+import { webcrypto } from "node:crypto";
+if (typeof globalThis.crypto === "undefined") {
+  // @ts-expect-error -- webcrypto is compatible with the browser Crypto interface
+  globalThis.crypto = webcrypto;
+}
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
