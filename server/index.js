@@ -14,8 +14,8 @@ const path = require('path');
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
 app.use(cors({ origin: '*' }));
-app.use(express.json());
-
+app.use(express.json({ limit: '100kb' })); // Added payload limit to prevent DoS
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
@@ -207,6 +207,12 @@ app.get('/health', (_req, res) => {
     activeSessions: sessions.size,
     uptime: Math.round(process.uptime()),
   });
+});
+
+// ─── Global Error Handler ─────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('[SpectraX] Unhandled Error:', err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
 });
 
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
