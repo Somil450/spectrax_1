@@ -183,9 +183,7 @@ function buildIsoTree(
 }
 
 function isoPathLength(node: IsoNode, point: Record<keyof PoseFeatures, number>, depth = 0): number {
-  if (node.isLeaf) {
-    return depth + avgPathLength(node.size);
-  }
+  if (node.isLeaf) return depth + avgPathLength(node.size);
   const nonLeaf = node as { isLeaf: false; featureKey: keyof PoseFeatures; splitVal: number; left: IsoNode; right: IsoNode };
   return point[nonLeaf.featureKey] < nonLeaf.splitVal
     ? isoPathLength(nonLeaf.left,  point, depth + 1)

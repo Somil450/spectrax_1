@@ -398,15 +398,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         if (bones.spine && bones.spine1) recordRest("spine", "spine1");
         if (bones.neck && bones.head) recordRest("neck", "head");
 
-        recordRest("leftShoulder", "leftElbow");
-        recordRest("leftElbow", "leftWrist");
-        recordRest("rightShoulder", "rightElbow");
-        recordRest("rightElbow", "rightWrist");
-        recordRest("leftHip", "leftKnee");
-        recordRest("leftKnee", "leftAnkle");
-        recordRest("rightHip", "rightKnee");
-        recordRest("rightKnee", "rightAnkle");
-
         setModelLoaded(true);
 
         // Hide fallback
