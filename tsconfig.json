@@ -3,9 +3,14 @@
     "target": "ES2020",
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["jest", "@testing-library/jest-dom"],
     "module": "ESNext",
     "skipLibCheck": true,
+
+    "esModuleInterop": true,
+
     "noImplicitAny": false,
+
 
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,

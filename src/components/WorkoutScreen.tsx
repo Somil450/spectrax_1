@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
 import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
@@ -37,27 +37,6 @@ interface WorkoutScreenProps {
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
 }
-
-// ── Visually-hidden style (sr-only) ──────────────────────────────────────────
-// This CSS pattern hides an element from sighted users while keeping it fully
-// available to screen readers. clip-path: inset(50%) is the modern replacement
-// for the deprecated `clip: rect(...)` property.
-const srOnly: React.CSSProperties = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clipPath: 'inset(50%)',
-  whiteSpace: 'nowrap',
-  border: 0,
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
-  exercise,
-  onEnd,
-  onAutoDetect,
-  bodyType,
-}) => {
 type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
 
 type PanelPosition = {
@@ -1069,11 +1048,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             FINISH SESSION <StopCircle size={18} />
           </button>
         </div>
-      </div>
-      <div className="workout-finish-action">
-        <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
-          FINISH SESSION <StopCircle size={18} />
-        </button>
       </div>
 
       {/*
