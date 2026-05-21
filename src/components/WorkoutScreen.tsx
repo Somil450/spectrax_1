@@ -200,6 +200,47 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100,
   });
 
+  // ── ARIA Live Region State ────────────────────────────────────────────────────
+  // We use THREE separate state variables for announcements.
+  // Why separate? If reps and feedback shared one string, every rep would
+  // re-read the feedback, and every feedback change would re-read the rep count.
+  // Keeping them separate means each is announced only when IT changes.
+  const [feedbackAnnouncement, setFeedbackAnnouncement] = useState('');
+  const [repAnnouncement, setRepAnnouncement] = useState('');
+  const [alertAnnouncement, setAlertAnnouncement] = useState('');
+
+  // We use a ref (not state) for the previous rep count because we only need it
+  // for comparison — it doesn't need to cause a re-render on its own.
+  const prevRepsRef = useRef(0);
+
+  // ── Announce pose correction feedback ─────────────────────────────────────────
+  // useEffect runs ONLY when engineState.feedback changes to a different string.
+  // React's dependency comparison handles deduplication automatically — the same
+  // message repeated across frames will NOT re-trigger this effect.
+  useEffect(() => {
+    setFeedbackAnnouncement(engineState.feedback);
+  }, [engineState.feedback]);
+
+  // ── Announce rep count on each increment ─────────────────────────────────────
+  // We check prevRepsRef so we only announce when reps actually go up.
+  // This prevents announcing "Rep 0" on first render.
+  useEffect(() => {
+    if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
+      setRepAnnouncement(`Rep ${engineState.reps} complete`);
+    }
+    prevRepsRef.current = engineState.reps;
+  }, [engineState.reps]);
+
+  // ── Announce exercise mismatch errors ─────────────────────────────────────────
+  // role="alert" with aria-live="assertive" will interrupt the screen reader
+  // immediately. We only use this for genuinely urgent errors like a mismatch.
+  useEffect(() => {
+    if (mismatchError) {
+      setAlertAnnouncement(`Exercise mismatch detected. You appear to be doing ${mismatchError}. Switching is disabled mid-set.`);
+    }
+  }, [mismatchError]);
+
+
   useEffect(() => {
     let isMounted = true;
 
@@ -802,6 +843,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               letterSpacing: "2px",
               margin: "10px 0",
             }}
+            aria-live="assertive"
+            aria-atomic="true"
           >
             {engineState.feedback.toUpperCase()}
           </p>
