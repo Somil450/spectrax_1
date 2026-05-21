@@ -1,4 +1,4 @@
-/**
+ /**
  * Workout Sync Service
  * Handles syncing workout data between local IndexedDB and Firestore
  * Supports offline persistence and automatic synchronization
