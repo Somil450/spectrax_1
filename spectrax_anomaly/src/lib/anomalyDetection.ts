@@ -216,18 +216,11 @@ function isoPathLength(
   depth = 0,
 ): number {
   if (node.isLeaf) return depth + avgPathLength(node.size);
-<<<<<<< HEAD
-  const nonLeaf = node as { isLeaf: false; featureKey: keyof PoseFeatures; splitVal: number; left: IsoNode; right: IsoNode };
-  return point[nonLeaf.featureKey] < nonLeaf.splitVal
-    ? isoPathLength(nonLeaf.left,  point, depth + 1)
-    : isoPathLength(nonLeaf.right, point, depth + 1);
-=======
   // Narrow union type so TypeScript knows this is the branch node
   const branch = node as Exclude<IsoNode, { isLeaf: true }>;
   return point[branch.featureKey] < branch.splitVal
     ? isoPathLength(branch.left, point, depth + 1)
     : isoPathLength(branch.right, point, depth + 1);
->>>>>>> 254acc6 (Fix CL Pipelines Failure)
 }
 
 function isoForestScore(

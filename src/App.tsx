@@ -14,14 +14,9 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import HistoryPage from "./HistoryPage";
-import { useLeveling } from './hooks/useLeveling';
+import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
-import { useAuth } from "./context/AuthContext";
-import { LoginScreen } from "./components/LoginScreen";
-import { SignUpScreen } from "./components/SignUpScreen";
-import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
-
 
 type Screen =
   | "welcome"
@@ -57,11 +52,7 @@ interface WorkoutStats {
 function App() {
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
-<<<<<<< HEAD
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-=======
   const [currentScreen, setCurrentScreen] = useState<AppScreen>("welcome");
->>>>>>> 254acc6 (Fix CL Pipelines Failure)
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
     exercises.squat,
   );
@@ -94,7 +85,11 @@ function App() {
   ) => {
     setStatsLoading(true);
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
-    const fullStats = { ...finalStats, exerciseName: selectedExercise.name, gainedXp };
+    const fullStats = {
+      ...finalStats,
+      exerciseName: selectedExercise.name,
+      gainedXp,
+    };
     setStats(fullStats);
     navigateTo("summary");
 
@@ -145,7 +140,9 @@ function App() {
 
   // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
-    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
+    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(
+      currentScreen,
+    )
       ? currentScreen
       : "login";
     return (
