@@ -7,6 +7,7 @@ import { Camera, AlertCircle, Dumbbell, Hand } from 'lucide-react';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
+import { useWorkoutHistory } from '../useWorkoutHistory';
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
@@ -61,6 +62,12 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [countdownSeconds, setCountdownSeconds] = useState(3);
   
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
+  
+  const { sessions, fetchHistory } = useWorkoutHistory();
+  
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
   
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
@@ -268,14 +275,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }} 
         />
         
-        {/* Silhouette Guide Overlay */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: result.isReady ? 0 : 0.4, transition: 'opacity 0.5s ease' }}>
-          <svg viewBox="0 0 200 400" style={{ height: '85%', maxHeight: '650px', filter: 'drop-shadow(0 0 10px var(--neon-cyan))' }}>
-            <circle cx="100" cy="50" r="25" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" />
-            <path d="M 60 95 C 100 80, 100 80, 140 95 L 130 200 L 140 370 L 115 370 L 100 230 L 85 370 L 60 370 L 70 200 Z" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" strokeLinejoin="round" />
-            <path d="M 60 95 L 35 180 M 140 95 L 165 180" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" strokeLinecap="round" />
-          </svg>
-        </div>
+        {/* Silhouette Guide Overlay Removed as per user request */}
       </div>
 
       {/*
@@ -347,10 +347,22 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         transition: 'all 0.3s ease',
                         width: '100%',
                         position: 'relative',
-                        zIndex: 2
+                        zIndex: 2,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
                       }}
                     >
-                      {ex.name.toUpperCase()}
+                      <span>{ex.name.toUpperCase()}</span>
+                      <span style={{ 
+                        fontSize: '0.65rem', 
+                        opacity: 0.8,
+                        background: selectedExercise.key === ex.key ? 'rgba(0,0,0,0.2)' : 'rgba(168, 85, 247, 0.1)',
+                        padding: '2px 6px',
+                        borderRadius: '4px'
+                      }}>
+                        {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
+                      </span>
                     </button>
 
                     {/* Video Overlay */}
@@ -384,6 +396,22 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                     )}
                   </div>
                 ))}
+             </div>
+
+             {/* Total Reps Lifetime Stats - Small Section */}
+             <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+               <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {Object.values(exercises).map(ex => {
+                    const reps = sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0);
+                    return (
+                      <div key={`stat-${ex.key}`} style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                        <span>{ex.name}</span>
+                        <span style={{ color: reps > 0 ? 'var(--neon-purple)' : 'var(--text-dim)', fontWeight: 'bold' }}>{reps}</span>
+                      </div>
+                    );
+                  })}
+               </div>
              </div>
           </div>
         </div>
