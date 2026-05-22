@@ -394,3 +394,57 @@ body {
   }
 }
 
+/* ── PWA Toast Notification ─────────────────────────────────── */
+.pwa-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  max-width: 380px;
+}
+
+.pwa-toast-message {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.pwa-toast-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.pwa-toast-btn {
+  padding: 8px 16px;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.pwa-toast-btn.primary {
+  background: var(--neon-cyan);
+  color: var(--bg-primary);
+  border: none;
+}
+
+.pwa-toast-btn.secondary {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--glass-border);
+}
+
+.pwa-toast-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+

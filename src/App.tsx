@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
@@ -71,6 +72,24 @@ function App() {
 
   const lastSwitchTime = useRef<number>(0);
   const leveling = useLeveling();
+
+  const {
+    offlineReady: [offlineReady, setOfflineReady],
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log("SW Registered: " + r);
+    },
+    onRegisterError(error) {
+      console.error("SW registration error", error);
+    },
+  });
+
+  const closeOfflineNotification = () => {
+    setOfflineReady(false);
+    setNeedRefresh(false);
+  };
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -225,6 +244,31 @@ function App() {
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
+
+      {(offlineReady || needRefresh) && (
+        <div className="pwa-toast glass animate-in" role="alert">
+          <div className="pwa-toast-message">
+            {offlineReady ? (
+              <span>App is ready to work offline!</span>
+            ) : (
+              <span>New content available, click on reload button to update.</span>
+            )}
+          </div>
+          <div className="pwa-toast-buttons">
+            {needRefresh && (
+              <button
+                className="pwa-toast-btn primary"
+                onClick={() => updateServiceWorker(true)}
+              >
+                Reload
+              </button>
+            )}
+            <button className="pwa-toast-btn secondary" onClick={closeOfflineNotification}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
