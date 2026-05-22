@@ -211,6 +211,7 @@ export interface EngineState {
 
   // 🔥 Plank spline regression state
   plankSpline: PlankSplineCalibration;
+
   /**
    * Latest fractional hip deviation from the calibration baseline.
    * Passed into feedbackEngine context so rules can act on it.
@@ -218,6 +219,11 @@ export interface EngineState {
    * Negative  → hip hyperextension (raised above neutral line)
    */
   hipSplineDeviation: number;
+
+  // 🔥 ADAPTIVE TRACKING RECOVERY
+  visibilityBuffer?: number[];
+  lastValidAngles?: Record<string, number>;
+  trackingLostFrames?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -227,7 +233,7 @@ export interface EngineState {
 export class ExerciseEngine {
   private readonly REP_COOLDOWN = 600;
   private readonly HYSTERESIS = 10;
-  private readonly SMOOTHING_WINDOW = 5;
+  private readonly SMOOTHING_WINDOW = 8; // Increased smoothing window for temporal stability
   private readonly MIN_DOWN_DURATION = 150;
 
   private isValidExercisePosture(
@@ -266,16 +272,38 @@ export class ExerciseEngine {
     let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
       currentState;
 
-    const rawAngle = angles[config.primaryJoint];
     const currentVisibility = visibility[config.primaryJoint];
 
-    // ───────── VISIBILITY GUARD ─────────
-    if (currentVisibility < 0.5) {
+    // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
+    const prevVisibilityBuffer = currentState.visibilityBuffer || [];
+    const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-this.SMOOTHING_WINDOW);
+    const avgVisibility = newVisibilityBuffer.reduce((a, b) => a + b, 0) / newVisibilityBuffer.length;
+    
+    let nextTrackingLostFrames = currentState.trackingLostFrames || 0;
+    let nextLastValidAngles = currentState.lastValidAngles || angles;
+
+    // Use a slightly more forgiving threshold for tracking loss (e.g. 0.4)
+    if (currentVisibility < 0.4) {
+      nextTrackingLostFrames++;
+    } else {
+      nextTrackingLostFrames = 0;
+      nextLastValidAngles = angles;
+    }
+
+    // Temporal buffering: use last known valid angles if tracking drops momentarily (up to 10 frames)
+    const activeAngles = (nextTrackingLostFrames > 0 && nextTrackingLostFrames < 10) ? nextLastValidAngles : angles;
+    const rawAngle = activeAngles[config.primaryJoint];
+
+    // Only block exercise if visibility is consistently low for several frames
+    if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
         ...currentState,
-        feedback: "SENSORS BLURRED — POSITION BODY",
+        feedback: "PARTIAL BODY LOST — ADJUST POSITION",
         status: "yellow",
         isInExercisePosture: false,
+        visibilityBuffer: newVisibilityBuffer,
+        trackingLostFrames: nextTrackingLostFrames,
+        lastValidAngles: nextLastValidAngles
       };
     }
 
@@ -312,6 +340,9 @@ export class ExerciseEngine {
         feedback: "ESTABLISHING POSTURE...",
         status: "yellow",
         isInExercisePosture: false,
+        visibilityBuffer: newVisibilityBuffer,
+        trackingLostFrames: nextTrackingLostFrames,
+        lastValidAngles: nextLastValidAngles
       };
     }
 
@@ -544,6 +575,11 @@ export class ExerciseEngine {
       // 🔥 Plank spline state
       plankSpline: nextPlankSpline,
       hipSplineDeviation,
+
+      // 🔥 Adaptive tracking recovery
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles
     };
   }
 }

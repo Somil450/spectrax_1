@@ -126,22 +126,8 @@ export async function getLocalWorkouts(
 export async function getUnsyncedWorkouts(
   userId: string,
 ): Promise<WorkoutRecord[]> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(WORKOUTS_STORE, "readonly");
-    const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index("synced");
-    // Use boolean false (not numeric 0) because the 'synced' field is a boolean
-    const req = index.getAll(IDBKeyRange.only(false));
-
-    req.onsuccess = () => {
-      const allUnsynced = req.result as WorkoutRecord[];
-      // Filter for current user
-      const userUnsynced = allUnsynced.filter((w) => w.userId === userId);
-      resolve(userUnsynced);
-    };
-    req.onerror = () => reject(req.error);
-  });
+  const all = await getLocalWorkouts(userId);
+  return all.filter((w) => !w.synced);
 }
 
 /**
