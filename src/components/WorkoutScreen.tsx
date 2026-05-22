@@ -20,6 +20,19 @@ import { poseLockService } from "../services/poseLockService";
 import { clipEngine } from "../services/clipEngine";
 import { BodyType } from "../services/bodyTypeEngine";
 import { useWorkoutSync } from "../hooks/useWorkoutSync";
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
+import { cameraService } from '../services/cameraService';
+import { poseService } from '../services/poseService';
+import { overlayRenderer } from '../services/overlayRenderer';
+import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { ExerciseConfig } from '../config/exercises';
+import { sessionRecorder } from '../services/sessionRecorder';
+import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
+import { poseLockService } from '../services/poseLockService';
+import { clipEngine } from '../services/clipEngine';
+import { BodyType } from '../services/bodyTypeEngine';
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
@@ -97,6 +110,18 @@ const getStoredPanelPositions = (): PanelPositions => {
   } catch {
     return defaults;
   }
+};
+
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
 };
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
