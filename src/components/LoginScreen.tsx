@@ -134,11 +134,11 @@ export function LoginScreen({
           setTimeLeft(cooldown);
           setLocalError("Too many failed attempts. Account locked for 60 seconds.");
         } else {
-          setLocalError(err.message || "Invalid credentials. Please try again.");
+          setLocalError("Invalid email or password");
         }
       } else {
         // Validation/network/other errors shouldn't increment failure attempts
-        setLocalError(err.message || "Invalid credentials. Please try again.");
+        setLocalError("Unable to sign in. Please try again.");
       }
     }
   };
