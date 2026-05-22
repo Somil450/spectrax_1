@@ -1,107 +1,113 @@
-import type { Pose as PoseType, Results } from '@mediapipe/pose';
-
-// Read the runtime constructor from `window` instead of importing `Pose` as a value
-// from `@mediapipe/pose`, because the global script path is the Vite/ESM-safe option.
-const Pose = (window as any).Pose as typeof PoseType;
-
-
 /**
  * poseService.ts
- * Wraps MediaPipe Pose for high-performance body tracking.
- * Uses robust CDN loading and frame guards to prevent WASM and asset errors.
+ * Refactored to offload MediaPipe pose landmark extraction into a dedicated
+ * Web Worker. The main thread sends ImageBitmap frames to the worker and
+ * receives `results` objects back via `postMessage`.
  */
 
+type ResultsLike = any;
+
 export class PoseService {
-  private pose: PoseType | null = null;
-  private isLoaded: boolean = false;
-  private inProgress: boolean = false;
-  private errorCount: number = 0;
+  private worker: Worker | null = null;
+  private inProgress = false;
+  private callback: ((results: ResultsLike) => void) | null = null;
+  private frameId = 0;
+  private pendingPromises = new Map<number, { resolve: () => void; reject: (e: any) => void }>();
 
   constructor() {
-    this.init();
+    this.initWorker();
   }
 
-  private init() {
-    if (this.pose) return;
+  private initWorker() {
+    if (this.worker) return;
 
     try {
-      this.pose = new Pose({
-        locateFile: (file) => {
-          // JSDelivr CDN — most reliable for MediaPipe WASM assets
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+      // Vite-compatible module worker bundling
+      this.worker = new Worker(new URL('../workers/poseLandmarkWorker.ts', import.meta.url), { type: 'module' });
+
+      this.worker.onmessage = (evt: MessageEvent) => {
+        const data = evt.data || {};
+        const { frameId, results, error } = data;
+
+        if (error) {
+          const pending = this.pendingPromises.get(frameId);
+          if (pending) {
+            pending.reject(error);
+            this.pendingPromises.delete(frameId);
+          }
+          console.error('PoseService worker error:', error);
+          return;
+        }
+
+        // mark frame as processed
+        const pending = this.pendingPromises.get(frameId);
+        if (pending) {
+          pending.resolve();
+          this.pendingPromises.delete(frameId);
+        }
+
+        this.inProgress = false;
+        this.callback && results && this.callback(results);
+      };
+
+      this.worker.onerror = (e) => {
+        console.error('PoseService worker thrown error', e);
+      };
+
+      console.log('PoseService: worker initialized');
+    } catch (err) {
+      console.error('PoseService: failed to spawn worker', err);
+      this.worker = null;
+    }
+  }
+
+  onResults(cb: (results: ResultsLike) => void) {
+    this.callback = cb;
+  }
+
+  /**
+   * Send a frame to the worker. Uses `createImageBitmap` for efficient transfer.
+   */
+  async send(image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement) {
+    if (!this.worker || this.inProgress) return;
+    this.inProgress = true;
+    this.frameId += 1;
+    const id = this.frameId;
+
+    try {
+      const bitmap = await createImageBitmap(image as any);
+
+      const promise = new Promise<void>((resolve, reject) => {
+        this.pendingPromises.set(id, { resolve, reject });
+        // Transfer the ImageBitmap for zero-copy
+        try {
+          this.worker!.postMessage({ type: 'processFrame', frameId: id, imageBitmap: bitmap }, [bitmap]);
+        } catch (err) {
+          this.pendingPromises.delete(id);
+          reject(err);
         }
       });
 
-      this.pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
-
-      this.isLoaded = true;
-      console.log("PoseService: initialized.");
+      // wait for processing to finish (or timeout)
+      const timeout = new Promise<void>((_, rej) => setTimeout(() => rej(new Error('pose worker timeout')), 2000));
+      await Promise.race([promise, timeout]);
     } catch (error) {
-      console.error("PoseService: Failed to initialize MediaPipe Pose", error);
+      console.error('PoseService.send error', error);
+      this.inProgress = false;
     }
   }
 
-  /**
-   * Sets the callback function when pose results are available.
-   */
-  onResults(callback: (results: Results) => void) {
-    if (!this.pose) return;
-
-    this.pose.onResults((results: any) => {
-      this.inProgress = false;
-      this.errorCount = 0;
-      if (results) {
-        callback(results);
-      }
-    });
-  }
-
-  /**
-   * Processes a single video frame.
-   */
-  async send(image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement) {
-    if (!this.pose || !this.isLoaded || this.inProgress) return;
-
-    this.inProgress = true;
-    try {
-      await this.pose.send({ image });
-    } catch (error) {
-      this.inProgress = false;
-      this.errorCount++;
-      console.error("PoseService: send error", error);
-
-      // Re-initialize after too many consecutive errors
-      if (this.errorCount > 10) {
-        console.warn("PoseService: too many errors, attempting reset...");
-        this.close();
-        this.init();
-        this.errorCount = 0;
-      }
-    }
-  }
-
-  /**
-   * Cleans up the Pose instance.
-   */
-  async close() {
-    if (this.pose) {
+  close() {
+    if (this.worker) {
       try {
-        await this.pose.close();
+        this.worker.terminate();
       } catch (e) {
-        console.warn("Error closing pose:", e);
+        console.warn('Error terminating pose worker', e);
       }
-      this.pose = null;
-      this.isLoaded = false;
+      this.worker = null;
     }
   }
 }
 
-// Singleton — one shared instance across the app
 const globalPoseService = new PoseService();
 export { globalPoseService as poseService };
