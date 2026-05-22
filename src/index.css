@@ -11,6 +11,21 @@
 }
 
 :root {
+  /* Fonts */
+  --font-heading: 'Orbitron', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Explicit Dark Mode (Default) */
+
+:root, [data-theme="dark"] {
   /* Background */
   --bg-primary: #0a0a1a;
   --bg-secondary: #0d1127;
@@ -33,23 +48,40 @@
   --glass-blur: 20px;
 
   /* Text */
-  --text-primary: #e8ecf4;
-  --text-secondary: rgba(232, 236, 244, 0.7);
-  --text-dim: rgba(232, 236, 244, 0.4);
-
-  /* Fonts */
-  --font-heading: 'Orbitron', sans-serif;
-  --font-body: 'Inter', sans-serif;
-
-  /* Radius */
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-  --radius-xl: 32px;
-
-  /* Transitions */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(232, 236, 244, 0.85);
+  --text-dim: rgba(232, 236, 244, 0.6);
 }
+
+
+[data-theme="light"] {
+  /* Backgrounds — light instead of near-black */
+  --bg-primary:    #f0f4ff;
+  --bg-secondary:  #e4ebff;
+  --bg-tertiary:   #d8e3ff;
+
+  /* Neon accents — slightly deeper so they pop on white */
+  --neon-cyan:        #0090a8;
+  --neon-cyan-dim:    #006f80;
+  --neon-purple:      #7c3aed;
+  --neon-purple-dim:  #5b21b6;
+
+  /* Glass — white-tinted instead of dark-tinted */
+  --glass-bg:     rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(0, 144, 168, 0.2);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+  /* Text — dark on light background */
+  --text-primary:   #0d1127;
+  --text-secondary: rgba(13, 17, 39, 0.8);
+  --text-dim:       rgba(13, 17, 39, 0.55);
+}
+
+/* Smooth transition when theme switches */
+*, *::before, *::after {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
 
 html, body, #root {
   width: 100%;
@@ -81,7 +113,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 16px 40px;
+  padding: 14px 36px;
   font-family: var(--font-heading);
   font-size: 0.9rem;
   font-weight: 700;
@@ -90,11 +122,12 @@ body {
   color: var(--bg-primary);
   background: var(--neon-cyan);
   border: none;
-  border-radius: var(--radius-xl);
+  border-radius: 18px;
   cursor: pointer;
   position: relative;
-  transition: all 0.4s var(--ease-out);
+  transition: all 0.3s ease;
   text-decoration: none;
+  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.3);
 }
 
 .btn-neon:disabled {
@@ -107,7 +140,12 @@ body {
 
 .btn-neon:not(:disabled):hover {
   transform: translateY(-3px);
-  box-shadow: 0 0 30px rgba(0, 240, 255, 0.6);
+  box-shadow: 0 6px 24px rgba(0, 240, 255, 0.5);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--neon-purple);
+  outline-offset: 3px;
 }
 
 .btn-outline {
@@ -115,23 +153,23 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 34px;
+  padding: 12px 32px;
   font-family: var(--font-heading);
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--neon-cyan);
-  background: transparent;
+  background: rgba(0, 240, 255, 0.05);
   border: 1.5px solid rgba(0, 240, 255, 0.4);
-  border-radius: var(--radius-xl);
+  border-radius: 14px;
   cursor: pointer;
-  transition: all 0.35s var(--ease-out);
+  transition: all 0.3s ease;
   text-decoration: none;
 }
 
 .btn-outline:hover {
-  background: rgba(0, 240, 255, 0.1);
+  background: rgba(0, 240, 255, 0.15);
   border-color: var(--neon-cyan);
 }
 
@@ -159,3 +197,254 @@ body {
 .text-glow {
   text-shadow: 0 0 20px rgba(0, 240, 255, 0.7);
 }
+
+/* ── Theme Toggle Button ─────────────────────────────────────── */
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  box-shadow: var(--glass-shadow);
+  transition: all 0.3s var(--ease-out);
+}
+
+.theme-toggle.workout-active {
+  right: 196px;
+}
+
+.theme-toggle:hover {
+  transform: translateY(-2px);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+/* ── Welcome Screen Themed Background ────────────────────────── */
+.welcome-screen {
+  background: radial-gradient(ellipse at bottom, #0f1b3e 0%, var(--bg-primary) 100%);
+  transition: background 0.6s var(--ease-out);
+}
+
+[data-theme="light"] .welcome-screen {
+  background: radial-gradient(ellipse at bottom, #dbe9ff 0%, var(--bg-primary) 100%);
+}
+
+.spectrax-app {
+  background: var(--bg-primary);
+  min-height: 100vh;
+  transition: background 0.3s ease;
+}
+
+.workout-layout-controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  pointer-events: all;
+}
+
+.workout-lock-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 168px;
+  padding: 8px 20px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: rgba(13, 17, 39, 0.82);
+  color: var(--neon-cyan);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  backdrop-filter: blur(16px);
+  box-shadow: var(--glass-shadow);
+  transition: all 0.3s var(--ease-out);
+}
+
+.workout-lock-toggle:hover {
+  transform: translateY(-2px);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.workout-lock-toggle.is-unlocked {
+  color: var(--neon-yellow);
+  border-color: rgba(255, 214, 0, 0.38);
+  box-shadow: var(--glass-shadow), 0 0 24px rgba(255, 214, 0, 0.16);
+}
+
+.workout-panel-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.workout-draggable-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: fit-content;
+  max-width: min(460px, calc(100vw - 24px));
+  pointer-events: all;
+  touch-action: none;
+  user-select: none;
+}
+
+.workout-draggable-panel.is-locked {
+  cursor: default;
+}
+
+.workout-draggable-panel.is-unlocked {
+  cursor: grab;
+}
+
+.workout-draggable-panel.is-unlocked:active {
+  cursor: grabbing;
+}
+
+.workout-stat-card {
+  padding: 12px 20px;
+}
+
+.workout-timer-panel {
+  text-align: right;
+}
+
+.workout-reps-panel {
+  min-width: 220px;
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(10, 10, 26, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.workout-sense-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-left: 3px solid #9D4EDD;
+}
+
+.workout-finish-action {
+  position: absolute;
+  right: 40px;
+  bottom: 40px;
+  z-index: 30;
+  pointer-events: all;
+}
+
+@media (max-width: 640px) {
+  .theme-toggle {
+    top: 12px;
+    right: 12px;
+    padding: 6px 12px;
+    font-size: 0.6rem;
+  }
+
+  .theme-toggle.workout-active {
+    right: 136px;
+  }
+
+  .workout-layout-controls {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+  }
+
+  .workout-lock-toggle {
+    min-width: auto;
+    padding: 6px 12px;
+    font-size: 0.58rem;
+  }
+
+  .workout-stat-card {
+    padding: 10px 14px;
+  }
+
+  .workout-reps-panel {
+    min-width: 160px;
+  }
+
+  .workout-reps-panel > div:first-child {
+    font-size: 4.7rem !important;
+  }
+
+  .workout-finish-action {
+    right: 18px;
+    bottom: 18px;
+  }
+}
+
+/* ── PWA Toast Notification ─────────────────────────────────── */
+.pwa-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  max-width: 380px;
+}
+
+.pwa-toast-message {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.pwa-toast-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.pwa-toast-btn {
+  padding: 8px 16px;
+  font-family: var(--font-heading);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.pwa-toast-btn.primary {
+  background: var(--neon-cyan);
+  color: var(--bg-primary);
+  border: none;
+}
+
+.pwa-toast-btn.secondary {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--glass-border);
+}
+
+.pwa-toast-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+

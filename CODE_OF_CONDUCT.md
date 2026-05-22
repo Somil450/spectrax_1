@@ -1,46 +1,100 @@
-# Contributor Covenant Code of Conduct
+# 🌟 SpectraX Code of Conduct
 
-## Our Pledge
+## 🤝 Our Commitment
 
-In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to making participation in our project and our community a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We as contributors, maintainers, and community members pledge to create a welcoming, respectful, and harassment-free environment for everyone regardless of:
 
-## Our Standards
+- Age
+- Body size
+- Disability
+- Ethnicity
+- Gender identity and expression
+- Experience level
+- Nationality
+- Personal appearance
+- Race
+- Religion
+- Sexual identity and orientation
 
-Examples of behavior that contributes to creating a positive environment include:
+We are committed to making participation in the SpectraX community a positive experience for all.
 
-* Using welcoming and inclusive language
-* Being respectful of differing viewpoints and experiences
-* Gracefully accepting constructive criticism
-* Focusing on what is best for the community
-* Showing empathy towards other community members
+---
 
-Examples of unacceptable behavior by participants include:
+# ✅ Expected Behavior
 
-* The use of sexualized language or imagery and unwelcome sexual attention or advances
-* Trolling, insulting/derogatory comments, and personal or political attacks
-* Public or private harassment
-* Publishing others' private information, such as a physical or electronic address, without explicit permission
-* Other conduct which could reasonably be considered inappropriate in a professional setting
+Examples of behavior that help create a positive environment include:
 
-## Our Responsibilities
+- Using respectful and inclusive language
+- Being supportive toward other contributors
+- Accepting constructive feedback gracefully
+- Respecting different viewpoints and experiences
+- Focusing on collaboration and community growth
+- Helping beginners and new contributors
 
-Project maintainers are responsible for clarifying the standards of acceptable behavior and are expected to take appropriate and fair corrective action in response to any instances of unacceptable behavior.
+---
 
-Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that they deem inappropriate, threatening, offensive, or harmful.
+# ❌ Unacceptable Behavior
 
-## Scope
+Examples of unacceptable behavior include:
 
-This Code of Conduct applies both within project spaces and in public spaces when an individual is representing the project or its community. Examples of representing a project or community include using an official project e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event. Representation of a project may be further defined and clarified by project maintainers.
+- Harassment, discrimination, or hateful conduct
+- Trolling, insulting, or derogatory comments
+- Personal or political attacks
+- Public or private harassment
+- Sharing someone’s private information without permission
+- Posting inappropriate or offensive content
+- Any conduct that could negatively affect the community environment
 
-## Enforcement
+---
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at [INSERT EMAIL ADDRESS]. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances. The project team is obligated to maintain confidentiality with regard to the reporter of an incident. Further details of specific enforcement policies may be posted separately.
+# 🛡️ Maintainer Responsibilities
 
-Project maintainers who do not follow or enforce the Code of Conduct in good faith may face temporary or permanent repercussions as determined by other members of the project's leadership.
+Project maintainers are responsible for:
 
-## Attribution
+- Clarifying acceptable behavior standards
+- Reviewing reported incidents fairly
+- Taking appropriate corrective action when necessary
+- Ensuring a healthy and inclusive project environment
 
-This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.4, available at [http://contributor-covenant.org/version/1/4][version]
+Maintainers may remove, edit, or reject contributions that violate this Code of Conduct.
 
-[homepage]: http://contributor-covenant.org
-[version]: http://contributor-covenant.org/version/1/4
+---
+
+# 🌍 Scope
+
+This Code of Conduct applies within all project spaces, including:
+
+- GitHub repositories
+- Issues and pull requests
+- Discussions and chats
+- Social media interactions related to the project
+- Community events and collaborations
+
+---
+
+# 📢 Reporting Issues
+
+If you experience or witness unacceptable behavior, please report it to the project maintainers.
+
+📧 Contact: [INSERT PROJECT EMAIL]
+
+All reports will be handled confidentially and reviewed fairly.
+
+---
+
+# ⚖️ Enforcement
+
+Project maintainers may take any action they deem appropriate in response to violations of this Code of Conduct, including:
+
+- Warning contributors
+- Removing comments or contributions
+- Temporary restrictions
+- Permanent bans from the community
+
+---
+
+# 📚 Attribution
+
+This Code of Conduct is adapted from the Contributor Covenant.
+
+🔗 https://www.contributor-covenant.org/

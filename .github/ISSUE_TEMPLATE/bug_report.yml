@@ -1,45 +1,93 @@
 name: 🐛 Bug Report
-description: File a report to help us improve SpectraX
-title: "[BUG]: <Short description>"
-labels: ["bug"]
+description: Report a bug or unexpected behavior in SpectraX
+title: "[BUG]: "
+labels: ["bug", "gssoc-26"]
 body:
+
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
+        ## Thanks for reporting a bug! 🚀
+
+        Please fill out the details carefully so maintainers can reproduce and fix the issue faster.
+
   - type: textarea
     id: description
     attributes:
-      label: Describe the bug
-      description: A clear and concise description of what the bug is.
+      label: 📝 Bug Description
+      description: Clearly describe the issue you encountered.
+      placeholder: Explain what is happening...
     validations:
       required: true
+
   - type: textarea
-    id: reproduction
+    id: steps
     attributes:
-      label: To Reproduce
-      description: Steps to reproduce the behavior.
+      label: 🔄 Steps To Reproduce
+      description: Provide step-by-step instructions to reproduce the issue.
       placeholder: |
         1. Go to '...'
-        2. Click on '....'
-        3. Scroll down to '....'
-        4. See error
+        2. Click on '...'
+        3. Scroll to '...'
+        4. Observe the error
     validations:
       required: true
+
   - type: textarea
-    id: expected-behavior
+    id: expected
     attributes:
-      label: Expected behavior
-      description: A clear and concise description of what you expected to happen.
+      label: ✅ Expected Behavior
+      description: Describe what you expected to happen.
+      placeholder: The application should...
     validations:
       required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ Actual Behavior
+      description: Describe what actually happened.
+      placeholder: Instead, the application...
+    validations:
+      required: true
+
   - type: textarea
     id: screenshots
     attributes:
-      label: Screenshots
-      description: If applicable, add screenshots to help explain your problem.
-  - type: textarea
-    id: environment
+      label: 📸 Screenshots / Screen Recording
+      description: Add screenshots or recordings if applicable.
+
+  - type: dropdown
+    id: browser
     attributes:
-      label: Environment
-      description: Browser, OS, Node version, etc.
+      label: 🌐 Browser
+      description: Select the browser where the issue occurred.
+      options:
+        - Chrome
+        - Firefox
+        - Edge
+        - Safari
+        - Brave
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 💻 Operating System
+      description: Mention your operating system.
+      placeholder: Windows 11, Ubuntu 22.04, macOS Sonoma
+
+  - type: input
+    id: node
+    attributes:
+      label: 📦 Node.js Version
+      description: Mention your Node.js version if applicable.
+      placeholder: v20.x.x
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 📌 Additional Context
+      description: Add any additional information related to the issue.
