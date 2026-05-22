@@ -5,12 +5,19 @@ interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
   onViewTrophies: () => void;
+  leveling?: {
+    xp: number;
+    level: number;
+    progress: number;
+    nextLevelXp: number;
+  };
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
+  leveling,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -125,6 +132,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           transformStyle: "preserve-3d"
         }}
       >
+        {leveling && (
+          <div style={{ position: 'absolute', top: '-80px', right: '-120px', background: 'rgba(0, 0, 0, 0.4)', padding: '12px 20px', borderRadius: '12px', border: '1px solid var(--neon-cyan)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+             <div style={{ color: 'var(--neon-cyan)', fontSize: '0.8rem', fontWeight: 800, letterSpacing: '1px' }}>
+                LEVEL {leveling.level}
+             </div>
+             <div style={{ width: '120px', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+               <div style={{ width: `${leveling.progress}%`, height: '100%', background: 'var(--neon-cyan)' }}></div>
+             </div>
+             <div style={{ color: 'var(--text-dim)', fontSize: '0.6rem' }}>
+                {leveling.xp} / {leveling.nextLevelXp} XP
+             </div>
+          </div>
+        )}
         <div
           style={{
             display: "inline-flex",
