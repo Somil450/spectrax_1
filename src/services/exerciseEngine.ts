@@ -71,8 +71,8 @@ export class ExerciseEngine {
   ): Promise<EngineState> {
     const currentTime = Date.now();
 
-    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
-      currentState;
+    const { reps, lastRepTime, history } = currentState;
+    let { stage, isCalibrated, stageStartTime } = currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
 
