@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
 import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
@@ -90,6 +90,18 @@ const getStoredPanelPositions = (): PanelPositions => {
   } catch {
     return defaults;
   }
+};
+
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
 };
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {

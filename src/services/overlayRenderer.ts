@@ -57,20 +57,20 @@ export class OverlayRenderer {
     this.drawScanningLine();
 
     // 1. Draw standard connectors with status color
-    drawingUtils.drawConnectors(this.ctx, results.poseLandmarks, mpPose.POSE_CONNECTIONS, {
+    drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
       color: 'rgba(255, 255, 255, 0.2)',
       lineWidth: 2,
     });
 
     // 2. Draw highlighted connections for primary workout joints
     // This provides stronger visual feedback on the active movement.
-    drawingUtils.drawConnectors(this.ctx, results.poseLandmarks, mpPose.POSE_CONNECTIONS, {
+    drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
       color: color,
       lineWidth: 4,
     });
 
     // 3. Draw Landmarks with dynamic size/glow
-   drawingUtils.drawLandmarks(this.ctx, results.poseLandmarks, {
+   drawLandmarks(this.ctx, results.poseLandmarks, {
       color: '#ffffff',
       fillColor: (data: any) => {
           // Highlight primary joints with stronger color
