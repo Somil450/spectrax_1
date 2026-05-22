@@ -9,15 +9,14 @@ import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
-import HistoryPage from "./HistoryPage";
-import { useLeveling } from './hooks/useLeveling';
-import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
+import HistoryPage from "./HistoryPage";
+import { useLeveling } from "./hooks/useLeveling";
+import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { useBadges } from "./hooks/useBadges";
-
 
 type Screen =
   | "welcome"
@@ -30,6 +29,11 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password";
+
+// auth screens
+type AuthScreen = "login" | "signup" | "forgot-password";
+
+type AppScreen = Screen | AuthScreen;
 
 interface WorkoutStats {
   reps: number;
@@ -48,7 +52,7 @@ interface WorkoutStats {
 function App() {
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  const [currentScreen, setCurrentScreen] = useState<AppScreen>("welcome");
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
     exercises.squat,
   );
@@ -72,7 +76,7 @@ function App() {
   const lastSwitchTime = useRef<number>(0);
   const leveling = useLeveling();
 
-  const navigateTo = (screen: Screen) => {
+  const navigateTo = (screen: AppScreen) => {
     setCurrentScreen(screen);
   };
 
@@ -81,7 +85,11 @@ function App() {
   ) => {
     setStatsLoading(true);
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
-    const fullStats = { ...finalStats, exerciseName: selectedExercise.name, gainedXp };
+    const fullStats = {
+      ...finalStats,
+      exerciseName: selectedExercise.name,
+      gainedXp,
+    };
     setStats(fullStats);
     navigateTo("summary");
 
@@ -132,7 +140,9 @@ function App() {
 
   // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
-    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
+    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(
+      currentScreen,
+    )
       ? currentScreen
       : "login";
     return (

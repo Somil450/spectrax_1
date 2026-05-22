@@ -22,6 +22,10 @@ export class VolumetricFogEngine {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+
+  private composer: any; // PostProcessing composer
+  private pass: any; // Post-processing pass
+
   private material: THREE.ShaderMaterial | null = null;
   private quadMesh: THREE.Mesh | null = null;
   private renderTarget: THREE.WebGLRenderTarget | null = null;
@@ -203,9 +207,13 @@ export class VolumetricFogEngine {
     this.renderer.setRenderTarget(this.renderTarget);
 
     if (this.quadMesh) {
+
+      this.renderer.render(new THREE.Scene().add(this.quadMesh), this.camera);
+
       const postProcessScene = new THREE.Scene();
       postProcessScene.add(this.quadMesh);
       this.renderer.render(postProcessScene, this.camera);
+
     }
 
     this.renderer.setRenderTarget(previousTarget);
