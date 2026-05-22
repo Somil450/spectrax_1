@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import React, { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 export interface ReplayFrame {
   timestamp: number;
@@ -146,6 +146,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const [hudLabels, setHudLabels] = useState<any[]>([]);
   const reqIdRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
+  const recoveryTimeoutRef = useRef<number | null>(null);
+  const rendererPipelineCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     console.log("Replay frames:", frames?.length || 0);
@@ -166,23 +168,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
     camera.position.set(0, 0, 3.2); // Closer camera to make the 3D model fill the view
     cameraRef.current = camera;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    // ✨ Enable shadow mapping for dynamic lighting
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap; // Better quality shadows
-    renderer.shadowMap.autoUpdate = true;
-    mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.1; // allow looking slightly from below
-    controls.minDistance = 1.0;
-    controls.maxDistance = 10.0;
-    controlsRef.current = controls;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambientLight);
@@ -414,24 +399,148 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       },
     );
 
-    const handleResize = () => {
-      if (!mountRef.current || !cameraRef.current || !rendererRef.current)
-        return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
-      cameraRef.current.aspect = w / h;
-      cameraRef.current.updateProjectionMatrix();
-      rendererRef.current.setSize(w, h);
+    let cancelled = false;
+
+    const disposeRendererPipeline = () => {
+      if (rendererPipelineCleanupRef.current) {
+        rendererPipelineCleanupRef.current();
+        rendererPipelineCleanupRef.current = null;
+      }
     };
-    window.addEventListener("resize", handleResize);
+
+    const createRendererPipeline = () => {
+      if (
+        cancelled ||
+        !mountRef.current ||
+        !sceneRef.current ||
+        !cameraRef.current
+      )
+        return;
+
+      disposeRendererPipeline();
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(width, height);
+      // ✨ Enable shadow mapping for dynamic lighting
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFShadowMap; // Better quality shadows
+      renderer.shadowMap.autoUpdate = true;
+      mountRef.current.appendChild(renderer.domElement);
+      rendererRef.current = renderer;
+
+      const controls = new OrbitControls(
+        cameraRef.current,
+        renderer.domElement,
+      );
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2 + 0.1; // allow looking slightly from below
+      controls.minDistance = 1.0;
+      controls.maxDistance = 10.0;
+      controlsRef.current = controls;
+
+      const handleContextLost = (event: Event) => {
+        event.preventDefault();
+
+        if (recoveryTimeoutRef.current !== null) return;
+
+        recoveryTimeoutRef.current = window.setTimeout(() => {
+          recoveryTimeoutRef.current = null;
+          if (cancelled) return;
+          createRendererPipeline();
+        }, 75);
+      };
+
+      const handleContextRestored = () => {
+        if (recoveryTimeoutRef.current !== null) {
+          window.clearTimeout(recoveryTimeoutRef.current);
+          recoveryTimeoutRef.current = null;
+        }
+
+        if (
+          cancelled ||
+          !sceneRef.current ||
+          !cameraRef.current ||
+          rendererRef.current !== renderer
+        ) {
+          return;
+        }
+
+        renderer.render(sceneRef.current, cameraRef.current);
+      };
+
+      const handleResize = () => {
+        if (!mountRef.current || !cameraRef.current || !rendererRef.current)
+          return;
+        const w = mountRef.current.clientWidth;
+        const h = mountRef.current.clientHeight;
+        cameraRef.current.aspect = w / h;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(w, h);
+      };
+
+      renderer.domElement.addEventListener(
+        "webglcontextlost",
+        handleContextLost,
+      );
+      renderer.domElement.addEventListener(
+        "webglcontextrestored",
+        handleContextRestored,
+      );
+      window.addEventListener("resize", handleResize);
+
+      rendererPipelineCleanupRef.current = () => {
+        renderer.domElement.removeEventListener(
+          "webglcontextlost",
+          handleContextLost,
+        );
+        renderer.domElement.removeEventListener(
+          "webglcontextrestored",
+          handleContextRestored,
+        );
+        window.removeEventListener("resize", handleResize);
+
+        controls.dispose();
+
+        if (mountRef.current?.contains(renderer.domElement)) {
+          mountRef.current.removeChild(renderer.domElement);
+        }
+
+        renderer.dispose();
+
+        if (rendererRef.current === renderer) {
+          rendererRef.current = null;
+        }
+
+        if (controlsRef.current === controls) {
+          controlsRef.current = null;
+        }
+      };
+
+      requestAnimationFrame(() => {
+        if (
+          cancelled ||
+          !sceneRef.current ||
+          !cameraRef.current ||
+          rendererRef.current !== renderer
+        )
+          return;
+        renderer.render(sceneRef.current, cameraRef.current);
+      });
+    };
+
+    createRendererPipeline();
 
     return () => {
-      window.removeEventListener("resize", handleResize);
-      if (mountRef.current && rendererRef.current) {
-        mountRef.current.removeChild(rendererRef.current.domElement);
+      cancelled = true;
+
+      if (recoveryTimeoutRef.current !== null) {
+        window.clearTimeout(recoveryTimeoutRef.current);
+        recoveryTimeoutRef.current = null;
       }
-      controlsRef.current?.dispose();
-      rendererRef.current?.dispose();
+
+      disposeRendererPipeline();
     };
   }, [frames, modelUrl]);
 
@@ -468,24 +577,28 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         const rawRShoulder = frame.landmarks[12];
         const rawLHip = frame.landmarks[23];
         const rawRHip = frame.landmarks[24];
-        
+
         if (rawLShoulder && rawRShoulder && rawLHip && rawRHip) {
-            // Compute torso diagonal as a reference for anatomical depth scaling
-            const dx = rawLShoulder.x - rawRHip.x;
-            const dy = rawLShoulder.y - rawRHip.y;
-            const torsoSize = Math.sqrt(dx * dx + dy * dy);
-            if (torsoSize > 0.1) {
-                // Base Z multiplier scaled inversely by apparent torso size for perspective depth correction
-                depthScale = (0.5 / torsoSize) * 3.0;
-            }
+          // Compute torso diagonal as a reference for anatomical depth scaling
+          const dx = rawLShoulder.x - rawRHip.x;
+          const dy = rawLShoulder.y - rawRHip.y;
+          const torsoSize = Math.sqrt(dx * dx + dy * dy);
+          if (torsoSize > 0.1) {
+            // Base Z multiplier scaled inversely by apparent torso size for perspective depth correction
+            depthScale = (0.5 / torsoSize) * 3.0;
+          }
         }
 
         const getLm = (idx: number) => {
-            const lm = frame.landmarks[idx];
-            if (!lm) return null;
-            // Invert X axis so user's physical right arm maps to screen right side = physical right of avatar
-            // Apply estimated depth scale to Z for more accurate 3D replay representation
-            return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
+          const lm = frame.landmarks[idx];
+          if (!lm) return null;
+          // Invert X axis so user's physical right arm maps to screen right side = physical right of avatar
+          // Apply estimated depth scale to Z for more accurate 3D replay representation
+          return new THREE.Vector3(
+            -(lm.x - 0.5) * 2,
+            -(lm.y - 0.5) * 2,
+            -lm.z * depthScale,
+          );
         };
 
         // Torso Alignment & Root Motion
@@ -497,46 +610,62 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         const rAnkle = getLm(28);
 
         if (lShoulder && rShoulder && lHip && rHip) {
-            const shoulderCenter = new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5);
-            const hipCenter = new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5);
+          const shoulderCenter = new THREE.Vector3()
+            .addVectors(lShoulder, rShoulder)
+            .multiplyScalar(0.5);
+          const hipCenter = new THREE.Vector3()
+            .addVectors(lHip, rHip)
+            .multiplyScalar(0.5);
 
-            // Up vector (hips pointing UP to shoulders)
-            const up = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
-            
-            // Right vector (User Left Shoulder 11 to User Right Shoulder 12 mapping physical right)
-            const right = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
-            
-            // Back vector (cross product produces orthogonal depth Z)
-            const forward = new THREE.Vector3().crossVectors(right, up).normalize();
-            
-            // Perfect orthogonal matrix
-            right.crossVectors(up, forward).normalize();
-            const mat = new THREE.Matrix4();
-            mat.makeBasis(right, up, forward);
-            const torsoQuat = new THREE.Quaternion().setFromRotationMatrix(mat);
+          // Up vector (hips pointing UP to shoulders)
+          const up = new THREE.Vector3()
+            .subVectors(shoulderCenter, hipCenter)
+            .normalize();
 
-            // Apply heavily smoothed physical turning and squat dropping (0.2 -> 0.05)
-            modelGroupRef.current.quaternion.slerp(torsoQuat, 0.05);
-            
-            const rotatedOffset = rootOffsetRef.current.clone().applyQuaternion(modelGroupRef.current.quaternion);
-            const targetPos = hipCenter.clone().add(rotatedOffset);
-            
-            // --- Grounding: Lock the lowest foot firmly to the ground plane (-1.0) ---
-            const minAnkleY = Math.min(lAnkle?.y || 0, rAnkle?.y || 0);
-            targetPos.y = -1.0 - minAnkleY;
+          // Right vector (User Left Shoulder 11 to User Right Shoulder 12 mapping physical right)
+          const right = new THREE.Vector3()
+            .subVectors(lShoulder, rShoulder)
+            .normalize();
 
-            modelGroupRef.current.position.lerp(targetPos, 0.05);
+          // Back vector (cross product produces orthogonal depth Z)
+          const forward = new THREE.Vector3()
+            .crossVectors(right, up)
+            .normalize();
 
-            // Update model matrix since we moved it, so FK calculation has the correct parent offsets!
-            modelGroupRef.current.updateMatrixWorld(true);
+          // Perfect orthogonal matrix
+          right.crossVectors(up, forward).normalize();
+          const mat = new THREE.Matrix4();
+          mat.makeBasis(right, up, forward);
+          const torsoQuat = new THREE.Quaternion().setFromRotationMatrix(mat);
 
-            // --- Dynamic Camera Tracking & Orbit Target Sync ---
-            const lookTarget = new THREE.Vector3().lerpVectors(hipCenter, shoulderCenter, 0.5);
-            if (controlsRef.current) {
-                controlsRef.current.target.lerp(lookTarget, 0.05);
-            } else if (cameraRef.current) {
-                cameraRef.current.lookAt(lookTarget);
-            }
+          // Apply heavily smoothed physical turning and squat dropping (0.2 -> 0.05)
+          modelGroupRef.current.quaternion.slerp(torsoQuat, 0.05);
+
+          const rotatedOffset = rootOffsetRef.current
+            .clone()
+            .applyQuaternion(modelGroupRef.current.quaternion);
+          const targetPos = hipCenter.clone().add(rotatedOffset);
+
+          // --- Grounding: Lock the lowest foot firmly to the ground plane (-1.0) ---
+          const minAnkleY = Math.min(lAnkle?.y || 0, rAnkle?.y || 0);
+          targetPos.y = -1.0 - minAnkleY;
+
+          modelGroupRef.current.position.lerp(targetPos, 0.05);
+
+          // Update model matrix since we moved it, so FK calculation has the correct parent offsets!
+          modelGroupRef.current.updateMatrixWorld(true);
+
+          // --- Dynamic Camera Tracking & Orbit Target Sync ---
+          const lookTarget = new THREE.Vector3().lerpVectors(
+            hipCenter,
+            shoulderCenter,
+            0.5,
+          );
+          if (controlsRef.current) {
+            controlsRef.current.target.lerp(lookTarget, 0.05);
+          } else if (cameraRef.current) {
+            cameraRef.current.lookAt(lookTarget);
+          }
         }
 
         const applyPose = (
