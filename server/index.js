@@ -13,12 +13,13 @@ const path = require('path');
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
-app.use(cors({ origin: '*' }));
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
+app.use(cors({ origin: ALLOWED_ORIGIN }));
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: ALLOWED_ORIGIN, methods: ['GET', 'POST'] },
   // Tune for minimal latency
   pingInterval: 5000,
   pingTimeout: 3000,
