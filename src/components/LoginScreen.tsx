@@ -33,13 +33,17 @@ export function LoginScreen({
   const safeSetItem = (key: string, value: string) => {
     try {
       localStorage.setItem(key, value);
-    } catch (e) {}
+    } catch (e) {
+      return;
+    }
   };
 
   const safeRemoveItem = (key: string) => {
     try {
       localStorage.removeItem(key);
-    } catch (e) {}
+    } catch (e) {
+      return;
+    }
   };
 
   // Load lockout state from localStorage when email changes
@@ -69,7 +73,7 @@ export function LoginScreen({
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setTimeout(() => {
-      setTimeLeft(t => t - 1);
+      setTimeLeft((t) => t - 1);
     }, 1000);
     return () => clearTimeout(timer);
   }, [timeLeft]);
@@ -90,7 +94,7 @@ export function LoginScreen({
 
     try {
       await signIn(email, password);
-      
+
       // Reset attempts and lockout on success
       const attemptsKey = `auth_attempts_login_${email}`;
       const lockoutKey = `auth_lockout_login_${email}`;
@@ -104,7 +108,7 @@ export function LoginScreen({
       onLoginSuccess();
     } catch (err: any) {
       console.error("Login error:", err);
-      
+
       const errorCode = err.code || "";
       const isAuthFailure =
         errorCode === "auth/wrong-password" ||
@@ -121,7 +125,9 @@ export function LoginScreen({
         const lockoutTime = Date.now() + cooldown * 1000;
         safeSetItem(lockoutKey, lockoutTime.toString());
         setTimeLeft(cooldown);
-        setLocalError("Too many failed attempts. Account locked for 60 seconds.");
+        setLocalError(
+          "Too many failed attempts. Account locked for 60 seconds.",
+        );
       } else if (isAuthFailure) {
         const newAttempts = failedAttempts + 1;
         setFailedAttempts(newAttempts);
@@ -132,9 +138,13 @@ export function LoginScreen({
           const lockoutTime = Date.now() + cooldown * 1000;
           safeSetItem(lockoutKey, lockoutTime.toString());
           setTimeLeft(cooldown);
-          setLocalError("Too many failed attempts. Account locked for 60 seconds.");
+          setLocalError(
+            "Too many failed attempts. Account locked for 60 seconds.",
+          );
         } else {
-          setLocalError(err.message || "Invalid credentials. Please try again.");
+          setLocalError(
+            err.message || "Invalid credentials. Please try again.",
+          );
         }
       } else {
         // Validation/network/other errors shouldn't increment failure attempts

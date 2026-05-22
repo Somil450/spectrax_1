@@ -33,13 +33,17 @@ export function SignUpScreen({
   const safeSetItem = (key: string, value: string) => {
     try {
       localStorage.setItem(key, value);
-    } catch (e) {}
+    } catch (e) {
+      return;
+    }
   };
 
   const safeRemoveItem = (key: string) => {
     try {
       localStorage.removeItem(key);
-    } catch (e) {}
+    } catch (e) {
+      return;
+    }
   };
 
   // Load lockout state from localStorage when email changes
@@ -69,7 +73,7 @@ export function SignUpScreen({
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setTimeout(() => {
-      setTimeLeft(t => t - 1);
+      setTimeLeft((t) => t - 1);
     }, 1000);
     return () => clearTimeout(timer);
   }, [timeLeft]);
@@ -101,7 +105,7 @@ export function SignUpScreen({
 
     try {
       await signUp(email, password, displayName);
-      
+
       // Reset attempts and lockout on success
       const attemptsKey = `auth_attempts_signup_${email}`;
       const lockoutKey = `auth_lockout_signup_${email}`;
@@ -117,7 +121,7 @@ export function SignUpScreen({
       onSignUpSuccess();
     } catch (err: any) {
       console.error("Sign up error:", err);
-      
+
       const errorCode = err.code || "";
       const isSignUpFailure = errorCode === "auth/email-already-in-use";
       const isRateLimit = errorCode === "auth/too-many-requests";
@@ -130,7 +134,9 @@ export function SignUpScreen({
         const lockoutTime = Date.now() + cooldown * 1000;
         safeSetItem(lockoutKey, lockoutTime.toString());
         setTimeLeft(cooldown);
-        setLocalError("Too many failed attempts. Account creation locked for 60 seconds.");
+        setLocalError(
+          "Too many failed attempts. Account creation locked for 60 seconds.",
+        );
       } else if (isSignUpFailure) {
         const newAttempts = failedAttempts + 1;
         setFailedAttempts(newAttempts);
@@ -141,13 +147,19 @@ export function SignUpScreen({
           const lockoutTime = Date.now() + cooldown * 1000;
           safeSetItem(lockoutKey, lockoutTime.toString());
           setTimeLeft(cooldown);
-          setLocalError("Too many failed attempts. Account creation locked for 60 seconds.");
+          setLocalError(
+            "Too many failed attempts. Account creation locked for 60 seconds.",
+          );
         } else {
-          setLocalError(err.message || "Failed to create account. Please try again.");
+          setLocalError(
+            err.message || "Failed to create account. Please try again.",
+          );
         }
       } else {
         // Validation/network/other errors shouldn't increment failure attempts
-        setLocalError(err.message || "Failed to create account. Please try again.");
+        setLocalError(
+          err.message || "Failed to create account. Please try again.",
+        );
       }
     }
   };

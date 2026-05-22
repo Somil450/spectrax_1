@@ -71,16 +71,21 @@ export class ExerciseEngine {
   ): Promise<EngineState> {
     const currentTime = Date.now();
 
-    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
+    const { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
       currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
 
     // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
     const prevVisibilityBuffer = currentState.visibilityBuffer || [];
-    const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-this.SMOOTHING_WINDOW);
-    const avgVisibility = newVisibilityBuffer.reduce((a, b) => a + b, 0) / newVisibilityBuffer.length;
-    
+    const newVisibilityBuffer = [
+      ...prevVisibilityBuffer,
+      currentVisibility,
+    ].slice(-this.SMOOTHING_WINDOW);
+    const avgVisibility =
+      newVisibilityBuffer.reduce((a, b) => a + b, 0) /
+      newVisibilityBuffer.length;
+
     let nextTrackingLostFrames = currentState.trackingLostFrames || 0;
     let nextLastValidAngles = currentState.lastValidAngles || angles;
 
@@ -93,7 +98,10 @@ export class ExerciseEngine {
     }
 
     // Temporal buffering: use last known valid angles if tracking drops momentarily (up to 10 frames)
-    const activeAngles = (nextTrackingLostFrames > 0 && nextTrackingLostFrames < 10) ? nextLastValidAngles : angles;
+    const activeAngles =
+      nextTrackingLostFrames > 0 && nextTrackingLostFrames < 10
+        ? nextLastValidAngles
+        : angles;
     const rawAngle = activeAngles[config.primaryJoint];
 
     // Only block exercise if visibility is consistently low for several frames
@@ -105,7 +113,7 @@ export class ExerciseEngine {
         isInExercisePosture: false,
         visibilityBuffer: newVisibilityBuffer,
         trackingLostFrames: nextTrackingLostFrames,
-        lastValidAngles: nextLastValidAngles
+        lastValidAngles: nextLastValidAngles,
       };
     }
 
@@ -146,7 +154,7 @@ export class ExerciseEngine {
         isInExercisePosture: false,
         visibilityBuffer: newVisibilityBuffer,
         trackingLostFrames: nextTrackingLostFrames,
-        lastValidAngles: nextLastValidAngles
+        lastValidAngles: nextLastValidAngles,
       };
     }
 
@@ -324,7 +332,7 @@ export class ExerciseEngine {
 
       visibilityBuffer: newVisibilityBuffer,
       trackingLostFrames: nextTrackingLostFrames,
-      lastValidAngles: nextLastValidAngles
+      lastValidAngles: nextLastValidAngles,
     };
   }
 }
