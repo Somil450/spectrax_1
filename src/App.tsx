@@ -17,6 +17,8 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { useWorkoutSync } from "./hooks/useWorkoutSync";
+import { useRegisterSW } from "virtual:pwa-register/react";
 
 
 type Screen =
@@ -29,18 +31,8 @@ type Screen =
   | "trophy"
   | "login"
   | "signup"
- feature/ai-workout-recommendations
- feature/ai-workout-recommendations
   | "forgot-password";
 
-
-  | "forgot-password"
-  | "trophy";
-main
-=======
-  | "forgot-password";
-
-main
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -88,6 +80,7 @@ function App() {
   });
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
+  const { addWorkout } = useWorkoutSync();
 
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -133,6 +126,18 @@ function App() {
       bestStreak: finalStats.bestStreak,
     });
 
+    if (finalStats.totalReps > 0) {
+      addWorkout({
+        exerciseType: selectedExercise.name.toLowerCase().replace(/\s+/g, "_"),
+        totalReps: finalStats.totalReps,
+        accuracyScore: finalStats.accuracy,
+        duration: finalStats.duration,
+        timestamp: Date.now(),
+      }).catch((error) => {
+        console.error("Failed to save workout:", error);
+      });
+    }
+
     // Show skeleton briefly before rendering real summary
     setTimeout(() => {
       setStatsLoading(false);
@@ -170,14 +175,8 @@ function App() {
     );
   }
 
- feature/ai-workout-recommendations
-  // If not authenticated, show auth screens
-  
-  if (!user) {
-=======
   // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
- main
     const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
       ? currentScreen
       : "login";
