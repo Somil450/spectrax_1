@@ -22,6 +22,14 @@ export interface Replay3DModelProps {
   hideControls?: boolean;
 }
 
+type HudLabel = {
+  x: number;
+  y: number;
+  angle: number;
+  label: string;
+  id: number;
+};
+
 const BONES_CONNECTIONS = [
   // Torso
   [11, 12],
@@ -143,7 +151,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   >({});
   const rootOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
-  const [hudLabels, setHudLabels] = useState<any[]>([]);
+  const [hudLabels, setHudLabels] = useState<HudLabel[]>([]);
   const reqIdRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const recoveryTimeoutRef = useRef<number | null>(null);
@@ -758,7 +766,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         applyPose("rightAnkle", 28, 30);
 
         // --- 3D to 2D HUD Projection ---
-        const newLabels: any[] = [];
+        const newLabels: HudLabel[] = [];
         const projectJoint = (
           idx: number,
           boneKey: string,
@@ -878,7 +886,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded]);
+  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx]);
 
   if (!frames || frames.length === 0) {
     return (
