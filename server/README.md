@@ -58,8 +58,7 @@ server/
 ## Default Runtime
 
 - HTTP server: `http://localhost:3001`
-- Socket.IO endpoint: `ws://localhost:3001`
-- Health route: `GET /health`
+- Socket.IO endpoint: `ws://localhost:3001/socket.io`- Health route: `GET /health`
 
 ## Setup
 

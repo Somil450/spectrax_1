@@ -42,13 +42,18 @@ function createServer(overrides = {}) {
   });
 
   function start() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       server.listen(config.port, () => resolve(server));
+      server.on("error", reject);
     });
   }
 
   async function shutdown() {
-    await sessionService.saveAllSessions();
+    try {
+      await sessionService.saveAllSessions();
+    } catch (error) {
+      logger.error("Error saving sessions during shutdown:", error);
+    }
     return new Promise((resolve, reject) => {
       if (!server.listening) {
         resolve();

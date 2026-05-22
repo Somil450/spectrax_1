@@ -1,7 +1,7 @@
 const { resolveSessionPath } = require("../shared/utils/paths");
 
 function getConfig(overrides = {}) {
-  const port = overrides.port ?? Number(process.env.PORT || 3001);
+  const port = overrides.port ?? (process.env.PORT ? process.env.PORT : 3001);
   const corsOrigin = overrides.corsOrigin ?? process.env.CORS_ORIGIN ?? "*";
   const sessionPath =
     overrides.sessionPath ?? process.env.SESSION_PATH ?? resolveSessionPath();
