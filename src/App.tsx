@@ -17,6 +17,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 
@@ -79,6 +80,7 @@ function App() {
   });
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
+  const { addWorkout } = useWorkoutSync();
 
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -123,6 +125,18 @@ function App() {
       exerciseName: selectedExercise.name,
       bestStreak: finalStats.bestStreak,
     });
+
+    if (finalStats.totalReps > 0) {
+      addWorkout({
+        exerciseType: selectedExercise.name.toLowerCase().replace(/\s+/g, "_"),
+        totalReps: finalStats.totalReps,
+        accuracyScore: finalStats.accuracy,
+        duration: finalStats.duration,
+        timestamp: Date.now(),
+      }).catch((error) => {
+        console.error("Failed to save workout:", error);
+      });
+    }
 
     // Show skeleton briefly before rendering real summary
     setTimeout(() => {
