@@ -39,6 +39,34 @@ The project features a full-stack architecture with a React frontend and an Expr
 
 ## 🛠️ Tech Stack
 
+---
+
+## 📸 Screenshots
+
+### Welcome Screen
+![Welcome Screen](assets/screenshots/01-welcome.png)
+*The SpectraX landing page — initialize your session or view workout history.*
+
+### Exercise Selection — Bodyweight Squats
+![Squats](assets/screenshots/02-exercise-selection-squats.png)
+*Select from 5 exercises. Live camera preview updates as you choose.*
+
+### Exercise Selection — Bicep Curls
+![Bicep Curls](assets/screenshots/04-exercise-selection-bicep-curls.png)
+*Real-time pose detection ready for bicep curl tracking.*
+
+### Exercise Selection — Plank
+![Plank](assets/screenshots/03-exercise-selection-plank.png)
+*Plank hold detection with live camera feed.*
+
+### Exercise Selection — Push-Ups
+![Push-Ups](assets/screenshots/05-exercise-selection-pushup.png)
+*Push-up rep counting with form analysis.*
+
+### Session History
+![Session History](assets/screenshots/06-exercise-session-history.png)
+*Review past workout sessions and track your progress over time.*
+
 ### Frontend
 - **Framework**: [React 18](https://reactjs.org/)
 - **State Management**: React Hooks & Context

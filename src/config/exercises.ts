@@ -16,12 +16,14 @@ export interface ExerciseConfig {
     message: string;
     type: 'warning' | 'error';
   }[];
+  demoUrl?: string;
 }
 
 export const exercises: Record<string, ExerciseConfig> = {
   squat: {
     key: "squat",
     name: "Bodyweight Squats",
+    demoUrl: '/assets/demos/squat.mp4',
     primaryJoint: "knee",
     joints: [[23, 25], [25, 27], [24, 26], [26, 28]],
     downThreshold: 140,
@@ -43,6 +45,7 @@ export const exercises: Record<string, ExerciseConfig> = {
   pushup: {
     key: "pushup",
     name: "Push-Ups",
+    demoUrl: '/assets/demos/pushup.mp4',
     primaryJoint: "elbow",
     joints: [[11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 27], [24, 28]],
     downThreshold: 140,
@@ -74,6 +77,7 @@ export const exercises: Record<string, ExerciseConfig> = {
   bicepCurl: {
     key: "bicepCurl",
     name: "Bicep Curls",
+    demoUrl: '/assets/demos/bicep_curl.mp4',
     primaryJoint: "elbow",
     joints: [[11, 13], [13, 15], [12, 14], [14, 16]],
     downThreshold: 130,
@@ -95,6 +99,7 @@ export const exercises: Record<string, ExerciseConfig> = {
   jumpingJack: {
     key: "jumpingJack",
     name: "Jumping Jacks",
+    demoUrl: '/assets/demos/jumping_jack.mp4',
     primaryJoint: "shoulder",
     joints: [[12, 24], [11, 23], [14, 12], [13, 11]],
     downThreshold: 60,
@@ -111,6 +116,7 @@ export const exercises: Record<string, ExerciseConfig> = {
   plank: {
     key: "plank",
     name: "Plank",
+    demoUrl: '/assets/demos/plank.mp4',
     primaryJoint: "bodyLine",
     joints: [[12, 24], [24, 28]],
     downThreshold: 165,
