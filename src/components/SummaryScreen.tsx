@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
-
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
 import AIRecommendations from './AIRecommendations';
 import { generateRecommendations } from '../engine/recommendationEngine';
 interface SummaryScreenProps {
