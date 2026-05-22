@@ -22,7 +22,7 @@ describe('session.service', () => {
     expect(store.getSessionFrames('socket-1')).toEqual([{ timestamp: 2 }, { timestamp: 3 }]);
   });
 
-  it('writes a session payload to disk', () => {
+  it('writes a session payload to a socket-specific file and returns the path', async () => {
     const sessionPath = path.join(os.tmpdir(), `spectrax-session-${Date.now()}.json`);
     const store = createSessionStore();
     const service = createSessionService({
@@ -32,9 +32,11 @@ describe('session.service', () => {
       logger: { info() {}, error() {} },
     });
 
-    service.saveSession([{ timestamp: 1 }], 'socket-9');
+    const savedPath = await service.saveSession([{ timestamp: 1 }], 'socket-9');
+    expect(savedPath).toContain('socket-9');
+    expect(savedPath).not.toBe(sessionPath);
 
-    const saved = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+    const saved = JSON.parse(fs.readFileSync(savedPath, 'utf8'));
 
     expect(saved.socketId).toBe('socket-9');
     expect(saved.frameCount).toBe(1);

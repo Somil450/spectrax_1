@@ -10,7 +10,6 @@ const {
 } = require("../modules/session/session.socket");
 const { createApp } = require("./createApp");
 const { logger: defaultLogger } = require("../shared/utils/logger");
-require("dotenv").config();
 
 function createServer(overrides = {}) {
   const config = getConfig(overrides);
@@ -43,18 +42,13 @@ function createServer(overrides = {}) {
   });
 
   function start() {
-    return new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(config.port, () => {
-        server.removeListener("error", reject);
-        resolve(server);
-      });
+    return new Promise((resolve) => {
+      server.listen(config.port, () => resolve(server));
     });
   }
 
-  function shutdown() {
-    sessionService.saveAllSessions();
-
+  async function shutdown() {
+    await sessionService.saveAllSessions();
     return new Promise((resolve, reject) => {
       if (!server.listening) {
         resolve();

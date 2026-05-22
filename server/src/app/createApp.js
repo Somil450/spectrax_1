@@ -3,7 +3,6 @@ const cors = require("cors");
 const { getConfig } = require("../config/env");
 const { createCorsOptions } = require("../config/cors");
 const { createHealthRouter } = require("../modules/health/health.routes");
-require("dotenv").config();
 
 function createApp({ sessionStore, config = getConfig() }) {
   const app = express();

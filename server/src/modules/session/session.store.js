@@ -6,8 +6,7 @@ function createSessionStore() {
       sessions.set(socketId, []);
     },
     getSessionFrames(socketId) {
-      const frames = sessions.get(socketId);
-      return frames ? [...frames] : [];
+      return sessions.get(socketId) || [];
     },
     setSessionFrames(socketId, frames) {
       sessions.set(socketId, frames);

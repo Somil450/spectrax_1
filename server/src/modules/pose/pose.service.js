@@ -1,6 +1,6 @@
-const { DEFAULT_EXERCISE } = require("../../shared/constants/exercises");
-const { computeAngles } = require("./angle.utils");
-const { generateFeedback } = require("./feedback.service");
+const { DEFAULT_EXERCISE } = require('../../shared/constants/exercises');
+const { computeAngles } = require('./angle.utils');
+const { generateFeedback } = require('./feedback.service');
 
 function processPose(data) {
   const { landmarks, timestamp, exercise = DEFAULT_EXERCISE } = data;

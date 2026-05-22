@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const { io: ioClient } = require('socket.io-client');
 const { createServer } = require('../../src/app/createServer');
+const { buildSessionFilePath } = require('../../src/shared/utils/paths');
 
 function createLandmarks() {
   return Array.from({ length: 33 }, () => ({ x: 0, y: 0, visibility: 0 }));
@@ -69,7 +70,9 @@ describe('socket flow', () => {
     client.emit('session:end');
     await new Promise((resolve) => setTimeout(resolve, 150));
 
-    const saved = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+    const saved = JSON.parse(
+      fs.readFileSync(buildSessionFilePath(sessionPath, client.id), 'utf8')
+    );
     expect(saved.frameCount).toBe(1);
     expect(saved.frames[0].feedback).toBe('Keep your back straight');
 

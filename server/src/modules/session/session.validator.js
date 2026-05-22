@@ -3,7 +3,7 @@ function hasSessionFrames(frames) {
 }
 
 function hasSocketId(socketId) {
-  return typeof socketId === "string" && socketId.length > 0;
+  return typeof socketId === 'string' && socketId.length > 0;
 }
 
 module.exports = {

@@ -1,4 +1,4 @@
-const { SUPPORTED_EXERCISES } = require("../../shared/constants/exercises");
+const { SUPPORTED_EXERCISES } = require('../../shared/constants/exercises');
 
 function hasPoseLandmarks(landmarks) {
   return Array.isArray(landmarks) && landmarks.length >= 29;

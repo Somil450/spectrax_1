@@ -1,35 +1,45 @@
-const { processPose } = require("./pose.service");
+const { DEFAULT_EXERCISE } = require('../../shared/constants/exercises');
+const { processPose } = require('./pose.service');
+const {
+  hasPoseLandmarks,
+  hasValidTimestamp,
+  isSupportedExercise,
+} = require('./pose.validator');
 
 function registerPoseSocketHandlers({ socket, sessionService }) {
-  socket.on("frame", (data) => {
-    try {
-      const result = processPose(data);
-
-      sessionService.appendFrame(socket.id, {
-        timestamp: result.timestamp,
-        landmarks: data.landmarks,
-        angles: result.angles,
-        feedback: result.feedback,
-        exercise: result.exercise,
-      });
-
-      socket.emit("feedback", {
-        angles: result.angles,
-        corrections: result.corrections,
-        status: result.status,
-        feedback: result.feedback,
-        timestamp: result.timestamp,
-      });
-    } catch (error) {
-      console.error("Error processing frame:", error);
-      socket.emit("feedback", {
-        status: "red",
-        feedback: "Error processing pose data",
-        corrections: [],
+  socket.on('frame', (data) => {
+    if (!hasPoseLandmarks(data && data.landmarks) || !hasValidTimestamp(data && data.timestamp)) {
+      socket.emit('feedback', {
         angles: {},
-        timestamp: data?.timestamp || Date.now(),
+        corrections: [],
+        status: 'yellow',
+        feedback: 'Acquiring pose...',
+        timestamp: hasValidTimestamp(data && data.timestamp) ? data.timestamp : null,
       });
+      return;
     }
+
+    const normalizedData = {
+      ...data,
+      exercise: isSupportedExercise(data.exercise) ? data.exercise : DEFAULT_EXERCISE,
+    };
+    const result = processPose(normalizedData);
+
+    sessionService.appendFrame(socket.id, {
+      timestamp: result.timestamp,
+      landmarks: normalizedData.landmarks,
+      angles: result.angles,
+      feedback: result.feedback,
+      exercise: result.exercise,
+    });
+
+    socket.emit('feedback', {
+      angles: result.angles,
+      corrections: result.corrections,
+      status: result.status,
+      feedback: result.feedback,
+      timestamp: result.timestamp,
+    });
   });
 }
 

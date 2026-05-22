@@ -1,11 +1,11 @@
-const DEFAULT_EXERCISE = "squat";
+const DEFAULT_EXERCISE = 'squat';
 
 const SUPPORTED_EXERCISES = [
-  "squat",
-  "bicepCurl",
-  "pushup",
-  "plank",
-  "jumpingJack",
+  'squat',
+  'bicepCurl',
+  'pushup',
+  'plank',
+  'jumpingJack',
 ];
 
 module.exports = {

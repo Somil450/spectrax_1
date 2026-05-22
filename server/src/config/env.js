@@ -1,5 +1,4 @@
 const { resolveSessionPath } = require("../shared/utils/paths");
-require("dotenv").config();
 
 function getConfig(overrides = {}) {
   const port = overrides.port ?? Number(process.env.PORT || 3001);
