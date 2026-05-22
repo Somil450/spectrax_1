@@ -1144,4 +1144,4 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       `}</style>
     </div>
   );
-}};
+};

@@ -17,6 +17,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { useRegisterSW } from "virtual:pwa-register/react";
 
 
 type Screen =
@@ -29,18 +30,8 @@ type Screen =
   | "trophy"
   | "login"
   | "signup"
- feature/ai-workout-recommendations
- feature/ai-workout-recommendations
   | "forgot-password";
 
-
-  | "forgot-password"
-  | "trophy";
-main
-=======
-  | "forgot-password";
-
-main
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -170,14 +161,8 @@ function App() {
     );
   }
 
- feature/ai-workout-recommendations
-  // If not authenticated, show auth screens
-  
-  if (!user) {
-=======
   // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
- main
     const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
       ? currentScreen
       : "login";

@@ -1,13 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
- feature/ai-workout-recommendations
-import { useWorkoutSync } from '../hooks/useWorkoutSync';
+import { useWorkoutSync } from "../hooks/useWorkoutSync";
 import AIRecommendations from './AIRecommendations';
 import { generateRecommendations } from '../engine/recommendationEngine';
-=======
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
-
- main
 interface SummaryScreenProps {
   stats: { 
     reps: number; 
