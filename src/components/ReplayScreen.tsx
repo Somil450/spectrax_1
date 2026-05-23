@@ -61,7 +61,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
       // keep only last 60 frames (~4 seconds at 15fps)
       return next.length > 60 ? next.slice(next.length - 60) : next;
     });
-  }, [currentFrameIdx, kneeAngle, elbowAngle, shoulderAngle, hipAngle, bodyline]);
+  }, [currentFrameIdx, kneeAngle, elbowAngle, shoulderAngle, hipAngle, bodyline, lm]);
 
   // Auto-advance frames when playing
   useEffect(() => {
