@@ -262,6 +262,8 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
           onFrameChange={setCurrentFrameIdx}
           onPlayToggle={() => setIsPlaying(p => !p)}
           hideControls
+          reps={stats?.reps || 0}
+          exercise={stats?.exerciseName || 'squat'}
         />
       </div>
 

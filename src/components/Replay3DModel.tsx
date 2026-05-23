@@ -17,9 +17,10 @@ export interface Replay3DModelProps {
   // External playback control (from ReplayScreen)
   currentFrameIdx?: number;
   isPlaying?: boolean;
-  onFrameChange?: (idx: number) => void;
   onPlayToggle?: () => void;
   hideControls?: boolean;
+  reps?: number;
+  exercise?: string;
 }
 
 const BONES_CONNECTIONS = [
@@ -101,6 +102,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   onFrameChange,
   onPlayToggle,
   hideControls = false,
+  reps = 0,
+  exercise = 'squat',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying] = useState(false);
@@ -146,6 +149,67 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const [hudLabels, setHudLabels] = useState<any[]>([]);
   const reqIdRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
+
+  // --- Heatmap Projection based on Repetitions ---
+  useEffect(() => {
+    if (!modelLoaded || !skinnedMeshesRef.current.length || !exercise) return;
+
+    const targetBones = new Set<string>();
+    const ex = exercise.toLowerCase();
+    if (ex.includes("squat")) {
+      targetBones.add("leftupleg"); targetBones.add("rightupleg");
+      targetBones.add("leftleg"); targetBones.add("rightleg");
+      targetBones.add("hips");
+    } else if (ex.includes("pushup")) {
+      targetBones.add("leftarm"); targetBones.add("rightarm");
+      targetBones.add("leftforearm"); targetBones.add("rightforearm");
+      targetBones.add("spine"); targetBones.add("spine1");
+    } else {
+      targetBones.add("spine"); targetBones.add("spine1");
+    }
+
+    const strainLevel = Math.min(reps / 20, 1.0); // max strain at 20 reps
+
+    skinnedMeshesRef.current.forEach((mesh) => {
+      if (!mesh.skeleton) return;
+      const geo = mesh.geometry;
+      const skinIndices = geo.attributes.skinIndex;
+      const skinWeights = geo.attributes.skinWeight;
+      const colors = geo.attributes.color;
+      if (!skinIndices || !skinWeights || !colors) return;
+
+      const targetBoneIndices = new Set<number>();
+      mesh.skeleton.bones.forEach((b, idx) => {
+        const bName = b.name.toLowerCase();
+        for (const tb of targetBones) {
+          if (bName.includes(tb)) {
+            targetBoneIndices.add(idx);
+            break;
+          }
+        }
+      });
+
+      for (let i = 0; i < skinIndices.count; i++) {
+        let weightSum = 0;
+        const idx1 = skinIndices.getX(i), w1 = skinWeights.getX(i);
+        const idx2 = skinIndices.getY(i), w2 = skinWeights.getY(i);
+        const idx3 = skinIndices.getZ(i), w3 = skinWeights.getZ(i);
+        const idx4 = skinIndices.getW(i), w4 = skinWeights.getW(i);
+
+        if (targetBoneIndices.has(idx1)) weightSum += w1;
+        if (targetBoneIndices.has(idx2)) weightSum += w2;
+        if (targetBoneIndices.has(idx3)) weightSum += w3;
+        if (targetBoneIndices.has(idx4)) weightSum += w4;
+
+        const r = strainLevel * weightSum;
+        const g = 1.0 - (strainLevel * weightSum * 0.8);
+        const b = 0;
+
+        colors.setXYZ(i, r, g, b);
+      }
+      colors.needsUpdate = true;
+    });
+  }, [modelLoaded, reps, exercise]);
 
   useEffect(() => {
     console.log("Replay frames:", frames?.length || 0);
@@ -340,12 +404,26 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             skinnedMeshesRef.current.push(mesh);
             // Fix: Avoid array material cloning crash by creating a fresh green holographic material
             mesh.material = new THREE.MeshStandardMaterial({
-              color: 0x00ff00,
+              color: 0xffffff,
               roughness: 0.2,
               metalness: 0.8,
-              emissive: 0x00ff00,
+              emissive: 0x000000,
               emissiveIntensity: 0.1,
+              vertexColors: true,
             });
+            
+            // Initialize geometry color attribute for heatmap
+            const geo = mesh.geometry;
+            const pos = geo.attributes.position;
+            if (!geo.attributes.color && pos) {
+              const colors = new Float32Array(pos.count * 3);
+              for (let i = 0; i < colors.length; i += 3) {
+                colors[i] = 0;     // r
+                colors[i + 1] = 1; // g
+                colors[i + 2] = 0; // b
+              }
+              geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            }
             // ✨ Enable shadows on skinned mesh for dynamic lighting
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -678,11 +756,11 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           if (!mesh.material) return;
           const mat = mesh.material as THREE.MeshStandardMaterial;
           const hasError = badJoints.size > 0;
-          const targetColor = hasError ? mistakeColor || COLOR_RED : baseColor;
+          const targetEmissive = hasError ? (mistakeColor || COLOR_RED) : new THREE.Color(0x000000);
 
-          // Lerp model tint to highlight issues
-          if (mat && mat.color) mat.color.lerp(targetColor, 0.2);
-          if (mat && mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+          // Lerp model emissive to highlight issues without overriding heatmap vertex colors
+          if (mat && mat.emissive) mat.emissive.lerp(targetEmissive, 0.2);
+          mat.emissiveIntensity = hasError ? 0.5 : 0.1;
         });
       } else {
         // --- Output to Fallback Skeleton ---
