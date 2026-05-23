@@ -241,8 +241,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     getStoredPanelPositions(),
   );
   const [showExitModal, setShowExitModal] = useState(false);
-
-
+  const [countdown, setCountdown] = useState<number | null>(3);
+  const [isTrackingStarted, setIsTrackingStarted] = useState(false);
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -380,7 +380,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     let isMounted = true;
 
     startTimeRef.current = Date.now();
+    const countdownInterval = setInterval(() => {
+  setCountdown((prev) => {
+    if (prev === null) return null;
 
+    if (prev <= 1) {
+      clearInterval(countdownInterval);
+      setIsTrackingStarted(true);
+      return null;
+    }
+
+    return prev - 1;
+  });
+}, 1000);
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
@@ -442,6 +454,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         await cameraService.startCamera(videoRef.current);
 
         poseService.onResults(async (results) => {
+          if (!isTrackingStarted) return;
           if (!isMounted) return;
 
           // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
@@ -726,91 +739,111 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   );
 
   return (
-    <div
-      className="screen-container"
-      style={{ background: "var(--bg-primary)" }}
-    >
-      {/* Background Video Layer */}
-      <CameraErrorBoundary>
-        <div
-          className="camera-viewport"
-          style={{ position: "absolute", inset: 0 }}
-        >
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              opacity: 0.4,
-              transform: "scaleX(-1)",
-            }}
-          />
-          <canvas
-            ref={canvasRef}
-            width={1280}
-            height={720}
+  <div
+    className="screen-container"
+    style={{ background: "var(--bg-primary)" }}
+  >
+    {/* Background Video Layer */}
+    <CameraErrorBoundary>
+      <div
+        className="camera-viewport"
+        style={{ position: "absolute", inset: 0 }}
+      >
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: 0.4,
+            transform: "scaleX(-1)",
+          }}
+        />
+
+        {countdown !== null && (
+          <div
             style={{
               position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              transform: "scaleX(-1)",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              fontSize: "120px",
+              fontWeight: "bold",
+              color: "#00ffff",
+              zIndex: 9999,
+              textShadow: "0 0 20px #00ffff",
             }}
-          />
-        </div>
-      </CameraErrorBoundary>
+          >
+            {countdown}
+          </div>
+        )}
 
-      {/* Model Loading Status Overlay */}
-      {clipEngine.isBusy() && (
-        <div
+        <canvas
+          ref={canvasRef}
+          width={1280}
+          height={720}
           style={{
             position: "absolute",
-            top: 40,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(0,0,0,0.8)",
-            padding: "10px 20px",
-            borderRadius: "30px",
-            zIndex: 100,
-            color: "var(--neon-cyan)",
-            border: "1px solid var(--neon-cyan)",
-            fontSize: "0.65rem",
-            fontWeight: 800,
-            letterSpacing: "2px",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: "scaleX(-1)",
           }}
-        >
-          VLM INTELLIGENCE LOADING... {vlmProgress}% (151MB)
-        </div>
-      )}
-      {/* Offline Indicator */}
-      {!isOnline && (
-        <div
-          style={{
-            position: "absolute",
-            top: "20px",
-            right: "20px",
-            background: "rgba(239, 68, 68, 0.2)",
-            border: "1px solid rgba(239, 68, 68, 0.5)",
-            color: "#fca5a5",
-            padding: "12px 16px",
-            borderRadius: "12px",
-            zIndex: 100,
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          <span style={{ fontSize: "1.2em" }}>⚠️</span>
-          <span>Offline - Data will sync</span>
-        </div>
-      )}
+        />
+      </div>
+    </CameraErrorBoundary>
+
+    {/* Model Loading Status Overlay */}
+    {clipEngine.isBusy() && (
+      <div
+        style={{
+          position: "absolute",
+          top: 40,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "rgba(0,0,0,0.8)",
+          padding: "10px 20px",
+          borderRadius: "30px",
+          zIndex: 100,
+          color: "var(--neon-cyan)",
+          border: "1px solid var(--neon-cyan)",
+          fontSize: "0.65rem",
+          fontWeight: 800,
+          letterSpacing: "2px",
+        }}
+      >
+        VLM INTELLIGENCE LOADING... {vlmProgress}% (151MB)
+      </div>
+    )}
+
+    {/* Offline Indicator */}
+    {!isOnline && (
+      <div
+        style={{
+          position: "absolute",
+          top: "20px",
+          right: "20px",
+          background: "rgba(239, 68, 68, 0.2)",
+          border: "1px solid rgba(239, 68, 68, 0.5)",
+          color: "#fca5a5",
+          padding: "12px 16px",
+          borderRadius: "12px",
+          zIndex: 100,
+          fontSize: "0.85rem",
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          backdropFilter: "blur(8px)",
+        }}
+      >
+        <span style={{ fontSize: "1.2em" }}>⚠️</span>
+        <span>Offline - Data will sync</span>
+      </div>
+    )}
 
       {/* Top Header Controls */}
       <div
