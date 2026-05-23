@@ -11,7 +11,7 @@
 
 *Advanced AI-driven fitness companion that tracks your workouts, analyzes form, and visualizes progress in 3D. Proudly participating in GirlScript Summer of Code 2026!*
 
-[Features](#-features) • [Tech Stack](#-tech-stack) • [Installation](#-installation) • [Usage](#-usage) • [Contributing](#-contributing) • [License](#-license)
+[Features](#-features) • [Tech Stack](#-tech-stack) • [Installation](#-installation) • [Usage](#-usage) • [FAQ](FAQ.md) • [Contributing](#-contributing) • [License](#-license)
 
 </div>
 

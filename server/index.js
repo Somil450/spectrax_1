@@ -12,22 +12,59 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
+const DEFAULT_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || DEFAULT_ORIGINS.join(','))
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const SOCKET_AUTH_TOKEN = process.env.SOCKET_AUTH_TOKEN || '';
+const MAX_FRAMES_PER_SEC = Number(process.env.MAX_FRAMES_PER_SEC) || 60;
+
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
+const corsOptions = {
+  origin: (origin, callback) =>
+    isOriginAllowed(origin)
+      ? callback(null, true)
+      : callback(new Error('Origin not allowed by CORS')),
+  methods: ['GET', 'POST'],
+};
+
 const app = express();
-app.use(cors({ origin: '*' }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: corsOptions,
   // Tune for minimal latency
   pingInterval: 5000,
   pingTimeout: 3000,
   transports: ['websocket'], // Skip polling entirely
 });
 
+io.use((socket, next) => {
+  if (!SOCKET_AUTH_TOKEN) return next();
+  const token = socket.handshake.auth && socket.handshake.auth.token;
+  if (token === SOCKET_AUTH_TOKEN) return next();
+  return next(new Error('Unauthorized'));
+});
+
 const PORT = 3001;
-const SESSION_PATH = path.join(__dirname, 'session.json');
+const SESSIONS_DIR = path.join(__dirname, 'sessions');
 const MAX_SESSION_FRAMES = 300; // Rolling buffer
+
+// Ensure sessions directory exists before any session is saved
+if (!fs.existsSync(SESSIONS_DIR)) {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
 
 // ─── In-Memory Session Store (Per Socket) ─────────────────────────────────────
 const sessions = new Map(); // socketId → frame[]
@@ -134,8 +171,21 @@ io.on('connection', (socket) => {
   console.log(`[SpectraX] Client connected: ${socket.id}`);
   sessions.set(socket.id, []);
 
+  let frameWindowStart = Date.now();
+  let frameCountInWindow = 0;
+
   // ── Real-time frame processing ──
   socket.on('frame', (data) => {
+    if (!data || !Array.isArray(data.landmarks)) return;
+
+    const now = Date.now();
+    if (now - frameWindowStart >= 1000) {
+      frameWindowStart = now;
+      frameCountInWindow = 0;
+    }
+    frameCountInWindow += 1;
+    if (frameCountInWindow > MAX_FRAMES_PER_SEC) return;
+
     // Non-blocking inline — no setTimeout/setImmediate overhead for hot path
     const result = processPose(data);
 
@@ -193,8 +243,11 @@ function saveSession(frames, socketId) {
       frameCount: frames.length,
       frames,
     };
-    fs.writeFileSync(SESSION_PATH, JSON.stringify(sessionData, null, 2));
-    console.log(`[SpectraX] session.json saved (${frames.length} frames)`);
+    const safeId = socketId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `session-${safeId}-${Date.now()}.json`;
+    const filePath = path.join(SESSIONS_DIR, filename);
+    fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2));
+    console.log(`[SpectraX] Session saved: ${filename} (${frames.length} frames)`);
   } catch (err) {
     console.error('[SpectraX] Failed to save session:', err.message);
   }

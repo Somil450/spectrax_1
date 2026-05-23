@@ -1,69 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
+    import React, { useEffect, useState } from 'react';
+    import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+    import { useWorkoutSync } from "../hooks/useWorkoutSync";
+    
+    interface SummaryScreenProps {
+      stats: { 
+        reps: number; 
+        totalReps: number;
+        correctReps: number;
+        repScores: number[];
+        duration: number; 
+        accuracy: number; 
+        mistakes: Record<string, number>; 
+        bestStreak: number; 
+        tags?: string[];
+        exerciseName?: string;
+      };
+      onRestart: () => void;
+      onViewReplay: () => void;
+    }
+    
+    export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, onViewReplay }) => {
+      const [accuracy, setAccuracy] = useState(0);
+      const [isSavingWorkout, setIsSavingWorkout] = useState(false);
+      const { addWorkout } = useWorkoutSync();
 
-interface SummaryScreenProps {
-  stats: { 
-    reps: number; 
-    totalReps: number;
-    correctReps: number;
-    repScores: number[];
-    duration: number; 
-    accuracy: number; 
-    mistakes: Record<string, number>; 
-    bestStreak: number; 
-    tags?: string[];
-    gainedXp?: number;
-    exerciseName?: string;
-  };
-  leveling?: {
-    xp: number;
-    level: number;
-    progress: number;
-    nextLevelXp: number;
-  };
-  onRestart: () => void;
-  onViewReplay: () => void;
-}
-
-export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, onRestart, onViewReplay }) => {
-  const [accuracy, setAccuracy] = useState(0);
-  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
-  const { addWorkout } = useWorkoutSync();
   useEffect(() => {
     // Animate accuracy ring on mount
     const timer = setTimeout(() => setAccuracy(stats.accuracy), 300);
     return () => clearTimeout(timer);
   }, [stats.accuracy]);
-
-  // Auto-save workout to Firestore
-  useEffect(() => {
-    const saveWorkout = async () => {
-      if (stats.totalReps === 0) return; // Skip empty sessions
-
-      try {
-        setIsSavingWorkout(true);
-        const exerciseName = stats.exerciseName || "unknown_exercise";
-        console.log("💾 Saving workout to Firestore...", stats);
-
-        await addWorkout({
-          exerciseType: exerciseName.toLowerCase().replace(/\s+/g, "_"),
-          totalReps: stats.totalReps,
-          accuracyScore: stats.accuracy,
-          duration: stats.duration,
-          timestamp: Date.now(),
-        });
-
-        console.log("✅ Workout saved successfully!");
-      } catch (error) {
-        console.error("❌ Failed to save workout:", error);
-      } finally {
-        setIsSavingWorkout(false);
-      }
-    };
-
-    saveWorkout();
-  }, [stats, addWorkout]);
 
   const offset = 440 - (440 * accuracy) / 100;
 
@@ -102,6 +67,13 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           stats.repScores.reduce((a, b) => a + b, 0) / stats.repScores.length,
         )
       : 0;
+  const recommendations = generateRecommendations(
+    stats.accuracy,
+    stats.mistakes,
+    stats.bestStreak,
+    averageRepScore,
+    stats.exerciseName
+  );
 
   if (stats.totalReps === 0) {
     return (
@@ -195,21 +167,6 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         >
           Session complete. AI analysis synchronized.
         </p>
-        {isSavingWorkout && (
-          <p
-            style={{
-              color: "var(--neon-cyan)",
-              fontSize: "0.8rem",
-              marginTop: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            💾 Saving to cloud...
-          </p>
-        )}
       </div>
 
       {/* Accuracy Ring */}
@@ -661,7 +618,7 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           </div>
         </div>
       )}
-
+      <AIRecommendations recommendations={recommendations} />
       {/* Action Buttons */}
       <div
         className="animate-in"

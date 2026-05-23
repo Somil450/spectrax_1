@@ -1,22 +1,29 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { CalibrationScreen } from "./components/CalibrationScreen";
-import { WorkoutScreen } from "./components/WorkoutScreen";
-import { SummaryScreen } from "./components/SummaryScreen";
-import { ReplayScreen } from "./components/ReplayScreen";
-import { TrophyRoom } from "./components/TrophyRoom";
 import { BadgeNotification } from "./components/BadgeNotification";
+import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
-import { useLeveling } from './hooks/useLeveling';
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./hooks/useAuth";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { useWorkoutSync } from "./hooks/useWorkoutSync";
+import { useRegisterSW } from "virtual:pwa-register/react";
+// ── Lazily loaded (separate async chunks, only fetched when navigated to) ────
+const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
+const WorkoutScreen     = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
+const SummaryScreen     = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
+const ReplayScreen      = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
+const TrophyRoom        = lazy(() => import("./components/TrophyRoom").then(m => ({ default: m.TrophyRoom })));
+const HistoryPage       = lazy(() => import("./HistoryPage"));
+const LoginScreen       = lazy(() => import("./components/LoginScreen").then(m => ({ default: m.LoginScreen })));
+const SignUpScreen      = lazy(() => import("./components/SignUpScreen").then(m => ({ default: m.SignUpScreen })));
+const ForgotPasswordScreen = lazy(() => import("./components/ForgotPasswordScreen").then(m => ({ default: m.ForgotPasswordScreen })));
 
 
 type Screen =
@@ -26,10 +33,10 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
-  | "trophy"
   | "login"
   | "signup"
-  | "forgot-password";
+  | "forgot-password"
+  | "trophy";
 
 interface WorkoutStats {
   reps: number;
@@ -46,9 +53,22 @@ interface WorkoutStats {
 }
 
 function App() {
+  const { user, loading: authLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (currentScreen !== "workout") {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    }
+  }, [currentScreen]);
+
   const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
     exercises.squat,
   );
@@ -66,11 +86,50 @@ function App() {
   });
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
+  const { addWorkout } = useWorkoutSync();
 
   const [statsLoading, setStatsLoading] = useState(false);
 
   const lastSwitchTime = useRef<number>(0);
   const leveling = useLeveling();
+
+  const {
+    offlineReady: [offlineReady, setOfflineReady],
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log("SW Registered: " + r);
+    },
+    onRegisterError(error) {
+      console.error("SW registration error", error);
+    },
+  });
+
+  const closeOfflineNotification = () => {
+    setOfflineReady(false);
+    setNeedRefresh(false);
+  };
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        setCurrentScreen((prev) => {
+          if (prev !== "login" && prev !== "signup" && prev !== "forgot-password") {
+            return "login";
+          }
+          return prev;
+        });
+      } else {
+        setCurrentScreen((prev) => {
+          if (prev === "login" || prev === "signup" || prev === "forgot-password") {
+            return "welcome";
+          }
+          return prev;
+        });
+      }
+    }
+  }, [user, authLoading]);
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -92,6 +151,18 @@ function App() {
       exerciseName: selectedExercise.name,
       bestStreak: finalStats.bestStreak,
     });
+
+    if (finalStats.totalReps > 0) {
+      addWorkout({
+        exerciseType: selectedExercise.name.toLowerCase().replace(/\s+/g, "_"),
+        totalReps: finalStats.totalReps,
+        accuracyScore: finalStats.accuracy,
+        duration: finalStats.duration,
+        timestamp: Date.now(),
+      }).catch((error) => {
+        console.error("Failed to save workout:", error);
+      });
+    }
 
     // Show skeleton briefly before rendering real summary
     setTimeout(() => {
@@ -130,11 +201,14 @@ function App() {
     );
   }
 
-  // If not authenticated and Firebase is configured, show auth screens
-  if (firebaseConfigured && !user) {
-    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
-      ? currentScreen
-      : "login";
+  // If not authenticated, show auth screens
+  if (!user) {
+    const isAuthScreen =
+      currentScreen === "login" ||
+      currentScreen === "signup" ||
+      currentScreen === "forgot-password";
+    const activeAuthScreen = isAuthScreen ? currentScreen : "login";
+
     return (
       <main className="spectrax-app">
         {activeAuthScreen === "login" && (
@@ -156,6 +230,7 @@ function App() {
       </main>
     );
   }
+    
 
   // If authenticated, show main app with theme toggle and workout screens
   return (
@@ -180,51 +255,79 @@ function App() {
         />
       )}
 
-      {currentScreen === "calibration" && (
-        <CalibrationScreen
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo("workout")}
-          onBack={() => navigateTo("welcome")}
-          onBodyTypeDetected={setBodyType}
-        />
-      )}
-
-      {currentScreen === "workout" && (
-        <WorkoutScreen
-          exercise={selectedExercise}
-          onEnd={handleWorkoutEnd}
-          onAutoDetect={handleAutoDetect}
-          bodyType={bodyType}
-        />
-      )}
-      {currentScreen === "summary" &&
-        (statsLoading ? (
-          <SummaryScreenSkeleton />
-        ) : (
-          <SummaryScreen
-            stats={stats}
-            leveling={leveling}
-            onRestart={() => navigateTo("welcome")}
-            onViewReplay={() => navigateTo("replay")}
+      <Suspense fallback={<div className="loading-container"><div className="spinner" /></div>}>
+        {currentScreen === "calibration" && (
+          <CalibrationScreen
+            selectedExercise={selectedExercise}
+            onSelectExercise={handleSelectExercise}
+            onNext={() => navigateTo("workout")}
+            onBack={() => navigateTo("welcome")}
+            onBodyTypeDetected={setBodyType}
           />
-        ))}
+        )}
 
-      {currentScreen === "replay" && (
-        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
-      )}
+        {currentScreen === "workout" && (
+          <WorkoutScreen
+            exercise={selectedExercise}
+            onEnd={handleWorkoutEnd}
+            onAutoDetect={handleAutoDetect}
+            bodyType={bodyType}
+          />
+        )}
 
-      {currentScreen === "history" && (
-        <HistoryPage onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "summary" &&
+          (statsLoading ? (
+            <SummaryScreenSkeleton />
+          ) : (
+            <SummaryScreen
+              stats={stats}
+              leveling={leveling}
+              onRestart={() => navigateTo("welcome")}
+              onViewReplay={() => navigateTo("replay")}
+            />
+          ))}
 
-      {currentScreen === "trophy" && (
-        <TrophyRoom onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "replay" && (
+          <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+        )}
+
+        {currentScreen === "history" && (
+          <HistoryPage onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "trophy" && (
+          <TrophyRoom onBack={() => navigateTo("welcome")} />
+        )}
+      </Suspense>
 
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
+
+      {(offlineReady || needRefresh) && (
+        <div className="pwa-toast glass animate-in" role="alert">
+          <div className="pwa-toast-message">
+            {offlineReady ? (
+              <span>App is ready to work offline!</span>
+            ) : (
+              <span>New content available, click on reload button to update.</span>
+            )}
+          </div>
+          <div className="pwa-toast-buttons">
+            {needRefresh && (
+              <button
+                className="pwa-toast-btn primary"
+                onClick={() => updateServiceWorker(true)}
+              >
+                Reload
+              </button>
+            )}
+            <button className="pwa-toast-btn secondary" onClick={closeOfflineNotification}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
