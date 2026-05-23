@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
-import { WorkoutRecord, getLocalWorkouts } from '../services/workoutSyncService';
 import AIRecommendations from './AIRecommendations';
 import { generateRecommendations } from '../engine/recommendationEngine';
 import { useAuth } from '../context/AuthContext';

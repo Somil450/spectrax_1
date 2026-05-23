@@ -5,19 +5,6 @@ import {
   FeedbackResult,
 } from "../engine/feedbackEngine";
 
-const ENGINE_DEFAULTS = {
-  repCooldown: 600,
-  hysteresis: 10,
-  smoothingWindow: 8,
-  minDownDuration: 150,
-  correctRepMinScore: 70,
-  streakMinScore: 80,
-};
-
-const layoutParser = {
-  get: (key: string) => null as any,
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Plank Spline Types & Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -253,10 +240,10 @@ interface RepParams {
 }
 
 const ENGINE_DEFAULTS: RepParams = {
-  repCooldown: 300,
+  repCooldown: 600,
   hysteresis: 10,
-  smoothingWindow: 5,
-  minDownDuration: 100,
+  smoothingWindow: 8,
+  minDownDuration: 150,
   correctRepMinScore: 70,
   streakMinScore: 80,
 };
@@ -325,17 +312,6 @@ export class ExerciseEngine {
     let { stage, isCalibrated, stageStartTime } = currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
-    const rawAngle = angles[config.primaryJoint] ?? 0;
-
-    const prevVisibilityBuffer = currentState.visibilityBuffer ?? [];
-    const prevTrackingLostFrames = currentState.trackingLostFrames ?? 0;
-    const prevLastValidAngles = currentState.lastValidAngles ?? {};
-
-    const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-p.smoothingWindow);
-    const nextTrackingLostFrames = currentVisibility < 0.5 ? prevTrackingLostFrames + 1 : 0;
-    const nextLastValidAngles = currentVisibility >= 0.5
-      ? { ...angles }
-      : prevLastValidAngles;
 
     // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
     const prevVisibilityBuffer = currentState.visibilityBuffer || [];

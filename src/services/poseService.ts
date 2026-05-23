@@ -15,7 +15,6 @@ type LandmarkCoordinate = 'x' | 'y' | 'z';
 type LandmarkStream = 'poseLandmarks' | 'poseWorldLandmarks';
 
 export type PoseSmoothingFilterType = 'kalman' | 'ema';
-type NormalizedLandmarkList = import('@mediapipe/pose').NormalizedLandmarkList;
 
 export interface KalmanFilterOptions {
   type: 'kalman';
@@ -223,15 +222,11 @@ export class PoseService {
   private errorCount = 0;
   private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
 
-  // Smoothing filters applied to landmarks before they reach the callback
-  private smoothingFilters: LandmarkFilter[] = [];
-
   // Two buffers in a pool: one can be in flight to the worker while the other
   // is ready. Avoids per-frame allocation and GC churn.
   private pool: ArrayBuffer[] = [new ArrayBuffer(BUF_BYTES), new ArrayBuffer(BUF_BYTES)];
 
   constructor() {
-    this.smoothingFilters = DEFAULT_FILTERS.map(createFilter);
     this.init();
   }
 
@@ -350,16 +345,6 @@ export class PoseService {
         this.init();
         this.errorCount = 0;
       }
-    }
-  }
-
-  configureFilters(configs: PoseSmoothingFilterConfig[]): void {
-    this.smoothingFilters = configs.map(createFilter);
-  }
-
-  private resetSmoothingFilters() {
-    for (const filter of this.smoothingFilters) {
-      filter.reset();
     }
   }
 

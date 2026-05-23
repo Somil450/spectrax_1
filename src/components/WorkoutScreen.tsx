@@ -146,9 +146,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const [showExitModal, setShowExitModal] = useState(false);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
-  const [panelsLocked, setPanelsLocked] = useState(false);
-  const isOnline = navigator.onLine;
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
