@@ -603,6 +603,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       <div
         ref={panelRefsById[panelId]}
         className={`workout-draggable-panel ${className} ${panelsLocked ? 'is-locked' : 'is-unlocked'}`}
+        data-panel={panelId}
       >
         {content}
       </div>
@@ -696,75 +697,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         </div>
       )}
 
-      {/* Top Header Controls */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 10,
-          display: "flex",
-          justifyContent: "space-between",
-          padding: "30px",
-          pointerEvents: "none",
-        }}
-      >
-        <div className="glass animate-in" style={{ padding: "16px 24px" }}>
-          <div
-            style={{
-              fontSize: "0.65rem",
-              color: "var(--text-dim)",
-              letterSpacing: "2px",
-              textTransform: "uppercase",
-              marginBottom: "4px",
-            }}
-          >
-            Session Focus
-          </div>
-          <div
-            style={{
-              fontFamily: "var(--font-heading)",
-              color: "var(--neon-cyan)",
-              fontSize: "1.2rem",
-            }}
-          >
-            {exercise.name.toUpperCase()}
-          </div>
-        </div>
-
-        <div
-          className="glass animate-in"
-          style={{ padding: "16px 24px", textAlign: "right" }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              justifyContent: "flex-end",
-              marginBottom: "4px",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "0.65rem",
-                color: "var(--text-dim)",
-                letterSpacing: "2px",
-                textTransform: "uppercase",
-              }}
-            >
-              Time
-            </span>
-          </div>
-          <div
-            style={{
-              fontFamily: "var(--font-heading)",
-              color: "#fff",
-              fontSize: "1.5rem",
-            }}
-          >
-            {formatTime(seconds)}
-          </div>
-        </div>
-      </div>
+      {/* Top Header Controls removed - rendered via draggable panels layer instead to avoid duplicates */}
       <div className="workout-layout-controls">
         <button
           type="button"
@@ -825,6 +758,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
 
       {/* Center Focus Area */}
       <div
+        className="workout-center-area"
         style={{
           flex: 1,
           display: "flex",
@@ -835,7 +769,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         }}
       >
         <div
-          className="glass animate-in"
+          className="glass animate-in workout-center-card"
           style={{
             padding: "24px 40px",
             borderBottom: `4px solid ${statusColor}`,
@@ -944,7 +878,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         </div>
       </div>
       <div className="workout-finish-action">
-        <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
+        <button onClick={() => setShowExitModal(true)} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
           FINISH SESSION <StopCircle size={18} />
         </button>
       </div>

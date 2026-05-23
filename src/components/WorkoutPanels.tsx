@@ -24,22 +24,35 @@ export const TimerPanel = ({ seconds }: { seconds: number }) => {
   );
 };
 
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
+};
+
 export const RepsPanel = ({ reps, statusColor }: { reps: number, statusColor: string }) => (
   <div className="rep-counter workout-reps-panel animate-in" style={{ textAlign: 'center' }}>
     <div
-  aria-live="polite"
-  aria-atomic="true"
-  style={{
-    fontFamily: 'var(--font-heading)',
-    fontSize: '7rem',
-    fontWeight: 900,
-    lineHeight: 1,
-    color: '#fff',
-    textShadow: `0 0 40px ${statusColor}44`
-  }}
->
-  Rep Count: {reps}
-</div>
+      aria-live="polite"
+      aria-atomic="true"
+      style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: '7rem',
+        fontWeight: 900,
+        lineHeight: 1,
+        color: '#fff',
+        textShadow: `0 0 40px ${statusColor}44`
+      }}
+    >
+      <span style={srOnly}>Rep Count: </span>
+      {reps}
+    </div>
     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '4px', textTransform: 'uppercase' }}>Repetitions</div>
   </div>
 );

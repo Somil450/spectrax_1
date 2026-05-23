@@ -538,7 +538,7 @@ body {
   pointer-events: all;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .theme-toggle {
     top: 12px;
     right: 12px;
@@ -550,33 +550,117 @@ body {
     right: 136px;
   }
 
+  /* Hide lock/unlock layout controls on mobile */
   .workout-layout-controls {
-    position: fixed;
-    top: 12px;
-    right: 12px;
+    display: none !important;
   }
 
-  .workout-lock-toggle {
-    min-width: auto;
-    padding: 6px 12px;
-    font-size: 0.58rem;
+  /* Hide the duplicate floating bottom-right finish action button on mobile */
+  .workout-finish-action {
+    display: none !important;
   }
 
+  /* Reset absolute coordinates and translate transforms from React Draggable */
+  .workout-draggable-panel {
+    position: static !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box;
+    touch-action: auto !important; /* Allow normal scrolling if needed */
+  }
+
+  /* Convert panel container layer to CSS Grid on mobile */
+  .workout-panel-layer {
+    position: absolute !important;
+    inset: 0 !important;
+    display: grid !important;
+    grid-template-areas:
+      "focus timer"
+      ". ."
+      "reps reps"
+      "engine engine"
+      "sense sense";
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr auto auto auto;
+    gap: 10px;
+    padding: 16px;
+    box-sizing: border-box;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  /* Assign panel areas */
+  .workout-draggable-panel[data-panel="focus"] {
+    grid-area: focus;
+  }
+
+  .workout-draggable-panel[data-panel="timer"] {
+    grid-area: timer;
+  }
+
+  .workout-draggable-panel[data-panel="reps"] {
+    grid-area: reps;
+    justify-self: center;
+    width: auto !important;
+  }
+
+  .workout-draggable-panel[data-panel="engine"] {
+    grid-area: engine;
+  }
+
+  .workout-draggable-panel[data-panel="sense"] {
+    grid-area: sense;
+  }
+
+  /* Scale down statistics cards and panels */
   .workout-stat-card {
-    padding: 10px 14px;
+    padding: 8px 12px !important;
   }
 
   .workout-reps-panel {
-    min-width: 160px;
+    min-width: 120px !important;
+    padding: 8px 16px !important;
   }
 
   .workout-reps-panel > div:first-child {
-    font-size: 4.7rem !important;
+    font-size: 4rem !important;
   }
 
-  .workout-finish-action {
-    right: 18px;
-    bottom: 18px;
+  /* Center Focus Area mobile responsiveness */
+  .workout-center-area {
+    padding: 16px !important;
+    box-sizing: border-box;
+  }
+
+  .workout-center-card {
+    min-width: unset !important;
+    width: calc(100vw - 32px) !important;
+    max-width: 340px !important;
+    padding: 16px 20px !important;
+    box-sizing: border-box;
+  }
+
+  .workout-center-card p {
+    font-size: 1.35rem !important;
+    margin: 8px 0 !important;
+  }
+
+  .workout-center-card .btn-neon {
+    margin-top: 12px !important;
+    padding: 8px 16px !important;
+    font-size: 0.75rem !important;
+    width: 100% !important;
+  }
+
+  /* Mobile responsive styling for PWA toast alerts */
+  .pwa-toast {
+    bottom: 12px !important;
+    right: 12px !important;
+    left: 12px !important;
+    max-width: none !important;
+    width: auto !important;
+    padding: 12px !important;
   }
 }
 
