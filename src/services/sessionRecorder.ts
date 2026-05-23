@@ -4,6 +4,7 @@ export interface FrameData {
   angles: Record<string, number>;
   feedback: string;
   exercise: string;
+  reps?: number;
 }
 
 const MAX_FRAMES = 300; // Rolling buffer — ~20s at 15 FPS

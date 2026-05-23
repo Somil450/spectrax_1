@@ -9,6 +9,7 @@ export interface ReplayFrame {
   angles?: Record<string, number>;
   feedback: string;
   exercise?: string;
+  reps?: number;
 }
 
 export interface Replay3DModelProps {
@@ -121,6 +122,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const floorMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+  const prevRepCountRef = useRef<number | undefined>(undefined);
+  const lastAnimTimeRef = useRef<number>(0);
   // Fallback refs
   const jointsRef = useRef<THREE.Mesh[]>([]);
   const bonesRef = useRef<
@@ -149,6 +153,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
   useEffect(() => {
     console.log("Replay frames:", frames?.length || 0);
+    prevRepCountRef.current = undefined;
+    lastAnimTimeRef.current = 0;
   }, [frames]);
 
   useEffect(() => {
@@ -216,12 +222,87 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     rimLight.castShadow = true;
     scene.add(rimLight);
 
-    // --- Environment: The Grid ---
-    const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x222222);
-    grid.position.y = -1.01;
-    (grid.material as THREE.LineBasicMaterial).transparent = true;
-    (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
-    scene.add(grid);
+    // --- Environment: Custom Neon Grid with Ripples Shader ---
+    const gridVertexShader = `
+      varying vec3 vWorldPosition;
+      varying vec2 vUv;
+      
+      void main() {
+        vUv = uv;
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `;
+
+    const gridFragmentShader = `
+      uniform float uTime;
+      uniform vec2 uRippleCenter;
+      uniform float uRippleProgress;
+      uniform vec3 uGridColor;
+      uniform vec3 uRippleColor;
+      
+      varying vec3 vWorldPosition;
+      varying vec2 vUv;
+      
+      void main() {
+        float gridSpacing = 0.5;
+        float gridWidth = 0.015;
+        
+        vec2 gridCoords = vWorldPosition.xz / gridSpacing;
+        vec2 gridDerivative = fwidth(vWorldPosition.xz) / gridSpacing;
+        
+        vec2 gridValues = abs(fract(gridCoords - 0.5) - 0.5) / gridDerivative;
+        float line = min(gridValues.x, gridValues.y);
+        float gridLine = 1.0 - min(line, 1.0);
+        
+        float dist = distance(vWorldPosition.xz, uRippleCenter);
+        
+        float rippleWidth = 0.8;
+        float wave = sin((dist - uRippleProgress) * 12.0) * 0.5 + 0.5;
+        
+        float mask = smoothstep(uRippleProgress - rippleWidth, uRippleProgress, dist) *
+                     smoothstep(uRippleProgress + rippleWidth, uRippleProgress, dist);
+                     
+        float rippleFade = smoothstep(6.0, 0.0, uRippleProgress);
+        float rippleGlow = wave * mask * rippleFade;
+        
+        float floorGlow = smoothstep(4.0, 0.0, distance(vWorldPosition.xz, uRippleCenter)) * 0.08;
+        
+        vec3 color = mix(uGridColor, uRippleColor, rippleGlow * 1.5);
+        
+        float brightness = gridLine * 0.25 + rippleGlow * 1.8 + floorGlow;
+        
+        float distToCamera = distance(vWorldPosition, cameraPosition);
+        float horizonFade = smoothstep(12.0, 2.0, distToCamera);
+        
+        float alpha = (gridLine * 0.35 + rippleGlow * 0.8 + floorGlow) * horizonFade;
+        
+        gl_FragColor = vec4(color * brightness, alpha);
+      }
+    `;
+
+    const floorMaterial = new THREE.ShaderMaterial({
+      vertexShader: gridVertexShader,
+      fragmentShader: gridFragmentShader,
+      uniforms: {
+        uTime: { value: 0.0 },
+        uRippleCenter: { value: new THREE.Vector2(0, 0) },
+        uRippleProgress: { value: 99.0 },
+        uGridColor: { value: new THREE.Color(0x00ffff) },
+        uRippleColor: { value: new THREE.Color(0x9d4edd) },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    floorMaterialRef.current = floorMaterial;
+
+    const gridGeo = new THREE.PlaneGeometry(30, 30);
+    const customGrid = new THREE.Mesh(gridGeo, floorMaterial);
+    customGrid.rotation.x = -Math.PI / 2;
+    customGrid.position.y = -1.01;
+    scene.add(customGrid);
 
     // Floor Glow & Shadow Receiver
     const floorGeo = new THREE.PlaneGeometry(10, 10);
@@ -235,7 +316,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -1.02;
-    // ✨ Enable floor to receive shadows
     floor.receiveShadow = true;
     scene.add(floor);
 
@@ -432,6 +512,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
       controlsRef.current?.dispose();
       rendererRef.current?.dispose();
+      gridGeo.dispose();
+      floorMaterial.dispose();
     };
   }, [frames, modelUrl]);
 
@@ -441,6 +523,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     const renderLoop = (time: number) => {
       reqIdRef.current = requestAnimationFrame(renderLoop);
+
+      // Smooth delta time tracking
+      if (lastAnimTimeRef.current === 0) {
+        lastAnimTimeRef.current = time;
+      }
+      const deltaTime = (time - lastAnimTimeRef.current) / 1000;
+      lastAnimTimeRef.current = time;
 
       // Slowed playback from 15 FPS to 8 FPS for detailed form analysis
       if (isPlaying && time - lastTimeRef.current > 1000 / 8) {
@@ -454,6 +543,40 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         rendererRef.current?.render(sceneRef.current!, cameraRef.current!);
         return;
       }
+
+      // ── Animate Grid & Ripple Uniforms ──
+      if (floorMaterialRef.current) {
+        floorMaterialRef.current.uniforms.uTime.value = time / 1000;
+        if (floorMaterialRef.current.uniforms.uRippleProgress.value < 6.0) {
+          floorMaterialRef.current.uniforms.uRippleProgress.value += deltaTime * 4.0;
+        }
+      }
+
+      // ── Trigger Ripple on Rep Completion ──
+      let repsAtFrame = frame.reps;
+      if (repsAtFrame === undefined) {
+        const repMatch = frame.feedback?.match(/Rep\s+(\d+)\s+complete/i);
+        if (repMatch) {
+          repsAtFrame = parseInt(repMatch[1], 10);
+        }
+      }
+      const currentRepCount = repsAtFrame || 0;
+      if (prevRepCountRef.current === undefined) {
+        prevRepCountRef.current = currentRepCount;
+      } else if (currentRepCount > prevRepCountRef.current) {
+        if (floorMaterialRef.current) {
+          if (modelGroupRef.current) {
+            floorMaterialRef.current.uniforms.uRippleCenter.value.set(
+              modelGroupRef.current.position.x,
+              modelGroupRef.current.position.z
+            );
+          } else {
+            floorMaterialRef.current.uniforms.uRippleCenter.value.set(0, 0);
+          }
+          floorMaterialRef.current.uniforms.uRippleProgress.value = 0.0;
+        }
+      }
+      prevRepCountRef.current = currentRepCount;
 
       const { baseColor, badJoints, mistakeColor } = parseFeedback(
         frame.feedback,

@@ -414,6 +414,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             angles,
             feedback: nextState.feedback,
             exercise: exercise.key,
+            reps: nextState.reps,
           });
 
           // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
