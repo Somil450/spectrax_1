@@ -55,7 +55,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
   useEffect(() => {
     fetchHistory();
-  }, [fetchHistory]);
+  }, [fetchHistory, syncStatus.lastSyncTime]);
 
   const availableTypes = useMemo(() => {
     const types = new Set(sessions.map((s) => s.exerciseType));

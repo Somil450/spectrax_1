@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
+import AIRecommendations from './AIRecommendations';
+import { generateRecommendations } from '../engine/recommendationEngine';
 
 interface SummaryScreenProps {
   stats: { 
@@ -28,42 +30,52 @@ interface SummaryScreenProps {
 
 export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, onRestart, onViewReplay }) => {
   const [accuracy, setAccuracy] = useState(0);
-  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
-  const { addWorkout } = useWorkoutSync();
+  const { user } = useAuth();
+  const [workouts, setWorkouts] = useState<WorkoutRecord[]>([]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let active = true;
+    getLocalWorkouts(user.uid)
+      .then((records) => {
+        if (active) setWorkouts(records);
+      })
+      .catch((error) => {
+        console.error("Failed to load weekly activity:", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
+  const weeklyData = useMemo(() => {
+    const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const dayStart = today.getTime() - (6 - i) * dayMs;
+      const dayWorkouts = workouts.filter(
+        (w) => w.timestamp >= dayStart && w.timestamp < dayStart + dayMs,
+      );
+      const score = dayWorkouts.length
+        ? Math.round(
+            dayWorkouts.reduce((sum, w) => sum + (w.accuracyScore || 0), 0) /
+              dayWorkouts.length,
+          )
+        : 0;
+      return { day: dayLabels[new Date(dayStart).getDay()], score };
+    });
+  }, [workouts]);
+
+  const hasWeeklyActivity = weeklyData.some((d) => d.score > 0);
+
   useEffect(() => {
     // Animate accuracy ring on mount
     const timer = setTimeout(() => setAccuracy(stats.accuracy), 300);
     return () => clearTimeout(timer);
   }, [stats.accuracy]);
-
-  // Auto-save workout to Firestore
-  useEffect(() => {
-    const saveWorkout = async () => {
-      if (stats.totalReps === 0) return; // Skip empty sessions
-
-      try {
-        setIsSavingWorkout(true);
-        const exerciseName = stats.exerciseName || "unknown_exercise";
-        console.log("💾 Saving workout to Firestore...", stats);
-
-        await addWorkout({
-          exerciseType: exerciseName.toLowerCase().replace(/\s+/g, "_"),
-          totalReps: stats.totalReps,
-          accuracyScore: stats.accuracy,
-          duration: stats.duration,
-          timestamp: Date.now(),
-        });
-
-        console.log("✅ Workout saved successfully!");
-      } catch (error) {
-        console.error("❌ Failed to save workout:", error);
-      } finally {
-        setIsSavingWorkout(false);
-      }
-    };
-
-    saveWorkout();
-  }, [stats, addWorkout]);
 
   const offset = 440 - (440 * accuracy) / 100;
 
@@ -102,6 +114,13 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           stats.repScores.reduce((a, b) => a + b, 0) / stats.repScores.length,
         )
       : 0;
+  const recommendations = generateRecommendations(
+    stats.accuracy,
+    stats.mistakes,
+    stats.bestStreak,
+    averageRepScore,
+    stats.exerciseName
+  );
 
   if (stats.totalReps === 0) {
     return (
@@ -195,21 +214,6 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         >
           Session complete. AI analysis synchronized.
         </p>
-        {isSavingWorkout && (
-          <p
-            style={{
-              color: "var(--neon-cyan)",
-              fontSize: "0.8rem",
-              marginTop: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            💾 Saving to cloud...
-          </p>
-        )}
       </div>
 
       {/* Accuracy Ring */}
@@ -565,18 +569,11 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
 {/* Weekly Activity Bar Chart - Added for GSSoC Issue #49 */}
       <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px' }}>
          <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px', fontWeight: 700, textAlign: 'left' }}>
-            WEEKLY ACTIVITY (REP SCORE TREND)
+            WEEKLY ACTIVITY (AVG ACCURACY)
          </div>
+         {hasWeeklyActivity ? (
          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '140px', padding: '0 10px', paddingTop: '10px' }}>
-            {[
-              { day: 'Mon', score: Math.max(40, averageRepScore - 15) || 45 },
-              { day: 'Tue', score: Math.max(50, averageRepScore - 5) || 70 },
-              { day: 'Wed', score: Math.max(45, averageRepScore - 10) || 60 },
-              { day: 'Thu', score: Math.max(60, averageRepScore + 5 > 100 ? 100 : averageRepScore + 5) || 85 },
-              { day: 'Fri', score: Math.max(55, averageRepScore - 8) || 50 },
-              { day: 'Sat', score: stats.accuracy || 75 },
-              { day: 'Sun', score: averageRepScore || 80 }
-            ].map((item, index) => (
+            {weeklyData.map((item, index) => (
               <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end' }}>
                 <span style={{ fontSize: '0.65rem', color: '#fff', marginBottom: '4px', opacity: 0.8 }}>
                   {item.score}%
@@ -602,6 +599,11 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
               </div>
             ))}
          </div>
+         ) : (
+         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '140px', color: 'var(--text-dim)', fontSize: '0.85rem', textAlign: 'center', padding: '0 20px' }}>
+            No activity yet. Complete a workout to start your weekly trend.
+         </div>
+         )}
       </div>
       <div className="animate-in glass" style={{ width: '100%', maxWidth: '600px', padding: '15px', textAlign: 'center', marginBottom: '40px', borderColor: accuracyColor }}>
          <div style={{ color: accuracyColor, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '2px' }}>SESSION RATING: {getPerformanceHighlight()}</div>
@@ -661,7 +663,7 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           </div>
         </div>
       )}
-
+      <AIRecommendations recommendations={recommendations} />
       {/* Action Buttons */}
       <div
         className="animate-in"
