@@ -55,26 +55,26 @@
 
 
 [data-theme="light"] {
-  /* Backgrounds — light instead of near-black */
-  --bg-primary:    #f0f4ff;
-  --bg-secondary:  #e4ebff;
-  --bg-tertiary:   #d8e3ff;
+  /* Backgrounds — clean white / soft light theme */
+  --bg-primary:    #ffffff;
+  --bg-secondary:  #f5f7fb;
+  --bg-tertiary:   #eef4ff;
 
-  /* Neon accents — slightly deeper so they pop on white */
-  --neon-cyan:        #0090a8;
-  --neon-cyan-dim:    #006f80;
-  --neon-purple:      #7c3aed;
-  --neon-purple-dim:  #5b21b6;
+  /* Neon accents — premium light mode palette */
+  --neon-cyan:        #00cfff;
+  --neon-cyan-dim:    #0f9be0;
+  --neon-purple:      #6c63ff;
+  --neon-purple-dim:  #5f53d6;
 
   /* Glass — white-tinted instead of dark-tinted */
   --glass-bg:     rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(0, 144, 168, 0.2);
+  --glass-border: rgba(108, 99, 255, 0.16);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 
   /* Text — dark on light background */
-  --text-primary:   #0d1127;
-  --text-secondary: rgba(13, 17, 39, 0.8);
-  --text-dim:       rgba(13, 17, 39, 0.55);
+  --text-primary:   #111827;
+  --text-secondary: #4b5563;
+  --text-dim:       #6b7280;
 }
 
 /* Theme transitions: scoped only to elements that actually change on toggle.
@@ -104,6 +104,29 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="light"] body {
+  background: var(--bg-primary);
+}
+
+[data-theme="light"] #root,
+[data-theme="light"] .spectrax-app,
+[data-theme="light"] .screen-container {
+  background: var(--bg-primary) !important;
+}
+
+.camera-viewport {
+  background: radial-gradient(circle at center, #111a3d 0%, #0a0a1a 100%) !important;
+}
+
+[data-theme="light"] .camera-viewport {
+  background: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%) !important;
+}
+
+[data-theme="light"] body::before,
+[data-theme="light"] body::after {
+  background: none !important;
 }
 
 /* ── UI Framework ─────────────────────────────────────────────── */
