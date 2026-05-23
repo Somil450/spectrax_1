@@ -58,8 +58,13 @@ io.use((socket, next) => {
 });
 
 const PORT = 3001;
-const SESSION_PATH = path.join(__dirname, 'session.json');
+const SESSIONS_DIR = path.join(__dirname, 'sessions');
 const MAX_SESSION_FRAMES = 300; // Rolling buffer
+
+// Ensure sessions directory exists before any session is saved
+if (!fs.existsSync(SESSIONS_DIR)) {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
 
 // ─── In-Memory Session Store (Per Socket) ─────────────────────────────────────
 const sessions = new Map(); // socketId → frame[]
@@ -238,8 +243,11 @@ function saveSession(frames, socketId) {
       frameCount: frames.length,
       frames,
     };
-    fs.writeFileSync(SESSION_PATH, JSON.stringify(sessionData, null, 2));
-    console.log(`[SpectraX] session.json saved (${frames.length} frames)`);
+    const safeId = socketId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `session-${safeId}-${Date.now()}.json`;
+    const filePath = path.join(SESSIONS_DIR, filename);
+    fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2));
+    console.log(`[SpectraX] Session saved: ${filename} (${frames.length} frames)`);
   } catch (err) {
     console.error('[SpectraX] Failed to save session:', err.message);
   }
