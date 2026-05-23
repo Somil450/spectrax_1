@@ -1,3 +1,5 @@
+/// <reference types="vitest" />
+
 // Node 18.x compatibility: expose the web crypto API globally so that
 // workbox-build's serialize-javascript can access it during the PWA build step.
 // In Node 20.x this is already available by default.
@@ -99,23 +101,22 @@ export default defineConfig({
   ],
 
   build: {
-    // Warn if any single chunk exceeds 500KB (catches future regressions)
     chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Three.js — only needed on ReplayScreen
           if (id.includes('node_modules/three')) return 'vendor-three';
-          // Firebase — only needed when auth is configured
           if (id.includes('node_modules/firebase')) return 'vendor-firebase';
-          // @xenova/transformers — 151MB model loader, must be its own chunk
           if (id.includes('node_modules/@xenova')) return 'vendor-xenova';
-          // MediaPipe npm packages (camera_utils etc.)
           if (id.includes('node_modules/@mediapipe')) return 'vendor-mediapipe';
-          // React core — always needed, keep small and cacheable
           if (id.includes('node_modules/react')) return 'vendor-react';
         },
       },
     },
+  },
+
+  test: {
+    environment: "jsdom",
+    globals: true,
   },
 });
