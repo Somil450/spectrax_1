@@ -28,7 +28,11 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
     try {
       localStorage.setItem(key, value);
     } catch (e) {
+
+      return;
+
       // Ignored: Fallback if localStorage is disabled or not accessible
+
     }
   };
 
@@ -36,7 +40,11 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
     try {
       localStorage.removeItem(key);
     } catch (e) {
+
+      return;
+
       // Ignored: Fallback if localStorage is disabled or not accessible
+
     }
   };
 
@@ -67,7 +75,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setTimeout(() => {
-      setTimeLeft(t => t - 1);
+      setTimeLeft((t) => t - 1);
     }, 1000);
     return () => clearTimeout(timer);
   }, [timeLeft]);
@@ -91,7 +99,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
 
     try {
       await resetPassword(email);
-      
+
       // Increment attempt even on success to prevent email spam/abuse (maximum 5 requests)
       const newAttempts = failedAttempts + 1;
       setFailedAttempts(newAttempts);
@@ -102,13 +110,15 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
         const lockoutTime = Date.now() + cooldown * 1000;
         safeSetItem(lockoutKey, lockoutTime.toString());
         setTimeLeft(cooldown);
-        setLocalError("Too many password reset requests. Try again in 60 seconds.");
+        setLocalError(
+          "Too many password reset requests. Try again in 60 seconds.",
+        );
       }
 
       setSuccess(true);
     } catch (err: any) {
       console.error("Reset password error:", err);
-      
+
       const errorCode = err.code || "";
       const isRateLimit = errorCode === "auth/too-many-requests";
 
@@ -117,7 +127,9 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
         const lockoutTime = Date.now() + cooldown * 1000;
         safeSetItem(lockoutKey, lockoutTime.toString());
         setTimeLeft(cooldown);
-        setLocalError("Too many requests. Password reset locked for 60 seconds.");
+        setLocalError(
+          "Too many requests. Password reset locked for 60 seconds.",
+        );
       } else {
         const newAttempts = failedAttempts + 1;
         setFailedAttempts(newAttempts);
@@ -128,11 +140,21 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
           const lockoutTime = Date.now() + cooldown * 1000;
           safeSetItem(lockoutKey, lockoutTime.toString());
           setTimeLeft(cooldown);
+
+          setLocalError(
+            "Too many requests. Password reset locked for 60 seconds.",
+          );
+        } else {
+          setLocalError(
+            err.message || "Failed to send reset link. Please try again.",
+          );
+
           setLocalError("Too many requests. Password reset locked for 60 seconds.");
         } else if (errorCode === "auth/network-request-failed") {
           setLocalError("Network error. Check your connection.");
         } else {
           setSuccess(true);
+
         }
       }
     }

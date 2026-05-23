@@ -308,16 +308,31 @@ export class ExerciseEngine {
     const now = Date.now();
     const p = this.repParams(config.key);
 
+
+    const { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
+      currentState;
+
     const { reps, lastRepTime, history } = currentState;
     let { stage, isCalibrated, stageStartTime } = currentState;
+
 
     const currentVisibility = visibility[config.primaryJoint];
 
     // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
     const prevVisibilityBuffer = currentState.visibilityBuffer || [];
+
+    const newVisibilityBuffer = [
+      ...prevVisibilityBuffer,
+      currentVisibility,
+    ].slice(-this.SMOOTHING_WINDOW);
+    const avgVisibility =
+      newVisibilityBuffer.reduce((a, b) => a + b, 0) /
+      newVisibilityBuffer.length;
+
     const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-p.smoothingWindow);
     const avgVisibility = newVisibilityBuffer.reduce((a, b) => a + b, 0) / newVisibilityBuffer.length;
     
+
     let nextTrackingLostFrames = currentState.trackingLostFrames || 0;
     let nextLastValidAngles = currentState.lastValidAngles || angles;
 
@@ -330,7 +345,10 @@ export class ExerciseEngine {
     }
 
     // Temporal buffering: use last known valid angles if tracking drops momentarily (up to 10 frames)
-    const activeAngles = (nextTrackingLostFrames > 0 && nextTrackingLostFrames < 10) ? nextLastValidAngles : angles;
+    const activeAngles =
+      nextTrackingLostFrames > 0 && nextTrackingLostFrames < 10
+        ? nextLastValidAngles
+        : angles;
     const rawAngle = activeAngles[config.primaryJoint];
 
     // Only block exercise if visibility is consistently low for several frames
