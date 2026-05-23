@@ -12,18 +12,49 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
+const DEFAULT_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || DEFAULT_ORIGINS.join(','))
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const SOCKET_AUTH_TOKEN = process.env.SOCKET_AUTH_TOKEN || '';
+const MAX_FRAMES_PER_SEC = Number(process.env.MAX_FRAMES_PER_SEC) || 60;
+
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
+const corsOptions = {
+  origin: (origin, callback) =>
+    isOriginAllowed(origin)
+      ? callback(null, true)
+      : callback(new Error('Origin not allowed by CORS')),
+  methods: ['GET', 'POST'],
+};
+
 const app = express();
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
-app.use(cors({ origin: ALLOWED_ORIGIN }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: ALLOWED_ORIGIN, methods: ['GET', 'POST'] },
+  cors: corsOptions,
   // Tune for minimal latency
   pingInterval: 5000,
   pingTimeout: 3000,
   transports: ['websocket'], // Skip polling entirely
+});
+
+io.use((socket, next) => {
+  if (!SOCKET_AUTH_TOKEN) return next();
+  const token = socket.handshake.auth && socket.handshake.auth.token;
+  if (token === SOCKET_AUTH_TOKEN) return next();
+  return next(new Error('Unauthorized'));
 });
 
 const PORT = 3001;
@@ -135,8 +166,21 @@ io.on('connection', (socket) => {
   console.log(`[SpectraX] Client connected: ${socket.id}`);
   sessions.set(socket.id, []);
 
+  let frameWindowStart = Date.now();
+  let frameCountInWindow = 0;
+
   // ── Real-time frame processing ──
   socket.on('frame', (data) => {
+    if (!data || !Array.isArray(data.landmarks)) return;
+
+    const now = Date.now();
+    if (now - frameWindowStart >= 1000) {
+      frameWindowStart = now;
+      frameCountInWindow = 0;
+    }
+    frameCountInWindow += 1;
+    if (frameCountInWindow > MAX_FRAMES_PER_SEC) return;
+
     // Non-blocking inline — no setTimeout/setImmediate overhead for hot path
     const result = processPose(data);
 
