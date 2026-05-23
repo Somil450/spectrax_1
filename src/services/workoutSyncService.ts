@@ -49,7 +49,7 @@ export interface SyncStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME = "spectrax_db";
-const DB_VERSION = 2; // Incremented for sync fields
+const DB_VERSION = 3; // Incremented for sync fields and localId keyPath upgrade
 const WORKOUTS_STORE = "workout_sessions";
 const SYNC_STATUS_STORE = "sync_status";
 
@@ -60,16 +60,18 @@ async function openDB(): Promise<IDBDatabase> {
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result;
 
-      // Create workouts store
-      if (!db.objectStoreNames.contains(WORKOUTS_STORE)) {
-        const workoutStore = db.createObjectStore(WORKOUTS_STORE, {
-          keyPath: "id",
-          autoIncrement: true,
-        });
-        workoutStore.createIndex("timestamp", "timestamp", { unique: false });
-        workoutStore.createIndex("userId", "userId", { unique: false });
-        workoutStore.createIndex("synced", "synced", { unique: false });
+      // Recreate workouts store to change keyPath from "id" to "localId"
+      if (db.objectStoreNames.contains(WORKOUTS_STORE)) {
+        db.deleteObjectStore(WORKOUTS_STORE);
       }
+
+      const workoutStore = db.createObjectStore(WORKOUTS_STORE, {
+        keyPath: "localId",
+        autoIncrement: true,
+      });
+      workoutStore.createIndex("timestamp", "timestamp", { unique: false });
+      workoutStore.createIndex("userId", "userId", { unique: false });
+      workoutStore.createIndex("synced", "synced", { unique: false });
 
       // Create sync status store
       if (!db.objectStoreNames.contains(SYNC_STATUS_STORE)) {
@@ -131,9 +133,9 @@ export async function getUnsyncedWorkouts(
 }
 
 /**
- * Update sync status of a workout in IndexedDB
+ * Update sync status of a workout in IndexedDB and optionally associate Firestore ID
  */
-async function markWorkoutAsSynced(localId: number | string): Promise<void> {
+async function markWorkoutAsSynced(localId: number, firestoreId?: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");
@@ -143,6 +145,9 @@ async function markWorkoutAsSynced(localId: number | string): Promise<void> {
       const workout = req.result as WorkoutRecord;
       if (workout) {
         workout.synced = true;
+        if (firestoreId) {
+          workout.id = firestoreId;
+        }
         tx.objectStore(WORKOUTS_STORE).put(workout);
       }
       resolve();
@@ -152,7 +157,7 @@ async function markWorkoutAsSynced(localId: number | string): Promise<void> {
 }
 
 /**
- * Update local workouts with Firestore data
+ * Update local workouts with Firestore data, preventing duplicates by reusing existing localId keys
  */
 async function updateLocalWorkoutsFromFirestore(
   userId: string,
@@ -162,13 +167,27 @@ async function updateLocalWorkoutsFromFirestore(
   const tx = db.transaction(WORKOUTS_STORE, "readwrite");
   const store = tx.objectStore(WORKOUTS_STORE);
 
+  // Fetch all existing local records to match by firestore ID
+  const localWorkouts = await new Promise<WorkoutRecord[]>((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result as WorkoutRecord[]);
+    req.onerror = () => reject(req.error);
+  });
+
   return new Promise((resolve, reject) => {
     firestoreWorkouts.forEach((workout) => {
-      store.put({
+      const existing = localWorkouts.find((w) => w.id === workout.id);
+      const recordToStore: WorkoutRecord = {
         ...workout,
         synced: true,
-        userId, // Ensure userId is set
-      });
+        userId,
+      };
+
+      if (existing && existing.localId) {
+        recordToStore.localId = existing.localId;
+      }
+
+      store.put(recordToStore);
     });
 
     tx.oncomplete = () => resolve();
@@ -285,15 +304,13 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
 
     for (const workout of unsyncedWorkouts) {
       try {
-        await uploadWorkoutToFirestore(workout);
-        // Use localId (the IndexedDB auto-increment key) rather than workout.id
-        // which may be a Firestore string and would produce NaN when cast to Number.
-        if (workout.localId != null) {
-          await markWorkoutAsSynced(workout.localId);
+        const firestoreId = await uploadWorkoutToFirestore(workout);
+        if (workout.localId) {
+          await markWorkoutAsSynced(workout.localId, firestoreId);
           syncedCount++;
         }
       } catch (error) {
-        console.error(`Failed to sync workout ${workout.id}:`, error);
+        console.error(`Failed to sync workout with localId ${workout.localId}:`, error);
         // Continue with next workout instead of throwing
       }
     }
