@@ -6,7 +6,8 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   Lock,
-  Unlock
+  Unlock,
+  AlertTriangle
 } from "lucide-react";
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
@@ -146,6 +147,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -475,8 +478,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
           frameId.current = requestAnimationFrame(loop);
         };
         frameId.current = requestAnimationFrame(loop);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Workout camera error:", err);
+        if (isMounted) {
+          const errMsg = err?.message === "Webcam initialization timed out"
+            ? "Webcam initialization timed out. Please check your camera connection or permissions."
+            : "Failed to initialize camera. Please verify access and try again.";
+          setCameraError(errMsg);
+        }
       }
     };
 
@@ -502,7 +511,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       cameraService.stopCamera();
       clearInterval(timer);
     };
-  }, [exercise]);
+  }, [exercise, retryTrigger]);
 
   useEffect(() => {
     setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
@@ -614,6 +623,50 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       className="screen-container"
       style={{ background: "var(--bg-primary)" }}
     >
+      {cameraError && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(10, 10, 26, 0.95)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            zIndex: 150,
+            padding: '20px',
+            textAlign: 'center',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          <div className="glass animate-in" style={{ padding: '40px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
+            <AlertTriangle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
+            <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px', letterSpacing: '2px' }}>CAMERA INITIALIZATION FAILED</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '24px' }}>{cameraError}</p>
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+              <button
+                onClick={() => {
+                  setCameraError(null);
+                  setRetryTrigger(prev => prev + 1);
+                }}
+                className="btn-neon"
+                style={{ background: 'var(--neon-cyan)', color: '#000' }}
+              >
+                RETRY
+              </button>
+              <button
+                onClick={() => handleEnd()}
+                className="btn-outline"
+                style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}
+              >
+                EXIT SESSION
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Background Video Layer */}
       <CameraErrorBoundary>
         <div

@@ -62,6 +62,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [countdownSeconds, setCountdownSeconds] = useState(3);
   
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
   
   const { sessions, fetchHistory } = useWorkoutHistory();
   
@@ -129,6 +130,18 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   }, [error]);
 
 
+  const handleRetry = () => {
+    setError(null);
+    setResult({
+      status: 'red',
+      message: 'Initializing system...',
+      isReady: false,
+      visibleCount: 0,
+      totalCount: 8,
+    });
+    setRetryTrigger(prev => prev + 1);
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -175,9 +188,12 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           frameId.current = requestAnimationFrame(processLoop);
         };
         frameId.current = requestAnimationFrame(processLoop);
-      } catch (err) {
+      } catch (err: any) {
         if (isMounted) {
-          setError("Hardware synchronization error. Verify camera and refresh.");
+          const errMsg = err?.message === "Webcam initialization timed out"
+            ? "Webcam initialization timed out. Please check your camera permissions or connection."
+            : "Hardware synchronization error. Verify camera and refresh.";
+          setError(errMsg);
           setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
         }
       }
@@ -195,7 +211,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, [selectedExercise, onBodyTypeDetected]);
+  }, [selectedExercise, onBodyTypeDetected, retryTrigger]);
 
   useEffect(() => {
     const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
@@ -423,7 +439,10 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
               <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
               <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>{error}</p>
-              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>REINITIALIZE</button>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '24px' }}>
+                <button onClick={handleRetry} className="btn-neon" style={{ background: 'var(--neon-cyan)', color: '#000' }}>RETRY</button>
+                <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>RELOAD</button>
+              </div>
             </div>
           ) : (
             <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
