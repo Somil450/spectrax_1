@@ -46,6 +46,9 @@ interface WorkoutStats {
   gainedXp?: number;
 }
 
+// Derived from build-time env — safe to compute outside or at the top of the component
+const firebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
+
 function App() {
   const { theme, toggleTheme, setTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
@@ -106,6 +109,7 @@ function App() {
   };
 
   useEffect(() => {
+    if (!firebaseConfigured) return; // no-op in demo/offline mode
     if (!authLoading) {
       if (!user) {
         setCurrentScreen((prev) => {
@@ -181,9 +185,6 @@ function App() {
       setSelectedExercise(exercises[key]);
     }
   };
-
-  // Skip auth gate when Firebase is not configured (no .env)
-  const firebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
 
   // Show loading state while auth is being checked
   if (firebaseConfigured && authLoading) {
