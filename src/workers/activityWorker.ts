@@ -1,7 +1,6 @@
 import { pipeline, env } from '@xenova/transformers';
 
 // Skip local model check (fetch from Hugging Face)
-// @ts-ignore
 env.allowLocalModels = false;
 
 let classifier: any = null;

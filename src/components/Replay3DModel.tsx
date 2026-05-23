@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+
 export interface ReplayFrame {
   timestamp: number;
   landmarks: { x: number; y: number; z: number }[];
@@ -481,11 +482,11 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         }
 
         const getLm = (idx: number) => {
-            const lm = frame.landmarks[idx];
-            if (!lm) return null;
-            // Invert X axis so user's physical right arm maps to screen right side = physical right of avatar
-            // Apply estimated depth scale to Z for more accurate 3D replay representation
-            return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
+          const lm = frame.landmarks[idx];
+          if (!lm) return null;
+          // Invert X axis so user's physical right arm maps to screen right side = physical right of avatar
+          // Apply estimated depth scale to Z for more accurate 3D replay representation
+          return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
         };
 
         // Torso Alignment & Root Motion
