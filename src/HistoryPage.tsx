@@ -360,6 +360,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           align-items: center;
           justify-content: space-between;
           padding: 20px 28px;
+          /* avoid overlap with the fixed top-right theme toggle */
+          padding-right: 220px;
           border-bottom: 1px solid rgba(255,255,255,0.06);
           backdrop-filter: blur(12px);
           background: rgba(8,12,20,0.7);
@@ -516,7 +518,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
         }
 
         @media (max-width: 500px) {
-          .history-header { padding: 16px 16px; }
+          .history-header { padding: 16px 16px; padding-right: 110px; }
           .history-body { padding: 16px; }
           .summary-bar { padding: 12px 16px; }
         }
