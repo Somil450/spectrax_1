@@ -1,18 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { CalibrationScreen } from "./components/CalibrationScreen";
-import { WorkoutScreen } from "./components/WorkoutScreen";
-import { SummaryScreen } from "./components/SummaryScreen";
-import { ReplayScreen } from "./components/ReplayScreen";
-import { TrophyRoom } from "./components/TrophyRoom";
 import { BadgeNotification } from "./components/BadgeNotification";
+import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
-import { useLeveling } from './hooks/useLeveling';
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./hooks/useAuth";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
@@ -27,7 +22,6 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
-  | "trophy"
   | "login"
   | "signup"
   | "forgot-password"
@@ -47,6 +41,7 @@ interface WorkoutStats {
 }
 
 function App() {
+  const { user, loading: authLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
@@ -79,6 +74,7 @@ function App() {
   });
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
+  const { addWorkout } = useWorkoutSync();
 
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -103,6 +99,26 @@ function App() {
     setNeedRefresh(false);
   };
 
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        setCurrentScreen((prev) => {
+          if (prev !== "login" && prev !== "signup" && prev !== "forgot-password") {
+            return "login";
+          }
+          return prev;
+        });
+      } else {
+        setCurrentScreen((prev) => {
+          if (prev === "login" || prev === "signup" || prev === "forgot-password") {
+            return "welcome";
+          }
+          return prev;
+        });
+      }
+    }
+  }, [user, authLoading]);
+
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
   };
@@ -123,6 +139,18 @@ function App() {
       exerciseName: selectedExercise.name,
       bestStreak: finalStats.bestStreak,
     });
+
+    if (finalStats.totalReps > 0) {
+      addWorkout({
+        exerciseType: selectedExercise.name.toLowerCase().replace(/\s+/g, "_"),
+        totalReps: finalStats.totalReps,
+        accuracyScore: finalStats.accuracy,
+        duration: finalStats.duration,
+        timestamp: Date.now(),
+      }).catch((error) => {
+        console.error("Failed to save workout:", error);
+      });
+    }
 
     // Show skeleton briefly before rendering real summary
     setTimeout(() => {
@@ -212,47 +240,50 @@ function App() {
         />
       )}
 
-      {currentScreen === "calibration" && (
-        <CalibrationScreen
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo("workout")}
-          onBack={() => navigateTo("welcome")}
-          onBodyTypeDetected={setBodyType}
-        />
-      )}
-
-      {currentScreen === "workout" && (
-        <WorkoutScreen
-          exercise={selectedExercise}
-          onEnd={handleWorkoutEnd}
-          onAutoDetect={handleAutoDetect}
-          bodyType={bodyType}
-        />
-      )}
-      {currentScreen === "summary" &&
-        (statsLoading ? (
-          <SummaryScreenSkeleton />
-        ) : (
-          <SummaryScreen
-            stats={stats}
-            leveling={leveling}
-            onRestart={() => navigateTo("welcome")}
-            onViewReplay={() => navigateTo("replay")}
+      <Suspense fallback={<div className="loading-container"><div className="spinner" /></div>}>
+        {currentScreen === "calibration" && (
+          <CalibrationScreen
+            selectedExercise={selectedExercise}
+            onSelectExercise={handleSelectExercise}
+            onNext={() => navigateTo("workout")}
+            onBack={() => navigateTo("welcome")}
+            onBodyTypeDetected={setBodyType}
           />
-        ))}
+        )}
 
-      {currentScreen === "replay" && (
-        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
-      )}
+        {currentScreen === "workout" && (
+          <WorkoutScreen
+            exercise={selectedExercise}
+            onEnd={handleWorkoutEnd}
+            onAutoDetect={handleAutoDetect}
+            bodyType={bodyType}
+          />
+        )}
 
-      {currentScreen === "history" && (
-        <HistoryPage onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "summary" &&
+          (statsLoading ? (
+            <SummaryScreenSkeleton />
+          ) : (
+            <SummaryScreen
+              stats={stats}
+              leveling={leveling}
+              onRestart={() => navigateTo("welcome")}
+              onViewReplay={() => navigateTo("replay")}
+            />
+          ))}
 
-      {currentScreen === "trophy" && (
-        <TrophyRoom onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "replay" && (
+          <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+        )}
+
+        {currentScreen === "history" && (
+          <HistoryPage onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "trophy" && (
+          <TrophyRoom onBack={() => navigateTo("welcome")} />
+        )}
+      </Suspense>
 
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
