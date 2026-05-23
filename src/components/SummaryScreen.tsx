@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import AIRecommendations from './AIRecommendations';
 import { generateRecommendations } from '../engine/recommendationEngine';
-import { useAuth } from '../hooks/useAuth';
-import { getLocalWorkouts, WorkoutRecord } from '../services/workoutSyncService';
 
 interface SummaryScreenProps {
   stats: { 

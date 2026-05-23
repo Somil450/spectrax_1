@@ -12,18 +12,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
-import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
-// ── Lazily loaded (separate async chunks, only fetched when navigated to) ────
-const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
-const WorkoutScreen     = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
-const SummaryScreen     = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
-const ReplayScreen      = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
-const TrophyRoom        = lazy(() => import("./components/TrophyRoom").then(m => ({ default: m.TrophyRoom })));
-const HistoryPage       = lazy(() => import("./HistoryPage"));
-const LoginScreen       = lazy(() => import("./components/LoginScreen").then(m => ({ default: m.LoginScreen })));
-const SignUpScreen      = lazy(() => import("./components/SignUpScreen").then(m => ({ default: m.SignUpScreen })));
-const ForgotPasswordScreen = lazy(() => import("./components/ForgotPasswordScreen").then(m => ({ default: m.ForgotPasswordScreen })));
 
 
 type Screen =
@@ -37,7 +26,6 @@ type Screen =
   | "signup"
   | "forgot-password"
   | "trophy";
-
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -201,14 +189,11 @@ function App() {
     );
   }
 
-  // If not authenticated, show auth screens
-  if (!user) {
-    const isAuthScreen =
-      currentScreen === "login" ||
-      currentScreen === "signup" ||
-      currentScreen === "forgot-password";
-    const activeAuthScreen = isAuthScreen ? currentScreen : "login";
-
+  // If not authenticated and Firebase is configured, show auth screens
+  if (firebaseConfigured && !user) {
+    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
+      ? currentScreen
+      : "login";
     return (
       <main className="spectrax-app">
         {activeAuthScreen === "login" && (
