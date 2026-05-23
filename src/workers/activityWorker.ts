@@ -4,8 +4,8 @@ import { pipeline, env } from '@xenova/transformers';
 env.allowLocalModels = false;
 
 let classifier: any = null;
-let pipeline_type = 'zero-shot-image-classification';
-let model_id = 'Xenova/clip-vit-base-patch32';
+const pipeline_type = 'zero-shot-image-classification';
+const model_id = 'Xenova/clip-vit-base-patch32';
 
 async function loadModel() {
   if (!classifier) {
@@ -22,7 +22,7 @@ async function loadModel() {
 }
 
 self.onmessage = async (event) => {
-  const { frames, image, labels, type, frameId } = event.data;
+  const { image, labels, type } = event.data;
 
   if (type === 'init') {
     await loadModel();

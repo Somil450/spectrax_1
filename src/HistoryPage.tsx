@@ -1,7 +1,20 @@
 // src/HistoryPage.tsx
-import React, { useEffect, useState } from "react";
-import { History, Trash2, ArrowLeft, TrendingUp } from "lucide-react";
+import React, { useEffect, useState, useMemo } from "react";
+import { History, Trash2, ArrowLeft, TrendingUp, Filter } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
+
+// ── Debounce Hook ─────────────────────────────────────────────────────────────
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import SessionCard from "./SessionCard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -9,7 +22,7 @@ import SessionCard from "./SessionCard";
 function avgAccuracy(sessions: { accuracyScore: number }[]): number {
   if (!sessions.length) return 0;
   return Math.round(
-    sessions.reduce((sum, s) => sum + s.accuracyScore, 0) / sessions.length
+    sessions.reduce((sum, s) => sum + s.accuracyScore, 0) / sessions.length,
   );
 }
 
@@ -24,13 +37,47 @@ interface HistoryPageProps {
 }
 
 const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
-  const { sessions, loading, error, fetchHistory, removeSession, clearHistory } =
-    useWorkoutHistory();
+  const {
+    sessions,
+    loading,
+    error,
+    fetchHistory,
+    removeSession,
+    clearHistory,
+  } = useWorkoutHistory();
+  const { syncStatus, isOnline, manualSync } = useWorkoutSync();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Filter state
+  const [filterType, setFilterType] = useState<string>("All");
+  const [filterCalories, setFilterCalories] = useState<string>("");
+  const debouncedCalories = useDebounce(filterCalories, 150);
 
   useEffect(() => {
     fetchHistory();
-  }, [fetchHistory]);
+  }, [fetchHistory, syncStatus.lastSyncTime]);
+
+  const availableTypes = useMemo(() => {
+    const types = new Set(sessions.map((s) => s.exerciseType));
+    return ["All", ...Array.from(types)];
+  }, [sessions]);
+
+  useEffect(() => {
+    if (!availableTypes.includes(filterType)) {
+      setFilterType("All");
+    }
+  }, [availableTypes, filterType]);
+
+  const filteredSessions = useMemo(() => {
+    const calGoal = parseInt(debouncedCalories || "0", 10);
+    return sessions.filter((s) => {
+      // Calorie estimation: 1.5 calories per rep
+      const estimatedCals = s.totalReps * 1.5;
+      const matchType = filterType === "All" || s.exerciseType === filterType;
+      const matchCals = estimatedCals >= calGoal;
+      return matchType && matchCals;
+    });
+  }, [sessions, filterType, debouncedCalories]);
 
   const handleClear = () => {
     if (showClearConfirm) {
@@ -79,20 +126,158 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
       {/* ── Summary bar (only when data exists) ── */}
       {sessions.length > 0 && (
         <div className="summary-bar">
-          <SummaryPill label="Sessions" value={sessions.length} />
+          <SummaryPill label="Sessions" value={filteredSessions.length} />
           <div className="summary-divider" />
-          <SummaryPill label="Total Reps" value={totalReps(sessions)} />
+          <SummaryPill label="Total Reps" value={totalReps(filteredSessions)} />
           <div className="summary-divider" />
           <SummaryPill
             label="Avg Accuracy"
-            value={`${avgAccuracy(sessions)}%`}
+            value={`${avgAccuracy(filteredSessions)}%`}
             icon={<TrendingUp size={12} />}
           />
         </div>
       )}
 
+      {/* ── Sync Status Indicator ── */}
+      <div
+        style={{
+          padding: "12px 28px",
+          background: isOnline
+            ? "rgba(34, 211, 160, 0.05)"
+            : "rgba(239, 68, 68, 0.05)",
+          borderBottom: `1px solid ${isOnline ? "rgba(34, 211, 160, 0.2)" : "rgba(239, 68, 68, 0.2)"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "16px",
+          flexWrap: "wrap",
+          fontSize: "0.85rem",
+          fontFamily: "'Space Mono', monospace",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flex: "1 1 auto",
+          }}
+        >
+          <span style={{ fontSize: "1.2em" }}>
+            {!isOnline
+              ? "⚠️ Offline"
+              : syncStatus.isSyncing
+                ? "🔄 Syncing"
+                : "✅ Online"}
+          </span>
+          <span
+            style={{ color: isOnline ? "#22d3a0" : "#ef4444", fontWeight: 600 }}
+          >
+            {!isOnline
+              ? "Offline Mode"
+              : syncStatus.isSyncing
+                ? "Syncing..."
+                : "All synced"}
+          </span>
+          {syncStatus.pendingUploads > 0 && (
+            <span style={{ color: "#fbbf24", marginLeft: "8px" }}>
+              ({syncStatus.pendingUploads} pending)
+            </span>
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            flex: "0 1 auto",
+          }}
+        >
+          {isOnline && !syncStatus.isSyncing && (
+            <button
+              onClick={manualSync}
+              style={{
+                background: "rgba(34, 211, 160, 0.2)",
+                border: "1px solid rgba(34, 211, 160, 0.4)",
+                color: "#22d3a0",
+                padding: "4px 10px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                fontFamily: "'Space Mono', monospace",
+              }}
+            >
+              Sync Now
+            </button>
+          )}
+          {syncStatus.lastSyncTime && (
+            <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+              Last: {new Date(syncStatus.lastSyncTime).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* ── Body ── */}
       <main className="history-body">
+        {/* ── Filter Panel ── */}
+        {!loading && !error && sessions.length > 0 && (
+          <div className="filter-panel" style={{ marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "16px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#94a3b8" }}>
+              <Filter size={16} />
+              <span style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'Space Mono', monospace" }}>Filters</span>
+            </div>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="type-filter" style={{ fontSize: "12px", color: "#e2e8f0" }}>Type:</label>
+              <select
+                id="type-filter"
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                style={{
+                  background: "rgba(8,12,20,0.8)",
+                  color: "#e2e8f0",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontFamily: "'Space Mono', monospace",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                {availableTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="calorie-filter" style={{ fontSize: "12px", color: "#e2e8f0" }}>Min Cals (est):</label>
+              <input
+                id="calorie-filter"
+                type="number"
+                min="0"
+                placeholder="e.g. 50"
+                value={filterCalories}
+                onChange={(e) => setFilterCalories(e.target.value)}
+                style={{
+                  background: "rgba(8,12,20,0.8)",
+                  color: "#e2e8f0",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontFamily: "'Space Mono', monospace",
+                  outline: "none",
+                  width: "100px"
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Loading */}
         {loading && (
           <div className="state-center">
@@ -123,10 +308,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           </div>
         )}
 
+        {/* Sessions empty after filter */}
+        {!loading && !error && sessions.length > 0 && filteredSessions.length === 0 && (
+          <div className="state-center empty-state" style={{ minHeight: "150px" }}>
+            <p>No sessions match your filters.</p>
+          </div>
+        )}
+
         {/* Session grid */}
-        {!loading && !error && sessions.length > 0 && (
+        {!loading && !error && filteredSessions.length > 0 && (
           <div className="sessions-grid">
-            {sessions.map((session: WorkoutSession) => (
+            {filteredSessions.map((session: WorkoutSession) => (
               <SessionCard
                 key={session.id}
                 session={session}
@@ -168,6 +360,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           align-items: center;
           justify-content: space-between;
           padding: 20px 28px;
+          /* avoid overlap with the fixed top-right theme toggle */
+          padding-right: 220px;
           border-bottom: 1px solid rgba(255,255,255,0.06);
           backdrop-filter: blur(12px);
           background: rgba(8,12,20,0.7);
@@ -324,7 +518,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
         }
 
         @media (max-width: 500px) {
-          .history-header { padding: 16px 16px; }
+          .history-header { padding: 16px 16px; padding-right: 110px; }
           .history-body { padding: 16px; }
           .summary-bar { padding: 12px 16px; }
         }

@@ -69,17 +69,16 @@ export function getJointAngles(landmarks: any): Record<string, number> {
 
 export function getJointVisibility(landmarks: any): Record<string, number> {
   if (!landmarks) return {};
-  const side = getBestSide(landmarks);
   
-  const ids = side === 'left' 
-    ? { s: 11, e: 13, w: 15, h: 23, k: 25, a: 27 }
-    : { s: 12, e: 14, w: 16, h: 24, k: 26, a: 28 };
+  // Use the maximum visibility between left and right pairs to recover from partial-body occlusion
+  const vis = (leftId: number, rightId: number) => 
+    Math.max(landmarks[leftId]?.visibility || 0, landmarks[rightId]?.visibility || 0);
 
   return {
-    knee: landmarks[ids.k]?.visibility || 0,
-    elbow: landmarks[ids.e]?.visibility || 0,
-    shoulder: landmarks[ids.s]?.visibility || 0,
-    bodyLine: ((landmarks[ids.s]?.visibility || 0) + (landmarks[ids.h]?.visibility || 0) + (landmarks[ids.a]?.visibility || 0)) / 3 || 0,
-    hipDepth: (landmarks[ids.h]?.visibility + landmarks[ids.a]?.visibility) / 2 || 0
+    knee: vis(25, 26),
+    elbow: vis(13, 14),
+    shoulder: vis(11, 12),
+    bodyLine: (vis(11, 12) + vis(23, 24) + vis(27, 28)) / 3 || 0,
+    hipDepth: (vis(23, 24) + vis(27, 28)) / 2 || 0
   };
 }
