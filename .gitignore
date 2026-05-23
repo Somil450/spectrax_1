@@ -1,3 +1,6 @@
+# Session data files (auto-generated at runtime)
+server/sessions/*.json
+
 # Logs
 logs
 *.log

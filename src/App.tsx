@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
@@ -17,6 +17,8 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { useWorkoutSync } from "./hooks/useWorkoutSync";
+import { useRegisterSW } from "virtual:pwa-register/react";
 
 
 type Screen =
@@ -26,21 +28,10 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
-  | "trophy"
   | "login"
   | "signup"
- feature/ai-workout-recommendations
- feature/ai-workout-recommendations
-  | "forgot-password";
-
-
   | "forgot-password"
   | "trophy";
-main
-=======
-  | "forgot-password";
-
-main
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -56,7 +47,7 @@ interface WorkoutStats {
 }
 
 function App() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
 
@@ -75,6 +66,7 @@ function App() {
     exercises.squat,
   );
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
+  const [showExitModal, setShowExitModal] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
     totalReps: 0,
@@ -88,6 +80,7 @@ function App() {
   });
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
+  const { addWorkout } = useWorkoutSync();
 
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -112,6 +105,26 @@ function App() {
     setNeedRefresh(false);
   };
 
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        setCurrentScreen((prev) => {
+          if (prev !== "login" && prev !== "signup" && prev !== "forgot-password") {
+            return "login";
+          }
+          return prev;
+        });
+      } else {
+        setCurrentScreen((prev) => {
+          if (prev === "login" || prev === "signup" || prev === "forgot-password") {
+            return "welcome";
+          }
+          return prev;
+        });
+      }
+    }
+  }, [user, authLoading]);
+
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
   };
@@ -132,6 +145,18 @@ function App() {
       exerciseName: selectedExercise.name,
       bestStreak: finalStats.bestStreak,
     });
+
+    if (finalStats.totalReps > 0) {
+      addWorkout({
+        exerciseType: selectedExercise.name.toLowerCase().replace(/\s+/g, "_"),
+        totalReps: finalStats.totalReps,
+        accuracyScore: finalStats.accuracy,
+        duration: finalStats.duration,
+        timestamp: Date.now(),
+      }).catch((error) => {
+        console.error("Failed to save workout:", error);
+      });
+    }
 
     // Show skeleton briefly before rendering real summary
     setTimeout(() => {
@@ -170,20 +195,14 @@ function App() {
     );
   }
 
- feature/ai-workout-recommendations
-  // If not authenticated, show auth screens
-  
-  if (!user) {
-=======
   // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
- main
     const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
       ? currentScreen
       : "login";
     return (
       <main className="spectrax-app">
-        {activeAuthScreen === "login" && (
+        {(currentScreen === "login" || (currentScreen !== "signup" && currentScreen !== "forgot-password")) && (
           <LoginScreen
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
@@ -210,14 +229,33 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
-      <button
-        onClick={toggleTheme}
-        className={`theme-toggle ${currentScreen === "workout" ? "workout-active" : ""}`}
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      >
-        {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
-      </button>
+      <div className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""}`}>
+        <div className={`selector-indicator theme-${theme}`} />
+        <button
+          className={`selector-btn ${theme === "cyber-dark" ? "active" : ""}`}
+          onClick={() => setTheme("cyber-dark")}
+          aria-label="Switch to Cyber theme"
+        >
+          🌌 Cyber
+        </button>
+        <button
+          className={`selector-btn ${theme === "retro" ? "active" : ""}`}
+          onClick={() => setTheme("retro")}
+          aria-label="Switch to Retro theme"
+        >
+          📻 Retro
+        </button>
+        <button
+          className={`selector-btn ${theme === "light" ? "active" : ""}`}
+          onClick={() => setTheme("light")}
+          aria-label="Switch to Light theme"
+        >
+          ☀️ Light
+        </button>
+      </div>
 
+
+      
       {currentScreen === "welcome" && (
         <WelcomeScreen
           onStart={() => navigateTo("calibration")}
@@ -227,47 +265,50 @@ function App() {
         />
       )}
 
-      {currentScreen === "calibration" && (
-        <CalibrationScreen
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo("workout")}
-          onBack={() => navigateTo("welcome")}
-          onBodyTypeDetected={setBodyType}
-        />
-      )}
-
-      {currentScreen === "workout" && (
-        <WorkoutScreen
-          exercise={selectedExercise}
-          onEnd={handleWorkoutEnd}
-          onAutoDetect={handleAutoDetect}
-          bodyType={bodyType}
-        />
-      )}
-      {currentScreen === "summary" &&
-        (statsLoading ? (
-          <SummaryScreenSkeleton />
-        ) : (
-          <SummaryScreen
-            stats={stats}
-            leveling={leveling}
-            onRestart={() => navigateTo("welcome")}
-            onViewReplay={() => navigateTo("replay")}
+      <Suspense fallback={<div className="loading-container"><div className="spinner" /></div>}>
+        {currentScreen === "calibration" && (
+          <CalibrationScreen
+            selectedExercise={selectedExercise}
+            onSelectExercise={handleSelectExercise}
+            onNext={() => navigateTo("workout")}
+            onBack={() => setShowExitModal(true)}
+            onBodyTypeDetected={setBodyType}
           />
-        ))}
+        )}
 
-      {currentScreen === "replay" && (
-        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
-      )}
+        {currentScreen === "workout" && (
+          <WorkoutScreen
+            exercise={selectedExercise}
+            onEnd={handleWorkoutEnd}
+            onAutoDetect={handleAutoDetect}
+            bodyType={bodyType}
+          />
+        )}
 
-      {currentScreen === "history" && (
-        <HistoryPage onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "summary" &&
+          (statsLoading ? (
+            <SummaryScreenSkeleton />
+          ) : (
+            <SummaryScreen
+              stats={stats}
+              leveling={leveling}
+              onRestart={() => navigateTo("welcome")}
+              onViewReplay={() => navigateTo("replay")}
+            />
+          ))}
 
-      {currentScreen === "trophy" && (
-        <TrophyRoom onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "replay" && (
+          <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+        )}
+
+        {currentScreen === "history" && (
+          <HistoryPage onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "trophy" && (
+          <TrophyRoom onBack={() => navigateTo("welcome")} />
+        )}
+      </Suspense>
 
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
@@ -297,6 +338,78 @@ function App() {
           </div>
         </div>
       )}
+      {showExitModal && (
+  <div
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 999,
+      backdropFilter: 'blur(8px)'
+    }}
+  >
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.1)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        borderRadius: '20px',
+        padding: '30px',
+        width: '320px',
+        textAlign: 'center',
+        color: 'white',
+        backdropFilter: 'blur(15px)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+      }}
+    >
+      <h2>Confirm Exit</h2>
+
+      <p>Are you sure you want to end your session?</p>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: '20px'
+        }}
+      >
+        <button
+          onClick={() => setShowExitModal(false)}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Stay
+        </button>
+
+        <button
+          onClick={() => {
+            setShowExitModal(false);
+            navigateTo('welcome');
+          }}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer',
+            background: '#ff4d4f',
+            color: 'white'
+          }}
+        >
+          Exit
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }
