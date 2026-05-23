@@ -175,9 +175,18 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           frameId.current = requestAnimationFrame(processLoop);
         };
         frameId.current = requestAnimationFrame(processLoop);
-      } catch (err) {
+      } catch (err: unknown) {
         if (isMounted) {
-          setError("Hardware synchronization error. Verify camera and refresh.");
+          const name = (err instanceof Error) ? err.name : '';
+          let msg = "Something went wrong starting the camera. Try refreshing the page.";
+          if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+            msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
+          } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+            msg = "No camera found on this device. Plug in a webcam and try again.";
+          } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+            msg = "Your camera is being used by another app. Close it and try again.";
+          }
+          setError(msg);
           setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
         }
       }
@@ -312,8 +321,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
               <Camera color="var(--neon-cyan)" size={24} />
             </div>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>SYSTEM CALIBRATION</h2>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '1px' }}>VERSION 2.5.0 — MULTI-ENGINE ACTIVE</p>
+              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>Camera Calibration</h2>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '0.5px' }}>Step into frame and hold still</p>
             </div>
           </div>
 
@@ -419,11 +428,14 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         {/* Center Feedback Area */}
         <div style={{ alignSelf: 'center', textAlign: 'center' }}>
           {error ? (
-            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
-              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>{error}</p>
-              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>REINITIALIZE</button>
+            <div className="glass animate-in" style={{ padding: '32px 40px', border: '1px solid rgba(255,59,92,0.4)', background: 'rgba(255, 59, 92, 0.07)', maxWidth: '480px', pointerEvents: 'all', borderRadius: '18px' }}>
+              <AlertCircle color="var(--neon-red)" size={36} style={{ display: 'block', margin: '0 auto 16px' }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '10px', fontSize: '1rem', letterSpacing: '1px' }}>Camera unavailable</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '24px' }}>{error}</p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button onClick={onBack} className="btn-outline" style={{ padding: '10px 22px', fontSize: '0.78rem' }}>Go back</button>
+                <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '10px 22px', fontSize: '0.78rem' }}>Try again</button>
+              </div>
             </div>
           ) : (
             <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
