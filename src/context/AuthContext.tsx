@@ -149,6 +149,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Automatically syncs user profile when auth state changes
    */
   useEffect(() => {
+    // If Firebase is not configured, resolve loading immediately (demo/offline mode)
+    if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
         if (currentUser) {

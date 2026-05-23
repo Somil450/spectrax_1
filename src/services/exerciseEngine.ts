@@ -28,6 +28,11 @@ export interface EngineState {
   minScoreInRep: number;
   repScores: number[];
   accuracy: number;
+
+  // 🔥 ADAPTIVE TRACKING RECOVERY
+  visibilityBuffer?: number[];
+  lastValidAngles?: Record<string, number>;
+  trackingLostFrames?: number;
 }
 
 // ─── JSON Layout Parser ───────────────────────────────────────────────────────
@@ -219,15 +224,17 @@ export class ExerciseEngine {
 
     let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } = currentState;
 
-    const rawAngle = angles[config.primaryJoint];
     const currentVisibility = visibility[config.primaryJoint];
 
     if (currentVisibility < 0.5) {
       return {
         ...currentState,
-        feedback: "SENSORS BLURRED — POSITION BODY",
+        feedback: "PARTIAL BODY LOST — ADJUST POSITION",
         status: "yellow",
         isInExercisePosture: false,
+        visibilityBuffer: newVisibilityBuffer,
+        trackingLostFrames: nextTrackingLostFrames,
+        lastValidAngles: nextLastValidAngles
       };
     }
 
@@ -256,6 +263,9 @@ export class ExerciseEngine {
         feedback: "ESTABLISHING POSTURE...",
         status: "yellow",
         isInExercisePosture: false,
+        visibilityBuffer: newVisibilityBuffer,
+        trackingLostFrames: nextTrackingLostFrames,
+        lastValidAngles: nextLastValidAngles
       };
     }
 
@@ -389,6 +399,10 @@ export class ExerciseEngine {
       minScoreInRep:      nextMinScoreInRep,
       repScores:          nextRepScores,
       accuracy,
+
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles
     };
   }
 }
