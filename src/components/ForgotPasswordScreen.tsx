@@ -27,13 +27,17 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
   const safeSetItem = (key: string, value: string) => {
     try {
       localStorage.setItem(key, value);
-    } catch (e) {}
+    } catch (e) {
+      // Ignored: Fallback if localStorage is disabled or not accessible
+    }
   };
 
   const safeRemoveItem = (key: string) => {
     try {
       localStorage.removeItem(key);
-    } catch (e) {}
+    } catch (e) {
+      // Ignored: Fallback if localStorage is disabled or not accessible
+    }
   };
 
   // Load lockout state from localStorage when email changes
@@ -125,8 +129,10 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
           safeSetItem(lockoutKey, lockoutTime.toString());
           setTimeLeft(cooldown);
           setLocalError("Too many requests. Password reset locked for 60 seconds.");
+        } else if (errorCode === "auth/network-request-failed") {
+          setLocalError("Network error. Check your connection.");
         } else {
-          setLocalError(err.message || "Failed to send reset link. Please try again.");
+          setSuccess(true);
         }
       }
     }
@@ -155,8 +161,8 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
             <div className="success-icon">✓</div>
             <h3>Check your email</h3>
             <p>
-              We've sent a password reset link to <strong>{email}</strong>.
-              Please check your email to continue.
+              If an account exists for <strong>{email}</strong>, a password
+              reset link has been sent. Please check your email to continue.
             </p>
             <button
               type="button"

@@ -37,7 +37,7 @@ function accuracyColor(score: number): string {
 
 interface SessionCardProps {
   session: WorkoutSession;
-  onDelete: (id: number) => void;
+  onDelete: (id: string | number) => void;
 }
 
 const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
@@ -52,6 +52,14 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
     }
   };
 
+  const formatExerciseName = (name: string) => {
+    return name
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   const color = accuracyColor(session.accuracyScore);
 
   return (
@@ -62,7 +70,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
       <div className="card-body">
         {/* Header row */}
         <div className="card-header">
-          <span className="exercise-badge">{session.exerciseType}</span>
+          <span className="exercise-badge">{formatExerciseName(session.exerciseType)}</span>
 
           <button
             className={`delete-btn ${confirmDelete ? "confirm" : ""}`}
