@@ -1,16 +1,11 @@
-import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
+import type { Pose as PoseType, Results } from '@mediapipe/pose';
 
-// Read the runtime constructor from `window` instead of importing `Pose` as a value
-// from `@mediapipe/pose`, because the global script path is the Vite/ESM-safe option.
+// MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
 
-
-/**
- * poseService.ts
- * Wraps MediaPipe Pose for high-performance body tracking.
- * Pre-processes raw landmarks through a runtime-configurable smoothing pipeline
- * before downstream evaluation, rendering, and recording consume them.
- */
+const STRIDE    = 4;       // floats per landmark: x, y, z, visibility
+const LM_COUNT  = 33;
+const BUF_BYTES = LM_COUNT * STRIDE * Float32Array.BYTES_PER_ELEMENT;
 
 type MediaPipePoseConstructor = new (options: {
   locateFile: (file: string) => string;
@@ -222,10 +217,13 @@ const createFilter = (config: PoseSmoothingFilterConfig): LandmarkFilter => {
 
 export class PoseService {
   private pose: PoseType | null = null;
-  private isLoaded = false;
+  private isLoaded   = false;
   private inProgress = false;
   private errorCount = 0;
-  private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
+
+  // Two buffers in a pool: one can be in flight to the worker while the other
+  // is ready. Avoids per-frame allocation and GC churn.
+  private pool: ArrayBuffer[] = [new ArrayBuffer(BUF_BYTES), new ArrayBuffer(BUF_BYTES)];
 
   constructor() {
     this.init();
@@ -233,23 +231,10 @@ export class PoseService {
 
   private init() {
     if (this.pose) return;
-
     try {
-      const PoseConstructor = (window as any).Pose as
-        | MediaPipePoseConstructor
-        | undefined;
-
-      if (!PoseConstructor) {
-        throw new Error('MediaPipe Pose global is not available.');
-      }
-
-      this.pose = new PoseConstructor({
-        locateFile: (file) => {
-          // JSDelivr CDN is used for MediaPipe WASM assets loaded from index.html.
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-        },
+      this.pose = new Pose({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
       });
-
       this.pose.setOptions({
         modelComplexity: 1,
         smoothLandmarks: false,
@@ -257,110 +242,82 @@ export class PoseService {
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5,
       });
-
       this.isLoaded = true;
       console.log('PoseService: initialized.');
-    } catch (error) {
-      console.error('PoseService: Failed to initialize MediaPipe Pose', error);
+    } catch (e) {
+      console.error('PoseService init failed:', e);
     }
   }
 
-  /**
-   * Replaces the smoothing pipeline.
-   * Filters run in array order, so developers can choose Kalman, EMA, or both.
-   */
-  setSmoothingFilters(filters: PoseSmoothingFilterConfig[]) {
-    this.smoothingFilters = filters.map(createFilter);
-  }
-
-  /**
-   * Convenience toggle for an existing filter type without rebuilding callers.
-   * If the filter does not exist yet, it is appended with default settings.
-   */
-  setSmoothingFilterEnabled(
-    type: PoseSmoothingFilterType,
-    enabled: boolean,
-  ) {
-    const existingFilter = this.smoothingFilters.find(
-      (filter) => filter.type === type,
-    );
-
-    if (!existingFilter) {
-      const defaultFilter =
-        DEFAULT_FILTERS.find((filter) => filter.type === type) ?? { type };
-      this.smoothingFilters = [
-        ...this.smoothingFilters,
-        createFilter({ ...defaultFilter, enabled } as PoseSmoothingFilterConfig),
-      ];
-      return;
+  // Pack landmarks into a Float32Array from the pool for zero-copy transfer.
+  // Returns null if the pool is empty (both buffers are in flight).
+  packLandmarks(
+    landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>
+  ): { buf: ArrayBuffer; t0: number } | null {
+    if (!this.pool.length) return null;
+    const buf  = this.pool.pop()!;
+    const view = new Float32Array(buf);
+    const len  = Math.min(landmarks.length, LM_COUNT);
+    for (let i = 0; i < len; i++) {
+      const lm = landmarks[i];
+      const o  = i * STRIDE;
+      view[o]     = lm.x;
+      view[o + 1] = lm.y;
+      view[o + 2] = lm.z ?? 0;
+      view[o + 3] = lm.visibility ?? 1;
     }
-
-    existingFilter.enabled = enabled;
+    return { buf, t0: performance.now() };
   }
 
-  getSmoothingFilters() {
-    return this.smoothingFilters.map((filter) => filter.toConfig());
+  // Call this when the worker returns the buffer so the pool stays full.
+  returnBuffer(buf: ArrayBuffer) {
+    if (this.pool.length < 2) this.pool.push(buf);
   }
 
-  resetSmoothingFilters() {
-    this.smoothingFilters.forEach((filter) => filter.reset());
+  // Unpack a transferred buffer back into landmark objects.
+  static unpackLandmarks(
+    buf: ArrayBuffer
+  ): Array<{ x: number; y: number; z: number; visibility: number }> {
+    const view = new Float32Array(buf);
+    const out  = [];
+    for (let i = 0; i < LM_COUNT; i++) {
+      const o = i * STRIDE;
+      out.push({ x: view[o], y: view[o + 1], z: view[o + 2], visibility: view[o + 3] });
+    }
+    return out;
   }
 
-  /**
-   * Sets the callback function when pose results are available.
-   */
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
-
     this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0;
-
-      if (results) {
-        callback(this.preprocessResults(results));
-      }
+      if (results) callback(results);
     });
   }
 
-  /**
-   * Processes a single video frame.
-   */
   async send(image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement) {
     if (!this.pose || !this.isLoaded || this.inProgress) return;
-
     this.inProgress = true;
     try {
       await this.pose.send({ image });
-    } catch (error) {
+    } catch (e) {
       this.inProgress = false;
       this.errorCount++;
-      console.error('PoseService: send error', error);
-
-      // Re-initialize after too many consecutive errors.
       if (this.errorCount > 10) {
-        console.warn('PoseService: too many errors, attempting reset...');
-        await this.close();
+        console.warn('PoseService: too many errors, resetting...');
+        this.close();
         this.init();
         this.errorCount = 0;
       }
     }
   }
 
-  /**
-   * Cleans up the Pose instance.
-   */
   async close() {
     if (this.pose) {
-      try {
-        await this.pose.close();
-      } catch (error) {
-        console.warn('Error closing pose:', error);
-      }
-
-      this.pose = null;
-      this.isLoaded = false;
-      this.inProgress = false;
-      this.resetSmoothingFilters();
+      try { await this.pose.close(); } catch {}
+      this.pose      = null;
+      this.isLoaded  = false;
     }
   }
 
@@ -393,6 +350,5 @@ export class PoseService {
   }
 }
 
-// Singleton: one shared instance across the app.
 const globalPoseService = new PoseService();
 export { globalPoseService as poseService };
