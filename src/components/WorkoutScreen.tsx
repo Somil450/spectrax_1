@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Pause, Play } from 'lucide-react';
 import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
@@ -126,6 +126,28 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const { isOnline } = useWorkoutSync();
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions())
+  const [isTrackingPaused, setIsTrackingPaused] = useState(false);
+  const isTrackingPausedRef = useRef(false);
+
+  const toggleTrackingPause = () => {
+    const newValue = !isTrackingPaused;
+    setIsTrackingPaused(newValue);
+    isTrackingPausedRef.current = newValue;
+
+    if (newValue && canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        ctx.font = "bold 36px 'Rajdhani', 'Orbitron', 'Inter', sans-serif";
+        ctx.fillStyle = "#ffcc00";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("POSE TRACKING PAUSED", canvasRef.current.width / 2, canvasRef.current.height / 2);
+      }
+    }
+  };
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -424,6 +446,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
         const loop = (timestamp: number) => {
           if (!isMounted) return;
+          if (isTrackingPausedRef.current) {
+            frameId.current = requestAnimationFrame(loop);
+            return;
+          }
           const elapsed = timestamp - lastProcessTime.current;
           if (elapsed > 1000 / FPS_LIMIT) {
             if (
@@ -458,9 +484,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     startWorkout();
 
     const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-
-      setSeconds(elapsed);
+      if (!isTrackingPausedRef.current) {
+        setSeconds((s) => s + 1);
+      }
     }, 1000);
 
     return () => {
@@ -533,8 +559,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     return `${mins}:${secs}`;
   };
 
-  const statusColor =
-    engineState.status === "green"
+  const statusColor = isTrackingPaused
+    ? "rgba(150, 150, 150, 0.7)"
+    : engineState.status === "green"
       ? "var(--neon-green)"
       : engineState.status === "yellow"
         ? "var(--neon-yellow)"
@@ -851,7 +878,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             aria-live="assertive"
             aria-atomic="true"
           >
-            {engineState.feedback.toUpperCase()}
+            {isTrackingPaused ? "PAUSED" : engineState.feedback.toUpperCase()}
           </p>
           <div
             style={{
@@ -1052,13 +1079,36 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             )}
           </div>
 
-          <button
-            onClick={handleEnd}
-            className="btn-neon"
-            style={{ background: "var(--neon-red)", color: "#fff" }}
-          >
-            FINISH SESSION <StopCircle size={18} />
-          </button>
+          <div style={{ display: "flex", gap: "15px" }}>
+            <button
+              onClick={toggleTrackingPause}
+              className="btn-neon"
+              style={{
+                background: isTrackingPaused ? "var(--neon-green)" : "var(--neon-yellow)",
+                color: isTrackingPaused ? "#fff" : "#000",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}
+            >
+              {isTrackingPaused ? "RESUME" : "PAUSE"} TRACKING{" "}
+              {isTrackingPaused ? <Play size={18} /> : <Pause size={18} />}
+            </button>
+
+            <button
+              onClick={handleEnd}
+              className="btn-neon"
+              style={{
+                background: "var(--neon-red)",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}
+            >
+              FINISH SESSION <StopCircle size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
