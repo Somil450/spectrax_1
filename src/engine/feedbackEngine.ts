@@ -27,16 +27,36 @@ const rules: Record<string, ExerciseRule> = {
   pushup: (ctx: any) => {
     const issues: DetectionIssue[] = [];
     if (ctx.lateralScore < 70) {
-      issues.push({ type: "orientation", severity: "low", message: "TURN SIDEWAYS 🔄", penalty: 10 });
+      issues.push({
+        type: "orientation",
+        severity: "low",
+        message: "TURN SIDEWAYS 🔄",
+        penalty: 10,
+      });
     }
     if (ctx.horizontalStretch < 40) {
-      issues.push({ type: "stretch", severity: "medium", message: "STRETCH OUT YOUR BODY 📏", penalty: 35 });
+      issues.push({
+        type: "stretch",
+        severity: "medium",
+        message: "STRETCH OUT YOUR BODY 📏",
+        penalty: 35,
+      });
     }
     if (ctx.bodyLine < 135) {
-      issues.push({ type: "posture", severity: "high", message: "Keep your back straight ❌", penalty: 35 });
+      issues.push({
+        type: "posture",
+        severity: "high",
+        message: "Keep your back straight ❌",
+        penalty: 35,
+      });
     }
     if (ctx.stage === "down" && ctx.downAngleReached > 105) {
-      issues.push({ type: "depth", severity: "medium", message: "Go lower for full range ⚠️", penalty: 35 });
+      issues.push({
+        type: "depth",
+        severity: "medium",
+        message: "Go lower for full range ⚠️",
+        penalty: 35,
+      });
     }
     return issues;
   },
@@ -44,21 +64,41 @@ const rules: Record<string, ExerciseRule> = {
   squat: (ctx: any) => {
     const issues: DetectionIssue[] = [];
     if (ctx.knee < 70) {
-      issues.push({ type: "knees", severity: "medium", message: "Don't over-bend knees ⚠️", penalty: 35 });
+      issues.push({
+        type: "knees",
+        severity: "medium",
+        message: "Don't over-bend knees ⚠️",
+        penalty: 35,
+      });
     }
     if (ctx.stage === "down" && ctx.downAngleReached > 95) {
-      issues.push({ type: "depth", severity: "medium", message: "Drive your hips lower 👇", penalty: 35 });
+      issues.push({
+        type: "depth",
+        severity: "medium",
+        message: "Drive your hips lower 👇",
+        penalty: 35,
+      });
     }
     return issues;
   },
 
   bicepCurl: (ctx: any) => {
     const issues: DetectionIssue[] = [];
-    if (ctx.stage === 'down' && ctx.downAngleReached > 75) {
-      issues.push({ type: "squeeze", severity: "medium", message: "Squeeze at the top! ⚡", penalty: 35 });
+    if (ctx.stage === "down" && ctx.downAngleReached > 75) {
+      issues.push({
+        type: "squeeze",
+        severity: "medium",
+        message: "Squeeze at the top! ⚡",
+        penalty: 35,
+      });
     }
     if (ctx.shoulder > 35) {
-      issues.push({ type: "posture", severity: "medium", message: "Keep elbows at side ⚠️", penalty: 35 });
+      issues.push({
+        type: "posture",
+        severity: "medium",
+        message: "Keep elbows at side ⚠️",
+        penalty: 35,
+      });
     }
     return issues;
   },
@@ -66,21 +106,52 @@ const rules: Record<string, ExerciseRule> = {
   jumpingJack: (ctx: any) => {
     const issues: DetectionIssue[] = [];
     if (ctx.shoulder < 40) {
-      issues.push({ type: "range", severity: "medium", message: "Raise arms higher ⚠️", penalty: 35 });
+      issues.push({
+        type: "range",
+        severity: "medium",
+        message: "Raise arms higher ⚠️",
+        penalty: 35,
+      });
     }
     return issues;
   },
 
-  plank: (ctx: any) => {
+  plank: (ctx) => {
     const issues: DetectionIssue[] = [];
     if (ctx.bodyLine < 160) {
-      issues.push({ type: "hips", severity: "medium", message: "Drop your hips ⚠️", penalty: 35 });
+      issues.push({
+        type: "hips",
+        severity: "medium",
+        message: "Drop your hips ⚠️",
+        penalty: 35,
+      });
     }
     if (ctx.bodyLine > 185) {
-      issues.push({ type: "hips", severity: "medium", message: "Hips too high ⚠️", penalty: 35 });
+      issues.push({
+        type: "hips",
+        severity: "medium",
+        message: "Hips too high ⚠️",
+        penalty: 35,
+      });
+    }
+    if (ctx.hipSagging) {
+      issues.push({
+        type: "hipSag",
+        severity: "high",
+        message: "Hip sagging – keep core tight!",
+        penalty: 40,
+      });
+    }
+    if (ctx.hipHyperextension) {
+      issues.push({
+        type: "hipHyper",
+        severity: "high",
+        message: "Hip hyper‑extension – lower hips!",
+        penalty: 40,
+      });
     }
     return issues;
-  }
+  },
 };
 
 // --- Scoring & Smoothing Logic ---
@@ -98,16 +169,16 @@ function getSmoothedScore(rawScore: number): number {
 }
 
 const severityWeight = {
-  high: 0, 
+  high: 0,
   medium: 1,
-  low: 2
+  low: 2,
 };
 
 // --- Main Engine Function ---
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
-  
+
   if (!ruleFn) {
     // Default fallback
     scoreHistory.push(100);
@@ -118,15 +189,15 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
       score: 100,
       color: "green",
       message: "Good form ✅",
-      issues: []
+      issues: [],
     };
   }
 
   const detectedIssues = ruleFn(ctx);
-  
+
   // 1. Calculate Raw Score
   let rawScore = 100;
-  detectedIssues.forEach(issue => {
+  detectedIssues.forEach((issue) => {
     rawScore -= issue.penalty;
   });
   rawScore = Math.max(0, Math.min(100, rawScore));
@@ -142,18 +213,19 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   // 4. Prioritize Feedback Message
   // Sort by severity (high weight first)
   const sortedIssues = [...detectedIssues].sort((a, b) => {
-    return (severityWeight[a.severity] || 0) - (severityWeight[b.severity] || 0);
+    return (
+      (severityWeight[a.severity] || 0) - (severityWeight[b.severity] || 0)
+    );
   });
 
-  const message = sortedIssues.length > 0 
-    ? sortedIssues[0].message 
-    : "Good form ✅";
+  const message =
+    sortedIssues.length > 0 ? sortedIssues[0].message : "Good form ✅";
 
   return {
     score: finalScore,
     color,
     message,
-    issues: detectedIssues
+    issues: detectedIssues,
   };
 }
 

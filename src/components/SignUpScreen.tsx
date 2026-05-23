@@ -34,7 +34,10 @@ export function SignUpScreen({
     try {
       localStorage.setItem(key, value);
     } catch (e) {
+
       return;
+
+      // Ignored: Fallback if localStorage is disabled or not accessibl
     }
   };
 
@@ -42,7 +45,11 @@ export function SignUpScreen({
     try {
       localStorage.removeItem(key);
     } catch (e) {
+
       return;
+
+      // Ignored: Fallback if localStorage is disabled or not accessible
+
     }
   };
 
