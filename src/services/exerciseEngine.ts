@@ -23,20 +23,179 @@ export interface EngineState {
   bestStreak: number;
   isInExercisePosture: boolean;
   downAngleReached: number;
-
-  // 🔥 NEW ACCURACY SYSTEM
   totalReps: number;
   correctReps: number;
   minScoreInRep: number;
   repScores: number[];
   accuracy: number;
+
+  // 🔥 ADAPTIVE TRACKING RECOVERY
+  visibilityBuffer?: number[];
+  lastValidAngles?: Record<string, number>;
+  trackingLostFrames?: number;
 }
 
+// ─── JSON Layout Parser ───────────────────────────────────────────────────────
+
+interface RawRule {
+  condition: string;
+  message: string;
+  type: "warning" | "error";
+}
+
+export interface LayoutDef {
+  key: string;
+  name: string;
+  primaryJoint: string;
+  downThreshold: number;
+  upThreshold: number;
+  joints?: number[][];
+  demoUrl?: string;
+  feedbackRules?: RawRule[];
+  repCooldown?: number;
+  hysteresis?: number;
+  smoothingWindow?: number;
+  minDownDuration?: number;
+  correctRepMinScore?: number;
+  streakMinScore?: number;
+}
+
+export interface ParsedLayout extends ExerciseConfig {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
+
+const REQUIRED = ["key", "name", "primaryJoint", "downThreshold", "upThreshold"] as const;
+
+// Turns a condition string like "knee < 70 && stage == 'down'" into a real predicate.
+// Supports &&-joined clauses with <, >, <=, >=, ==, != against number or string literals.
+function compileCondition(expr: string): (ctx: any) => boolean {
+  const fns = expr.split("&&").map((clause) => {
+    const m = clause.trim().match(/^(\w+)\s*(<=|>=|==|!=|<|>)\s*(.+)$/);
+    if (!m) throw new Error(`unreadable condition: "${clause.trim()}"`);
+    const [, prop, op, rawVal] = m;
+    const num = parseFloat(rawVal);
+    const str = rawVal.replace(/['"]/g, "").trim();
+    const isNum = !isNaN(num);
+    return (ctx: any) => {
+      const v = ctx[prop];
+      if (op === "<")  return v < num;
+      if (op === ">")  return v > num;
+      if (op === "<=") return v <= num;
+      if (op === ">=") return v >= num;
+      if (op === "==") return isNum ? v == num : v == str;
+      if (op === "!=") return isNum ? v != num : v != str;
+      return false;
+    };
+  });
+  return (ctx) => fns.every((fn) => fn(ctx));
+}
+
+function parseLayout(raw: unknown): ParsedLayout {
+  if (!raw || typeof raw !== "object") throw new Error("invalid layout");
+  const obj = raw as Record<string, unknown>;
+
+  for (const field of REQUIRED) {
+    if (obj[field] == null) throw new Error(`missing field: ${field}`);
+  }
+
+  const down = obj.downThreshold as number;
+  const up = obj.upThreshold as number;
+  if (typeof down !== "number" || typeof up !== "number")
+    throw new Error("thresholds must be numbers");
+  if (down >= up) throw new Error("downThreshold must be < upThreshold");
+
+  const rawRules = Array.isArray(obj.feedbackRules) ? (obj.feedbackRules as RawRule[]) : [];
+  const feedbackRules = rawRules.map((r, idx) => {
+    if (typeof r.condition !== "string") throw new Error(`rule[${idx}]: condition must be a string`);
+    if (typeof r.message !== "string")   throw new Error(`rule[${idx}]: missing message`);
+    return {
+      condition: compileCondition(r.condition),
+      message: r.message,
+      type: (r.type === "error" ? "error" : "warning") as "warning" | "error",
+    };
+  });
+
+  const num = (field: string, fallback: number) =>
+    typeof obj[field] === "number" ? (obj[field] as number) : fallback;
+
+  return {
+    key:            String(obj.key),
+    name:           String(obj.name),
+    primaryJoint:   String(obj.primaryJoint),
+    downThreshold:  down,
+    upThreshold:    up,
+    joints:         Array.isArray(obj.joints) ? (obj.joints as number[][]) : [],
+    demoUrl:        typeof obj.demoUrl === "string" ? obj.demoUrl : undefined,
+    feedbackRules,
+    repCooldown:        num("repCooldown",        600),
+    hysteresis:         num("hysteresis",         10),
+    smoothingWindow:    num("smoothingWindow",     5),
+    minDownDuration:    num("minDownDuration",     150),
+    correctRepMinScore: num("correctRepMinScore",  70),
+    streakMinScore:     num("streakMinScore",      80),
+  };
+}
+
+class LayoutParser {
+  private registry = new Map<string, ParsedLayout>();
+
+  load(input: string | object): ParsedLayout {
+    const raw = typeof input === "string" ? JSON.parse(input) : input;
+    return parseLayout(raw);
+  }
+
+  register(input: string | object): ParsedLayout {
+    const layout = this.load(input);
+    this.registry.set(layout.key, layout);
+    return layout;
+  }
+
+  get(key: string): ParsedLayout | undefined {
+    return this.registry.get(key);
+  }
+
+  list(): string[] {
+    return [...this.registry.keys()];
+  }
+
+  remove(key: string): boolean {
+    return this.registry.delete(key);
+  }
+}
+
+export const layoutParser = new LayoutParser();
+
+// ─── Engine ───────────────────────────────────────────────────────────────────
+
+const ENGINE_DEFAULTS = {
+  repCooldown:        600,
+  hysteresis:         10,
+  smoothingWindow:    5,
+  minDownDuration:    150,
+  correctRepMinScore: 70,
+  streakMinScore:     80,
+};
+
 export class ExerciseEngine {
-  private readonly REP_COOLDOWN = 600;
-  private readonly HYSTERESIS = 10;
-  private readonly SMOOTHING_WINDOW = 5;
-  private readonly MIN_DOWN_DURATION = 150;
+  // Pull rep-counter params from a registered layout, falling back to defaults.
+  // Called per-frame so runtime layout changes take effect immediately.
+  private repParams(key: string) {
+    const custom = layoutParser.get(key);
+    if (!custom) return ENGINE_DEFAULTS;
+    return {
+      repCooldown:        custom.repCooldown,
+      hysteresis:         custom.hysteresis,
+      smoothingWindow:    custom.smoothingWindow,
+      minDownDuration:    custom.minDownDuration,
+      correctRepMinScore: custom.correctRepMinScore,
+      streakMinScore:     custom.streakMinScore,
+    };
+  }
 
   private isValidExercisePosture(
     history: number[],
@@ -48,13 +207,9 @@ export class ExerciseEngine {
     const firstAngle = history[0];
     const lastAngle = history[history.length - 1];
     const movementDelta = Math.abs(lastAngle - firstAngle);
-
     const isInRestingPosition = lastAngle >= config.upThreshold - 5;
 
-    if (isInRestingPosition && movementDelta < 2) {
-      return false;
-    }
-
+    if (isInRestingPosition && movementDelta < 2) return false;
     return true;
   }
 
@@ -64,47 +219,38 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
   ): Promise<EngineState> {
-    const currentTime = Date.now();
+    const now = Date.now();
+    const p = this.repParams(config.key);
 
-    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
-      currentState;
+    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } = currentState;
 
-    const rawAngle = angles[config.primaryJoint];
     const currentVisibility = visibility[config.primaryJoint];
 
-    // ───────── VISIBILITY GUARD ─────────
     if (currentVisibility < 0.5) {
       return {
         ...currentState,
-        feedback: "SENSORS BLURRED — POSITION BODY",
+        feedback: "PARTIAL BODY LOST — ADJUST POSITION",
         status: "yellow",
         isInExercisePosture: false,
+        visibilityBuffer: newVisibilityBuffer,
+        trackingLostFrames: nextTrackingLostFrames,
+        lastValidAngles: nextLastValidAngles
       };
     }
 
-    // ───────── SMOOTHING ─────────
-    const newHistory = [...history, rawAngle].slice(-this.SMOOTHING_WINDOW);
-    const smoothedAngle =
-      newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
+    const newHistory = [...history, rawAngle].slice(-p.smoothingWindow);
+    const smoothedAngle = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
 
-    // ───────── CALIBRATION ─────────
     if (!isCalibrated) {
-      const isUpPosture = smoothedAngle > config.upThreshold - 5;
+      const isUpPosture   = smoothedAngle > config.upThreshold - 5;
       const isDownPosture = smoothedAngle < config.downThreshold + 5;
+      const fromDown = config.key === "jumpingJack" && isDownPosture;
+      const fromUp   = config.key !== "jumpingJack" && isUpPosture;
 
-      // For jumping jacks, start from DOWN position (arms at sides)
-      // For other exercises, start from UP position
-      const shouldCalibrateFromDown =
-        config.key === "jumpingJack" && isDownPosture;
-      const shouldCalibrateFromUp = config.key !== "jumpingJack" && isUpPosture;
-
-      if (
-        (shouldCalibrateFromDown || shouldCalibrateFromUp) &&
-        newHistory.length >= this.SMOOTHING_WINDOW
-      ) {
+      if ((fromDown || fromUp) && newHistory.length >= p.smoothingWindow) {
         isCalibrated = true;
-        stage = shouldCalibrateFromDown ? "down" : "up";
-        stageStartTime = currentTime;
+        stage = fromDown ? "down" : "up";
+        stageStartTime = now;
         resetFeedbackEngine();
       }
 
@@ -117,22 +263,23 @@ export class ExerciseEngine {
         feedback: "ESTABLISHING POSTURE...",
         status: "yellow",
         isInExercisePosture: false,
+        visibilityBuffer: newVisibilityBuffer,
+        trackingLostFrames: nextTrackingLostFrames,
+        lastValidAngles: nextLastValidAngles
       };
     }
 
-    // ───────── REP LOGIC (UNCHANGED CORE) ─────────
     let nextStage = stage;
     let nextReps = reps;
     let nextLastRepTime = lastRepTime;
     let downAngleReached = currentState.downAngleReached;
 
-    if (smoothedAngle < config.downThreshold - this.HYSTERESIS / 2) {
+    if (smoothedAngle < config.downThreshold - p.hysteresis / 2) {
       if (stage === "up") {
         nextStage = "down";
-        stageStartTime = currentTime;
+        stageStartTime = now;
         downAngleReached = smoothedAngle;
       }
-
       if (nextStage === "down") {
         downAngleReached = Math.min(downAngleReached, smoothedAngle);
       }
@@ -140,28 +287,16 @@ export class ExerciseEngine {
 
     let repJustCounted = false;
 
-    if (
-      smoothedAngle > config.upThreshold + this.HYSTERESIS / 2 &&
-      stage === "down"
-    ) {
-      const durationInDown = currentTime - stageStartTime;
-
-      if (
-        currentTime - lastRepTime > this.REP_COOLDOWN &&
-        durationInDown > this.MIN_DOWN_DURATION
-      ) {
+    if (smoothedAngle > config.upThreshold + p.hysteresis / 2 && stage === "down") {
+      const timeInDown = now - stageStartTime;
+      if (now - lastRepTime > p.repCooldown && timeInDown > p.minDownDuration) {
         nextStage = "up";
-        stageStartTime = currentTime;
+        stageStartTime = now;
         repJustCounted = true;
       }
     }
 
-    // ───────── POSTURE VALIDATION ─────────
-    const isInExercisePosture = this.isValidExercisePosture(
-      history,
-      config,
-      nextStage,
-    );
+    const isInExercisePosture = this.isValidExercisePosture(history, config, nextStage);
 
     const context: any = {
       ...angles,
@@ -179,45 +314,33 @@ export class ExerciseEngine {
       feedbackResult = getFeedback(context, config.key);
       frameScore = feedbackResult.score;
     } else {
-      feedbackResult = {
-        score: 100,
-        color: "green",
-        message: "READY 🟢",
-        issues: [],
-      };
+      feedbackResult = { score: 100, color: "green", message: "READY 🟢", issues: [] };
       frameScore = 100;
     }
 
-    // ───────── TRACK REP SCORE ─────────
     let nextMinScoreInRep = currentState.minScoreInRep;
-
     if (isInExercisePosture) {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
     }
 
-    // ───────── REP ACCURACY SYSTEM ─────────
     let nextCurrentStreak = currentState.currentStreak;
-    let nextBestStreak = currentState.bestStreak;
-    let nextTotalReps = currentState.totalReps;
-    let nextCorrectReps = currentState.correctReps;
-    let nextRepScores = [...currentState.repScores];
-
-    let allowRep = currentState.allowRep;
+    let nextBestStreak    = currentState.bestStreak;
+    let nextTotalReps     = currentState.totalReps;
+    let nextCorrectReps   = currentState.correctReps;
+    let nextRepScores     = [...currentState.repScores];
+    let allowRep          = currentState.allowRep;
 
     if (repJustCounted) {
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
+      nextLastRepTime = now;
 
-      // cooldown ALWAYS
-      nextLastRepTime = currentTime;
-
-      allowRep = nextMinScoreInRep > 70;
+      allowRep = nextMinScoreInRep > p.correctRepMinScore;
 
       if (allowRep) {
         nextCorrectReps += 1;
         nextReps += 1;
-
-        if (nextMinScoreInRep > 80) {
+        if (nextMinScoreInRep > p.streakMinScore) {
           nextCurrentStreak += 1;
           nextBestStreak = Math.max(nextBestStreak, nextCurrentStreak);
         } else {
@@ -230,67 +353,56 @@ export class ExerciseEngine {
       nextMinScoreInRep = 100;
     }
 
-    // ───────── FEEDBACK ─────────
     let displayFeedback: string;
     let displayStatus: "green" | "yellow" | "red";
 
     if (!isInExercisePosture) {
       displayFeedback = "Get into position...";
-      displayStatus = "yellow";
+      displayStatus   = "yellow";
     } else {
       displayFeedback = feedbackResult.message;
-      displayStatus = feedbackResult.color;
+      displayStatus   = feedbackResult.color;
     }
 
     const nextMistakes = { ...currentState.mistakes };
-
-    if (
-      isInExercisePosture &&
-      displayStatus !== "green" &&
-      displayFeedback !== "Good form ✅"
-    ) {
+    if (isInExercisePosture && displayStatus !== "green" && displayFeedback !== "Good form ✅") {
       nextMistakes[displayFeedback] = (nextMistakes[displayFeedback] || 0) + 1;
     }
 
-    // ───────── SCORE TRACKING ─────────
-    const nextTotalScore = isInExercisePosture
-      ? currentState.totalScore + frameScore
-      : currentState.totalScore;
+    const nextTotalScore  = isInExercisePosture ? currentState.totalScore  + frameScore : currentState.totalScore;
+    const nextTotalFrames = isInExercisePosture ? currentState.totalFrames + 1          : currentState.totalFrames;
 
-    const nextTotalFrames = isInExercisePosture
-      ? currentState.totalFrames + 1
-      : currentState.totalFrames;
-
-    // 🔥 FINAL ACCURACY %
-    const accuracy =
-      nextTotalReps > 0
-        ? Math.round((nextCorrectReps / nextTotalReps) * 100)
-        : 100;
+    const accuracy = nextTotalReps > 0
+      ? Math.round((nextCorrectReps / nextTotalReps) * 100)
+      : 100;
 
     return {
-      reps: nextReps,
-      stage: nextStage,
-      feedback: displayFeedback,
-      status: displayStatus,
-      lastRepTime: nextLastRepTime,
+      reps:               nextReps,
+      stage:              nextStage,
+      feedback:           displayFeedback,
+      status:             displayStatus,
+      lastRepTime:        nextLastRepTime,
       isCalibrated,
-      history: newHistory,
+      history:            newHistory,
       stageStartTime,
-      frameScore: isInExercisePosture ? frameScore : 100,
-      totalScore: nextTotalScore,
-      totalFrames: nextTotalFrames,
+      frameScore:         isInExercisePosture ? frameScore : 100,
+      totalScore:         nextTotalScore,
+      totalFrames:        nextTotalFrames,
       allowRep,
-      mistakes: nextMistakes,
-      currentStreak: nextCurrentStreak,
-      bestStreak: nextBestStreak,
+      mistakes:           nextMistakes,
+      currentStreak:      nextCurrentStreak,
+      bestStreak:         nextBestStreak,
       isInExercisePosture,
       downAngleReached,
-
-      totalReps: nextTotalReps,
-      correctReps: nextCorrectReps,
-      minScoreInRep: nextMinScoreInRep,
-      repScores: nextRepScores,
+      totalReps:          nextTotalReps,
+      correctReps:        nextCorrectReps,
+      minScoreInRep:      nextMinScoreInRep,
+      repScores:          nextRepScores,
       accuracy,
+
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles
     };
   }
 }

@@ -42,6 +42,27 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
   const accuracy = stats?.accuracy ?? 0;
   const alignmentScore = lm ? Math.min(100, Math.round((kneeAngle / 177) * 100)) : 0;
 
+  // History of joint angles for SVG chart
+  const [angleHistory, setAngleHistory] = useState<Array<{frame:number, knee:number, elbow:number, shoulder:number, hip:number, bodyline:number}>>([]);
+
+  // Record angles each frame
+  useEffect(() => {
+    if (!lm) return;
+    const entry = {
+      frame: currentFrameIdx,
+      knee: kneeAngle,
+      elbow: elbowAngle,
+      shoulder: shoulderAngle,
+      hip: hipAngle,
+      bodyline: bodyline,
+    };
+    setAngleHistory(prev => {
+      const next = [...prev, entry];
+      // keep only last 60 frames (~4 seconds at 15fps)
+      return next.length > 60 ? next.slice(next.length - 60) : next;
+    });
+  }, [currentFrameIdx, kneeAngle, elbowAngle, shoulderAngle, hipAngle, bodyline]);
+
   // Auto-advance frames when playing
   useEffect(() => {
     if (!isPlaying || frames.length === 0) return;
@@ -213,6 +234,23 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({ onBack, stats }) => 
             <span style={{ fontSize: '0.95rem', color, fontWeight: 800, textShadow: `0 0 8px ${color}66` }}>{value}°</span>
           </div>
         ))}
+          {/* Joint Angles SVG Chart */}
+          {angleHistory.length > 1 && (
+            <svg width="240" height="80" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', marginTop: '8px' }}>
+              <polyline
+                fill="none"
+                stroke="#00ffff"
+                strokeWidth="2"
+                points={angleHistory.map((d, i) => {
+                  // Use array index for x-axis to avoid division-by-zero when all
+                  // entries share the same frame value (e.g. paused on same frame).
+                  const x = (i / Math.max(1, angleHistory.length - 1)) * 240;
+                  const y = 80 - (d.knee / 180) * 80;
+                  return `${x},${y}`;
+                }).join(' ')}
+              />
+            </svg>
+          )}
       </div>
 
       {/* ── 3D MODEL (fills full screen) ── */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
 import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
@@ -54,7 +54,9 @@ const srOnly: React.CSSProperties = {
   border: 0,
 };
 
+// ── Panel types (module-level) ────────────────────────────────────────────────
 type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
+
 
 type PanelPosition = {
   x: number;
@@ -107,6 +109,18 @@ const getStoredPanelPositions = (): PanelPositions => {
   } catch {
     return defaults;
   }
+};
+
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
 };
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
@@ -915,10 +929,156 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       </div>
-      <div className="workout-finish-action">
-        <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
-          FINISH SESSION <StopCircle size={18} />
-        </button>
+      {/* Bottom Metrics Bar */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 10,
+          padding: "40px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "20px",
+        }}
+      >
+        <div className="rep-counter" style={{ textAlign: "center" }}>
+          <div
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: "7rem",
+              fontWeight: 900,
+              lineHeight: 1,
+              color: "#fff",
+              textShadow: `0 0 40px ${statusColor}44`,
+            }}
+          >
+            {engineState.reps}
+          </div>
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-dim)",
+              letterSpacing: "4px",
+              textTransform: "uppercase",
+            }}
+          >
+            Repetitions
+          </div>
+        </div>
+
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            pointerEvents: "all",
+          }}
+        >
+          <div style={{ display: "flex", gap: "20px" }}>
+            <div
+              className="glass animate-in"
+              style={{
+                padding: "12px 20px",
+                borderLeft: `3px solid ${statusColor}`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: statusColor,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontWeight: 700,
+                }}
+              >
+                <Activity size={14} /> AI ENGINE:{" "}
+                {engineState.status === "green"
+                  ? "STABLE"
+                  : "CORRECTION REQUIRED"}
+              </div>
+            </div>
+
+            {clipEngine.isReady() || clipEngine.getMode() === "cloud" ? (
+              <div
+                className="glass animate-in"
+                style={{
+                  padding: "12px 20px",
+                  borderLeft: "3px solid #9D4EDD",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <div
+                  className="radar-ping"
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    background: "#9D4EDD",
+                    borderRadius: "50%",
+                  }}
+                ></div>
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#9D4EDD",
+                    fontWeight: 700,
+                  }}
+                >
+                  VLM SENSE:{" "}
+                  {clipEngine.getMode() === "cloud"
+                    ? clipResult
+                      ? `CLOUD: ${clipResult.label.toUpperCase()}`
+                      : "CLOUD ACTIVATING..."
+                    : clipResult
+                      ? clipResult.label.toUpperCase()
+                      : "SCANNING..."}{" "}
+                  ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
+                </div>
+              </div>
+            ) : (
+              <div
+                className="glass animate-in"
+                style={{
+                  padding: "12px 20px",
+                  borderLeft: "3px solid var(--neon-cyan)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "var(--neon-cyan)",
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <div
+                    className="radar-ping loading"
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      background: "var(--neon-cyan)",
+                      borderRadius: "50%",
+                    }}
+                  ></div>
+                  OFFLINE AI SENSE: READY
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={handleEnd}
+            className="btn-neon"
+            style={{ background: "var(--neon-red)", color: "#fff" }}
+          >
+            FINISH SESSION <StopCircle size={18} />
+          </button>
+        </div>
       </div>
 
       {/*
