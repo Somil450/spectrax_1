@@ -130,9 +130,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
-  const { isOnline } = useWorkoutSync();
-  const [panelsLocked, setPanelsLocked] = useState(true);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions())
+  const [showExitModal, setShowExitModal] = useState(false);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -922,6 +920,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
               </span>
             </div>
           </div>
+
+          <button onClick={() => setShowExitModal(true)} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
+            FINISH SESSION <StopCircle size={18} />
+          </button>
         </div>
       </div>
       <div className="workout-finish-action">
@@ -953,7 +955,66 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
           25% { transform: translateX(-52%); }
           75% { transform: translateX(-48%); }
         }
-      `}</style>
+      `}
+      {showExitModal && (
+  <div
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      background: 'rgba(0,0,0,0.6)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 999,
+      backdropFilter: 'blur(8px)'
+    }}
+  >
+    <div
+      style={{
+        background: 'var(--bg-card)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        borderRadius: '20px',
+        padding: '30px',
+        width: '320px',
+        textAlign: 'center',
+        color: 'white',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+      }}
+    >
+      <h2>Confirm Exit</h2>
+
+      <p>Are you sure you want to end your workout session?</p>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '20px',
+          marginTop: '20px'
+        }}
+      >
+        <button
+          className="btn-neon"
+          onClick={() => setShowExitModal(false)}
+        >
+          Stay
+        </button>
+
+        <button
+          className="btn-neon"
+          style={{ background: 'var(--neon-red)' }}
+          onClick={handleEnd}
+        >
+          Exit
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+      </style>
     </div>
   );
 };

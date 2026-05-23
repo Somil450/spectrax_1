@@ -41,28 +41,13 @@ interface WorkoutStats {
 }
 
 function App() {
-  const { user, loading: authLoading } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const { user, loading: authLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-
-  const streamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => {
-    if (currentScreen !== "workout") {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-    }
-  }, [currentScreen]);
-
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
-    exercises.squat,
-  );
-  const [bodyType, setBodyType] = useState<BodyType>("scanning");
-  const [stats, setStats] = useState<WorkoutStats>({
-    reps: 0,
+  const { theme, toggleTheme } = useTheme(); 
+  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(exercises.squat);
+  const [bodyType, setBodyType] = useState<BodyType>('scanning');
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [stats, setStats] = useState<WorkoutStats>({ 
+    reps: 0, 
     totalReps: 0,
     correctReps: 0,
     repScores: [],
@@ -231,12 +216,39 @@ function App() {
         {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
       </button>
 
-      {currentScreen === "welcome" && (
-        <WelcomeScreen
-          onStart={() => navigateTo("calibration")}
-          onViewHistory={() => navigateTo("history")}
-          onViewTrophies={() => navigateTo("trophy")}
-          leveling={leveling}
+
+      
+      {currentScreen === 'welcome' && (
+      <WelcomeScreen
+        onStart={() => navigateTo('calibration')}
+        onViewHistory={() => navigateTo('history')}  // add this
+       />
+      )}
+      
+      {currentScreen === 'calibration' && (
+        <CalibrationScreen 
+          selectedExercise={selectedExercise}
+          onSelectExercise={handleSelectExercise}
+          onNext={() => navigateTo('workout')}
+          onBack={() => setShowExitModal(true)}
+          onBodyTypeDetected={setBodyType} 
+        />
+      )}
+      
+      {currentScreen === 'workout' && (
+        <WorkoutScreen 
+          exercise={selectedExercise}
+          onEnd={handleWorkoutEnd} 
+          onAutoDetect={handleAutoDetect}
+          bodyType={bodyType}
+        />
+      )}
+      
+      {currentScreen === 'summary' && (
+        <SummaryScreen 
+          stats={stats}
+          onRestart={() => navigateTo('welcome')} 
+          onViewReplay={() => navigateTo('replay')} 
         />
       )}
 
@@ -313,6 +325,78 @@ function App() {
           </div>
         </div>
       )}
+      {showExitModal && (
+  <div
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 999,
+      backdropFilter: 'blur(8px)'
+    }}
+  >
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.1)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        borderRadius: '20px',
+        padding: '30px',
+        width: '320px',
+        textAlign: 'center',
+        color: 'white',
+        backdropFilter: 'blur(15px)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+      }}
+    >
+      <h2>Confirm Exit</h2>
+
+      <p>Are you sure you want to end your session?</p>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: '20px'
+        }}
+      >
+        <button
+          onClick={() => setShowExitModal(false)}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          Stay
+        </button>
+
+        <button
+          onClick={() => {
+            setShowExitModal(false);
+            navigateTo('welcome');
+          }}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer',
+            background: '#ff4d4f',
+            color: 'white'
+          }}
+        >
+          Exit
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }
