@@ -322,15 +322,14 @@ export class PoseService {
   }
 
   onResults(callback: (results: Results) => void) {
-  if (!this.pose) return;
+    if (!this.pose) return;
 
     this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0;
-      if (results) callback(results);
+      if (results) callback(this.preprocessResults(results));
     });
   }
-
 
   async send(image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement) {
     if (!this.pose || !this.isLoaded || this.inProgress) return;
