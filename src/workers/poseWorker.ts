@@ -1,11 +1,9 @@
-/**
- * poseWorker.ts
- * Web Worker: angle computation + skeletal rendering off the main thread.
- * Accepts packed Float32Array landmarks (zero-copy transfer) or plain objects.
- */
+import { OcclusionPredictor } from "../services/occlusionPredictor";
 
 const STRIDE = 4;
 const LM_COUNT = 33;
+
+const predictor = new OcclusionPredictor();
 
 function unpackLandmarks(buf: ArrayBuffer) {
   const view = new Float32Array(buf);
@@ -17,7 +15,6 @@ function unpackLandmarks(buf: ArrayBuffer) {
   return out;
 }
 
-// ─── Angle math ────────────────────────────────────────────────────────────────
 function calculateAngle(
   a: { x: number; y: number; z?: number },
   b: { x: number; y: number; z?: number },
@@ -60,7 +57,6 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   };
 }
 
-// ─── Exercise detection ───────────────────────────────────────────────────────
 function detectExercise(landmarks: any[], angles: Record<string, number>) {
   if (!landmarks || landmarks.length < 29) return { label: 'unknown', confidence: 0 };
 
@@ -85,12 +81,11 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
   return { label: 'unknown', confidence: 0.4 };
 }
 
-// ─── OffscreenCanvas ──────────────────────────────────────────────────────────
 let offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
 let scanY = 0;
 let scanDirection = 1;
 
-function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[]) {
+function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[], wasOccluded?: boolean[]) {
   if (!offscreenCtx) return;
   const ctx = offscreenCtx;
   const { width, height } = ctx.canvas;
@@ -116,13 +111,15 @@ function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[])
 
   const basePath      = new Path2D();
   const highlightPath = new Path2D();
+  const predictedPath = new Path2D();
 
   for (const [i, j] of connections) {
     const a = landmarks[i];
     const b = landmarks[j];
     if (a && b && a.visibility > 0.5 && b.visibility > 0.5) {
+      const occluded = wasOccluded ? (wasOccluded[i] || wasOccluded[j]) : false;
       const isPrimary = primaryJoints.includes(i) || primaryJoints.includes(j);
-      const p = isPrimary ? highlightPath : basePath;
+      const p = occluded ? predictedPath : (isPrimary ? highlightPath : basePath);
       p.moveTo(a.x * width, a.y * height);
       p.lineTo(b.x * width, b.y * height);
     }
@@ -136,18 +133,24 @@ function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[])
   ctx.strokeStyle = color;
   ctx.stroke(highlightPath);
 
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
+  ctx.setLineDash([6, 4]);
+  ctx.stroke(predictedPath);
+  ctx.setLineDash([]);
+
   landmarks.forEach((lm, i) => {
     if (lm.visibility > 0.5) {
       const isPrimary = primaryJoints.includes(i);
+      const isPredicted = wasOccluded ? wasOccluded[i] : false;
       ctx.beginPath();
       ctx.arc(lm.x * width, lm.y * height, isPrimary ? 6 : 2, 0, Math.PI * 2);
-      ctx.fillStyle = isPrimary ? color : 'rgba(255, 255, 255, 0.5)';
+      ctx.fillStyle = isPredicted ? 'rgba(255, 200, 0, 0.8)' : (isPrimary ? color : 'rgba(255, 255, 255, 0.5)');
       ctx.fill();
     }
   });
 }
 
-// ─── Message handler ──────────────────────────────────────────────────────────
 self.onmessage = (event: MessageEvent) => {
   const { type, canvas, buf, landmarks: rawLandmarks, status, primaryJoints, frameId, t0 } = event.data;
 
@@ -156,26 +159,39 @@ self.onmessage = (event: MessageEvent) => {
     return;
   }
 
-  // Prefer zero-copy packed buffer; fall back to plain objects
+  if (type === 'resetPredictor') {
+    predictor.reset();
+    return;
+  }
+
   const landmarks = buf ? unpackLandmarks(buf) : rawLandmarks;
 
   if (!landmarks || landmarks.length === 0) {
     const msg: any = { frameId, angles: {}, detectedExercise: 'unknown', confidence: 0 };
-    if (buf) { msg.buf = buf; (self as any).postMessage(msg, [buf]); }
+    if (buf) { (self as any).postMessage(msg, [buf]); }
     else { (self as any).postMessage(msg); }
     return;
   }
 
-  if (offscreenCtx) drawSkeleton(landmarks, status || 'green', primaryJoints || []);
+  const predicted = predictor.predict(landmarks);
+  const correctedLandmarks = predicted.landmarks;
 
-  const angles = computeAngles(landmarks);
-  const { label: detectedExercise, confidence } = detectExercise(landmarks, angles);
+  if (offscreenCtx) drawSkeleton(correctedLandmarks, status || 'green', primaryJoints || [], predicted.wasOccluded);
 
-  // Measure IPC round-trip so callers can assert < 0.5 ms
+  const angles = computeAngles(correctedLandmarks);
+  const { label: detectedExercise, confidence } = detectExercise(correctedLandmarks, angles);
+
   const ipcMs = t0 != null ? performance.now() - t0 : undefined;
 
-  const reply: any = { frameId, angles, detectedExercise, confidence, ipcMs };
-  // Return the buffer to main thread — keeps the pool alive without allocation
+  const reply: any = {
+    frameId,
+    angles,
+    detectedExercise,
+    confidence,
+    ipcMs,
+    occlusionConfidence: predicted.confidence,
+    wasOccluded: predicted.wasOccluded,
+  };
   if (buf) {
     reply.buf = buf;
     (self as any).postMessage(reply, [buf]);
