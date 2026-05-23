@@ -27,13 +27,17 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
   const safeSetItem = (key: string, value: string) => {
     try {
       localStorage.setItem(key, value);
-    } catch (e) {}
+    } catch (e) {
+      // Ignored: Fallback if localStorage is disabled or not accessible
+    }
   };
 
   const safeRemoveItem = (key: string) => {
     try {
       localStorage.removeItem(key);
-    } catch (e) {}
+    } catch (e) {
+      // Ignored: Fallback if localStorage is disabled or not accessible
+    }
   };
 
   // Load lockout state from localStorage when email changes

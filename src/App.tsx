@@ -1,17 +1,23 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
+import { CalibrationScreen } from "./components/CalibrationScreen";
+import { WorkoutScreen } from "./components/WorkoutScreen";
+import { SummaryScreen } from "./components/SummaryScreen";
+import { ReplayScreen } from "./components/ReplayScreen";
+import { TrophyRoom } from "./components/TrophyRoom";
 import { BadgeNotification } from "./components/BadgeNotification";
-import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
+import { useLeveling } from './hooks/useLeveling';
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
-import { useAuth } from "./hooks/useAuth";
+import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 
 
@@ -41,13 +47,28 @@ interface WorkoutStats {
 }
 
 function App() {
-  const { theme, toggleTheme } = useTheme(); 
-  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome');
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(exercises.squat);
-  const [bodyType, setBodyType] = useState<BodyType>('scanning');
+  const { theme, toggleTheme, setTheme } = useTheme();
+  const { user, loading: authLoading } = useAuth();
+  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (currentScreen !== "workout") {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    }
+  }, [currentScreen]);
+
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseConfig>(
+    exercises.squat,
+  );
+  const [bodyType, setBodyType] = useState<BodyType>("scanning");
   const [showExitModal, setShowExitModal] = useState(false);
-  const [stats, setStats] = useState<WorkoutStats>({ 
-    reps: 0, 
+  const [stats, setStats] = useState<WorkoutStats>({
+    reps: 0,
     totalReps: 0,
     correctReps: 0,
     repScores: [],
@@ -181,7 +202,7 @@ function App() {
       : "login";
     return (
       <main className="spectrax-app">
-        {activeAuthScreen === "login" && (
+        {(currentScreen === "login" || (currentScreen !== "signup" && currentScreen !== "forgot-password")) && (
           <LoginScreen
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
@@ -208,47 +229,39 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
-      <button
-        onClick={toggleTheme}
-        className={`theme-toggle ${currentScreen === "workout" ? "workout-active" : ""}`}
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      >
-        {theme === "dark" ? "☾ Dark Mode" : "☀ Light Mode"}
-      </button>
+      <div className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""}`}>
+        <div className={`selector-indicator theme-${theme}`} />
+        <button
+          className={`selector-btn ${theme === "cyber-dark" ? "active" : ""}`}
+          onClick={() => setTheme("cyber-dark")}
+          aria-label="Switch to Cyber theme"
+        >
+          🌌 Cyber
+        </button>
+        <button
+          className={`selector-btn ${theme === "retro" ? "active" : ""}`}
+          onClick={() => setTheme("retro")}
+          aria-label="Switch to Retro theme"
+        >
+          📻 Retro
+        </button>
+        <button
+          className={`selector-btn ${theme === "light" ? "active" : ""}`}
+          onClick={() => setTheme("light")}
+          aria-label="Switch to Light theme"
+        >
+          ☀️ Light
+        </button>
+      </div>
 
 
       
-      {currentScreen === 'welcome' && (
-      <WelcomeScreen
-        onStart={() => navigateTo('calibration')}
-        onViewHistory={() => navigateTo('history')}  // add this
-       />
-      )}
-      
-      {currentScreen === 'calibration' && (
-        <CalibrationScreen 
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo('workout')}
-          onBack={() => setShowExitModal(true)}
-          onBodyTypeDetected={setBodyType} 
-        />
-      )}
-      
-      {currentScreen === 'workout' && (
-        <WorkoutScreen 
-          exercise={selectedExercise}
-          onEnd={handleWorkoutEnd} 
-          onAutoDetect={handleAutoDetect}
-          bodyType={bodyType}
-        />
-      )}
-      
-      {currentScreen === 'summary' && (
-        <SummaryScreen 
-          stats={stats}
-          onRestart={() => navigateTo('welcome')} 
-          onViewReplay={() => navigateTo('replay')} 
+      {currentScreen === "welcome" && (
+        <WelcomeScreen
+          onStart={() => navigateTo("calibration")}
+          onViewHistory={() => navigateTo("history")}
+          onViewTrophies={() => navigateTo("trophy")}
+          leveling={leveling}
         />
       )}
 
@@ -258,7 +271,7 @@ function App() {
             selectedExercise={selectedExercise}
             onSelectExercise={handleSelectExercise}
             onNext={() => navigateTo("workout")}
-            onBack={() => navigateTo("welcome")}
+            onBack={() => setShowExitModal(true)}
             onBodyTypeDetected={setBodyType}
           />
         )}

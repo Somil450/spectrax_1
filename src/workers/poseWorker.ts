@@ -161,8 +161,8 @@ self.onmessage = (event: MessageEvent) => {
 
   if (!landmarks || landmarks.length === 0) {
     const msg: any = { frameId, angles: {}, detectedExercise: 'unknown', confidence: 0 };
-    if (buf) { msg.buf = buf; self.postMessage(msg, [buf]); }
-    else { self.postMessage(msg); }
+    if (buf) { msg.buf = buf; (self as any).postMessage(msg, [buf]); }
+    else { (self as any).postMessage(msg); }
     return;
   }
 
@@ -178,8 +178,8 @@ self.onmessage = (event: MessageEvent) => {
   // Return the buffer to main thread — keeps the pool alive without allocation
   if (buf) {
     reply.buf = buf;
-    self.postMessage(reply, [buf]);
+    (self as any).postMessage(reply, [buf]);
   } else {
-    self.postMessage(reply);
+    (self as any).postMessage(reply);
   }
 };

@@ -1,18 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
-import { cameraService } from '../services/cameraService';
-import { poseService } from '../services/poseService';
-import { overlayRenderer } from '../services/overlayRenderer';
-import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState } from '../services/exerciseEngine';
-import { ExerciseConfig } from '../config/exercises';
-import { sessionRecorder } from '../services/sessionRecorder';
-import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
-import { poseLockService } from '../services/poseLockService';
-import { clipEngine } from '../services/clipEngine';
-import { BodyType } from '../services/bodyTypeEngine';
+import {
+  Activity,
+  StopCircle,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Lock,
+  Unlock
+} from "lucide-react";
+import { cameraService } from "../services/cameraService";
+import { poseService } from "../services/poseService";
+import { overlayRenderer } from "../services/overlayRenderer";
+import { getJointAngles, getJointVisibility } from "../services/angleUtils";
+import { exerciseEngine, EngineState, createPlankCalibration } from "../services/exerciseEngine";
+import { ExerciseConfig } from "../config/exercises";
+import { sessionRecorder } from "../services/sessionRecorder";
+import { skeletalSense } from "../services/skeletalSense"; // Kept on main thread for reliable auto-detect
+import { poseLockService } from "../services/poseLockService";
+import { clipEngine } from "../services/clipEngine";
+import { BodyType } from "../services/bodyTypeEngine";
+import { useWorkoutSync } from "../hooks/useWorkoutSync";
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 
@@ -112,6 +119,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   onAutoDetect,
   bodyType,
 }) => {
+  const bodyTypeRef = useRef(bodyType);
+  bodyTypeRef.current = bodyType;
+
+  const onAutoDetectRef = useRef(onAutoDetect);
+  onAutoDetectRef.current = onAutoDetect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRefs = useRef<Record<WorkoutPanelId, React.RefObject<HTMLDivElement>> | null>(null);
@@ -127,6 +139,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   }
 
   const panelRefsById = panelRefs.current;
+  const { isOnline } = useWorkoutSync();
+  const [panelsLocked, setPanelsLocked] = useState(true);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
@@ -169,7 +184,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const FPS_LIMIT = 20; // ↑ Raised from 15 → 20 for smoother tracking
 
-  const clampPanelPositions = (positions: PanelPositions) => {
+  const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
 
     return (Object.keys(positions) as WorkoutPanelId[]).reduce((nextPositions, panelId) => {
@@ -184,7 +199,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
 
       return nextPositions;
     }, {} as PanelPositions);
-  };
+  }, [panelRefsById]);
 
   // Use refs for real-time logic to avoid state lags in the pose callback
   const mutableState = useRef<EngineState>({
@@ -363,7 +378,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
               detectedKey !== exercise.key &&
               mutableState.current.reps < 2
             ) {
-              onAutoDetect?.(detectedKey);
+              onAutoDetectRef.current?.(detectedKey);
             }
             if (
               detectedKey &&
@@ -398,11 +413,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
 
           // Adjust structural thresholds dynamically based on active detected body type
           const activeConfig = { ...exercise };
-          if (bodyType === "endo" && activeConfig.key === "squat") {
+          if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
             activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
-          } else if (bodyType === "ecto" && activeConfig.key === "squat") {
+          } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
             activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
-          } else if (bodyType === "endo" && activeConfig.key === "pushup") {
+          } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
             activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
           }
 
@@ -480,7 +495,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       if (wsSocket) {
         try {
           wsSocket.close();
-        } catch (_) {}
+        } catch (_) {
+          // ignore error
+        }
       }
       cameraService.stopCamera();
       clearInterval(timer);
@@ -499,7 +516,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [clampPanelPositions]);
 
   useEffect(() => {
     window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));

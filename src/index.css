@@ -54,7 +54,7 @@
 }
 
 
-[data-theme="light"] {
+[data-theme="light"], [data-theme-style="light"] {
   /* Backgrounds — clean white / soft light theme */
   --bg-primary:    #ffffff;
   --bg-secondary:  #f5f7fb;
@@ -65,16 +65,49 @@
   --neon-cyan-dim:    #0f9be0;
   --neon-purple:      #6c63ff;
   --neon-purple-dim:  #5f53d6;
+  --neon-green:       #00a858;
+  --neon-yellow:      #cc9600;
+  --neon-red:         #d6002f;
+  --neon-orange:      #d65a00;
 
   /* Glass — white-tinted instead of dark-tinted */
   --glass-bg:     rgba(255, 255, 255, 0.55);
   --glass-border: rgba(108, 99, 255, 0.16);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --glass-blur: 16px;
 
   /* Text — dark on light background */
   --text-primary:   #111827;
   --text-secondary: #4b5563;
   --text-dim:       #6b7280;
+}
+
+[data-theme-style="retro"] {
+  /* Backgrounds — warm amber/black CRT monitor colors */
+  --bg-primary: #120e0a;
+  --bg-secondary: #1a140f;
+  --bg-tertiary: #241c14;
+
+  /* Accent Colors — classic phosphor glow (green and warm amber/orange) */
+  --neon-cyan: #33ff33; /* Phosphor Green */
+  --neon-cyan-dim: #00aa00;
+  --neon-purple: #ffb000; /* Warm Amber */
+  --neon-purple-dim: #cc8800;
+  --neon-green: #33ff33;
+  --neon-yellow: #ffb000;
+  --neon-red: #ff3333;
+  --neon-orange: #ff7700;
+
+  /* Glass — retro styled warm-cream glass elements */
+  --glass-bg: rgba(26, 20, 15, 0.75);
+  --glass-border: rgba(255, 176, 0, 0.25);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  --glass-blur: 16px;
+
+  /* Text — Glowing Amber */
+  --text-primary: #ffb000;
+  --text-secondary: rgba(255, 176, 0, 0.85);
+  --text-dim: rgba(255, 176, 0, 0.6);
 }
 
 /* Theme transitions: scoped only to elements that actually change on toggle.
@@ -89,6 +122,128 @@ body,
 .welcome-screen {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
+
+/* Smooth transition when theme switches (targeted selectors for high performance) */
+body, 
+header,
+main,
+section,
+footer,
+.screen-container, 
+.spectrax-app, 
+.welcome-screen, 
+.calibration-screen,
+.workout-screen,
+.summary-screen,
+.exercise-panel, 
+.select-exercise-panel, 
+.auth-card, 
+.btn-neon,
+.btn-outline,
+.theme-selector-segmented,
+.selector-btn,
+button, 
+p, 
+h1, 
+h2, 
+h3, 
+span,
+a,
+label,
+input {
+  transition: background 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              backdrop-filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Segmented Capsule Theme Picker ───────────────────────────────── */
+.theme-selector-segmented {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(var(--glass-blur, 12px));
+  padding: 4px;
+  box-shadow: var(--glass-shadow);
+}
+
+.theme-selector-segmented.workout-active {
+  right: 196px;
+}
+
+.selector-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(33.33% - 5.33px);
+  border-radius: 999px;
+  background: var(--neon-cyan);
+  opacity: 0.15;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.35s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.selector-indicator.theme-cyber-dark {
+  transform: translateX(0);
+  background: var(--neon-cyan);
+}
+
+.selector-indicator.theme-retro {
+  transform: translateX(100%);
+  background: var(--neon-orange);
+}
+
+.selector-indicator.theme-light {
+  transform: translateX(200%);
+  background: var(--neon-purple);
+}
+
+.selector-btn {
+  font-family: var(--font-heading);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  z-index: 1;
+  transition: color 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.selector-btn:hover {
+  color: var(--text-primary);
+}
+
+.selector-btn.active {
+  color: var(--text-primary);
+}
+
+/* Custom override for Retro CRT text glow and screen effect */
+[data-theme-style="retro"] .text-glow {
+  text-shadow: 0 0 10px rgba(255, 176, 0, 0.8), 0 0 20px rgba(255, 176, 0, 0.4);
+}
+
+[data-theme-style="retro"] h1 {
+  text-shadow: 0 0 15px rgba(255, 176, 0, 0.9), 0 0 30px rgba(255, 176, 0, 0.5);
+}
+
 
 
 html, body, #root {

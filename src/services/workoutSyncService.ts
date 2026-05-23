@@ -128,6 +128,7 @@ export async function getLocalWorkouts(
 export async function getUnsyncedWorkouts(
   userId: string,
 ): Promise<WorkoutRecord[]> {
+
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readonly");
@@ -322,8 +323,9 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
     for (const workout of unsyncedWorkouts) {
       try {
         const firestoreId = await uploadWorkoutToFirestore(workout);
-        if (workout.id) {
-          await markWorkoutAsSynced(workout.id as any, firestoreId);
+        const targetId = workout.localId ?? workout.id;
+        if (targetId !== undefined) {
+          await markWorkoutAsSynced(targetId as any, firestoreId);
           syncedCount++;
         }
       } catch (error) {

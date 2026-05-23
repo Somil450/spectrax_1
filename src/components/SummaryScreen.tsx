@@ -3,6 +3,8 @@ import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import AIRecommendations from './AIRecommendations';
 import { generateRecommendations } from '../engine/recommendationEngine';
+import { useAuth } from '../context/AuthContext';
+import { WorkoutRecord, getLocalWorkouts } from '../services/workoutSyncService';
 
 interface SummaryScreenProps {
   stats: { 

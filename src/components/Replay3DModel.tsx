@@ -426,10 +426,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     };
     window.addEventListener("resize", handleResize);
 
+    const currentMount = mountRef.current;
+
     return () => {
       window.removeEventListener("resize", handleResize);
-      if (mountRef.current && rendererRef.current) {
-        mountRef.current.removeChild(rendererRef.current.domElement);
+      if (currentMount && rendererRef.current) {
+        currentMount.removeChild(rendererRef.current.domElement);
       }
       controlsRef.current?.dispose();
       rendererRef.current?.dispose();
@@ -498,46 +500,46 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         const rAnkle = getLm(28);
 
         if (lShoulder && rShoulder && lHip && rHip) {
-            const shoulderCenter = new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5);
-            const hipCenter = new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5);
+          const shoulderCenter = new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5);
+          const hipCenter = new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5);
 
-            // Up vector (hips pointing UP to shoulders)
-            const up = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
-            
-            // Right vector (User Left Shoulder 11 to User Right Shoulder 12 mapping physical right)
-            const right = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
-            
-            // Back vector (cross product produces orthogonal depth Z)
-            const forward = new THREE.Vector3().crossVectors(right, up).normalize();
-            
-            // Perfect orthogonal matrix
-            right.crossVectors(up, forward).normalize();
-            const mat = new THREE.Matrix4();
-            mat.makeBasis(right, up, forward);
-            const torsoQuat = new THREE.Quaternion().setFromRotationMatrix(mat);
+          // Up vector (hips pointing UP to shoulders)
+          const up = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
+          
+          // Right vector (User Left Shoulder 11 to User Right Shoulder 12 mapping physical right)
+          const right = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
+          
+          // Back vector (cross product produces orthogonal depth Z)
+          const forward = new THREE.Vector3().crossVectors(right, up).normalize();
+          
+          // Perfect orthogonal matrix
+          right.crossVectors(up, forward).normalize();
+          const mat = new THREE.Matrix4();
+          mat.makeBasis(right, up, forward);
+          const torsoQuat = new THREE.Quaternion().setFromRotationMatrix(mat);
 
-            // Apply heavily smoothed physical turning and squat dropping (0.2 -> 0.05)
-            modelGroupRef.current.quaternion.slerp(torsoQuat, 0.05);
-            
-            const rotatedOffset = rootOffsetRef.current.clone().applyQuaternion(modelGroupRef.current.quaternion);
-            const targetPos = hipCenter.clone().add(rotatedOffset);
-            
-            // --- Grounding: Lock the lowest foot firmly to the ground plane (-1.0) ---
-            const minAnkleY = Math.min(lAnkle?.y || 0, rAnkle?.y || 0);
-            targetPos.y = -1.0 - minAnkleY;
+          // Apply heavily smoothed physical turning and squat dropping (0.2 -> 0.05)
+          modelGroupRef.current.quaternion.slerp(torsoQuat, 0.05);
+          
+          const rotatedOffset = rootOffsetRef.current.clone().applyQuaternion(modelGroupRef.current.quaternion);
+          const targetPos = hipCenter.clone().add(rotatedOffset);
+          
+          // --- Grounding: Lock the lowest foot firmly to the ground plane (-1.0) ---
+          const minAnkleY = Math.min(lAnkle?.y || 0, rAnkle?.y || 0);
+          targetPos.y = -1.0 - minAnkleY;
 
-            modelGroupRef.current.position.lerp(targetPos, 0.05);
+          modelGroupRef.current.position.lerp(targetPos, 0.05);
 
-            // Update model matrix since we moved it, so FK calculation has the correct parent offsets!
-            modelGroupRef.current.updateMatrixWorld(true);
+          // Update model matrix since we moved it, so FK calculation has the correct parent offsets!
+          modelGroupRef.current.updateMatrixWorld(true);
 
-            // --- Dynamic Camera Tracking & Orbit Target Sync ---
-            const lookTarget = new THREE.Vector3().lerpVectors(hipCenter, shoulderCenter, 0.5);
-            if (controlsRef.current) {
-                controlsRef.current.target.lerp(lookTarget, 0.05);
-            } else if (cameraRef.current) {
-                cameraRef.current.lookAt(lookTarget);
-            }
+          // --- Dynamic Camera Tracking & Orbit Target Sync ---
+          const lookTarget = new THREE.Vector3().lerpVectors(hipCenter, shoulderCenter, 0.5);
+          if (controlsRef.current) {
+              controlsRef.current.target.lerp(lookTarget, 0.05);
+          } else if (cameraRef.current) {
+              cameraRef.current.lookAt(lookTarget);
+          }
         }
 
         const applyPose = (
@@ -750,7 +752,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded]);
+  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx]);
 
   if (!frames || frames.length === 0) {
     return (

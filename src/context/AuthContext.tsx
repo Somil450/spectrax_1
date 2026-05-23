@@ -1,5 +1,6 @@
 /**
  * AuthContext.tsx
+
  *
  * Global authentication context managing:
  * - Firebase Authentication (Email/Password, Google Sign-In)

@@ -5,6 +5,19 @@ import {
   FeedbackResult,
 } from "../engine/feedbackEngine";
 
+const ENGINE_DEFAULTS = {
+  repCooldown: 600,
+  hysteresis: 10,
+  smoothingWindow: 8,
+  minDownDuration: 150,
+  correctRepMinScore: 70,
+  streakMinScore: 80,
+};
+
+const layoutParser = {
+  get: (key: string) => null as any,
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Plank Spline Types & Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,6 +244,10 @@ export interface EngineState {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class ExerciseEngine {
+  private readonly REP_COOLDOWN = 600;
+  private readonly HYSTERESIS = 10;
+  private readonly SMOOTHING_WINDOW = 8;
+  private readonly MIN_DOWN_DURATION = 150;
   // Pull rep-counter params from a registered layout, falling back to defaults.
   // Called per-frame so runtime layout changes take effect immediately.
   private repParams(key: string) {
@@ -281,7 +298,28 @@ export class ExerciseEngine {
 
     const currentVisibility = visibility[config.primaryJoint];
 
-    if (currentVisibility < 0.5) {
+    // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
+    const prevVisibilityBuffer = currentState.visibilityBuffer || [];
+    const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-p.smoothingWindow);
+    const avgVisibility = newVisibilityBuffer.reduce((a, b) => a + b, 0) / newVisibilityBuffer.length;
+    
+    let nextTrackingLostFrames = currentState.trackingLostFrames || 0;
+    let nextLastValidAngles = currentState.lastValidAngles || angles;
+
+    // Use a slightly more forgiving threshold for tracking loss (e.g. 0.4)
+    if (currentVisibility < 0.4) {
+      nextTrackingLostFrames++;
+    } else {
+      nextTrackingLostFrames = 0;
+      nextLastValidAngles = angles;
+    }
+
+    // Temporal buffering: use last known valid angles if tracking drops momentarily (up to 10 frames)
+    const activeAngles = (nextTrackingLostFrames > 0 && nextTrackingLostFrames < 10) ? nextLastValidAngles : angles;
+    const rawAngle = activeAngles[config.primaryJoint];
+
+    // Only block exercise if visibility is consistently low for several frames
+    if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
         ...currentState,
         feedback: "PARTIAL BODY LOST — ADJUST POSITION",
@@ -453,8 +491,6 @@ export class ExerciseEngine {
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
       nextLastRepTime = now;
-
-      nextLastRepTime = currentTime;
 
       allowRep = nextMinScoreInRep > 70;
 

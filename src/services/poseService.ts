@@ -1,6 +1,4 @@
-// Import MediaPipe types only; the runtime Pose constructor is provided via CDN on window.
-import type { Results } from '@mediapipe/pose';
-import type { Pose as PoseType } from '@mediapipe/pose';
+import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
@@ -222,6 +220,7 @@ export class PoseService {
   private isLoaded   = false;
   private inProgress = false;
   private errorCount = 0;
+  private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
 
   // Two buffers in a pool: one can be in flight to the worker while the other
   // is ready. Avoids per-frame allocation and GC churn.
@@ -289,6 +288,39 @@ export class PoseService {
     return out;
   }
 
+  setSmoothingFilters(filters: PoseSmoothingFilterConfig[]) {
+    this.smoothingFilters = filters.map(createFilter);
+  }
+
+  setSmoothingFilterEnabled(
+    type: PoseSmoothingFilterType,
+    enabled: boolean,
+  ) {
+    const existingFilter = this.smoothingFilters.find(
+      (filter) => filter.type === type,
+    );
+
+    if (!existingFilter) {
+      const defaultFilter =
+        DEFAULT_FILTERS.find((filter) => filter.type === type) ?? { type };
+      this.smoothingFilters = [
+        ...this.smoothingFilters,
+        createFilter({ ...defaultFilter, enabled } as PoseSmoothingFilterConfig),
+      ];
+      return;
+    }
+
+    existingFilter.enabled = enabled;
+  }
+
+  getSmoothingFilters() {
+    return this.smoothingFilters.map((filter) => filter.toConfig());
+  }
+
+  resetSmoothingFilters() {
+    this.smoothingFilters.forEach((filter) => filter.reset());
+  }
+
   onResults(callback: (results: Results) => void) {
   if (!this.pose) return;
 
@@ -299,15 +331,6 @@ export class PoseService {
     });
   }
 
-  this.pose.onResults((results: any) => {
-    this.inProgress = false;
-    this.errorCount = 0;
-    if (results) {
-      callback(results);
-    }
-  });
-}
- 6aba145 (fix: resolve Vite build failures in poseService.ts and WorkoutScreen.tsx)
 
   async send(image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement) {
     if (!this.pose || !this.isLoaded || this.inProgress) return;
