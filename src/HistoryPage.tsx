@@ -223,22 +223,22 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
       <main className="history-body">
         {/* ── Filter Panel ── */}
         {!loading && !error && sessions.length > 0 && (
-          <div className="filter-panel" style={{ marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", background: "rgba(255,255,255,0.03)", padding: "16px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#94a3b8" }}>
+          <div className="filter-panel" style={{ marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", background: "var(--glass-bg)", padding: "16px", borderRadius: "12px", border: "1px solid var(--glass-border)", backdropFilter: "blur(12px)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-secondary)" }}>
               <Filter size={16} />
               <span style={{ fontSize: "14px", fontWeight: 600, fontFamily: "'Space Mono', monospace" }}>Filters</span>
             </div>
             
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <label htmlFor="type-filter" style={{ fontSize: "12px", color: "#e2e8f0" }}>Type:</label>
+              <label htmlFor="type-filter" style={{ fontSize: "12px", color: "var(--text-primary)" }}>Type:</label>
               <select
                 id="type-filter"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
                 style={{
-                  background: "rgba(8,12,20,0.8)",
-                  color: "#e2e8f0",
-                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "var(--bg-secondary)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--glass-border)",
                   padding: "6px 10px",
                   borderRadius: "6px",
                   fontSize: "13px",
@@ -254,7 +254,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <label htmlFor="calorie-filter" style={{ fontSize: "12px", color: "#e2e8f0" }}>Min Cals (est):</label>
+              <label htmlFor="calorie-filter" style={{ fontSize: "12px", color: "var(--text-primary)" }}>Min Cals (est):</label>
               <input
                 id="calorie-filter"
                 type="number"
@@ -263,9 +263,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
                 value={filterCalories}
                 onChange={(e) => setFilterCalories(e.target.value)}
                 style={{
-                  background: "rgba(8,12,20,0.8)",
-                  color: "#e2e8f0",
-                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "var(--bg-secondary)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--glass-border)",
                   padding: "6px 10px",
                   borderRadius: "6px",
                   fontSize: "13px",
@@ -335,8 +335,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
         .history-root {
           min-height: 100vh;
-          background: #080c14;
-          color: #e2e8f0;
+          background: var(--bg-primary);
+          color: var(--text-primary);
           font-family: 'Syne', sans-serif;
           position: relative;
           overflow-x: hidden;
@@ -346,7 +346,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
         .bg-grid {
           position: fixed;
           inset: 0;
-          background-image: radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px);
+          background-image: radial-gradient(circle, rgba(0,240,255,0.08) 1px, transparent 1px);
           background-size: 28px 28px;
           pointer-events: none;
           z-index: 0;
@@ -360,11 +360,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           align-items: center;
           justify-content: space-between;
           padding: 20px 28px;
-          /* avoid overlap with the fixed top-right theme toggle */
           padding-right: 220px;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
+          border-bottom: 1px solid var(--glass-border);
           backdrop-filter: blur(12px);
-          background: rgba(8,12,20,0.7);
+          background: var(--glass-bg);
           gap: 12px;
           flex-wrap: wrap;
         }
@@ -378,18 +377,18 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           font-size: 20px;
           font-weight: 800;
           letter-spacing: -0.02em;
-          color: #f1f5f9;
+          color: var(--text-primary);
         }
-        .title-icon { color: #22d3a0; }
+        .title-icon { color: var(--neon-cyan); }
 
         .back-btn {
           display: flex;
           align-items: center;
           gap: 6px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
+          background: var(--glass-bg);
+          border: 1px solid var(--glass-border);
           border-radius: 9px;
-          color: #94a3b8;
+          color: var(--text-secondary);
           cursor: pointer;
           padding: 7px 14px;
           font-size: 13px;
@@ -397,8 +396,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           transition: all 0.15s ease;
         }
         .back-btn:hover {
-          color: #e2e8f0;
-          background: rgba(255,255,255,0.09);
+          color: var(--text-primary);
+          background: rgba(0, 240, 255, 0.08);
         }
 
         .clear-btn {
@@ -408,7 +407,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           background: rgba(239,68,68,0.08);
           border: 1px solid rgba(239,68,68,0.25);
           border-radius: 9px;
-          color: #ef4444;
+          color: var(--neon-red);
           cursor: pointer;
           padding: 7px 14px;
           font-size: 13px;
@@ -433,14 +432,14 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           align-items: center;
           gap: 0;
           padding: 14px 28px;
-          background: rgba(34,211,160,0.05);
-          border-bottom: 1px solid rgba(34,211,160,0.12);
+          background: var(--glass-bg);
+          border-bottom: 1px solid var(--glass-border);
           flex-wrap: wrap;
         }
         .summary-divider {
           width: 1px;
           height: 28px;
-          background: rgba(255,255,255,0.1);
+          background: var(--glass-border);
           margin: 0 20px;
         }
 
@@ -462,44 +461,44 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           gap: 14px;
           min-height: 320px;
           text-align: center;
-          color: #64748b;
+          color: var(--text-secondary);
         }
         .spinner {
           width: 36px;
           height: 36px;
-          border: 3px solid rgba(34,211,160,0.2);
-          border-top-color: #22d3a0;
+          border: 3px solid rgba(0,240,255,0.2);
+          border-top-color: var(--neon-cyan);
           border-radius: 50%;
           animation: spin 0.75s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .error-state { color: #ef4444; }
+        .error-state { color: var(--neon-red); }
         .retry-btn {
           background: rgba(239,68,68,0.1);
           border: 1px solid rgba(239,68,68,0.4);
           border-radius: 8px;
-          color: #ef4444;
+          color: var(--neon-red);
           cursor: pointer;
           padding: 8px 18px;
           font-family: 'Space Mono', monospace;
           font-size: 13px;
         }
 
-        .empty-state { color: #475569; }
+        .empty-state { color: var(--text-secondary); }
         .empty-icon { font-size: 48px; line-height: 1; }
         .empty-state h2 {
           font-size: 22px;
           font-weight: 800;
-          color: #64748b;
+          color: var(--text-primary);
         }
         .empty-state p { font-size: 14px; max-width: 280px; }
         .start-btn {
           margin-top: 8px;
-          background: linear-gradient(135deg, #22d3a0, #06b6d4);
+          background: linear-gradient(135deg, var(--neon-cyan), var(--neon-green));
           border: none;
           border-radius: 10px;
-          color: #080c14;
+          color: var(--bg-primary);
           cursor: pointer;
           padding: 10px 22px;
           font-family: 'Syne', sans-serif;
@@ -549,7 +548,7 @@ const SummaryPill: React.FC<SummaryPillProps> = ({ label, value, icon }) => (
         font-size: 10px;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: #475569;
+        color: var(--text-secondary);
       }
       .sp-value {
         display: flex;
@@ -558,7 +557,7 @@ const SummaryPill: React.FC<SummaryPillProps> = ({ label, value, icon }) => (
         font-family: 'Space Mono', monospace;
         font-size: 18px;
         font-weight: 700;
-        color: #22d3a0;
+        color: var(--neon-cyan);
       }
       .sp-icon { display: flex; align-items: center; }
     `}</style>
