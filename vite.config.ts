@@ -12,6 +12,9 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  esbuild: {
+    target: "es2020",
+  },
   plugins: [
     react(),
 
@@ -47,6 +50,8 @@ export default defineConfig({
 
       workbox: {
         maximumFileSizeToCacheInBytes: 30 * 1024 * 1024,
+        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
+        navigateFallback: '/index.html',
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*/i,
@@ -76,8 +81,41 @@ export default defineConfig({
               },
             },
           },
+          {
+            urlPattern: /\.glb$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "glb-models",
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       }
     })
-  ]
+  ],
+
+  build: {
+    // Warn if any single chunk exceeds 500KB (catches future regressions)
+    chunkSizeWarningLimit: 500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Three.js — only needed on ReplayScreen
+          if (id.includes('node_modules/three')) return 'vendor-three';
+          // Firebase — only needed when auth is configured
+          if (id.includes('node_modules/firebase')) return 'vendor-firebase';
+          // @xenova/transformers — 151MB model loader, must be its own chunk
+          if (id.includes('node_modules/@xenova')) return 'vendor-xenova';
+          // MediaPipe npm packages (camera_utils etc.)
+          if (id.includes('node_modules/@mediapipe')) return 'vendor-mediapipe';
+          // React core — always needed, keep small and cacheable
+          if (id.includes('node_modules/react')) return 'vendor-react';
+        },
+      },
+    },
+  },
 });

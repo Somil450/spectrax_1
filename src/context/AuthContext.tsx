@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 /**
  * AuthContext.tsx
 
@@ -54,6 +53,7 @@ export interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
   clearError: () => void;
+  signInAsGuest?: () => Promise<void>;
 }
 
 // ─────────────────────── CONTEXT CREATION ────────────────────────
@@ -74,9 +74,12 @@ const getErrorMessage = (error: unknown): string => {
 
   // Email/Password errors
   if (errorCode === "auth/invalid-email") return "Invalid email address";
-  if (errorCode === "auth/user-not-found")
-    return "No account found with this email";
-  if (errorCode === "auth/wrong-password") return "Incorrect password";
+  if (
+    errorCode === "auth/user-not-found" ||
+    errorCode === "auth/wrong-password" ||
+    errorCode === "auth/invalid-credential"
+  )
+    return "Invalid email or password";
   if (errorCode === "auth/user-disabled")
     return "This account has been disabled";
   if (errorCode === "auth/email-already-in-use")
@@ -95,9 +98,8 @@ const getErrorMessage = (error: unknown): string => {
     return "Email already registered with different sign-in method";
   }
 
-  // Generic Firebase error
-  if (firebaseError?.message) {
-    return firebaseError.message;
+  if (errorCode) {
+    return "Something went wrong. Please try again.";
   }
 
   // Non-Firebase errors
@@ -349,6 +351,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   /**
+   * Developer / Offline Bypass Login
+   */
+  const signInAsGuest = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const mockUser = {
+        uid: "mock-guest-user-id",
+        email: "guest@spectrax.local",
+        displayName: "Guest User",
+        photoURL: null,
+      } as any;
+      setUser(mockUser);
+      setUserProfile({
+        uid: "mock-guest-user-id",
+        email: "guest@spectrax.local",
+        displayName: "Guest User",
+        photoURL: null,
+        createdAt: Date.now(),
+        lastLogin: Date.now(),
+      });
+      console.log("✅ Guest sign-in successful");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * Clear error message
    */
   const clearError = () => {
@@ -369,6 +401,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetPassword,
     updateUserProfile,
     clearError,
+    signInAsGuest,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
