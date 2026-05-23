@@ -28,9 +28,9 @@ function formatTime(ts: number): string {
 }
 
 function accuracyColor(score: number): string {
-  if (score >= 80) return "#22d3a0";
-  if (score >= 50) return "#f59e0b";
-  return "#ef4444";
+  if (score >= 80) return "var(--neon-cyan)";
+  if (score >= 50) return "var(--neon-yellow)";
+  return "var(--neon-red)";
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -111,15 +111,16 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
       <style>{`
         .session-card {
           display: flex;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.08);
+          background: var(--glass-bg);
+          border: 1px solid var(--glass-border);
           border-radius: 14px;
           overflow: hidden;
           transition: transform 0.18s ease, box-shadow 0.18s ease;
+          backdrop-filter: blur(12px);
         }
         .session-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+          box-shadow: var(--glass-shadow);
         }
         .card-accent {
           width: 4px;
@@ -144,8 +145,8 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           font-weight: 700;
           letter-spacing: 0.06em;
           text-transform: uppercase;
-          color: #e2e8f0;
-          background: rgba(255,255,255,0.07);
+          color: var(--text-primary);
+          background: rgba(0, 240, 255, 0.08);
           padding: 3px 10px;
           border-radius: 6px;
         }
@@ -156,7 +157,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           background: transparent;
           border: 1px solid transparent;
           border-radius: 7px;
-          color: #64748b;
+          color: var(--text-secondary);
           cursor: pointer;
           padding: 4px 8px;
           font-size: 12px;
@@ -168,7 +169,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           background: rgba(239,68,68,0.08);
         }
         .delete-btn.confirm {
-          color: #ef4444;
+          color: var(--neon-red);
           border-color: rgba(239,68,68,0.5);
           background: rgba(239,68,68,0.12);
           animation: pulse-border 0.8s ease infinite alternate;
@@ -186,7 +187,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           display: flex;
           align-items: center;
           gap: 5px;
-          color: #475569;
+          color: var(--text-secondary);
           font-size: 11px;
           font-family: 'Space Mono', monospace;
         }
@@ -220,7 +221,7 @@ const Stat: React.FC<StatProps> = ({ icon, label, value, valueStyle }) => (
         gap: 7px;
       }
       .stat-icon {
-        color: #475569;
+        color: var(--text-secondary);
         display: flex;
         align-items: center;
       }
@@ -228,13 +229,13 @@ const Stat: React.FC<StatProps> = ({ icon, label, value, valueStyle }) => (
         font-size: 10px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: #64748b;
+        color: var(--text-secondary);
         font-family: 'Space Mono', monospace;
       }
       .stat-value {
         font-size: 16px;
         font-weight: 700;
-        color: #e2e8f0;
+        color: var(--text-primary);
         line-height: 1.1;
         font-family: 'Space Mono', monospace;
       }
