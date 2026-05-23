@@ -77,8 +77,16 @@
   --text-dim:       rgba(13, 17, 39, 0.55);
 }
 
-/* Smooth transition when theme switches */
-*, *::before, *::after {
+/* Theme transitions: scoped only to elements that actually change on toggle.
+   Avoid `* { transition }` — it taxes every re-render in the workout loop. */
+body,
+.spectrax-app,
+.glass,
+.btn-neon,
+.btn-outline,
+.btn-outline,
+.theme-toggle,
+.welcome-screen {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 

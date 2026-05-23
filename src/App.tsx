@@ -1,24 +1,26 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
+// ── Eagerly loaded (tiny, needed on first paint) ─────────────────────────────
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { CalibrationScreen } from "./components/CalibrationScreen";
-import { WorkoutScreen } from "./components/WorkoutScreen";
-import { SummaryScreen } from "./components/SummaryScreen";
-import { ReplayScreen } from "./components/ReplayScreen";
-import { TrophyRoom } from "./components/TrophyRoom";
 import { BadgeNotification } from "./components/BadgeNotification";
+import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
-import HistoryPage from "./HistoryPage";
 import { useLeveling } from './hooks/useLeveling';
-import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { useAuth } from "./context/AuthContext";
-import { LoginScreen } from "./components/LoginScreen";
-import { SignUpScreen } from "./components/SignUpScreen";
-import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
+// ── Lazily loaded (separate async chunks, only fetched when navigated to) ────
+const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
+const WorkoutScreen     = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
+const SummaryScreen     = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
+const ReplayScreen      = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
+const TrophyRoom        = lazy(() => import("./components/TrophyRoom").then(m => ({ default: m.TrophyRoom })));
+const HistoryPage       = lazy(() => import("./HistoryPage"));
+const LoginScreen       = lazy(() => import("./components/LoginScreen").then(m => ({ default: m.LoginScreen })));
+const SignUpScreen      = lazy(() => import("./components/SignUpScreen").then(m => ({ default: m.SignUpScreen })));
+const ForgotPasswordScreen = lazy(() => import("./components/ForgotPasswordScreen").then(m => ({ default: m.ForgotPasswordScreen })));
 
 
 type Screen =
@@ -182,22 +184,24 @@ function App() {
       : "login";
     return (
       <main className="spectrax-app">
-        {activeAuthScreen === "login" && (
-          <LoginScreen
-            onLoginSuccess={() => navigateTo("welcome")}
-            onSignUpClick={() => navigateTo("signup")}
-            onForgotPasswordClick={() => navigateTo("forgot-password")}
-          />
-        )}
-        {activeAuthScreen === "signup" && (
-          <SignUpScreen
-            onSignUpSuccess={() => navigateTo("welcome")}
-            onLoginClick={() => navigateTo("login")}
-          />
-        )}
-        {activeAuthScreen === "forgot-password" && (
-          <ForgotPasswordScreen onBack={() => navigateTo("login")} />
-        )}
+        <Suspense fallback={<div className="loading-container"><div className="spinner" /></div>}>
+          {activeAuthScreen === "login" && (
+            <LoginScreen
+              onLoginSuccess={() => navigateTo("welcome")}
+              onSignUpClick={() => navigateTo("signup")}
+              onForgotPasswordClick={() => navigateTo("forgot-password")}
+            />
+          )}
+          {activeAuthScreen === "signup" && (
+            <SignUpScreen
+              onSignUpSuccess={() => navigateTo("welcome")}
+              onLoginClick={() => navigateTo("login")}
+            />
+          )}
+          {activeAuthScreen === "forgot-password" && (
+            <ForgotPasswordScreen onBack={() => navigateTo("login")} />
+          )}
+        </Suspense>
       </main>
     );
   }
@@ -226,47 +230,50 @@ function App() {
         />
       )}
 
-      {currentScreen === "calibration" && (
-        <CalibrationScreen
-          selectedExercise={selectedExercise}
-          onSelectExercise={handleSelectExercise}
-          onNext={() => navigateTo("workout")}
-          onBack={() => navigateTo("welcome")}
-          onBodyTypeDetected={setBodyType}
-        />
-      )}
-
-      {currentScreen === "workout" && (
-        <WorkoutScreen
-          exercise={selectedExercise}
-          onEnd={handleWorkoutEnd}
-          onAutoDetect={handleAutoDetect}
-          bodyType={bodyType}
-        />
-      )}
-      {currentScreen === "summary" &&
-        (statsLoading ? (
-          <SummaryScreenSkeleton />
-        ) : (
-          <SummaryScreen
-            stats={stats}
-            leveling={leveling}
-            onRestart={() => navigateTo("welcome")}
-            onViewReplay={() => navigateTo("replay")}
+      <Suspense fallback={<div className="loading-container"><div className="spinner" /></div>}>
+        {currentScreen === "calibration" && (
+          <CalibrationScreen
+            selectedExercise={selectedExercise}
+            onSelectExercise={handleSelectExercise}
+            onNext={() => navigateTo("workout")}
+            onBack={() => navigateTo("welcome")}
+            onBodyTypeDetected={setBodyType}
           />
-        ))}
+        )}
 
-      {currentScreen === "replay" && (
-        <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
-      )}
+        {currentScreen === "workout" && (
+          <WorkoutScreen
+            exercise={selectedExercise}
+            onEnd={handleWorkoutEnd}
+            onAutoDetect={handleAutoDetect}
+            bodyType={bodyType}
+          />
+        )}
 
-      {currentScreen === "history" && (
-        <HistoryPage onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "summary" &&
+          (statsLoading ? (
+            <SummaryScreenSkeleton />
+          ) : (
+            <SummaryScreen
+              stats={stats}
+              leveling={leveling}
+              onRestart={() => navigateTo("welcome")}
+              onViewReplay={() => navigateTo("replay")}
+            />
+          ))}
 
-      {currentScreen === "trophy" && (
-        <TrophyRoom onBack={() => navigateTo("welcome")} />
-      )}
+        {currentScreen === "replay" && (
+          <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+        )}
+
+        {currentScreen === "history" && (
+          <HistoryPage onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "trophy" && (
+          <TrophyRoom onBack={() => navigateTo("welcome")} />
+        )}
+      </Suspense>
 
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
