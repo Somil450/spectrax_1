@@ -340,13 +340,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           font-family: 'Syne', sans-serif;
           position: relative;
           overflow-x: hidden;
-        }
-
-        /* subtle dot-grid background */
-        .bg-grid {
           position: fixed;
-          inset: 0;
-          background-image: radial-gradient(circle, rgba(0,240,255,0.08) 1px, transparent 1px);
+          border-bottom: 1px solid var(--glass-border);
           background-size: 28px 28px;
           pointer-events: none;
           z-index: 0;
