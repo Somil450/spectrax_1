@@ -1,98 +1,21 @@
-// src/hooks/useWorkoutHistory.ts
+// src/useWorkoutHistory.ts
 import { useState, useCallback } from "react";
+import { useAuth } from "./hooks/useAuth";
+import {
+  getLocalWorkouts,
+  deleteWorkout,
+  clearAllWorkouts,
+} from "./services/workoutSyncService";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface WorkoutSession {
-  id?: number;
+  id?: string | number;
   exerciseType: string;
   totalReps: number;
   accuracyScore: number; // 0–100
   duration: number;      // seconds
   timestamp: number;     // Date.now()
-}
-
-// ── DB bootstrap ─────────────────────────────────────────────────────────────
-
-const DB_NAME = "spectrax_db";
-const DB_VERSION = 3;
-const STORE = "workout_sessions";
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-    req.onupgradeneeded = (e) => {
-      const db = (e.target as IDBOpenDBRequest).result;
-
-      // Recreate workouts store to change keyPath from "id" to "localId"
-      if (db.objectStoreNames.contains(STORE)) {
-        db.deleteObjectStore(STORE);
-      }
-
-      const store = db.createObjectStore(STORE, {
-        keyPath: "localId",
-        autoIncrement: true,
-      });
-      store.createIndex("timestamp", "timestamp", { unique: false });
-      store.createIndex("userId", "userId", { unique: false });
-      store.createIndex("synced", "synced", { unique: false });
-    };
-
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-// ── CRUD helpers ─────────────────────────────────────────────────────────────
-
-async function saveSession(session: WorkoutSession): Promise<number> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    const req = tx.objectStore(STORE).add(session);
-    req.onsuccess = () => resolve(req.result as number);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function getAllSessions(): Promise<WorkoutSession[]> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readonly");
-    const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => {
-      const results = req.result as any[];
-      const sessions = results.map((r) => ({
-        ...r,
-        id: r.localId, // Map localId to id for compatibility with the rest of the application
-      })) as WorkoutSession[];
-      resolve(
-        sessions.sort((a, b) => b.timestamp - a.timestamp)
-      );
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function deleteSession(id: number): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    const req = tx.objectStore(STORE).delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function clearAllSessions(): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    const req = tx.objectStore(STORE).clear();
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -101,75 +24,67 @@ interface UseWorkoutHistoryReturn {
   sessions: WorkoutSession[];
   loading: boolean;
   error: string | null;
-  saveWorkout: (session: WorkoutSession) => Promise<void>;
   fetchHistory: () => Promise<void>;
-  removeSession: (id: number) => Promise<void>;
+  removeSession: (id: string | number) => Promise<void>;
   clearHistory: () => Promise<void>;
 }
 
 export function useWorkoutHistory(): UseWorkoutHistoryReturn {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchHistory = useCallback(async () => {
+    if (!user?.uid) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getAllSessions();
-      setSessions(data);
+      const data = await getLocalWorkouts(user.uid);
+      // Sort sessions descending by timestamp
+      const sortedData: WorkoutSession[] = [...data].sort(
+        (a, b) => b.timestamp - a.timestamp
+      );
+      setSessions(sortedData);
     } catch (err) {
       setError("Failed to load workout history.");
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const saveWorkout = useCallback(
-    async (session: WorkoutSession) => {
-      setError(null);
-      try {
-        await saveSession(session);
-        await fetchHistory();
-      } catch (err) {
-        setError("Failed to save workout session.");
-        console.error(err);
-      }
-    },
-    [fetchHistory]
-  );
+  }, [user?.uid]);
 
   const removeSession = useCallback(
-    async (id: number) => {
+    async (id: string | number) => {
+      if (!user?.uid) return;
       setError(null);
       try {
-        await deleteSession(id);
+        await deleteWorkout(user.uid, id);
         setSessions((prev) => prev.filter((s) => s.id !== id));
       } catch (err) {
         setError("Failed to delete session.");
         console.error(err);
       }
     },
-    []
+    [user?.uid]
   );
 
   const clearHistory = useCallback(async () => {
+    if (!user?.uid) return;
     setError(null);
     try {
-      await clearAllSessions();
+      await clearAllWorkouts(user.uid);
       setSessions([]);
     } catch (err) {
       setError("Failed to clear history.");
       console.error(err);
     }
-  }, []);
+  }, [user?.uid]);
 
   return {
     sessions,
     loading,
     error,
-    saveWorkout,
     fetchHistory,
     removeSession,
     clearHistory,

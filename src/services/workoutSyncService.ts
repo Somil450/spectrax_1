@@ -24,7 +24,7 @@ import { getAuth } from "firebase/auth";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface WorkoutRecord {
-  id?: string;
+  id?: string | number;
   userId: string;
   exerciseType: string;
   totalReps: number;
@@ -128,31 +128,48 @@ export async function getLocalWorkouts(
 export async function getUnsyncedWorkouts(
   userId: string,
 ): Promise<WorkoutRecord[]> {
-  const all = await getLocalWorkouts(userId);
-  return all.filter((w) => !w.synced);
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(WORKOUTS_STORE, "readonly");
+    const store = tx.objectStore(WORKOUTS_STORE);
+    const index = store.index("synced");
+    const req = index.getAll(false as any);
+
+    req.onsuccess = () => {
+      const allUnsynced = req.result as WorkoutRecord[];
+      // Filter for current user
+      const userUnsynced = allUnsynced.filter((w) => w.userId === userId);
+      resolve(userUnsynced);
+    };
+    req.onerror = () => reject(req.error);
+  });
 }
 
 /**
- * Update sync status of a workout in IndexedDB and optionally associate Firestore ID
+ * Update sync status and key of a workout in IndexedDB
  */
-async function markWorkoutAsSynced(localId: number, firestoreId?: string): Promise<void> {
+async function markWorkoutAsSynced(localId: number, firestoreId: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");
-    const req = tx.objectStore(WORKOUTS_STORE).get(localId);
+    const store = tx.objectStore(WORKOUTS_STORE);
+    const getReq = store.get(localId);
 
-    req.onsuccess = () => {
-      const workout = req.result as WorkoutRecord;
+    getReq.onsuccess = () => {
+      const workout = getReq.result as WorkoutRecord;
       if (workout) {
-        workout.synced = true;
-        if (firestoreId) {
-          workout.id = firestoreId;
-        }
-        tx.objectStore(WORKOUTS_STORE).put(workout);
+        // Delete the record with numeric ID to prevent duplication
+        store.delete(localId);
+        // Save the record with the new Firestore string ID
+        store.put({
+          ...workout,
+          id: firestoreId,
+          synced: true,
+        });
       }
       resolve();
     };
-    req.onerror = () => reject(req.error);
+    getReq.onerror = () => reject(getReq.error);
   });
 }
 
@@ -305,8 +322,8 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
     for (const workout of unsyncedWorkouts) {
       try {
         const firestoreId = await uploadWorkoutToFirestore(workout);
-        if (workout.localId) {
-          await markWorkoutAsSynced(workout.localId, firestoreId);
+        if (workout.id) {
+          await markWorkoutAsSynced(workout.id as any, firestoreId);
           syncedCount++;
         }
       } catch (error) {
@@ -494,6 +511,72 @@ export async function bulkUploadWorkouts(
   }
 }
 
+/**
+ * Delete a workout locally and from Firestore (if synced)
+ */
+export async function deleteWorkout(
+  userId: string,
+  id: string | number
+): Promise<void> {
+  const db = await openDB();
+  
+  // 1. Delete locally from IndexedDB
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(WORKOUTS_STORE, "readwrite");
+    const req = tx.objectStore(WORKOUTS_STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+
+  // 2. Delete from Firestore if it was synced (string ID)
+  if (typeof id === "string") {
+    try {
+      await deleteWorkoutFromFirestore(id);
+    } catch (error) {
+      console.error(`Failed to delete workout ${id} from Firestore:`, error);
+      // Offline fallback: do not throw to allow offline experience
+    }
+  }
+}
+
+/**
+ * Clear all workouts for a user locally and from Firestore
+ */
+export async function clearAllWorkouts(userId: string): Promise<void> {
+  const db = await openDB();
+
+  // 1. Delete all user records locally from IndexedDB
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(WORKOUTS_STORE, "readwrite");
+    const store = tx.objectStore(WORKOUTS_STORE);
+    const index = store.index("userId");
+    const req = index.openCursor(userId);
+
+    req.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+
+  // 2. Get and delete all workouts from Firestore for this user
+  try {
+    const workouts = await getFirestoreWorkouts();
+    for (const w of workouts) {
+      if (w.id) {
+        await deleteWorkoutFromFirestore(w.id as string);
+      }
+    }
+  } catch (error) {
+    console.error("Failed to clear workouts from Firestore:", error);
+  }
+}
+
 export default {
   saveWorkoutLocally,
   getLocalWorkouts,
@@ -508,4 +591,6 @@ export default {
   isOnline,
   getSyncStatus,
   bulkUploadWorkouts,
+  deleteWorkout,
+  clearAllWorkouts,
 };

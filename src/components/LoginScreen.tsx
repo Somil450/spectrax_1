@@ -14,7 +14,7 @@ export function LoginScreen({
   onSignUpClick,
   onForgotPasswordClick,
 }: LoginScreenProps) {
-  const { signIn, signInWithGoogle, error, clearError, loading } = useAuth();
+  const { signIn, signInWithGoogle, signInAsGuest, error, clearError, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -153,6 +153,18 @@ export function LoginScreen({
     }
   };
 
+  const handleGuestSignIn = async () => {
+    setLocalError(null);
+    if (signInAsGuest) {
+      try {
+        await signInAsGuest();
+        onLoginSuccess();
+      } catch (err) {
+        console.error("Guest sign-in error:", err);
+      }
+    }
+  };
+
   const displayError = localError || error;
 
   return (
@@ -262,6 +274,31 @@ export function LoginScreen({
               Sign in with Google
             </>
           )}
+        </button>
+
+        <button
+          className="auth-button guest"
+          onClick={handleGuestSignIn}
+          disabled={loading}
+          style={{
+            marginTop: "12px",
+            background: "rgba(34, 211, 238, 0.12)",
+            border: "1px solid rgba(34, 211, 238, 0.25)",
+            color: "#22d3ee",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "10px",
+            width: "100%",
+            padding: "12px",
+            borderRadius: "8px",
+            fontWeight: "500",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            transition: "all 0.2s ease"
+          }}
+        >
+          Bypass Login (Guest Mode)
         </button>
 
         <div className="auth-footer">

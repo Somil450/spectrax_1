@@ -1,44 +1,19 @@
-import React, { useState, useEffect, useRef } from "react";
-import Draggable, {
-  type DraggableData,
-  type DraggableEvent,
-} from "react-draggable";
-
-import {
-  Activity,
-  StopCircle,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Lock,
-  Unlock,
-} from "lucide-react";
-
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
-import { overlayRenderer } from "../services/overlayRenderer";
-import { getJointAngles, getJointVisibility } from "../services/angleUtils";
-
-import {
-  exerciseEngine,
-  EngineState,
-  createPlankCalibration,
-} from "../services/exerciseEngine";
-
-import { ExerciseConfig } from "../config/exercises";
-import { sessionRecorder } from "../services/sessionRecorder";
-import { skeletalSense } from "../services/skeletalSense";
-import { poseLockService } from "../services/poseLockService";
-import { clipEngine } from "../services/clipEngine";
-import { BodyType } from "../services/bodyTypeEngine";
+import React, { useState, useEffect, useRef } from 'react';
 import { useWorkoutSync } from "../hooks/useWorkoutSync";
-
-import {
-  FocusPanel,
-  TimerPanel,
-  RepsPanel,
-  EnginePanel,
-  SensePanel,
-} from "./WorkoutPanels";
+import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
+import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
+import { cameraService } from '../services/cameraService';
+import { poseService } from '../services/poseService';
+import { overlayRenderer } from '../services/overlayRenderer';
+import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { ExerciseConfig } from '../config/exercises';
+import { sessionRecorder } from '../services/sessionRecorder';
+import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
+import { poseLockService } from '../services/poseLockService';
+import { clipEngine } from '../services/clipEngine';
+import { BodyType } from '../services/bodyTypeEngine';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -62,12 +37,9 @@ interface WorkoutScreenProps {
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
 }
-type WorkoutPanelId =
-  | "focus"
-  | "timer"
-  | "reps"
-  | "engine"
-  | "sense";
+
+type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
+
 type PanelPosition = {
   x: number;
   y: number;
@@ -949,212 +921,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
           </div>
         </div>
       </div>
-      {/* Bottom Metrics Bar */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 10,
-          padding: "40px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "20px",
-        }}
-      >
-        <div className="rep-counter" style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "7rem",
-              fontWeight: 900,
-              lineHeight: 1,
-              color: "#fff",
-              textShadow: `0 0 40px ${statusColor}44`,
-            }}
-          >
-            {engineState.reps}
-          </div>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--text-dim)",
-              letterSpacing: "4px",
-              textTransform: "uppercase",
-            }}
-          >
-            Repetitions
-          </div>
-        </div>
-
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            pointerEvents: "all",
-          }}
-        >
-          <div style={{ display: "flex", gap: "20px" }}>
-            <div
-              className="glass animate-in"
-              style={{
-                padding: "12px 20px",
-                borderLeft: `3px solid ${statusColor}`,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: statusColor,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontWeight: 700,
-                }}
-              >
-                <Activity size={14} /> AI ENGINE:{" "}
-                {engineState.status === "green"
-                  ? "STABLE"
-                  : "CORRECTION REQUIRED"}
-              </div>
-            </div>
-
-            {clipEngine.isReady() || clipEngine.getMode() === "cloud" ? (
-              <div
-                className="glass animate-in"
-                style={{
-                  padding: "12px 20px",
-                  borderLeft: "3px solid #9D4EDD",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                }}
-              >
-                <div
-                  className="radar-ping"
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    background: "#9D4EDD",
-                    borderRadius: "50%",
-                  }}
-                ></div>
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#9D4EDD",
-                    fontWeight: 700,
-                  }}
-                >
-                  VLM SENSE:{" "}
-                  {clipEngine.getMode() === "cloud"
-                    ? clipResult
-                      ? `CLOUD: ${clipResult.label.toUpperCase()}`
-                      : "CLOUD ACTIVATING..."
-                    : clipResult
-                      ? clipResult.label.toUpperCase()
-                      : "SCANNING..."}{" "}
-                  ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
-                </div>
-              </div>
-            ) : (
-              <div
-                className="glass animate-in"
-                style={{
-                  padding: "12px 20px",
-                  borderLeft: "3px solid var(--neon-cyan)",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--neon-cyan)",
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <div
-                    className="radar-ping loading"
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      background: "var(--neon-cyan)",
-                      borderRadius: "50%",
-                    }}
-                  ></div>
-                  OFFLINE AI SENSE: READY
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={handleEnd}
-            className="btn-neon"
-            style={{ background: "var(--neon-red)", color: "#fff" }}
-          >
-            FINISH SESSION <StopCircle size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/*
-        ══════════════════════════════════════════════════════════
-        ARIA LIVE REGIONS — Screen Reader Announcements
-        ══════════════════════════════════════════════════════════
-
-        HOW THIS WORKS:
-        - These <div>s are invisible to sighted users (srOnly style hides them).
-        - Screen readers watch them. When the text content changes, the screen
-          reader automatically reads the new text aloud — no focus change needed.
-        - We use THREE separate divs so announcements don't overwrite each other.
-
-        WHY NOT ONE DIV?
-        - If reps and feedback shared one string, every rep would re-announce
-          the full feedback sentence, making it repetitive and confusing.
-
-        IMPORTANT — These divs must ALWAYS be in the DOM (never inside an
-        `{condition && <div>}` block). If a live region is removed and re-added,
-        screen readers lose track of it and stop announcing.
-
-        aria-live="polite"   → waits for the user to finish reading, then speaks.
-        aria-live="assertive"→ interrupts immediately. Use only for urgent errors.
-        role="status"        → pairs with polite; improves NVDA/JAWS compatibility.
-        role="alert"         → pairs with assertive; for urgent alerts.
-        aria-atomic="true"   → reads the whole div content, not just the changed part.
-      */}
-
-      {/* Live region 1: Pose correction feedback */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        style={srOnly}
-      >
-        {feedbackAnnouncement}
-      </div>
-
-      {/* Live region 2: Rep count — announced separately so it's clean and distinct */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        style={srOnly}
-      >
-        {repAnnouncement}
-      </div>
-
-      {/* Live region 3: Urgent alerts (exercise mismatch) — interrupts screen reader */}
-      <div
-        role="alert"
-        aria-live="assertive"
-        aria-atomic="true"
-        style={srOnly}
-      >
-        {alertAnnouncement}
+      <div className="workout-finish-action">
+        <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
+          FINISH SESSION <StopCircle size={18} />
+        </button>
       </div>
 
       <style>{`

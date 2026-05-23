@@ -1,13 +1,16 @@
-import { useState, useRef, useEffect, lazy, Suspense } from "react";
-// ── Eagerly loaded (tiny, needed on first paint) ─────────────────────────────
+import { useState, useRef, useEffect } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
-import { useLeveling } from './hooks/useLeveling';
-import { useAuth } from "./context/AuthContext";
+import HistoryPage from "./HistoryPage";
+import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+import { useAuth } from "./hooks/useAuth";
+import { LoginScreen } from "./components/LoginScreen";
+import { SignUpScreen } from "./components/SignUpScreen";
+import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
@@ -30,10 +33,10 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
-  | "trophy"
   | "login"
   | "signup"
-  | "forgot-password";
+  | "forgot-password"
+  | "trophy";
 
 interface WorkoutStats {
   reps: number;
@@ -50,6 +53,7 @@ interface WorkoutStats {
 }
 
 function App() {
+  const { user, loading: authLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
@@ -106,6 +110,26 @@ function App() {
     setOfflineReady(false);
     setNeedRefresh(false);
   };
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        setCurrentScreen((prev) => {
+          if (prev !== "login" && prev !== "signup" && prev !== "forgot-password") {
+            return "login";
+          }
+          return prev;
+        });
+      } else {
+        setCurrentScreen((prev) => {
+          if (prev === "login" || prev === "signup" || prev === "forgot-password") {
+            return "welcome";
+          }
+          return prev;
+        });
+      }
+    }
+  }, [user, authLoading]);
 
   const navigateTo = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -177,31 +201,32 @@ function App() {
     );
   }
 
-  // If not authenticated and Firebase is configured, show auth screens
-  if (firebaseConfigured && !user) {
-    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
-      ? currentScreen
-      : "login";
+  // If not authenticated, show auth screens
+  if (!user) {
+    const isAuthScreen =
+      currentScreen === "login" ||
+      currentScreen === "signup" ||
+      currentScreen === "forgot-password";
+    const activeAuthScreen = isAuthScreen ? currentScreen : "login";
+
     return (
       <main className="spectrax-app">
-        <Suspense fallback={<div className="loading-container"><div className="spinner" /></div>}>
-          {activeAuthScreen === "login" && (
-            <LoginScreen
-              onLoginSuccess={() => navigateTo("welcome")}
-              onSignUpClick={() => navigateTo("signup")}
-              onForgotPasswordClick={() => navigateTo("forgot-password")}
-            />
-          )}
-          {activeAuthScreen === "signup" && (
-            <SignUpScreen
-              onSignUpSuccess={() => navigateTo("welcome")}
-              onLoginClick={() => navigateTo("login")}
-            />
-          )}
-          {activeAuthScreen === "forgot-password" && (
-            <ForgotPasswordScreen onBack={() => navigateTo("login")} />
-          )}
-        </Suspense>
+        {activeAuthScreen === "login" && (
+          <LoginScreen
+            onLoginSuccess={() => navigateTo("welcome")}
+            onSignUpClick={() => navigateTo("signup")}
+            onForgotPasswordClick={() => navigateTo("forgot-password")}
+          />
+        )}
+        {activeAuthScreen === "signup" && (
+          <SignUpScreen
+            onSignUpSuccess={() => navigateTo("welcome")}
+            onLoginClick={() => navigateTo("login")}
+          />
+        )}
+        {activeAuthScreen === "forgot-password" && (
+          <ForgotPasswordScreen onBack={() => navigateTo("login")} />
+        )}
       </main>
     );
   }

@@ -276,7 +276,8 @@ export class ExerciseEngine {
     const now = Date.now();
     const p = this.repParams(config.key);
 
-    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } = currentState;
+    const { reps, lastRepTime, history } = currentState;
+    let { stage, isCalibrated, stageStartTime } = currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
 
@@ -441,11 +442,12 @@ export class ExerciseEngine {
     }
 
     let nextCurrentStreak = currentState.currentStreak;
-    let nextBestStreak    = currentState.bestStreak;
-    let nextTotalReps     = currentState.totalReps;
-    let nextCorrectReps   = currentState.correctReps;
-    let nextRepScores     = [...currentState.repScores];
-    let allowRep          = currentState.allowRep;
+    let nextBestStreak = currentState.bestStreak;
+    let nextTotalReps = currentState.totalReps;
+    let nextCorrectReps = currentState.correctReps;
+    const nextRepScores = [...currentState.repScores];
+
+    let allowRep = currentState.allowRep;
 
     if (repJustCounted) {
       nextTotalReps += 1;
