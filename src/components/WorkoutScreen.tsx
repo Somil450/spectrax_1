@@ -37,7 +37,26 @@ interface WorkoutScreenProps {
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
 }
+
+// ── Visually-hidden style (sr-only) ──────────────────────────────────────────
+// This CSS pattern hides an element from sighted users while keeping it fully
+// available to screen readers. clip-path: inset(50%) is the modern replacement
+// for the deprecated `clip: rect(...)` property.
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
+
+// ── Panel types (module-level) ────────────────────────────────────────────────
 type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
+
 
 type PanelPosition = {
   x: number;

@@ -1,4 +1,6 @@
-import type { Pose as PoseType, Results } from '@mediapipe/pose';
+// Import MediaPipe types only; the runtime Pose constructor is provided via CDN on window.
+import type { Results } from '@mediapipe/pose';
+import type { Pose as PoseType } from '@mediapipe/pose';
 
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
@@ -288,13 +290,24 @@ export class PoseService {
   }
 
   onResults(callback: (results: Results) => void) {
-    if (!this.pose) return;
+  if (!this.pose) return;
+
     this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0;
       if (results) callback(results);
     });
   }
+
+  this.pose.onResults((results: any) => {
+    this.inProgress = false;
+    this.errorCount = 0;
+    if (results) {
+      callback(results);
+    }
+  });
+}
+ 6aba145 (fix: resolve Vite build failures in poseService.ts and WorkoutScreen.tsx)
 
   async send(image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement) {
     if (!this.pose || !this.isLoaded || this.inProgress) return;
