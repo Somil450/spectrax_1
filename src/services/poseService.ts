@@ -298,7 +298,7 @@ export class PoseService {
     existingFilter.enabled = enabled;
   }
 
-  getSmoothingFilters() {
+  public getSmoothingFilters(): PoseSmoothingFilterConfig[] {
     return this.smoothingFilters.map((filter) => filter.toConfig());
   }
 
