@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy } from "lucide-react";
+import { Play, History, Trophy } from "lucide-react";
 
 interface WelcomeScreenProps {
   onStart: () => void;
@@ -13,6 +13,12 @@ interface WelcomeScreenProps {
   };
 }
 
+const STATS = [
+  { value: "30+", label: "FPS tracking" },
+  { value: "6", label: "exercises" },
+  { value: "< 1s", label: "feedback lag" },
+];
+
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
@@ -21,18 +27,24 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (isMobile) return;
     const { clientX, clientY } = e;
     const { innerWidth, innerHeight } = window;
-    const x = -((clientY - innerHeight / 2) / innerHeight) * 20;
-    const y = ((clientX - innerWidth / 2) / innerWidth) * 20;
+    const x = -((clientY - innerHeight / 2) / innerHeight) * 14;
+    const y = ((clientX - innerWidth / 2) / innerWidth) * 14;
     setTilt({ x, y });
   };
 
-  const handleMouseLeave = () => {
-    setTilt({ x: 0, y: 0 });
-  };
+  const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -41,19 +53,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     if (!ctx) return;
 
     let animationId: number;
-    let particles: {
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      radius: number;
-    }[] = [];
+    let particles: { x: number; y: number; vx: number; vy: number; radius: number }[] = [];
 
     const init = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       particles = [];
-      for (let i = 0; i < 60; i++) {
+      const count = window.innerWidth < 640 ? 30 : 60;
+      for (let i = 0; i < count; i++) {
         particles.push({
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
@@ -76,7 +83,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         ctx.fillStyle = "rgba(0, 240, 255, 0.3)";
         ctx.fill();
       });
-
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
@@ -96,10 +102,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
     init();
     animate();
-
     const handleResize = () => init();
     window.addEventListener("resize", handleResize);
-
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", handleResize);
@@ -111,199 +115,110 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       className="screen-container welcome-screen"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{
-        justifyContent: "center",
-        alignItems: "center",
-        textAlign: "center",
-      }}
     >
-      <canvas
-        ref={canvasRef}
-        style={{ position: "absolute", inset: 0, opacity: 0.6 }}
-      />
+      {/* Particle canvas */}
+      <canvas ref={canvasRef} className="welcome-canvas" />
 
-      <div 
-        className="animate-in" 
-        style={{ 
-          position: "relative", 
-          zIndex: 10,
-          transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-          transition: "transform 0.15s ease-out",
-          transformStyle: "preserve-3d"
-        }}
-      >
-        {leveling && (
-          <div style={{ position: 'absolute', top: '-80px', right: '-120px', background: 'rgba(0, 0, 0, 0.4)', padding: '12px 20px', borderRadius: '12px', border: '1px solid var(--neon-cyan)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
-             <div style={{ color: 'var(--neon-cyan)', fontSize: '0.8rem', fontWeight: 800, letterSpacing: '1px' }}>
-                LEVEL {leveling.level}
-             </div>
-             <div style={{ width: '120px', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-               <div style={{ width: `${leveling.progress}%`, height: '100%', background: 'var(--neon-cyan)' }}></div>
-             </div>
-             <div style={{ color: 'var(--text-dim)', fontSize: '0.6rem' }}>
-                {leveling.xp} / {leveling.nextLevelXp} XP
-             </div>
+      {/* Decorative radial glow orbs */}
+      <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
+      <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
+
+      <div className="welcome-scroll-area">
+        <div className="welcome-scroll-inner">
+          {/* ── Hero ── */}
+        <div
+          className="welcome-hero animate-in"
+          style={{
+            transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+            transition: "transform 0.15s ease-out",
+          }}
+        >
+          {/* Eyebrow */}
+          <div className="welcome-eyebrow" aria-hidden="true">
+            <span className="welcome-eyebrow__dot" />
+            AI-Powered Fitness
           </div>
-        )}
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            borderRadius: "20px",
-            border: "1px solid rgba(0, 240, 255, 0.2)",
-            background: "rgba(0, 240, 255, 0.05)",
-            marginBottom: "24px",
-          }}
-        >
-          <Sparkles size={14} color="var(--neon-cyan)" />
-          <span
-            style={{
-              fontSize: "0.65rem",
-              letterSpacing: "2px",
-              color: "var(--neon-cyan)",
-              fontWeight: 700,
-            }}
-          >
-            AI CALIBRATION SYSTEM 2.0
-          </span>
+
+          {/* Wordmark */}
+          <h1 className="welcome-wordmark">SPECTRAX</h1>
+
+          {/* Tagline */}
+          <p className="welcome-tagline">
+            Train smarter. Every rep counts.
+          </p>
+
+          {/* Level bar — only when user has progress data */}
+          {leveling && (
+            <div className="welcome-level-bar">
+              <div className="welcome-level-bar__header">
+                <span className="welcome-level-bar__label">Level {leveling.level}</span>
+                <span className="welcome-level-bar__xp">{leveling.xp} / {leveling.nextLevelXp} XP</span>
+              </div>
+              <div className="welcome-level-bar__track">
+                <div
+                  className="welcome-level-bar__fill"
+                  style={{ width: `${leveling.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* CTA buttons */}
+          <div className="welcome-actions">
+            <button
+              onClick={onStart}
+              className="btn-neon welcome-btn-primary"
+              aria-label="Start Training"
+              tabIndex={0}
+            >
+              <Play size={16} fill="currentColor" />
+              Start Training
+            </button>
+
+            <div className="welcome-btn-row">
+              <button
+                onClick={onViewHistory}
+                className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                aria-label="View Workout History"
+                tabIndex={0}
+              >
+                <History size={15} />
+                History
+              </button>
+
+              <button
+                onClick={onViewTrophies}
+                className="welcome-btn-secondary welcome-btn-secondary--gold"
+                aria-label="View Trophy Room"
+                tabIndex={0}
+              >
+                <Trophy size={15} />
+                Trophies
+              </button>
+            </div>
+          </div>
         </div>
 
-        <h1
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "clamp(3.5rem, 14vw, 7rem)",
-            fontWeight: 900,
-            letterSpacing: "14px",
-            color: "var(--neon-cyan)",
-            textShadow:
-              "0 0 20px rgba(0,240,255,0.8), 0 0 40px rgba(0,240,255,0.6), 0 0 60px rgba(0,240,255,0.4), 0 0 80px rgba(0,240,255,0.2)",
-            margin: "20px 0",
-            fontStyle: "normal",
-            textTransform: "uppercase",
-          }}
-        >
-          SPECTRAX
-        </h1>
-
-        <p
-          style={{
-            color: "var(--text-secondary)",
-            fontSize: "1rem",
-            letterSpacing: "3px",
-            fontWeight: 300,
-            marginBottom: "48px",
-          }}
-        >
-          Real-time Pose Tracking & Performance Analysis
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
-          <button onClick={onStart} className="btn-neon" aria-label="Initialize System" tabIndex={0}>
-            INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
-          </button>
-
-          <button
-            onClick={onViewHistory}
-            aria-label="View Workout History"
-            tabIndex={0}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "rgba(0, 240, 255, 0.1)",
-              border: "1.5px solid rgba(0, 240, 255, 0.4)",
-              borderRadius: "14px",
-              color: "var(--neon-cyan)",
-              cursor: "pointer",
-              padding: "12px 28px",
-              fontSize: "0.75rem",
-              letterSpacing: "2px",
-              fontWeight: 700,
-              transition: "all 0.3s ease",
-              textTransform: "uppercase",
-              boxShadow: "0 2px 8px rgba(0, 240, 255, 0.15)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(0, 240, 255, 0.2)";
-              e.currentTarget.style.borderColor = "var(--neon-cyan)";
-              e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(0, 240, 255, 0.3)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(0, 240, 255, 0.1)";
-              e.currentTarget.style.borderColor = "rgba(0, 240, 255, 0.4)";
-              e.currentTarget.style.boxShadow =
-                "0 2px 8px rgba(0, 240, 255, 0.15)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <History size={15} />
-            VIEW HISTORY
-          </button>
-
-          <button
-            onClick={onViewTrophies}
-            aria-label="View Trophy Room"
-            tabIndex={0}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "rgba(255, 214, 0, 0.08)",
-              border: "1.5px solid rgba(255, 214, 0, 0.35)",
-              borderRadius: "14px",
-              color: "var(--neon-yellow)",
-              cursor: "pointer",
-              padding: "12px 28px",
-              fontSize: "0.75rem",
-              letterSpacing: "2px",
-              fontWeight: 700,
-              transition: "all 0.3s ease",
-              textTransform: "uppercase",
-              boxShadow: "0 2px 8px rgba(255, 214, 0, 0.1)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(255, 214, 0, 0.15)";
-              e.currentTarget.style.borderColor = "var(--neon-yellow)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(255, 214, 0, 0.25)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255, 214, 0, 0.08)";
-              e.currentTarget.style.borderColor = "rgba(255, 214, 0, 0.35)";
-              e.currentTarget.style.boxShadow = "0 2px 8px rgba(255, 214, 0, 0.1)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <Trophy size={15} />
-            TROPHY ROOM
-          </button>
+        {/* ── Stat strip ── */}
+        <div className="welcome-stats">
+          {STATS.map(({ value, label }, i) => (
+            <React.Fragment key={label}>
+              <div className="welcome-stat">
+                <span className="welcome-stat__value">{value}</span>
+                <span className="welcome-stat__label">{label}</span>
+              </div>
+              {i < STATS.length - 1 && (
+                <div className="welcome-stat-divider" aria-hidden="true" />
+              )}
+            </React.Fragment>
+          ))}
         </div>
-      </div>
 
-      <div
-        style={{
-          position: "absolute",
-          bottom: "40px",
-          left: "0",
-          right: "0",
-          color: "var(--text-dim)",
-          fontSize: "0.7rem",
-          letterSpacing: "4px",
-          textTransform: "uppercase",
-        }}
-      >
-        Precision Performance Research Lab
+        {/* ── Footer ── */}
+        <footer className="welcome-footer">
+          Precision Performance Research Lab
+        </footer>
+        </div>{/* /welcome-scroll-inner */}
       </div>
     </div>
   );
