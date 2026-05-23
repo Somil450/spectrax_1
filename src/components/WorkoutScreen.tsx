@@ -146,7 +146,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const [showExitModal, setShowExitModal] = useState(false);
-
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -476,8 +476,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         };
         frameId.current = requestAnimationFrame(loop);
       } catch (err) {
-        console.error("Workout camera error:", err);
-      }
+  console.error("Workout camera error:", err);
+
+  setCameraError(
+    "Camera permission denied. Please allow camera access and retry."
+  );
+}
     };
 
     startWorkout();
@@ -521,7 +525,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   useEffect(() => {
     window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));
   }, [panelPositions]);
+const retryCameraAccess = async () => {
+  setCameraError(null);
 
+  try {
+    if (videoRef.current) {
+      await cameraService.startCamera(videoRef.current);
+    }
+  } catch (err) {
+    setCameraError(
+      "Unable to access camera. Please check browser permissions."
+    );
+  }
+};
   const handleEnd = () => {
     const accuracy =
       mutableState.current.totalReps > 0
@@ -670,6 +686,56 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
           VLM INTELLIGENCE LOADING... {vlmProgress}% (151MB)
         </div>
       )}
+      {cameraError && (
+  <div
+    style={{
+      position: "absolute",
+      inset: 0,
+      background: "rgba(0,0,0,0.85)",
+      zIndex: 9999,
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+      alignItems: "center",
+      color: "#fff",
+      textAlign: "center",
+      padding: "20px",
+    }}
+  >
+    <h2
+      style={{
+        color: "#ff4d4f",
+        marginBottom: "12px",
+      }}
+    >
+      Camera Access Required
+    </h2>
+
+    <p
+      style={{
+        maxWidth: "400px",
+        marginBottom: "20px",
+      }}
+    >
+      {cameraError}
+    </p>
+
+    <button
+      onClick={retryCameraAccess}
+      style={{
+        padding: "12px 20px",
+        borderRadius: "10px",
+        border: "none",
+        background: "#00ffff",
+        color: "#000",
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      Retry Camera
+    </button>
+  </div>
+)}
       {/* Offline Indicator */}
       {!isOnline && (
         <div
