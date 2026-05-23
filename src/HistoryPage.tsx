@@ -340,8 +340,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           font-family: 'Syne', sans-serif;
           position: relative;
           overflow-x: hidden;
+        }
+
+        /* subtle dot-grid background */
+        .bg-grid {
           position: fixed;
-          border-bottom: 1px solid var(--glass-border);
+          inset: 0;
+          background-image: radial-gradient(circle, rgba(0,240,255,0.08) 1px, transparent 1px);
           background-size: 28px 28px;
           pointer-events: none;
           z-index: 0;
@@ -355,6 +360,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           align-items: center;
           justify-content: space-between;
           padding: 20px 28px;
+          padding-right: 220px;
           border-bottom: 1px solid var(--glass-border);
           backdrop-filter: blur(12px);
           background: var(--glass-bg);
@@ -511,7 +517,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
         }
 
         @media (max-width: 500px) {
-          .history-header { padding: 16px 16px; }
+          .history-header { padding: 16px 16px; padding-right: 110px; }
           .history-body { padding: 16px; }
           .summary-bar { padding: 12px 16px; }
         }
