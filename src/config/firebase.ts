@@ -9,6 +9,7 @@ import {
   browserLocalPersistence,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -27,6 +28,15 @@ let app: ReturnType<typeof initializeApp>;
 try {
   if (!firebaseConfig.apiKey) throw new Error("Missing Firebase config");
   app = initializeApp(firebaseConfig);
+
+  const appCheckSiteKey = import.meta.env.VITE_APPCHECK_RECAPTCHA_KEY;
+  if (appCheckSiteKey) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
+
   auth = getAuth(app);
   db = getFirestore(app);
 
