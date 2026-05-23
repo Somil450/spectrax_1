@@ -14,6 +14,7 @@ import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -599,36 +600,38 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       style={{ background: "var(--bg-primary)" }}
     >
       {/* Background Video Layer */}
-      <div
-        className="camera-viewport"
-        style={{ position: "absolute", inset: 0 }}
-      >
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            opacity: 0.4,
-            transform: "scaleX(-1)",
-          }}
-        />
-        <canvas
-          ref={canvasRef}
-          width={1280}
-          height={720}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            transform: "scaleX(-1)",
-          }}
-        />
-      </div>
+      <CameraErrorBoundary>
+        <div
+          className="camera-viewport"
+          style={{ position: "absolute", inset: 0 }}
+        >
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              opacity: 0.4,
+              transform: "scaleX(-1)",
+            }}
+          />
+          <canvas
+            ref={canvasRef}
+            width={1280}
+            height={720}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transform: "scaleX(-1)",
+            }}
+          />
+        </div>
+      </CameraErrorBoundary>
 
       {/* Model Loading Status Overlay */}
       {clipEngine.isBusy() && (
