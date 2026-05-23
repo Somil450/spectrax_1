@@ -234,6 +234,33 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     }
   }, [countdownActive, countdownSeconds, onNext]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === 's' || key === 'enter') {
+        e.preventDefault();
+        if (!countdownActive) {
+          setCountdownActive(true);
+          setCountdownSeconds(3);
+        }
+      } else if (key === 'escape' || key === 'e') {
+        e.preventDefault();
+        onBack();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [countdownActive, onBack]);
+
   const statusColor = result.status === 'green' ? 'var(--neon-green)' : (result.status === 'yellow' ? 'var(--neon-yellow)' : 'var(--neon-red)');
 
   const getSortedExercises = () => {
@@ -503,6 +530,46 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
       </div>
 
+      {/* Keyboard Shortcuts Info Trigger */}
+      <div
+        className="glass shortcut-info-trigger"
+        style={{
+          position: "fixed",
+          bottom: "20px",
+          left: "20px",
+          zIndex: 90,
+          padding: "8px 12px",
+          borderRadius: "8px",
+          fontSize: "0.7rem",
+          color: "var(--neon-cyan)",
+          border: "1px solid rgba(0, 240, 255, 0.3)",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          pointerEvents: "all",
+          cursor: "pointer"
+        }}
+      >
+        <span>⌨️ Shortcuts</span>
+        <div className="shortcut-tooltip glass">
+          <div style={{ fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '6px', color: '#fff' }}>Keyboard Shortcuts</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+              <span>Start Session</span>
+              <span>
+                <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>S</kbd> / <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>↵</kbd>
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+              <span>Cancel / Exit</span>
+              <span>
+                <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>Esc</kbd> / <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>E</kbd>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <style>{`
         @keyframes pulse {
           0% { opacity: 0.4; transform: scale(0.9); }
@@ -528,6 +595,39 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         }
         .radar-ping.loading::after {
           animation: radar-pulse 1s infinite;
+        }
+        .shortcut-info-trigger {
+          position: relative;
+          transition: all 0.3s ease;
+        }
+        .shortcut-info-trigger:hover {
+          background: rgba(0, 240, 255, 0.15) !important;
+          border-color: var(--neon-cyan) !important;
+          box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+        }
+        .shortcut-tooltip {
+          display: none;
+          position: absolute;
+          bottom: 120%;
+          left: 0;
+          width: 200px;
+          background: rgba(10, 10, 26, 0.95) !important;
+          border: 1px solid rgba(0, 240, 255, 0.4) !important;
+          padding: 12px;
+          border-radius: 8px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          text-align: left;
+          color: var(--text-secondary);
+          z-index: 100;
+          pointer-events: none;
+        }
+        .shortcut-info-trigger:hover .shortcut-tooltip {
+          display: block;
+          animation: tooltip-fade-in 0.2s ease-out;
+        }
+        @keyframes tooltip-fade-in {
+          from { opacity: 0; transform: translateY(5px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

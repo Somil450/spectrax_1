@@ -6,7 +6,9 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   Lock,
-  Unlock
+  Unlock,
+  Play,
+  Pause
 } from "lucide-react";
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
@@ -146,6 +148,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -269,6 +273,41 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
     }
   }, [mismatchError]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === 'p') {
+        e.preventDefault();
+        setIsPaused(true);
+        isPausedRef.current = true;
+      } else if (key === 'r') {
+        e.preventDefault();
+        setIsPaused(false);
+        isPausedRef.current = false;
+      } else if (e.key === ' ' || key === 'spacebar') {
+        e.preventDefault();
+        setIsPaused(prev => {
+          const newVal = !prev;
+          isPausedRef.current = newVal;
+          return newVal;
+        });
+      } else if (key === 'escape' || key === 'e') {
+        e.preventDefault();
+        setShowExitModal(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -449,6 +488,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
 
         const loop = (timestamp: number) => {
           if (!isMounted) return;
+          if (isPausedRef.current) {
+            frameId.current = requestAnimationFrame(loop);
+            return;
+          }
           const elapsed = timestamp - lastProcessTime.current;
           if (elapsed > 1000 / FPS_LIMIT) {
             if (
@@ -483,9 +526,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
     startWorkout();
 
     const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-
-      setSeconds(elapsed);
+      if (!isPausedRef.current) {
+        setSeconds(prev => prev + 1);
+      }
     }, 1000);
 
     return () => {
@@ -614,6 +657,52 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       className="screen-container"
       style={{ background: "var(--bg-primary)" }}
     >
+      {isPaused && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(10, 10, 26, 0.85)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            zIndex: 140,
+            padding: '20px',
+            textAlign: 'center',
+            backdropFilter: 'blur(8px)',
+            pointerEvents: 'all'
+          }}
+        >
+          <div className="glass animate-in" style={{ padding: '40px', border: '1px solid var(--neon-cyan)', background: 'rgba(0, 240, 255, 0.05)', maxWidth: '400px', pointerEvents: 'all' }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', marginBottom: '16px', letterSpacing: '2px' }}>TRACKING PAUSED</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px', lineHeight: 1.5 }}>
+              AI analysis and session timer are temporarily paused.
+            </p>
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+              <button
+                onClick={() => {
+                  setIsPaused(false);
+                  isPausedRef.current = false;
+                }}
+                className="btn-neon"
+                style={{ background: 'var(--neon-cyan)', color: '#000' }}
+              >
+                RESUME
+              </button>
+              <button
+                onClick={() => setShowExitModal(true)}
+                className="btn-outline"
+                style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}
+              >
+                EXIT SESSION
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Background Video Layer */}
       <CameraErrorBoundary>
         <div
@@ -949,6 +1038,58 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         </button>
       </div>
 
+      {/* Keyboard Shortcuts Info Trigger */}
+      <div
+        className="glass shortcut-info-trigger"
+        style={{
+          position: "fixed",
+          bottom: "20px",
+          left: "20px",
+          zIndex: 90,
+          padding: "8px 12px",
+          borderRadius: "8px",
+          fontSize: "0.7rem",
+          color: "var(--neon-cyan)",
+          border: "1px solid rgba(0, 240, 255, 0.3)",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          pointerEvents: "all",
+          cursor: "pointer"
+        }}
+      >
+        <span>⌨️ Shortcuts</span>
+        <div className="shortcut-tooltip glass">
+          <div style={{ fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '6px', color: '#fff' }}>Keyboard Shortcuts</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+              <span>Pause Tracking</span>
+              <span>
+                <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>P</kbd>
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+              <span>Resume Tracking</span>
+              <span>
+                <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>R</kbd>
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+              <span>Toggle Pause</span>
+              <span>
+                <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>Space</kbd>
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+              <span>Exit Session</span>
+              <span>
+                <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>Esc</kbd> / <kbd style={{ background: '#222', color: '#fff', border: '1px solid #444', padding: '1px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>E</kbd>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <style>{`
         @keyframes radar-pulse {
           0% { transform: scale(1); opacity: 0.8; }
@@ -971,6 +1112,39 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
           0%, 100% { transform: translateX(-50%); }
           25% { transform: translateX(-52%); }
           75% { transform: translateX(-48%); }
+        }
+        .shortcut-info-trigger {
+          position: relative;
+          transition: all 0.3s ease;
+        }
+        .shortcut-info-trigger:hover {
+          background: rgba(0, 240, 255, 0.15) !important;
+          border-color: var(--neon-cyan) !important;
+          box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+        }
+        .shortcut-tooltip {
+          display: none;
+          position: absolute;
+          bottom: 120%;
+          left: 0;
+          width: 220px;
+          background: rgba(10, 10, 26, 0.95) !important;
+          border: 1px solid rgba(0, 240, 255, 0.4) !important;
+          padding: 12px;
+          border-radius: 8px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          text-align: left;
+          color: var(--text-secondary);
+          z-index: 100;
+          pointer-events: none;
+        }
+        .shortcut-info-trigger:hover .shortcut-tooltip {
+          display: block;
+          animation: tooltip-fade-in 0.2s ease-out;
+        }
+        @keyframes tooltip-fade-in {
+          from { opacity: 0; transform: translateY(5px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}
       {showExitModal && (
