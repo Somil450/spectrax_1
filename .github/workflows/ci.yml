@@ -43,6 +43,10 @@ jobs:
       - name: 🏗️ Build Frontend
         run: npm run build
 
+      # Run Frontend Tests
+      - name: 🧪 Run Frontend Tests
+        run: npm test
+
       # Install Backend Dependencies
       - name: 📦 Install Backend Dependencies
         run: |
