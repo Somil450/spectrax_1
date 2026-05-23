@@ -17,7 +17,6 @@ import { ExerciseConfig } from "../config/exercises";
 import { sessionRecorder } from "../services/sessionRecorder";
 import { skeletalSense } from "../services/skeletalSense"; // Kept on main thread for reliable auto-detect
 import { poseLockService } from "../services/poseLockService";
-import { clipEngine } from "../services/clipEngine";
 import { BodyType } from "../services/bodyTypeEngine";
 import { useWorkoutSync } from "../hooks/useWorkoutSync";
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
@@ -146,6 +145,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [clipEngine, setClipEngine] = useState<any>(null);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -332,7 +332,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         if (ctx) overlayRenderer.setContext(ctx);
 
         sessionRecorder.start();
-        await clipEngine.init();
+        const { clipEngine: loadedEngine } = await import("../services/clipEngine");
+        await loadedEngine.init();
+        if (isMounted) {
+          setClipEngine(loadedEngine);
+        }
         await cameraService.startCamera(videoRef.current);
 
         poseService.onResults(async (results) => {
@@ -459,11 +463,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
               poseService.send(videoRef.current);
 
               countRef.current++;
-              if (countRef.current % 5 === 0)
+              if (countRef.current % 5 === 0 && clipEngine)
                 setVlmProgress(clipEngine.getProgress());
 
-              if (countRef.current % 15 === 0 && canvasRef.current) {
-                clipEngine.analyzeFrame(canvasRef.current).then((res) => {
+              if (countRef.current % 15 === 0 && canvasRef.current && clipEngine) {
+                clipEngine.analyzeFrame(canvasRef.current).then((res: any) => {
                   if (res && isMounted) {
                     setClipResult(res);
                   }
@@ -501,6 +505,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       }
       cameraService.stopCamera();
       clearInterval(timer);
+
+      // Lazy import and cleanup clipEngine singleton
+      import("../services/clipEngine").then(({ clipEngine }) => {
+        clipEngine.terminate();
+      });
     };
   }, [exercise]);
 
@@ -543,12 +552,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       accuracy: accuracy,
       mistakes: mutableState.current.mistakes,
       bestStreak: mutableState.current.bestStreak,
-      tags: clipEngine.generateSessionTags({
-        accuracy: accuracy,
-        avgConfidence: clipResult?.confidence || 0.8,
-        mistakes: Object.keys(mutableState.current.mistakes),
-        duration: seconds,
-      }),
+      tags: clipEngine
+        ? clipEngine.generateSessionTags({
+            accuracy: accuracy,
+            avgConfidence: clipResult?.confidence || 0.8,
+            mistakes: Object.keys(mutableState.current.mistakes),
+            duration: seconds,
+          })
+        : ["Completed Session"],
     });
   };
 
@@ -649,7 +660,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       </CameraErrorBoundary>
 
       {/* Model Loading Status Overlay */}
-      {clipEngine.isBusy() && (
+      {clipEngine?.isBusy() && (
         <div
           style={{
             position: "absolute",
@@ -781,7 +792,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
         {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
-        {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
+        {clipEngine && renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}

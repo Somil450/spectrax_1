@@ -108,8 +108,8 @@ export default defineConfig({
           if (id.includes('node_modules/three')) return 'vendor-three';
           // Firebase — only needed when auth is configured
           if (id.includes('node_modules/firebase')) return 'vendor-firebase';
-          // @xenova/transformers — 151MB model loader, must be its own chunk
-          if (id.includes('node_modules/@xenova')) return 'vendor-xenova';
+          // @xenova/transformers & onnxruntime — 151MB model loader, must be its own chunk
+          if (id.includes('node_modules/@xenova') || id.includes('node_modules/onnxruntime-web')) return 'vendor-xenova';
           // MediaPipe npm packages (camera_utils etc.)
           if (id.includes('node_modules/@mediapipe')) return 'vendor-mediapipe';
           // React core — always needed, keep small and cacheable

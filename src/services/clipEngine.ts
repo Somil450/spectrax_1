@@ -207,6 +207,17 @@ class ClipEngine {
     if (stats.mistakes.length === 0) tags.push("Perfect Form Streak");
     return tags.length > 0 ? tags : ["Completed Session"];
   }
+
+  public terminate() {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+      this.workerReady = false;
+      this.isLoading = false;
+      this.isAnalyzing = false;
+      this.progress = 0;
+    }
+  }
 }
 
 export const clipEngine = new ClipEngine();
