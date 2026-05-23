@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+
 export interface ReplayFrame {
   timestamp: number;
   landmarks: { x: number; y: number; z: number }[];

@@ -11,7 +11,7 @@
 
 *Advanced AI-driven fitness companion that tracks your workouts, analyzes form, and visualizes progress in 3D. Proudly participating in GirlScript Summer of Code 2026!*
 
-[Features](#-features) • [Tech Stack](#-tech-stack) • [Installation](#-installation) • [Usage](#-usage) • [Contributing](#-contributing) • [License](#-license)
+[Features](#-features) • [Tech Stack](#-tech-stack) • [Installation](#-installation) • [Usage](#-usage) • [FAQ](FAQ.md) • [Contributing](#-contributing) • [License](#-license)
 
 </div>
 
@@ -128,6 +128,12 @@ The project features a full-stack architecture with a React frontend and an Expr
    - **Calibration**: Align yourself with the camera for optimal tracking.
    - **Workout**: Start exercising! Watch your reps count up in real-time.
    - **Summary**: Review your stats and see where you can improve.
+
+---
+
+## ❓ FAQ
+
+New to SpectraX? The **[FAQ](FAQ.md)** answers the most common questions about camera permissions, MediaPipe/WASM loading, environment setup, and troubleshooting common dev errors. Worth a 2-minute skim before your first PR.
 
 ---
 

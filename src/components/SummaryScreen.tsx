@@ -30,35 +30,6 @@
     return () => clearTimeout(timer);
   }, [stats.accuracy]);
 
-  // Auto-save workout to Firestore
-  useEffect(() => {
-    const saveWorkout = async () => {
-      if (stats.totalReps === 0) return; // Skip empty sessions
-
-      try {
-        setIsSavingWorkout(true);
-        const exerciseName = stats.exerciseName || "unknown_exercise";
-        console.log("💾 Saving workout to Firestore...", stats);
-
-        await addWorkout({
-          exerciseType: exerciseName.toLowerCase().replace(/\s+/g, "_"),
-          totalReps: stats.totalReps,
-          accuracyScore: stats.accuracy,
-          duration: stats.duration,
-          timestamp: Date.now(),
-        });
-
-        console.log("✅ Workout saved successfully!");
-      } catch (error) {
-        console.error("❌ Failed to save workout:", error);
-      } finally {
-        setIsSavingWorkout(false);
-      }
-    };
-
-    saveWorkout();
-  }, [stats, addWorkout]);
-
   const offset = 440 - (440 * accuracy) / 100;
 
   let accuracyColor = "var(--neon-red)";
@@ -96,6 +67,13 @@
           stats.repScores.reduce((a, b) => a + b, 0) / stats.repScores.length,
         )
       : 0;
+  const recommendations = generateRecommendations(
+    stats.accuracy,
+    stats.mistakes,
+    stats.bestStreak,
+    averageRepScore,
+    stats.exerciseName
+  );
 
   if (stats.totalReps === 0) {
     return (
@@ -189,21 +167,6 @@
         >
           Session complete. AI analysis synchronized.
         </p>
-        {isSavingWorkout && (
-          <p
-            style={{
-              color: "var(--neon-cyan)",
-              fontSize: "0.8rem",
-              marginTop: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            💾 Saving to cloud...
-          </p>
-        )}
       </div>
 
       {/* Accuracy Ring */}
@@ -480,6 +443,22 @@
         </div>
       </div>
 
+      {stats.gainedXp ? (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderColor: 'var(--neon-yellow)', background: 'rgba(255, 235, 59, 0.05)' }}>
+           <div style={{ fontSize: '0.8rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px', fontWeight: 700 }}>XP Gained</div>
+           <div style={{ color: '#fff', fontSize: '2rem', fontWeight: 900, marginBottom: '8px' }}>+{stats.gainedXp} XP</div>
+           {leveling && (
+             <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', fontWeight: 'bold' }}>LVL {leveling.level}</span>
+                <div style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${leveling.progress}%`, height: '100%', background: 'var(--neon-yellow)' }}></div>
+                </div>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{leveling.nextLevelXp} XP</span>
+             </div>
+           )}
+        </div>
+      ) : null}
+
       {/* Mistake & Streak Insights */}
       <div
         className="animate-in"
@@ -639,7 +618,7 @@
           </div>
         </div>
       )}
-
+      <AIRecommendations recommendations={recommendations} />
       {/* Action Buttons */}
       <div
         className="animate-in"

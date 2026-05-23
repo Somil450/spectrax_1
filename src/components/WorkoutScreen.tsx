@@ -47,11 +47,11 @@ type PanelPosition = {
 
 type PanelPositions = Record<WorkoutPanelId, PanelPosition>;
 
-const PANEL_POSITION_STORAGE_KEY = 'spectrax.workoutPanelPositions.v1';
+const PANEL_POSITION_STORAGE_KEY = "spectrax.workoutPanelPositions.v1";
 
 const getViewportSize = () => ({
-  width: typeof window === 'undefined' ? 1280 : window.innerWidth,
-  height: typeof window === 'undefined' ? 720 : window.innerHeight
+  width: typeof window === "undefined" ? 1280 : window.innerWidth,
+  height: typeof window === "undefined" ? 720 : window.innerHeight,
 });
 
 const getDefaultPanelPositions = (): PanelPositions => {
@@ -62,28 +62,28 @@ const getDefaultPanelPositions = (): PanelPositions => {
     timer: { x: Math.max(width - 230, 30), y: 30 },
     reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
     engine: { x: 40, y: Math.max(height - 110, 30) },
-    sense: { x: 280, y: Math.max(height - 110, 30) }
+    sense: { x: 280, y: Math.max(height - 110, 30) },
   };
 };
 
 const getStoredPanelPositions = (): PanelPositions => {
   const defaults = getDefaultPanelPositions();
 
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return defaults;
   }
 
   try {
     const storedPositions = JSON.parse(
-      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || '{}'
+      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || "{}",
     ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
 
     return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
       const storedPosition = storedPositions[panelId];
 
       positions[panelId] = {
-        x: typeof storedPosition?.x === 'number' ? storedPosition.x : defaults[panelId].x,
-        y: typeof storedPosition?.y === 'number' ? storedPosition.y : defaults[panelId].y
+        x: typeof storedPosition?.x === "number" ? storedPosition.x : defaults[panelId].x,
+        y: typeof storedPosition?.y === "number" ? storedPosition.y : defaults[panelId].y,
       };
 
       return positions;
@@ -93,7 +93,24 @@ const getStoredPanelPositions = (): PanelPositions => {
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
+};
+
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
+  exercise,
+  onEnd,
+  onAutoDetect,
+  bodyType,
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRefs = useRef<Record<WorkoutPanelId, React.RefObject<HTMLDivElement>> | null>(null);
@@ -139,6 +156,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
+    plankSpline: createPlankCalibration(),
+    hipSplineDeviation: 0,
   });
 
   const frameId = useRef<number>(0);
@@ -192,7 +211,50 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
+    plankSpline: createPlankCalibration(),
+    hipSplineDeviation: 0,
   });
+
+  // ── ARIA Live Region State ────────────────────────────────────────────────────
+  // We use THREE separate state variables for announcements.
+  // Why separate? If reps and feedback shared one string, every rep would
+  // re-read the feedback, and every feedback change would re-read the rep count.
+  // Keeping them separate means each is announced only when IT changes.
+  const [feedbackAnnouncement, setFeedbackAnnouncement] = useState('');
+  const [repAnnouncement, setRepAnnouncement] = useState('');
+  const [alertAnnouncement, setAlertAnnouncement] = useState('');
+
+  // We use a ref (not state) for the previous rep count because we only need it
+  // for comparison — it doesn't need to cause a re-render on its own.
+  const prevRepsRef = useRef(0);
+
+  // ── Announce pose correction feedback ─────────────────────────────────────────
+  // useEffect runs ONLY when engineState.feedback changes to a different string.
+  // React's dependency comparison handles deduplication automatically — the same
+  // message repeated across frames will NOT re-trigger this effect.
+  useEffect(() => {
+    setFeedbackAnnouncement(engineState.feedback);
+  }, [engineState.feedback]);
+
+  // ── Announce rep count on each increment ─────────────────────────────────────
+  // We check prevRepsRef so we only announce when reps actually go up.
+  // This prevents announcing "Rep 0" on first render.
+  useEffect(() => {
+    if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
+      setRepAnnouncement(`Rep ${engineState.reps} complete`);
+    }
+    prevRepsRef.current = engineState.reps;
+  }, [engineState.reps]);
+
+  // ── Announce exercise mismatch errors ─────────────────────────────────────────
+  // role="alert" with aria-live="assertive" will interrupt the screen reader
+  // immediately. We only use this for genuinely urgent errors like a mismatch.
+  useEffect(() => {
+    if (mismatchError) {
+      setAlertAnnouncement(`Exercise mismatch detected. You appear to be doing ${mismatchError}. Switching is disabled mid-set.`);
+    }
+  }, [mismatchError]);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -351,6 +413,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             angles,
             visibility,
             mutableState.current,
+            results.poseLandmarks,
           );
 
           mutableState.current = nextState;
@@ -796,6 +859,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               letterSpacing: "2px",
               margin: "10px 0",
             }}
+            aria-live="assertive"
+            aria-atomic="true"
           >
             {engineState.feedback.toUpperCase()}
           </p>
