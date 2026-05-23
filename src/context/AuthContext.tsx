@@ -72,9 +72,12 @@ const getErrorMessage = (error: unknown): string => {
 
   // Email/Password errors
   if (errorCode === "auth/invalid-email") return "Invalid email address";
-  if (errorCode === "auth/user-not-found")
-    return "No account found with this email";
-  if (errorCode === "auth/wrong-password") return "Incorrect password";
+  if (
+    errorCode === "auth/user-not-found" ||
+    errorCode === "auth/wrong-password" ||
+    errorCode === "auth/invalid-credential"
+  )
+    return "Invalid email or password";
   if (errorCode === "auth/user-disabled")
     return "This account has been disabled";
   if (errorCode === "auth/email-already-in-use")
@@ -93,9 +96,8 @@ const getErrorMessage = (error: unknown): string => {
     return "Email already registered with different sign-in method";
   }
 
-  // Generic Firebase error
-  if (firebaseError?.message) {
-    return firebaseError.message;
+  if (errorCode) {
+    return "Something went wrong. Please try again.";
   }
 
   // Non-Firebase errors
