@@ -1,27 +1,29 @@
+
+import React, { useState, useEffect, useRef } from "react";
+import Draggable, {
+  type DraggableData,
+  type DraggableEvent,
+} from "react-draggable";
+import {
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import {
-  Activity,
-  StopCircle,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Lock,
-  Unlock
-} from "lucide-react";
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
-import { overlayRenderer } from "../services/overlayRenderer";
-import { getJointAngles, getJointVisibility } from "../services/angleUtils";
-import { exerciseEngine, EngineState, createPlankCalibration } from "../services/exerciseEngine";
-import { ExerciseConfig } from "../config/exercises";
-import { sessionRecorder } from "../services/sessionRecorder";
-import { skeletalSense } from "../services/skeletalSense"; // Kept on main thread for reliable auto-detect
-import { poseLockService } from "../services/poseLockService";
-import { clipEngine } from "../services/clipEngine";
-import { BodyType } from "../services/bodyTypeEngine";
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
+import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
+import { cameraService } from '../services/cameraService';
+import { poseService } from '../services/poseService';
+import { overlayRenderer } from '../services/overlayRenderer';
+import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { ExerciseConfig } from '../config/exercises';
+import { sessionRecorder } from '../services/sessionRecorder';
+import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
+import { poseLockService } from '../services/poseLockService';
+import { clipEngine } from '../services/clipEngine';
+import { BodyType } from '../services/bodyTypeEngine';
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
+
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -46,7 +48,11 @@ interface WorkoutScreenProps {
   bodyType?: BodyType;
 }
 
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
+
+
 type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
+
 
 type PanelPosition = {
   x: number;
@@ -86,12 +92,114 @@ const getStoredPanelPositions = (): PanelPositions => {
       window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || "{}",
     ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
 
+
+    return (Object.keys(defaults) as WorkoutPanelId[]).reduce(
+      (positions, panelId) => {
+        const storedPosition = storedPositions[panelId];
+
+        positions[panelId] = {
+          x:
+            typeof storedPosition?.x === "number"
+              ? storedPosition.x
+              : defaults[panelId].x,
+          y:
+            typeof storedPosition?.y === "number"
+              ? storedPosition.y
+              : defaults[panelId].y,
+        };
+
     return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
       const storedPosition = storedPositions[panelId];
 
       positions[panelId] = {
         x: typeof storedPosition?.x === "number" ? storedPosition.x : defaults[panelId].x,
         y: typeof storedPosition?.y === "number" ? storedPosition.y : defaults[panelId].y,
+      };
+
+
+        return positions;
+      },
+      {} as PanelPositions,
+    );
+  } catch {
+    return defaults;
+  }
+};
+
+const srOnly: React.CSSProperties = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: "0",
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: "0",
+};
+
+// ── Visually-hidden style (sr-only) ──────────────────────────────────────────
+// This CSS pattern hides an element from sighted users while keeping it fully
+// available to screen readers. clip-path: inset(50%) is the modern replacement
+// for the deprecated `clip: rect(...)` property.
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
+
+type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
+
+type PanelPosition = {
+  x: number;
+  y: number;
+};
+
+type PanelPositions = Record<WorkoutPanelId, PanelPosition>;
+
+const PANEL_POSITION_STORAGE_KEY = 'spectrax.workoutPanelPositions.v1';
+
+const getViewportSize = () => ({
+  width: typeof window === 'undefined' ? 1280 : window.innerWidth,
+  height: typeof window === 'undefined' ? 720 : window.innerHeight
+});
+
+const getDefaultPanelPositions = (): PanelPositions => {
+  const { width, height } = getViewportSize();
+
+  return {
+    focus: { x: 30, y: 30 },
+    timer: { x: Math.max(width - 230, 30), y: 30 },
+    reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
+    engine: { x: 40, y: Math.max(height - 110, 30) },
+    sense: { x: 280, y: Math.max(height - 110, 30) }
+  };
+};
+
+const getStoredPanelPositions = (): PanelPositions => {
+  const defaults = getDefaultPanelPositions();
+
+  if (typeof window === 'undefined') {
+    return defaults;
+  }
+
+  try {
+    const storedPositions = JSON.parse(
+      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || '{}'
+    ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
+
+    return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
+      const storedPosition = storedPositions[panelId];
+
+      positions[panelId] = {
+        x: typeof storedPosition?.x === 'number' ? storedPosition.x : defaults[panelId].x,
+        y: typeof storedPosition?.y === 'number' ? storedPosition.y : defaults[panelId].y
       };
 
       return positions;
@@ -101,32 +209,13 @@ const getStoredPanelPositions = (): PanelPositions => {
   }
 };
 
-const srOnly: React.CSSProperties = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: '0',
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  border: '0',
-};
-
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
-  exercise,
-  onEnd,
-  onAutoDetect,
-  bodyType,
-}) => {
-  const bodyTypeRef = useRef(bodyType);
-  bodyTypeRef.current = bodyType;
-
-  const onAutoDetectRef = useRef(onAutoDetect);
-  onAutoDetectRef.current = onAutoDetect;
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const panelRefs = useRef<Record<WorkoutPanelId, React.RefObject<HTMLDivElement>> | null>(null);
+  const panelRefs = useRef<Record<
+    WorkoutPanelId,
+    React.RefObject<HTMLDivElement>
+  > | null>(null);
 
   if (!panelRefs.current) {
     panelRefs.current = {
@@ -134,7 +223,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       timer: React.createRef<HTMLDivElement>(),
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
-      sense: React.createRef<HTMLDivElement>()
+      sense: React.createRef<HTMLDivElement>(),
     };
   }
 
@@ -145,6 +234,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
+
+  const { isOnline } = useWorkoutSync();
+  const [panelsLocked, setPanelsLocked] = useState(true);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() =>
+    getStoredPanelPositions(),
+  );
   const [showExitModal, setShowExitModal] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(3);
   const [isTrackingStarted, setIsTrackingStarted] = useState(false);
@@ -188,19 +283,28 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
 
-    return (Object.keys(positions) as WorkoutPanelId[]).reduce((nextPositions, panelId) => {
-      const panel = panelRefsById[panelId].current;
-      const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
-      const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
+    return (Object.keys(positions) as WorkoutPanelId[]).reduce(
+      (nextPositions, panelId) => {
+        const panel = panelRefsById[panelId].current;
+        const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
+        const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-      nextPositions[panelId] = {
-        x: Math.min(Math.max(positions[panelId].x, 0), maxX),
-        y: Math.min(Math.max(positions[panelId].y, 0), maxY)
-      };
+        nextPositions[panelId] = {
+          x: Math.min(Math.max(positions[panelId].x, 0), maxX),
+          y: Math.min(Math.max(positions[panelId].y, 0), maxY),
+        };
+
+
+        return nextPositions;
+      },
+      {} as PanelPositions,
+    );
+  };
 
       return nextPositions;
     }, {} as PanelPositions);
   }, [panelRefsById]);
+
 
   // Use refs for real-time logic to avoid state lags in the pose callback
   const mutableState = useRef<EngineState>({
@@ -235,9 +339,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   // Why separate? If reps and feedback shared one string, every rep would
   // re-read the feedback, and every feedback change would re-read the rep count.
   // Keeping them separate means each is announced only when IT changes.
-  const [feedbackAnnouncement, setFeedbackAnnouncement] = useState('');
-  const [repAnnouncement, setRepAnnouncement] = useState('');
-  const [alertAnnouncement, setAlertAnnouncement] = useState('');
+  const [feedbackAnnouncement, setFeedbackAnnouncement] = useState("");
+  const [repAnnouncement, setRepAnnouncement] = useState("");
+  const [alertAnnouncement, setAlertAnnouncement] = useState("");
 
   // We use a ref (not state) for the previous rep count because we only need it
   // for comparison — it doesn't need to cause a re-render on its own.
@@ -266,10 +370,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   // immediately. We only use this for genuinely urgent errors like a mismatch.
   useEffect(() => {
     if (mismatchError) {
-      setAlertAnnouncement(`Exercise mismatch detected. You appear to be doing ${mismatchError}. Switching is disabled mid-set.`);
+      setAlertAnnouncement(
+        `Exercise mismatch detected. You appear to be doing ${mismatchError}. Switching is disabled mid-set.`,
+      );
     }
   }, [mismatchError]);
-
 
   useEffect(() => {
     let isMounted = true;
@@ -504,13 +609,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
 
     return () => {
       isMounted = false;
-      cancelAnimationFrame(frameId.current);
+      cameraService.stopCamera();
       worker.terminate();
       if (wsSocket) {
         try {
           wsSocket.close();
         } catch (_) {
-          // ignore error
+
+          return;
         }
       }
       cameraService.stopCamera();
@@ -519,21 +625,28 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   }, [exercise]);
 
   useEffect(() => {
-    setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
+    setPanelPositions((currentPositions) =>
+      clampPanelPositions(currentPositions),
+    );
 
     const handleResize = () => {
-      setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
+      setPanelPositions((currentPositions) =>
+        clampPanelPositions(currentPositions),
+      );
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("resize", handleResize);
     };
   }, [clampPanelPositions]);
 
   useEffect(() => {
-    window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));
+    window.localStorage.setItem(
+      PANEL_POSITION_STORAGE_KEY,
+      JSON.stringify(panelPositions),
+    );
   }, [panelPositions]);
 
   const handleEnd = () => {
@@ -586,25 +699,27 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       ...currentPositions,
       [panelId]: {
         x: data.x,
-        y: data.y
-      }
+        y: data.y,
+      },
     }));
   };
 
   const handlePanelStop = (panelId: WorkoutPanelId, data: DraggableData) => {
-    setPanelPositions((currentPositions) => clampPanelPositions({
-      ...currentPositions,
-      [panelId]: {
-        x: data.x,
-        y: data.y
-      }
-    }));
+    setPanelPositions((currentPositions) =>
+      clampPanelPositions({
+        ...currentPositions,
+        [panelId]: {
+          x: data.x,
+          y: data.y,
+        },
+      }),
+    );
   };
 
   const renderDraggablePanel = (
     panelId: WorkoutPanelId,
     className: string,
-    content: React.ReactNode
+    content: React.ReactNode,
   ) => (
     <Draggable
       nodeRef={panelRefsById[panelId]}
@@ -616,7 +731,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
     >
       <div
         ref={panelRefsById[panelId]}
-        className={`workout-draggable-panel ${className} ${panelsLocked ? 'is-locked' : 'is-unlocked'}`}
+        className={`workout-draggable-panel ${className} ${panelsLocked ? "is-locked" : "is-unlocked"}`}
       >
         {content}
       </div>
@@ -802,20 +917,36 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       <div className="workout-layout-controls">
         <button
           type="button"
-          className={`workout-lock-toggle ${panelsLocked ? 'is-locked' : 'is-unlocked'}`}
+          className={`workout-lock-toggle ${panelsLocked ? "is-locked" : "is-unlocked"}`}
           onClick={() => setPanelsLocked((isLocked) => !isLocked)}
         >
           {panelsLocked ? <Lock size={16} /> : <Unlock size={16} />}
-          {panelsLocked ? 'Unlock Layout' : 'Lock Layout'}
+          {panelsLocked ? "Unlock Layout" : "Lock Layout"}
         </button>
       </div>
 
       <div className="workout-panel-layer">
-        {renderDraggablePanel('focus', '', <FocusPanel exerciseName={exercise.name} />)}
-        {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
-        {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
-        {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
-        {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
+        {renderDraggablePanel(
+          "focus",
+          "",
+          <FocusPanel exerciseName={exercise.name} />,
+        )}
+        {renderDraggablePanel("timer", "", <TimerPanel seconds={seconds} />)}
+        {renderDraggablePanel(
+          "reps",
+          "",
+          <RepsPanel reps={engineState.reps} statusColor={statusColor} />,
+        )}
+        {renderDraggablePanel(
+          "engine",
+          "",
+          <EnginePanel status={engineState.status} statusColor={statusColor} />,
+        )}
+        {renderDraggablePanel(
+          "sense",
+          "",
+          <SensePanel clipEngine={clipEngine} clipResult={clipResult} />,
+        )}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
@@ -981,6 +1112,110 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
           FINISH SESSION <StopCircle size={18} />
         </button>
+      </div>
+
+      {/*
+        ══════════════════════════════════════════════════════════
+        ARIA LIVE REGIONS — Screen Reader Announcements
+        ══════════════════════════════════════════════════════════
+
+        HOW THIS WORKS:
+        - These <div>s are invisible to sighted users (srOnly style hides them).
+        - Screen readers watch them. When the text content changes, the screen
+          reader automatically reads the new text aloud — no focus change needed.
+        - We use THREE separate divs so announcements don't overwrite each other.
+
+        WHY NOT ONE DIV?
+        - If reps and feedback shared one string, every rep would re-announce
+          the full feedback sentence, making it repetitive and confusing.
+
+        IMPORTANT — These divs must ALWAYS be in the DOM (never inside an
+        `{condition && <div>}` block). If a live region is removed and re-added,
+        screen readers lose track of it and stop announcing.
+
+        aria-live="polite"   → waits for the user to finish reading, then speaks.
+        aria-live="assertive"→ interrupts immediately. Use only for urgent errors.
+        role="status"        → pairs with polite; improves NVDA/JAWS compatibility.
+        role="alert"         → pairs with assertive; for urgent alerts.
+        aria-atomic="true"   → reads the whole div content, not just the changed part.
+      */}
+
+      {/* Live region 1: Pose correction feedback */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={srOnly}
+      >
+        {feedbackAnnouncement}
+      </div>
+
+      {/* Live region 2: Rep count — announced separately so it's clean and distinct */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={srOnly}
+      >
+        {repAnnouncement}
+      </div>
+
+      {/* Live region 3: Urgent alerts (exercise mismatch) — interrupts screen reader */}
+      <div
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        style={srOnly}
+      >
+        {alertAnnouncement}
+      </div>
+
+
+      {/*
+        ══════════════════════════════════════════════════════════
+        ARIA LIVE REGIONS — Screen Reader Announcements
+        ══════════════════════════════════════════════════════════
+
+        HOW THIS WORKS:
+        - These <div>s are invisible to sighted users (srOnly style hides them).
+        - Screen readers watch them. When the text content changes, the screen
+          reader automatically reads the new text aloud — no focus change needed.
+        - We use THREE separate divs so announcements don't overwrite each other.
+
+        WHY NOT ONE DIV?
+        - If reps and feedback shared one string, every rep would re-announce
+          the full feedback sentence, making it repetitive and confusing.
+
+        IMPORTANT — These divs must ALWAYS be in the DOM (never inside an
+        `{condition && <div>}` block). If a live region is removed and re-added,
+        screen readers lose track of it and stop announcing.
+
+        aria-live="polite"   → waits for the user to finish reading, then speaks.
+        aria-live="assertive"→ interrupts immediately. Use only for urgent errors.
+        role="status"        → pairs with polite; improves NVDA/JAWS compatibility.
+        role="alert"         → pairs with assertive; for urgent alerts.
+        aria-atomic="true"   → reads the whole div content, not just the changed part.
+      */}
+
+      {/* Live region 1: Pose correction feedback */}
+      <div role="status" aria-live="polite" aria-atomic="true" style={srOnly}>
+        {feedbackAnnouncement}
+      </div>
+
+      {/* Live region 2: Rep count — announced separately so it's clean and distinct */}
+      <div role="status" aria-live="polite" aria-atomic="true" style={srOnly}>
+        {repAnnouncement}
+      </div>
+
+      {/* Live region 3: Urgent alerts (exercise mismatch) — interrupts screen reader */}
+      <div role="alert" aria-live="assertive" aria-atomic="true" style={srOnly}>
+        {alertAnnouncement}
+
+      <div className="workout-finish-action">
+        <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
+          FINISH SESSION <StopCircle size={18} />
+        </button>
+
       </div>
 
       <style>{`
