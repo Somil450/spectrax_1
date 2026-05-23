@@ -17,6 +17,7 @@ export interface Replay3DModelProps {
   // External playback control (from ReplayScreen)
   currentFrameIdx?: number;
   isPlaying?: boolean;
+  onFrameChange?: (idx: number) => void;
   onPlayToggle?: () => void;
   hideControls?: boolean;
   reps?: number;
