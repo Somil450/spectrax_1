@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy } from "lucide-react";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import "../styles/WelcomeScreen.css";
 
 interface WelcomeScreenProps {
   onStart: () => void;
@@ -21,6 +22,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const { clientX, clientY } = e;
@@ -107,204 +111,198 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   }, []);
 
   return (
-    <div
-      className="screen-container welcome-screen"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      style={{
-        justifyContent: "center",
-        alignItems: "center",
-        textAlign: "center",
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        style={{ position: "absolute", inset: 0, opacity: 0.6 }}
-      />
-
-      <div 
-        className="animate-in" 
-        style={{ 
-          position: "relative", 
-          zIndex: 10,
-          transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-          transition: "transform 0.15s ease-out",
-          transformStyle: "preserve-3d"
-        }}
+    <div className="welcome-container" data-theme={isDarkMode ? "dark" : "light"}>
+      {/* Dark Mode Toggle */}
+      <button
+        className="dark-mode-toggle"
+        onClick={toggleDarkMode}
+        aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+        title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
       >
-        {leveling && (
-          <div style={{ position: 'absolute', top: '-80px', right: '-120px', background: 'rgba(0, 0, 0, 0.4)', padding: '12px 20px', borderRadius: '12px', border: '1px solid var(--neon-cyan)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
-             <div style={{ color: 'var(--neon-cyan)', fontSize: '0.8rem', fontWeight: 800, letterSpacing: '1px' }}>
-                LEVEL {leveling.level}
-             </div>
-             <div style={{ width: '120px', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-               <div style={{ width: `${leveling.progress}%`, height: '100%', background: 'var(--neon-cyan)' }}></div>
-             </div>
-             <div style={{ color: 'var(--text-dim)', fontSize: '0.6rem' }}>
-                {leveling.xp} / {leveling.nextLevelXp} XP
-             </div>
-          </div>
-        )}
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            borderRadius: "20px",
-            border: "1px solid rgba(0, 240, 255, 0.2)",
-            background: "rgba(0, 240, 255, 0.05)",
-            marginBottom: "24px",
-          }}
-        >
-          <Sparkles size={14} color="var(--neon-cyan)" />
-          <span
-            style={{
-              fontSize: "0.65rem",
-              letterSpacing: "2px",
-              color: "var(--neon-cyan)",
-              fontWeight: 700,
-            }}
-          >
-            AI CALIBRATION SYSTEM 2.0
-          </span>
-        </div>
+        {isDarkMode ? "☀️" : "🌙"}
+      </button>
 
-        <h1
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "clamp(3.5rem, 14vw, 7rem)",
-            fontWeight: 900,
-            letterSpacing: "14px",
-            color: "var(--neon-cyan)",
-            textShadow:
-              "0 0 20px rgba(0,240,255,0.8), 0 0 40px rgba(0,240,255,0.6), 0 0 60px rgba(0,240,255,0.4), 0 0 80px rgba(0,240,255,0.2)",
-            margin: "20px 0",
-            fontStyle: "normal",
-            textTransform: "uppercase",
-          }}
-        >
-          SPECTRAX
-        </h1>
-
-        <p
-          style={{
-            color: "var(--text-secondary)",
-            fontSize: "1rem",
-            letterSpacing: "3px",
-            fontWeight: 300,
-            marginBottom: "48px",
-          }}
-        >
-          Real-time Pose Tracking & Performance Analysis
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
-          <button onClick={onStart} className="btn-neon" aria-label="Initialize System" tabIndex={0}>
-            INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
-          </button>
-
-          <button
-            onClick={onViewHistory}
-            aria-label="View Workout History"
-            tabIndex={0}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "rgba(0, 240, 255, 0.1)",
-              border: "1.5px solid rgba(0, 240, 255, 0.4)",
-              borderRadius: "14px",
-              color: "var(--neon-cyan)",
-              cursor: "pointer",
-              padding: "12px 28px",
-              fontSize: "0.75rem",
-              letterSpacing: "2px",
-              fontWeight: 700,
-              transition: "all 0.3s ease",
-              textTransform: "uppercase",
-              boxShadow: "0 2px 8px rgba(0, 240, 255, 0.15)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(0, 240, 255, 0.2)";
-              e.currentTarget.style.borderColor = "var(--neon-cyan)";
-              e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(0, 240, 255, 0.3)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(0, 240, 255, 0.1)";
-              e.currentTarget.style.borderColor = "rgba(0, 240, 255, 0.4)";
-              e.currentTarget.style.boxShadow =
-                "0 2px 8px rgba(0, 240, 255, 0.15)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <History size={15} />
-            VIEW HISTORY
-          </button>
-
-          <button
-            onClick={onViewTrophies}
-            aria-label="View Trophy Room"
-            tabIndex={0}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "rgba(255, 214, 0, 0.08)",
-              border: "1.5px solid rgba(255, 214, 0, 0.35)",
-              borderRadius: "14px",
-              color: "var(--neon-yellow)",
-              cursor: "pointer",
-              padding: "12px 28px",
-              fontSize: "0.75rem",
-              letterSpacing: "2px",
-              fontWeight: 700,
-              transition: "all 0.3s ease",
-              textTransform: "uppercase",
-              boxShadow: "0 2px 8px rgba(255, 214, 0, 0.1)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(255, 214, 0, 0.15)";
-              e.currentTarget.style.borderColor = "var(--neon-yellow)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(255, 214, 0, 0.25)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255, 214, 0, 0.08)";
-              e.currentTarget.style.borderColor = "rgba(255, 214, 0, 0.35)";
-              e.currentTarget.style.boxShadow = "0 2px 8px rgba(255, 214, 0, 0.1)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <Trophy size={15} />
-            TROPHY ROOM
-          </button>
-        </div>
-      </div>
-
+      {/* Hero Section */}
       <div
-        style={{
-          position: "absolute",
-          bottom: "40px",
-          left: "0",
-          right: "0",
-          color: "var(--text-dim)",
-          fontSize: "0.7rem",
-          letterSpacing: "4px",
-          textTransform: "uppercase",
-        }}
+        className="hero-section"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
       >
-        Precision Performance Research Lab
+        <canvas ref={canvasRef} className="particle-canvas" />
+
+        <div 
+          className="hero-content animate-in"
+          style={{
+            transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+            transition: "transform 0.15s ease-out",
+            transformStyle: "preserve-3d"
+          }}
+        >
+          {leveling && (
+            <div className="level-display">
+              <div className="level-label">
+                LEVEL {leveling.level}
+              </div>
+              <div className="level-progress-bar">
+                <div 
+                  className="level-progress-fill"
+                  style={{ width: `${leveling.progress}%` }}
+                />
+              </div>
+              <div className="level-xp">
+                {leveling.xp} / {leveling.nextLevelXp} XP
+              </div>
+            </div>
+          )}
+
+          <div className="badge">
+            <Sparkles size={14} color="var(--neon-cyan)" />
+            <span>AI CALIBRATION SYSTEM 2.0</span>
+          </div>
+
+          <h1 className="main-title">SPECTRAX</h1>
+
+          <p className="subtitle">
+            Real-time Pose Tracking & Performance Analysis
+          </p>
+
+          <div className="button-group">
+            <button onClick={onStart} className="btn-primary" aria-label="Initialize System" tabIndex={0}>
+              INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
+            </button>
+
+            <button
+              onClick={onViewHistory}
+              className="btn-secondary btn-cyan"
+              aria-label="View Workout History"
+              tabIndex={0}
+            >
+              <History size={15} />
+              VIEW HISTORY
+            </button>
+
+            <button
+              onClick={onViewTrophies}
+              className="btn-secondary btn-gold"
+              aria-label="View Trophy Room"
+              tabIndex={0}
+            >
+              <Trophy size={15} />
+              TROPHY ROOM
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* How it Works Section */}
+      <div className="how-it-works-section">
+        <div className="section-container">
+          <div className="section-header">
+            <div className="section-badge">
+              <Sparkles size={14} color="#00f0ff" />
+              <span>THE PROCESS</span>
+            </div>
+            <h2 className="section-title">How It Works</h2>
+            <p className="section-description">
+              Four simple steps to transform your workout experience
+            </p>
+          </div>
+
+          <div className="steps-grid">
+            {[
+              { icon: User, title: "Welcome", desc: "Choose an exercise or let the AI auto-detect", step: "01", color: "#00f0ff" },
+              { icon: Camera, title: "Calibration", desc: "Align with the camera for optimal tracking", step: "02", color: "#00ffcc" },
+              { icon: Activity, title: "Workout", desc: "Start exercising with live real-time rep counting", step: "03", color: "#00f0ff" },
+              { icon: BarChart3, title: "Summary", desc: "Review detailed post-workout analytics and streaks", step: "04", color: "#00ffcc" },
+            ].map((step, idx) => (
+              <div key={idx} className="step-card">
+                <div className="step-watermark" style={{ color: step.color }}>
+                  {step.step}
+                </div>
+                <div className="step-icon-wrapper" style={{ borderColor: `${step.color}30` }}>
+                  <step.icon size={32} color={step.color} />
+                </div>
+                <h3 className="step-title" style={{ color: step.color }}>
+                  {step.title}
+                </h3>
+                <p className="step-description">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Section */}
+      <footer className="footer">
+        <div className="footer-container">
+          <div className="footer-grid">
+            {/* Brand Column */}
+            <div className="footer-column">
+              <h3 className="footer-brand-name">SPECTRAX</h3>
+              <p className="footer-brand-desc">
+                Precision Performance Research Lab.
+              </p>
+              <div className="footer-badge">
+                <GitFork size={12} color="#00f0ff" />
+                <span>GSSoC 2026</span>
+              </div>
+            </div>
+
+            {/* Product Column */}
+            <div className="footer-column">
+              <h4 className="footer-column-title">PRODUCT</h4>
+              <ul className="footer-links">
+                {["Features", "Usage", "API"].map((item) => (
+                  <li key={item}>
+                    <a href="#" className="footer-link">{item}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Resources Column */}
+            <div className="footer-column">
+              <h4 className="footer-column-title">RESOURCES</h4>
+              <ul className="footer-links">
+                <li>
+                  <a href="https://github.com/Somil450/spectrax_1" className="footer-link">
+                    <Github size={14} /> GitHub
+                  </a>
+                </li>
+                <li>
+                  <a href="https://github.com/Somil450/spectrax_1/blob/main/README.md" className="footer-link">
+                    <FileText size={14} /> Documentation
+                  </a>
+                </li>
+                <li>
+                  <a href="https://github.com/Somil450/spectrax_1/discussions" className="footer-link">
+                    <Star size={14} /> Community
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Legal Column */}
+            <div className="footer-column">
+              <h4 className="footer-column-title">LEGAL</h4>
+              <ul className="footer-links">
+                {["MIT License", "Privacy", "Terms"].map((item) => (
+                  <li key={item}>
+                    <a href="#" className="footer-link">{item}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Copyright Bar */}
+          <div className="footer-copyright">
+            <p>© 2026 SpectraX. All rights reserved</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
+
+export default WelcomeScreen;
