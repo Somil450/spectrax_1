@@ -54,33 +54,196 @@
 }
 
 
-[data-theme="light"] {
-  /* Backgrounds — light instead of near-black */
-  --bg-primary:    #f0f4ff;
-  --bg-secondary:  #e4ebff;
-  --bg-tertiary:   #d8e3ff;
+[data-theme="light"], [data-theme-style="light"] {
+  /* Backgrounds — clean white / soft light theme */
+  --bg-primary:    #ffffff;
+  --bg-secondary:  #f5f7fb;
+  --bg-tertiary:   #eef4ff;
 
-  /* Neon accents — slightly deeper so they pop on white */
-  --neon-cyan:        #0090a8;
-  --neon-cyan-dim:    #006f80;
-  --neon-purple:      #7c3aed;
-  --neon-purple-dim:  #5b21b6;
+  /* Neon accents — premium light mode palette */
+  --neon-cyan:        #00cfff;
+  --neon-cyan-dim:    #0f9be0;
+  --neon-purple:      #6c63ff;
+  --neon-purple-dim:  #5f53d6;
+  --neon-green:       #00a858;
+  --neon-yellow:      #cc9600;
+  --neon-red:         #d6002f;
+  --neon-orange:      #d65a00;
 
   /* Glass — white-tinted instead of dark-tinted */
   --glass-bg:     rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(0, 144, 168, 0.2);
+  --glass-border: rgba(108, 99, 255, 0.16);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --glass-blur: 16px;
 
   /* Text — dark on light background */
-  --text-primary:   #0d1127;
-  --text-secondary: rgba(13, 17, 39, 0.8);
-  --text-dim:       rgba(13, 17, 39, 0.55);
+  --text-primary:   #111827;
+  --text-secondary: #4b5563;
+  --text-dim:       #6b7280;
 }
 
-/* Smooth transition when theme switches */
-*, *::before, *::after {
+[data-theme-style="retro"] {
+  /* Backgrounds — warm amber/black CRT monitor colors */
+  --bg-primary: #120e0a;
+  --bg-secondary: #1a140f;
+  --bg-tertiary: #241c14;
+
+  /* Accent Colors — classic phosphor glow (green and warm amber/orange) */
+  --neon-cyan: #33ff33; /* Phosphor Green */
+  --neon-cyan-dim: #00aa00;
+  --neon-purple: #ffb000; /* Warm Amber */
+  --neon-purple-dim: #cc8800;
+  --neon-green: #33ff33;
+  --neon-yellow: #ffb000;
+  --neon-red: #ff3333;
+  --neon-orange: #ff7700;
+
+  /* Glass — retro styled warm-cream glass elements */
+  --glass-bg: rgba(26, 20, 15, 0.75);
+  --glass-border: rgba(255, 176, 0, 0.25);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  --glass-blur: 16px;
+
+  /* Text — Glowing Amber */
+  --text-primary: #ffb000;
+  --text-secondary: rgba(255, 176, 0, 0.85);
+  --text-dim: rgba(255, 176, 0, 0.6);
+}
+
+/* Theme transitions: scoped only to elements that actually change on toggle.
+   Avoid `* { transition }` — it taxes every re-render in the workout loop. */
+body,
+.spectrax-app,
+.glass,
+.btn-neon,
+.btn-outline,
+.btn-outline,
+.theme-toggle,
+.welcome-screen {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
+
+/* Smooth transition when theme switches (targeted selectors for high performance) */
+body, 
+header,
+main,
+section,
+footer,
+.screen-container, 
+.spectrax-app, 
+.welcome-screen, 
+.calibration-screen,
+.workout-screen,
+.summary-screen,
+.exercise-panel, 
+.select-exercise-panel, 
+.auth-card, 
+.btn-neon,
+.btn-outline,
+.theme-selector-segmented,
+.selector-btn,
+button, 
+p, 
+h1, 
+h2, 
+h3, 
+span,
+a,
+label,
+input {
+  transition: background 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              backdrop-filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Segmented Capsule Theme Picker ───────────────────────────────── */
+.theme-selector-segmented {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(var(--glass-blur, 12px));
+  padding: 4px;
+  box-shadow: var(--glass-shadow);
+}
+
+.theme-selector-segmented.workout-active {
+  right: 196px;
+}
+
+.selector-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(33.33% - 5.33px);
+  border-radius: 999px;
+  background: var(--neon-cyan);
+  opacity: 0.15;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.35s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.selector-indicator.theme-cyber-dark {
+  transform: translateX(0);
+  background: var(--neon-cyan);
+}
+
+.selector-indicator.theme-retro {
+  transform: translateX(100%);
+  background: var(--neon-orange);
+}
+
+.selector-indicator.theme-light {
+  transform: translateX(200%);
+  background: var(--neon-purple);
+}
+
+.selector-btn {
+  font-family: var(--font-heading);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  z-index: 1;
+  transition: color 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.selector-btn:hover {
+  color: var(--text-primary);
+}
+
+.selector-btn.active {
+  color: var(--text-primary);
+}
+
+/* Custom override for Retro CRT text glow and screen effect */
+[data-theme-style="retro"] .text-glow {
+  text-shadow: 0 0 10px rgba(255, 176, 0, 0.8), 0 0 20px rgba(255, 176, 0, 0.4);
+}
+
+[data-theme-style="retro"] h1 {
+  text-shadow: 0 0 15px rgba(255, 176, 0, 0.9), 0 0 30px rgba(255, 176, 0, 0.5);
+}
+
 
 
 html, body, #root {
@@ -96,6 +259,29 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="light"] body {
+  background: var(--bg-primary);
+}
+
+[data-theme="light"] #root,
+[data-theme="light"] .spectrax-app,
+[data-theme="light"] .screen-container {
+  background: var(--bg-primary) !important;
+}
+
+.camera-viewport {
+  background: radial-gradient(circle at center, #111a3d 0%, #0a0a1a 100%) !important;
+}
+
+[data-theme="light"] .camera-viewport {
+  background: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%) !important;
+}
+
+[data-theme="light"] body::before,
+[data-theme="light"] body::after {
+  background: none !important;
 }
 
 /* ── UI Framework ─────────────────────────────────────────────── */
@@ -177,6 +363,11 @@ body {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
 }
 
 .animate-in {
@@ -447,4 +638,383 @@ body {
   filter: brightness(1.1);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Welcome Screen — Enhanced Layout & Responsiveness
+   ═══════════════════════════════════════════════════════════════ */
 
+/* Canvas sits behind everything */
+.welcome-canvas {
+  position: absolute;
+  inset: 0;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Ambient glow orbs */
+.welcome-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(100px);
+  opacity: 0.14;
+}
+
+.welcome-orb--cyan {
+  width: clamp(350px, 60vw, 700px);
+  height: clamp(350px, 60vw, 700px);
+  background: radial-gradient(circle, var(--neon-cyan) 0%, transparent 70%);
+  top: -15%;
+  left: -12%;
+}
+
+.welcome-orb--purple {
+  width: clamp(300px, 55vw, 620px);
+  height: clamp(300px, 55vw, 620px);
+  background: radial-gradient(circle, var(--neon-purple) 0%, transparent 70%);
+  bottom: -12%;
+  right: -10%;
+}
+
+/* Scrollable centred column */
+.welcome-scroll-area {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  scrollbar-width: none;
+}
+
+.welcome-scroll-inner {
+  flex: 1 0 auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(60px, 8vh, 100px) clamp(20px, 5vw, 56px) clamp(36px, 5vh, 64px);
+  gap: clamp(20px, 3.5vh, 40px);
+}
+
+.welcome-scroll-area::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Hero card ─────────────────────────────────────────────── */
+.welcome-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+  transform-style: preserve-3d;
+  max-width: 640px;
+  width: 100%;
+}
+
+/* Eyebrow pill */
+.welcome-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 50px;
+  padding: 5px 14px;
+  margin-bottom: 18px;
+}
+
+.welcome-eyebrow__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 6px var(--neon-cyan);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Wordmark */
+.welcome-wordmark {
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 10vw, 5.5rem);
+  font-weight: 900;
+  letter-spacing: clamp(2px, 1.5vw, 14px);
+  background: linear-gradient(135deg, #ffffff 0%, var(--neon-cyan) 55%, var(--neon-purple) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-transform: uppercase;
+  line-height: 1;
+  margin: 0 0 16px;
+  filter: drop-shadow(0 0 28px rgba(0, 240, 255, 0.35));
+}
+
+[data-theme-style="retro"] .welcome-wordmark {
+  background: linear-gradient(135deg, #ffffff 0%, #33ff33 55%, #aaff55 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 22px rgba(51, 255, 51, 0.4));
+}
+
+/* Tagline */
+.welcome-tagline {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: clamp(0.9rem, 2.2vw, 1.08rem);
+  letter-spacing: 0.2px;
+  font-weight: 400;
+  margin-bottom: 24px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+/* Leveling bar */
+.welcome-level-bar {
+  width: 100%;
+  max-width: 280px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin-bottom: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.welcome-level-bar__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.welcome-level-bar__label {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.welcome-level-bar__xp {
+  font-size: 0.65rem;
+  color: var(--neon-cyan);
+  letter-spacing: 0.3px;
+  opacity: 0.8;
+}
+
+.welcome-level-bar__track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.welcome-level-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple));
+  border-radius: 99px;
+  transition: width 0.6s var(--ease-out);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+}
+
+/* ── CTA actions ─────────────────────────────────────────────── */
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.welcome-btn-primary {
+  width: 100%;
+  max-width: 280px;
+  justify-content: center;
+  font-size: 0.92rem;
+  letter-spacing: 0.5px;
+  padding: 15px 40px;
+  text-transform: none;
+  font-family: var(--font-body);
+  font-weight: 700;
+  border-radius: 50px;
+  gap: 9px;
+}
+
+/* Row of secondary action buttons */
+.welcome-btn-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.welcome-btn-secondary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 50px;
+  padding: 11px 16px;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  letter-spacing: 0.2px;
+  font-weight: 600;
+  text-transform: none;
+  cursor: pointer;
+  transition: background 0.22s ease, border-color 0.22s ease,
+    box-shadow 0.22s ease, transform 0.18s ease;
+}
+
+.welcome-btn-secondary--cyan {
+  background: rgba(0, 240, 255, 0.07);
+  border: 1.5px solid rgba(0, 240, 255, 0.28);
+  color: var(--neon-cyan);
+}
+
+.welcome-btn-secondary--cyan:hover {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: rgba(0, 240, 255, 0.7);
+  box-shadow: 0 4px 18px rgba(0, 240, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.welcome-btn-secondary--gold {
+  background: rgba(255, 214, 0, 0.06);
+  border: 1.5px solid rgba(255, 214, 0, 0.28);
+  color: var(--neon-yellow);
+}
+
+.welcome-btn-secondary--gold:hover {
+  background: rgba(255, 214, 0, 0.13);
+  border-color: rgba(255, 214, 0, 0.65);
+  box-shadow: 0 4px 18px rgba(255, 214, 0, 0.18);
+  transform: translateY(-2px);
+}
+
+/* ── Stat strip ─────────────────────────────────────────────── */
+.welcome-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  backdrop-filter: blur(12px);
+}
+
+.welcome-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 28px;
+}
+
+.welcome-stat__value {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ffffff 30%, var(--neon-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+.welcome-stat__label {
+  font-size: 0.67rem;
+  color: rgba(255, 255, 255, 0.38);
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.welcome-stat-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.welcome-footer {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 0.62rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* ── Responsive breakpoints ──────────────────────────────────── */
+
+/* Compact stat strip on tablet */
+@media (max-width: 720px) {
+  .welcome-stat {
+    padding: 0 18px;
+  }
+
+  .welcome-stat__value {
+    font-size: 1.1rem;
+  }
+}
+
+/* Mobile: tighten layout */
+@media (max-width: 480px) {
+  .welcome-scroll-inner {
+    justify-content: flex-start;
+    padding-top: 72px;
+    gap: 22px;
+  }
+
+  .welcome-stats {
+    padding: 14px 12px;
+  }
+
+  .welcome-stat {
+    padding: 0 12px;
+  }
+
+  .welcome-stat__value {
+    font-size: 1rem;
+  }
+
+  .welcome-btn-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .welcome-btn-secondary {
+    flex: unset;
+    width: 100%;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 360px) {
+  .welcome-scroll-inner {
+    padding-top: 64px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .welcome-btn-primary {
+    padding: 13px 24px;
+    font-size: 0.82rem;
+  }
+}
