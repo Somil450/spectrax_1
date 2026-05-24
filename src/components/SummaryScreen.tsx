@@ -10,6 +10,7 @@ interface SummaryScreenProps {
     repScores: number[];
     duration: number; 
     accuracy: number; 
+    calories?: number;
     mistakes: Record<string, number>; 
     bestStreak: number; 
     tags?: string[];
@@ -394,6 +395,40 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           </div>
         </div>
       </div>
+
+      <div
+  className="glass"
+  style={{
+    padding: "20px 10px",
+    textAlign: "center",
+    borderTop: "2px solid var(--neon-yellow)",
+  }}
+>
+  <Activity
+    size={18}
+    color="var(--neon-yellow)"
+    style={{ marginBottom: "8px", margin: "0 auto" }}
+  />
+  <div
+    style={{
+      fontFamily: "var(--font-heading)",
+      fontSize: "1.4rem",
+      color: "#fff",
+    }}
+  >
+    {stats.calories?.toFixed(1) || 0}
+  </div>
+  <div
+    style={{
+      fontSize: "0.6rem",
+      color: "var(--text-dim)",
+      letterSpacing: "1px",
+      textTransform: "uppercase",
+    }}
+  >
+    Calories Burned
+  </div>
+</div>
 
       {/* Rep Quality Insights */}
       <div

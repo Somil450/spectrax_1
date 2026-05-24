@@ -14,6 +14,19 @@ import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+
+const srOnly: React.CSSProperties = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: 0,
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -25,6 +38,7 @@ interface WorkoutScreenProps {
   exercise: ExerciseConfig;
   onEnd: (stats: {
     reps: number;
+    calories: number;
     totalReps: number;
     correctReps: number;
     repScores: number[];
@@ -45,6 +59,13 @@ type PanelPosition = {
 };
 
 type PanelPositions = Record<WorkoutPanelId, PanelPosition>;
+const EXERCISE_METS: Record<string, number> = {
+  squat: 5,
+  pushup: 8,
+  plank: 3,
+  jumpingJack: 8,
+  bicepCurl: 4,
+};
 
 const PANEL_POSITION_STORAGE_KEY = 'spectrax.workoutPanelPositions.v1';
 
@@ -109,6 +130,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
   const panelRefsById = panelRefs.current;
   const [seconds, setSeconds] = useState(0);
+  const [calories, setCalories] = useState(0); //new state for calories
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
@@ -149,6 +171,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const FPS_LIMIT = 20; // ↑ Raised from 15 → 20 for smoother tracking
+  const userWeight = 75;
+
+const activeMET =
+  EXERCISE_METS[exercise.key] || 5;
 
   const clampPanelPositions = (positions: PanelPositions) => {
     const { width, height } = getViewportSize();
@@ -445,11 +471,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     startWorkout();
 
-    const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+const timer = setInterval(() => {
+  const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
-      setSeconds(elapsed);
-    }, 1000);
+  setSeconds(elapsed);
+
+  setCalories((prevCalories) => {
+    const caloriesPerSecond =
+      (activeMET * userWeight) / 3600;
+
+    return prevCalories + caloriesPerSecond;
+  });
+}, 1000); // Update every second for smoother calorie counting 
+
 
     return () => {
       isMounted = false;
@@ -498,6 +532,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     onEnd({
       reps: mutableState.current.reps,
       totalReps: mutableState.current.totalReps,
+      calories: Number(calories.toFixed(2)),
       correctReps: mutableState.current.correctReps,
       repScores: mutableState.current.repScores,
       duration: seconds,
