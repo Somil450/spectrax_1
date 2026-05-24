@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
 import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState,createPlankCalibration } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -105,6 +105,18 @@ const getStoredPanelPositions = (): PanelPositions => {
   }
 };
 
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
+};
+
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,7 +138,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
   const [panelsLocked, setPanelsLocked] = useState(true);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions())
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -151,6 +163,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
+    plankSpline: createPlankCalibration(),
+    hipSplineDeviation: 0,
+
   });
 
   const frameId = useRef<number>(0);
@@ -204,6 +219,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
+    plankSpline: createPlankCalibration(),
+    hipSplineDeviation: 0,
   });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
