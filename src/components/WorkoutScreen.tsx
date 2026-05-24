@@ -30,6 +30,7 @@ interface WorkoutScreenProps {
     totalReps: number;
     correctReps: number;
     repScores: number[];
+    repDeviations: number[];
     duration: number;
     accuracy: number;
     mistakes: Record<string, number>;
@@ -163,6 +164,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     correctReps: 0,
     minScoreInRep: 100,
     repScores: [],
+    repDeviations: [],
     accuracy: 100,
     plankSpline: createPlankCalibration(),
     hipSplineDeviation: 0,
@@ -222,6 +224,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     correctReps: 0,
     minScoreInRep: 100,
     repScores: [],
+    repDeviations: [],
     accuracy: 100,
     plankSpline: createPlankCalibration(),
     hipSplineDeviation: 0,
@@ -563,6 +566,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       totalReps: mutableState.current.totalReps,
       correctReps: mutableState.current.correctReps,
       repScores: mutableState.current.repScores,
+      repDeviations: mutableState.current.repDeviations,
       duration: seconds,
       accuracy: accuracy,
       mistakes: mutableState.current.mistakes,
