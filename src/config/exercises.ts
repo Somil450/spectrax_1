@@ -17,6 +17,7 @@ export interface ExerciseConfig {
     type: 'warning' | 'error';
   }[];
   demoUrl?: string;
+  isStatic?: boolean;
 }
 
 export const exercises: Record<string, ExerciseConfig> = {
@@ -118,6 +119,7 @@ export const exercises: Record<string, ExerciseConfig> = {
     name: "Plank",
     demoUrl: '/assets/demos/plank.mp4',
     primaryJoint: "bodyLine",
+    isStatic: true,
     joints: [[12, 24], [24, 28]],
     downThreshold: 165,
     upThreshold: 180,
