@@ -150,11 +150,6 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
           );
 
           setLocalError("Too many requests. Password reset locked for 60 seconds.");
-        } else if (errorCode === "auth/network-request-failed") {
-          setLocalError("Network error. Check your connection.");
-        } else {
-          setSuccess(true);
-
         }
       }
     }

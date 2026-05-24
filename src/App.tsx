@@ -19,6 +19,8 @@ import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import React from "react";
+
 
 
 type Screen =
@@ -50,7 +52,7 @@ interface WorkoutStats {
 const firebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
 
 function App() {
-  const { theme, toggleTheme, setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
 

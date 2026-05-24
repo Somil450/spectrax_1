@@ -46,7 +46,7 @@ function initSharedLandmarks(buffer: SharedArrayBuffer | ArrayBuffer) {
 function readSharedLandmarks(): Landmark[] | null {
   if (!sharedLandmarkFrame) return null;
 
-  while (true) {
+  for (;;) {
     const startSequence = Atomics.load(sharedLandmarkFrame.sequence, 0);
     if (startSequence === 0 || (startSequence & 1) === 1) {
       return null;
