@@ -35,6 +35,7 @@ export class PoseService {
             pending.reject(error);
             this.pendingPromises.delete(frameId);
           }
+          this.inProgress = false;
           console.error('PoseService worker error:', error);
           return;
         }
