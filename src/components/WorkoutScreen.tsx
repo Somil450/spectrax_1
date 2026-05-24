@@ -926,27 +926,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       </div>
 
       <div className="workout-panel-layer">
-        {renderDraggablePanel(
-          "focus",
-          "",
-          <FocusPanel exerciseName={exercise.name} />,
-        )}
-        {renderDraggablePanel("timer", "", <TimerPanel seconds={seconds} />)}
-        {renderDraggablePanel(
-          "reps",
-          "",
-          <RepsPanel reps={engineState.reps} statusColor={statusColor} />,
-        )}
-        {renderDraggablePanel(
-          "engine",
-          "",
-          <EnginePanel status={engineState.status} statusColor={statusColor} />,
-        )}
-        {renderDraggablePanel(
-          "sense",
-          "",
-          <SensePanel clipEngine={clipEngine} clipResult={clipResult} />,
-        )}
+        {renderDraggablePanel('focus', '', <FocusPanel exerciseName={exercise.name} />)}
+        {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
+        {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} isStatic={exercise.isStatic} holdTime={engineState.holdTime} />)}
+        {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
+        {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
