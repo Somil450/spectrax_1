@@ -1,5 +1,5 @@
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
-
+import { gpuAngleCalculator } from './gpuAngleUtils';
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
 
@@ -348,12 +348,13 @@ export class PoseService {
     }
   }
 
-  async close() {
+ async close() {
     if (this.pose) {
       try { await this.pose.close(); } catch {}
       this.pose      = null;
       this.isLoaded  = false;
     }
+    gpuAngleCalculator.destroy();
   }
 
   private preprocessResults(results: Results): Results {
