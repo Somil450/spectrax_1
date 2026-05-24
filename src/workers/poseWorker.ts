@@ -2,23 +2,78 @@ import { OcclusionPredictor } from "../services/occlusionPredictor";
 
 const STRIDE = 4;
 const LM_COUNT = 33;
+const SHARED_HEADER_BYTES = Int32Array.BYTES_PER_ELEMENT;
 
 const predictor = new OcclusionPredictor();
 
+type Landmark = { x: number; y: number; z: number; visibility: number };
+
+interface SharedLandmarkFrame {
+  sequence: Int32Array;
+  view: Float32Array;
+}
+
+let sharedLandmarkFrame: SharedLandmarkFrame | null = null;
+
 function unpackLandmarks(buf: ArrayBuffer) {
   const view = new Float32Array(buf);
-  const out: Array<{ x: number; y: number; z: number; visibility: number }> = [];
+  const out: Array<{ x: number; y: number; z: number; visibility: number }> =
+    [];
   for (let i = 0; i < LM_COUNT; i++) {
     const o = i * STRIDE;
-    out.push({ x: view[o], y: view[o + 1], z: view[o + 2], visibility: view[o + 3] });
+    out.push({
+      x: view[o],
+      y: view[o + 1],
+      z: view[o + 2],
+      visibility: view[o + 3],
+    });
   }
   return out;
+}
+
+function initSharedLandmarks(buffer: SharedArrayBuffer | ArrayBuffer) {
+  if (buffer instanceof SharedArrayBuffer) {
+    sharedLandmarkFrame = {
+      sequence: new Int32Array(buffer, 0, 1),
+      view: new Float32Array(buffer, SHARED_HEADER_BYTES, LM_COUNT * STRIDE),
+    };
+    return;
+  }
+
+  sharedLandmarkFrame = null;
+}
+
+function readSharedLandmarks(): Landmark[] | null {
+  if (!sharedLandmarkFrame) return null;
+
+  while (true) {
+    const startSequence = Atomics.load(sharedLandmarkFrame.sequence, 0);
+    if (startSequence === 0 || (startSequence & 1) === 1) {
+      return null;
+    }
+
+    const out: Landmark[] = [];
+    for (let i = 0; i < LM_COUNT; i++) {
+      const o = i * STRIDE;
+      out.push({
+        x: sharedLandmarkFrame.view[o],
+        y: sharedLandmarkFrame.view[o + 1],
+        z: sharedLandmarkFrame.view[o + 2],
+        visibility: sharedLandmarkFrame.view[o + 3],
+      });
+    }
+
+    const endSequence = Atomics.load(sharedLandmarkFrame.sequence, 0);
+    if (startSequence === endSequence && (endSequence & 1) === 0) {
+      return out;
+    }
+  }
 }
 
 function calculateAngle(
   a: { x: number; y: number; z?: number },
   b: { x: number; y: number; z?: number },
-  c: { x: number; y: number; z?: number }
+  c: { x: number; y: number; z?: number },
 ): number {
   if (!a || !b || !c) return 0;
   const radians =
@@ -28,24 +83,27 @@ function calculateAngle(
   return Math.round(angle);
 }
 
-function getBestSide(landmarks: any[]): 'left' | 'right' {
-  const leftIndices  = [11, 13, 15, 23, 25, 27];
+function getBestSide(landmarks: any[]): "left" | "right" {
+  const leftIndices = [11, 13, 15, 23, 25, 27];
   const rightIndices = [12, 14, 16, 24, 26, 28];
-  const leftVis  = leftIndices.reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 6;
-  const rightVis = rightIndices.reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 6;
-  return leftVis >= rightVis ? 'left' : 'right';
+  const leftVis =
+    leftIndices.reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 6;
+  const rightVis =
+    rightIndices.reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 6;
+  return leftVis >= rightVis ? "left" : "right";
 }
 
 function computeAngles(landmarks: any[]): Record<string, number> {
   if (!landmarks || landmarks.length < 29) return {};
   const side = getBestSide(landmarks);
-  const ids = side === 'left'
-    ? { s: 11, e: 13, w: 15, h: 23, k: 25, a: 27 }
-    : { s: 12, e: 14, w: 16, h: 24, k: 26, a: 28 };
+  const ids =
+    side === "left"
+      ? { s: 11, e: 13, w: 15, h: 23, k: 25, a: 27 }
+      : { s: 12, e: 14, w: 16, h: 24, k: 26, a: 28 };
 
   const shoulder = landmarks[ids.s];
-  const hip      = landmarks[ids.h];
-  const ankle    = landmarks[ids.a];
+  const hip = landmarks[ids.h];
+  const ankle = landmarks[ids.a];
   const totalHeight = Math.abs((ankle?.y || 0) - (shoulder?.y || 0)) || 1;
 
   // Lunge specific calculations
@@ -74,83 +132,98 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   }
 
   return {
-    knee:     calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
-    elbow:    calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
-    shoulder: calculateAngle(landmarks[ids.e], landmarks[ids.s], landmarks[ids.h]),
-    bodyLine: calculateAngle(landmarks[ids.s], landmarks[ids.h], landmarks[ids.a]),
-    hipDepth: Math.round(((ankle?.y || 0) - (hip?.y || 0)) / totalHeight * 100),
-    lungeKnee: Math.min(leftKneeAngle, rightKneeAngle),
-    backKnee: Math.max(leftKneeAngle, rightKneeAngle),
-    kneePastToes,
+    knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
+    elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
+    shoulder: calculateAngle(
+      landmarks[ids.e],
+      landmarks[ids.s],
+      landmarks[ids.h],
+    ),
+    bodyLine: calculateAngle(
+      landmarks[ids.s],
+      landmarks[ids.h],
+      landmarks[ids.a],
+    ),
+    hipDepth: Math.round(
+      (((ankle?.y || 0) - (hip?.y || 0)) / totalHeight) * 100,
+    ),
   };
 }
 
 function detectExercise(landmarks: any[], angles: Record<string, number>) {
-  if (!landmarks || landmarks.length < 29) return { label: 'unknown', confidence: 0 };
+  if (!landmarks || landmarks.length < 29)
+    return { label: "unknown", confidence: 0 };
 
   const { knee, elbow, shoulder, hipDepth, lungeKnee, backKnee } = angles;
 
-  if (knee < 140 && hipDepth < 60) {
-    // Distinguish between squat and lunge by checking if feet are apart
-    const lAnkle = landmarks[27];
-    const rAnkle = landmarks[28];
-    let feetApart = false;
-    if (lAnkle && rAnkle) {
-      const dist = Math.sqrt(Math.pow(lAnkle.x - rAnkle.x, 2) + Math.pow((lAnkle.z || 0) - (rAnkle.z || 0), 2));
-      if (dist > 0.2) feetApart = true;
-    }
-    if (feetApart && lungeKnee < 130) {
-      return { label: 'lunge', confidence: 0.85 };
-    }
-    return { label: 'squat', confidence: 0.9 };
-  }
-  if (elbow < 80 && shoulder < 30) return { label: 'bicepCurl', confidence: 0.85 };
+  if (knee < 140 && hipDepth < 60) return { label: "squat", confidence: 0.9 };
+  if (elbow < 80 && shoulder < 30)
+    return { label: "bicepCurl", confidence: 0.85 };
 
   const lShoulder = landmarks[11];
-  const lHip      = landmarks[23];
-  const lAnkle    = landmarks[27];
+  const lHip = landmarks[23];
+  const lAnkle = landmarks[27];
   if (lShoulder && lHip && lAnkle) {
     const hStretch = Math.abs(lAnkle.x - lShoulder.x);
     const vCompact = Math.abs(lAnkle.y - lShoulder.y);
     if (hStretch > vCompact * 0.8) {
-      if (elbow < 120) return { label: 'pushup', confidence: 0.85 };
-      return { label: 'plank', confidence: 0.8 };
+      if (elbow < 120) return { label: "pushup", confidence: 0.85 };
+      return { label: "plank", confidence: 0.8 };
     }
   }
 
-  if (shoulder > 60) return { label: 'jumpingJack', confidence: 0.75 };
-  return { label: 'unknown', confidence: 0.4 };
+  if (shoulder > 60) return { label: "jumpingJack", confidence: 0.75 };
+  return { label: "unknown", confidence: 0.4 };
 }
 
 let offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
 let scanY = 0;
 let scanDirection = 1;
 
-function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[], wasOccluded?: boolean[]) {
+function drawSkeleton(
+  landmarks: any[],
+  status: string,
+  primaryJoints: number[],
+  wasOccluded?: boolean[],
+) {
   if (!offscreenCtx) return;
   const ctx = offscreenCtx;
   const { width, height } = ctx.canvas;
 
   ctx.clearRect(0, 0, width, height);
 
-  const color = status === 'green' ? '#00ff88' : (status === 'yellow' ? '#ffd600' : '#ff3b5c');
+  const color =
+    status === "green"
+      ? "#00ff88"
+      : status === "yellow"
+        ? "#ffd600"
+        : "#ff3b5c";
 
   scanY += 3 * scanDirection;
   if (scanY > height || scanY < 0) scanDirection *= -1;
   ctx.beginPath();
   ctx.moveTo(0, scanY);
   ctx.lineTo(width, scanY);
-  ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+  ctx.strokeStyle = "rgba(0, 240, 255, 0.3)";
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
   const connections = [
-    [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-    [11, 23], [12, 24], [23, 24],
-    [23, 25], [25, 27], [24, 26], [26, 28],
+    [11, 12],
+    [11, 13],
+    [13, 15],
+    [12, 14],
+    [14, 16],
+    [11, 23],
+    [12, 24],
+    [23, 24],
+    [23, 25],
+    [25, 27],
+    [24, 26],
+    [26, 28],
   ];
 
-  const basePath      = new Path2D();
+  const basePath = new Path2D();
   const highlightPath = new Path2D();
   const predictedPath = new Path2D();
 
@@ -158,16 +231,16 @@ function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[],
     const a = landmarks[i];
     const b = landmarks[j];
     if (a && b && a.visibility > 0.5 && b.visibility > 0.5) {
-      const occluded = wasOccluded ? (wasOccluded[i] || wasOccluded[j]) : false;
+      const occluded = wasOccluded ? wasOccluded[i] || wasOccluded[j] : false;
       const isPrimary = primaryJoints.includes(i) || primaryJoints.includes(j);
-      const p = occluded ? predictedPath : (isPrimary ? highlightPath : basePath);
+      const p = occluded ? predictedPath : isPrimary ? highlightPath : basePath;
       p.moveTo(a.x * width, a.y * height);
       p.lineTo(b.x * width, b.y * height);
     }
   }
 
   ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
   ctx.stroke(basePath);
 
   ctx.lineWidth = 4;
@@ -175,7 +248,7 @@ function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[],
   ctx.stroke(highlightPath);
 
   ctx.lineWidth = 3;
-  ctx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
+  ctx.strokeStyle = "rgba(255, 200, 0, 0.6)";
   ctx.setLineDash([6, 4]);
   ctx.stroke(predictedPath);
   ctx.setLineDash([]);
@@ -186,41 +259,78 @@ function drawSkeleton(landmarks: any[], status: string, primaryJoints: number[],
       const isPredicted = wasOccluded ? wasOccluded[i] : false;
       ctx.beginPath();
       ctx.arc(lm.x * width, lm.y * height, isPrimary ? 6 : 2, 0, Math.PI * 2);
-      ctx.fillStyle = isPredicted ? 'rgba(255, 200, 0, 0.8)' : (isPrimary ? color : 'rgba(255, 255, 255, 0.5)');
+      ctx.fillStyle = isPredicted
+        ? "rgba(255, 200, 0, 0.8)"
+        : isPrimary
+          ? color
+          : "rgba(255, 255, 255, 0.5)";
       ctx.fill();
     }
   });
 }
 
 self.onmessage = (event: MessageEvent) => {
-  const { type, canvas, buf, landmarks: rawLandmarks, status, primaryJoints, frameId, t0 } = event.data;
+  const {
+    type,
+    canvas,
+    buf,
+    sharedBuffer,
+    landmarks: rawLandmarks,
+    status,
+    primaryJoints,
+    frameId,
+    t0,
+  } = event.data;
 
-  if (type === 'initCanvas') {
-    offscreenCtx = canvas.getContext('2d');
+  if (type === "initCanvas") {
+    offscreenCtx = canvas.getContext("2d");
     return;
   }
 
-  if (type === 'resetPredictor') {
+  if (type === "initSharedBuffer") {
+    initSharedLandmarks(sharedBuffer);
+    return;
+  }
+
+  if (type === "resetPredictor") {
     predictor.reset();
     return;
   }
 
-  const landmarks = buf ? unpackLandmarks(buf) : rawLandmarks;
+  const landmarks =
+    readSharedLandmarks() ?? (buf ? unpackLandmarks(buf) : rawLandmarks);
 
   if (!landmarks || landmarks.length === 0) {
-    const msg: any = { frameId, angles: {}, detectedExercise: 'unknown', confidence: 0 };
-    if (buf) { (self as any).postMessage(msg, [buf]); }
-    else { (self as any).postMessage(msg); }
+    const msg: any = {
+      frameId,
+      angles: {},
+      detectedExercise: "unknown",
+      confidence: 0,
+    };
+    if (buf) {
+      (self as any).postMessage(msg, [buf]);
+    } else {
+      (self as any).postMessage(msg);
+    }
     return;
   }
 
   const predicted = predictor.predict(landmarks);
   const correctedLandmarks = predicted.landmarks;
 
-  if (offscreenCtx) drawSkeleton(correctedLandmarks, status || 'green', primaryJoints || [], predicted.wasOccluded);
+  if (offscreenCtx)
+    drawSkeleton(
+      correctedLandmarks,
+      status || "green",
+      primaryJoints || [],
+      predicted.wasOccluded,
+    );
 
   const angles = computeAngles(correctedLandmarks);
-  const { label: detectedExercise, confidence } = detectExercise(correctedLandmarks, angles);
+  const { label: detectedExercise, confidence } = detectExercise(
+    correctedLandmarks,
+    angles,
+  );
 
   const ipcMs = t0 != null ? performance.now() - t0 : undefined;
 
