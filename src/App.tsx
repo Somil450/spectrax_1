@@ -232,7 +232,15 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
-      <div className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""}`}>
+      <div
+        className={`theme-selector-segmented ${
+          currentScreen === "workout" ? "workout-active" : ""
+        } ${
+          ["summary", "replay", "history", "trophy"].includes(currentScreen)
+            ? "is-hidden"
+            : ""
+        }`}
+      >
         <div className={`selector-indicator theme-${theme}`} />
         <button
           className={`selector-btn ${theme === "cyber-dark" ? "active" : ""}`}
