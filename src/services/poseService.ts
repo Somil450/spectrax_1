@@ -1,30 +1,48 @@
-import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
+import type {
+  Pose as PoseType,
+  Results,
+  NormalizedLandmarkList,
+} from "@mediapipe/pose";
 
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
 
-const STRIDE    = 4;       // floats per landmark: x, y, z, visibility
-const LM_COUNT  = 33;
+const STRIDE = 4; // floats per landmark: x, y, z, visibility
+const LM_COUNT = 33;
 const BUF_BYTES = LM_COUNT * STRIDE * Float32Array.BYTES_PER_ELEMENT;
+const SHARED_HEADER_BYTES = Int32Array.BYTES_PER_ELEMENT;
+const SHARED_BUF_BYTES = SHARED_HEADER_BYTES + BUF_BYTES;
 
 type MediaPipePoseConstructor = new (options: {
   locateFile: (file: string) => string;
 }) => PoseType;
 
-type LandmarkCoordinate = 'x' | 'y' | 'z';
-type LandmarkStream = 'poseLandmarks' | 'poseWorldLandmarks';
+type LandmarkCoordinate = "x" | "y" | "z";
+type LandmarkStream = "poseLandmarks" | "poseWorldLandmarks";
+type LandmarkSnapshot = Array<{
+  x: number;
+  y: number;
+  z: number;
+  visibility: number;
+}>;
 
-export type PoseSmoothingFilterType = 'kalman' | 'ema';
+interface SharedLandmarkFrame {
+  buffer: SharedArrayBuffer;
+  sequence: Int32Array;
+  view: Float32Array;
+}
+
+export type PoseSmoothingFilterType = "kalman" | "ema";
 
 export interface KalmanFilterOptions {
-  type: 'kalman';
+  type: "kalman";
   enabled?: boolean;
   processNoise?: number;
   measurementNoise?: number;
 }
 
 export interface EmaFilterOptions {
-  type: 'ema';
+  type: "ema";
   enabled?: boolean;
   alpha?: number;
 }
@@ -34,21 +52,24 @@ export type PoseSmoothingFilterConfig = KalmanFilterOptions | EmaFilterOptions;
 interface LandmarkFilter {
   readonly type: PoseSmoothingFilterType;
   enabled: boolean;
-  apply(landmarks: NormalizedLandmarkList, stream: LandmarkStream): NormalizedLandmarkList;
+  apply(
+    landmarks: NormalizedLandmarkList,
+    stream: LandmarkStream,
+  ): NormalizedLandmarkList;
   reset(): void;
   toConfig(): PoseSmoothingFilterConfig;
 }
 
-const LANDMARK_COORDINATES: LandmarkCoordinate[] = ['x', 'y', 'z'];
+const LANDMARK_COORDINATES: LandmarkCoordinate[] = ["x", "y", "z"];
 const DEFAULT_FILTERS: PoseSmoothingFilterConfig[] = [
   {
-    type: 'kalman',
+    type: "kalman",
     enabled: true,
     processNoise: 0.003,
     measurementNoise: 0.03,
   },
   {
-    type: 'ema',
+    type: "ema",
     enabled: false,
     alpha: 0.45,
   },
@@ -65,7 +86,7 @@ const getCoordinateKey = (
 ) => `${stream}:${landmarkIndex}:${coordinate}`;
 
 class EmaLandmarkFilter implements LandmarkFilter {
-  readonly type = 'ema' as const;
+  readonly type = "ema" as const;
   enabled: boolean;
   private readonly alpha: number;
   private readonly previousValues = new Map<string, number>();
@@ -86,7 +107,7 @@ class EmaLandmarkFilter implements LandmarkFilter {
 
       for (const coordinate of LANDMARK_COORDINATES) {
         const value = landmark[coordinate];
-        if (typeof value !== 'number') continue;
+        if (typeof value !== "number") continue;
 
         const key = getCoordinateKey(stream, landmarkIndex, coordinate);
         const previousValue = this.previousValues.get(key) ?? value;
@@ -108,7 +129,7 @@ class EmaLandmarkFilter implements LandmarkFilter {
     landmarks.forEach((landmark, landmarkIndex) => {
       for (const coordinate of LANDMARK_COORDINATES) {
         const value = landmark[coordinate];
-        if (typeof value !== 'number') continue;
+        if (typeof value !== "number") continue;
 
         this.previousValues.set(
           getCoordinateKey(stream, landmarkIndex, coordinate),
@@ -120,7 +141,7 @@ class EmaLandmarkFilter implements LandmarkFilter {
 
   toConfig(): EmaFilterOptions {
     return {
-      type: 'ema',
+      type: "ema",
       enabled: this.enabled,
       alpha: this.alpha,
     };
@@ -133,7 +154,7 @@ interface KalmanCoordinateState {
 }
 
 class KalmanLandmarkFilter implements LandmarkFilter {
-  readonly type = 'kalman' as const;
+  readonly type = "kalman" as const;
   enabled: boolean;
   private readonly processNoise: number;
   private readonly measurementNoise: number;
@@ -156,7 +177,7 @@ class KalmanLandmarkFilter implements LandmarkFilter {
 
       for (const coordinate of LANDMARK_COORDINATES) {
         const measurement = landmark[coordinate];
-        if (typeof measurement !== 'number') continue;
+        if (typeof measurement !== "number") continue;
 
         const key = getCoordinateKey(stream, landmarkIndex, coordinate);
         const state = this.states.get(key) ?? {
@@ -187,7 +208,7 @@ class KalmanLandmarkFilter implements LandmarkFilter {
     landmarks.forEach((landmark, landmarkIndex) => {
       for (const coordinate of LANDMARK_COORDINATES) {
         const measurement = landmark[coordinate];
-        if (typeof measurement !== 'number') continue;
+        if (typeof measurement !== "number") continue;
 
         this.states.set(getCoordinateKey(stream, landmarkIndex, coordinate), {
           estimate: measurement,
@@ -199,7 +220,7 @@ class KalmanLandmarkFilter implements LandmarkFilter {
 
   toConfig(): KalmanFilterOptions {
     return {
-      type: 'kalman',
+      type: "kalman",
       enabled: this.enabled,
       processNoise: this.processNoise,
       measurementNoise: this.measurementNoise,
@@ -208,23 +229,48 @@ class KalmanLandmarkFilter implements LandmarkFilter {
 }
 
 const createFilter = (config: PoseSmoothingFilterConfig): LandmarkFilter => {
-  if (config.type === 'ema') {
+  if (config.type === "ema") {
     return new EmaLandmarkFilter(config);
   }
 
   return new KalmanLandmarkFilter(config);
 };
 
+const createSharedLandmarkFrame = (): SharedLandmarkFrame | null => {
+  if (
+    typeof SharedArrayBuffer === "undefined" ||
+    !globalThis.crossOriginIsolated
+  ) {
+    return null;
+  }
+
+  try {
+    const buffer = new SharedArrayBuffer(SHARED_BUF_BYTES);
+    return {
+      buffer,
+      sequence: new Int32Array(buffer, 0, 1),
+      view: new Float32Array(buffer, SHARED_HEADER_BYTES, LM_COUNT * STRIDE),
+    };
+  } catch {
+    return null;
+  }
+};
+
 export class PoseService {
   private pose: PoseType | null = null;
-  private isLoaded   = false;
+  private isLoaded = false;
   private inProgress = false;
   private errorCount = 0;
-  private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
+  private smoothingFilters: LandmarkFilter[] =
+    DEFAULT_FILTERS.map(createFilter);
+  private readonly sharedLandmarkFrame = createSharedLandmarkFrame();
 
   // Two buffers in a pool: one can be in flight to the worker while the other
   // is ready. Avoids per-frame allocation and GC churn.
-  private pool: ArrayBuffer[] = [new ArrayBuffer(BUF_BYTES), new ArrayBuffer(BUF_BYTES)];
+  private pool: ArrayBuffer[] = [
+    new ArrayBuffer(BUF_BYTES),
+    new ArrayBuffer(BUF_BYTES),
+  ];
 
   constructor() {
     this.init();
@@ -234,7 +280,8 @@ export class PoseService {
     if (this.pose) return;
     try {
       this.pose = new Pose({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+        locateFile: (file) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
       });
       this.pose.setOptions({
         modelComplexity: 1,
@@ -244,25 +291,93 @@ export class PoseService {
         minTrackingConfidence: 0.5,
       });
       this.isLoaded = true;
-      console.log('PoseService: initialized.');
+      console.log("PoseService: initialized.");
+      if (this.sharedLandmarkFrame) {
+        console.log("PoseService: SharedArrayBuffer synchronization enabled.");
+      }
     } catch (e) {
-      console.error('PoseService init failed:', e);
+      console.error("PoseService init failed:", e);
     }
+  }
+
+  getSharedLandmarkBuffer() {
+    return this.sharedLandmarkFrame?.buffer ?? null;
+  }
+
+  readSharedLandmarksSnapshot(): LandmarkSnapshot | null {
+    const sharedFrame = this.sharedLandmarkFrame;
+
+    if (!sharedFrame) return null;
+
+    while (true) {
+      const startSequence = Atomics.load(sharedFrame.sequence, 0);
+      if (startSequence === 0 || (startSequence & 1) === 1) {
+        return null;
+      }
+
+      const landmarks: LandmarkSnapshot = [];
+      for (let i = 0; i < LM_COUNT; i++) {
+        const offset = i * STRIDE;
+        landmarks.push({
+          x: sharedFrame.view[offset],
+          y: sharedFrame.view[offset + 1],
+          z: sharedFrame.view[offset + 2],
+          visibility: sharedFrame.view[offset + 3],
+        });
+      }
+
+      const endSequence = Atomics.load(sharedFrame.sequence, 0);
+      if (startSequence === endSequence && (endSequence & 1) === 0) {
+        return landmarks;
+      }
+    }
+  }
+
+  private publishSharedLandmarks(
+    landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>,
+  ) {
+    const sharedFrame = this.sharedLandmarkFrame;
+
+    if (!sharedFrame) return;
+
+    Atomics.add(sharedFrame.sequence, 0, 1);
+    sharedFrame.view.fill(0);
+
+    const limit = Math.min(landmarks.length, LM_COUNT);
+    for (let i = 0; i < limit; i++) {
+      const landmark = landmarks[i];
+      const offset = i * STRIDE;
+      sharedFrame.view[offset] = landmark.x;
+      sharedFrame.view[offset + 1] = landmark.y;
+      sharedFrame.view[offset + 2] = landmark.z ?? 0;
+      sharedFrame.view[offset + 3] = landmark.visibility ?? 1;
+    }
+
+    Atomics.add(sharedFrame.sequence, 0, 1);
+  }
+
+  private clearSharedLandmarks() {
+    const sharedFrame = this.sharedLandmarkFrame;
+
+    if (!sharedFrame) return;
+
+    sharedFrame.view.fill(0);
+    Atomics.store(sharedFrame.sequence, 0, 0);
   }
 
   // Pack landmarks into a Float32Array from the pool for zero-copy transfer.
   // Returns null if the pool is empty (both buffers are in flight).
   packLandmarks(
-    landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>
+    landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>,
   ): { buf: ArrayBuffer; t0: number } | null {
     if (!this.pool.length) return null;
-    const buf  = this.pool.pop()!;
+    const buf = this.pool.pop()!;
     const view = new Float32Array(buf);
-    const len  = Math.min(landmarks.length, LM_COUNT);
+    const len = Math.min(landmarks.length, LM_COUNT);
     for (let i = 0; i < len; i++) {
       const lm = landmarks[i];
-      const o  = i * STRIDE;
-      view[o]     = lm.x;
+      const o = i * STRIDE;
+      view[o] = lm.x;
       view[o + 1] = lm.y;
       view[o + 2] = lm.z ?? 0;
       view[o + 3] = lm.visibility ?? 1;
@@ -277,13 +392,18 @@ export class PoseService {
 
   // Unpack a transferred buffer back into landmark objects.
   static unpackLandmarks(
-    buf: ArrayBuffer
+    buf: ArrayBuffer,
   ): Array<{ x: number; y: number; z: number; visibility: number }> {
     const view = new Float32Array(buf);
-    const out  = [];
+    const out = [];
     for (let i = 0; i < LM_COUNT; i++) {
       const o = i * STRIDE;
-      out.push({ x: view[o], y: view[o + 1], z: view[o + 2], visibility: view[o + 3] });
+      out.push({
+        x: view[o],
+        y: view[o + 1],
+        z: view[o + 2],
+        visibility: view[o + 3],
+      });
     }
     return out;
   }
@@ -292,20 +412,21 @@ export class PoseService {
     this.smoothingFilters = filters.map(createFilter);
   }
 
-  setSmoothingFilterEnabled(
-    type: PoseSmoothingFilterType,
-    enabled: boolean,
-  ) {
+  setSmoothingFilterEnabled(type: PoseSmoothingFilterType, enabled: boolean) {
     const existingFilter = this.smoothingFilters.find(
       (filter) => filter.type === type,
     );
 
     if (!existingFilter) {
-      const defaultFilter =
-        DEFAULT_FILTERS.find((filter) => filter.type === type) ?? { type };
+      const defaultFilter = DEFAULT_FILTERS.find(
+        (filter) => filter.type === type,
+      ) ?? { type };
       this.smoothingFilters = [
         ...this.smoothingFilters,
-        createFilter({ ...defaultFilter, enabled } as PoseSmoothingFilterConfig),
+        createFilter({
+          ...defaultFilter,
+          enabled,
+        } as PoseSmoothingFilterConfig),
       ];
       return;
     }
@@ -340,7 +461,7 @@ export class PoseService {
       this.inProgress = false;
       this.errorCount++;
       if (this.errorCount > 10) {
-        console.warn('PoseService: too many errors, resetting...');
+        console.warn("PoseService: too many errors, resetting...");
         this.close();
         this.init();
         this.errorCount = 0;
@@ -350,9 +471,11 @@ export class PoseService {
 
   async close() {
     if (this.pose) {
-      try { await this.pose.close(); } catch {}
-      this.pose      = null;
-      this.isLoaded  = false;
+      try {
+        await this.pose.close();
+      } catch {}
+      this.pose = null;
+      this.isLoaded = false;
     }
   }
 
@@ -361,18 +484,27 @@ export class PoseService {
 
     if (!results.poseLandmarks && !results.poseWorldLandmarks) {
       this.resetSmoothingFilters();
+      this.clearSharedLandmarks();
       return results;
     }
 
-    return {
+    const nextResults = {
       ...results,
       poseLandmarks: results.poseLandmarks
-        ? this.applyFilters(results.poseLandmarks, 'poseLandmarks')
+        ? this.applyFilters(results.poseLandmarks, "poseLandmarks")
         : results.poseLandmarks,
       poseWorldLandmarks: results.poseWorldLandmarks
-        ? this.applyFilters(results.poseWorldLandmarks, 'poseWorldLandmarks')
+        ? this.applyFilters(results.poseWorldLandmarks, "poseWorldLandmarks")
         : results.poseWorldLandmarks,
     };
+
+    if (nextResults.poseLandmarks) {
+      this.publishSharedLandmarks(nextResults.poseLandmarks);
+    } else {
+      this.clearSharedLandmarks();
+    }
+
+    return nextResults;
   }
 
   private applyFilters(
