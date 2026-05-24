@@ -396,6 +396,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
+    const sharedLandmarkBuffer = poseService.getSharedLandmarkBuffer();
+    if (sharedLandmarkBuffer) {
+      worker.postMessage({ type: "initSharedBuffer", sharedBuffer: sharedLandmarkBuffer });
+    }
     let workerAngles: Record<string, number> = {};
 
     // Worker posts back computed angles — exercise detection stays on main thread
@@ -511,15 +515,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           }
 
           // ── Offload angle computation to Web Worker ────────────────────────
-          pendingLandmarksRef.current = results.poseLandmarks;
           const primaryJoints = exercise.joints?.flat() || [];
 
           worker.postMessage({
-            landmarks: results.poseLandmarks,
+            type: "processFrame",
             exercise: exercise.key,
             frameId: frameSkipRef.current,
             status: mutableState.current.status,
             primaryJoints: primaryJoints,
+            t0: performance.now(),
           });
 
           // Use last worker result for angles (may be 1 frame stale — acceptable)
@@ -926,27 +930,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       </div>
 
       <div className="workout-panel-layer">
-        {renderDraggablePanel(
-          "focus",
-          "",
-          <FocusPanel exerciseName={exercise.name} />,
-        )}
-        {renderDraggablePanel("timer", "", <TimerPanel seconds={seconds} />)}
-        {renderDraggablePanel(
-          "reps",
-          "",
-          <RepsPanel reps={engineState.reps} statusColor={statusColor} />,
-        )}
-        {renderDraggablePanel(
-          "engine",
-          "",
-          <EnginePanel status={engineState.status} statusColor={statusColor} />,
-        )}
-        {renderDraggablePanel(
-          "sense",
-          "",
-          <SensePanel clipEngine={clipEngine} clipResult={clipResult} />,
-        )}
+        {renderDraggablePanel('focus', '', <FocusPanel exerciseName={exercise.name} />)}
+        {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
+        {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} isStatic={exercise.isStatic} holdTime={engineState.holdTime} />)}
+        {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
+        {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}

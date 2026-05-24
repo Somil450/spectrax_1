@@ -550,14 +550,60 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       if (recoveryTimeoutRef.current !== null) {
         window.clearTimeout(recoveryTimeoutRef.current);
         recoveryTimeoutRef.current = null;
-
-      window.removeEventListener("resize", handleResize);
-      if (currentMount && rendererRef.current) {
-        currentMount.removeChild(rendererRef.current.domElement);
-
       }
 
       disposeRendererPipeline();
+
+      // Dispose fallback skeleton geometries and cloned materials
+      jointsRef.current.forEach((mesh) => {
+        mesh.geometry.dispose();
+        (mesh.material as THREE.MeshStandardMaterial).dispose();
+      });
+      jointsRef.current = [];
+
+      bonesRef.current.forEach(({ line }) => {
+        line.geometry.dispose();
+        (line.material as THREE.LineBasicMaterial).dispose();
+      });
+      bonesRef.current = [];
+
+      // Dispose GLTF model geometries and materials
+      if (modelGroupRef.current) {
+        modelGroupRef.current.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.geometry.dispose();
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach((m) => m.dispose());
+            } else {
+              (mesh.material as THREE.Material).dispose();
+            }
+          }
+        });
+        sceneRef.current?.remove(modelGroupRef.current);
+        modelGroupRef.current = null;
+      }
+
+      skinnedMeshesRef.current = [];
+      boneMapRef.current = {};
+      restDataRef.current = {};
+
+      // Dispose scene-level objects (grid, floor, lights)
+      if (sceneRef.current) {
+        sceneRef.current.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.geometry?.dispose();
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach((m) => m.dispose());
+            } else {
+              (mesh.material as THREE.Material)?.dispose();
+            }
+          }
+        });
+        sceneRef.current.clear();
+        sceneRef.current = null;
+      }
     };
   }, [frames, modelUrl]);
 
@@ -616,11 +662,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             -(lm.x - 0.5) * 2,
             -(lm.y - 0.5) * 2,
             -lm.z * depthScale,
-
-          return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
-
+          );
         };
-
         // Torso Alignment & Root Motion
         const lShoulder = getLm(11);
         const rShoulder = getLm(12);
@@ -654,17 +697,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             .normalize();
 
 
-          const shoulderCenter = new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5);
-          const hipCenter = new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5);
 
-          // Up vector (hips pointing UP to shoulders)
-          const up = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
-          
-          // Right vector (User Left Shoulder 11 to User Right Shoulder 12 mapping physical right)
-          const right = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
-          
-          // Back vector (cross product produces orthogonal depth Z)
-          const forward = new THREE.Vector3().crossVectors(right, up).normalize();
           
 
           // Perfect orthogonal matrix
@@ -684,8 +717,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
 
           
-          const rotatedOffset = rootOffsetRef.current.clone().applyQuaternion(modelGroupRef.current.quaternion);
-          const targetPos = hipCenter.clone().add(rotatedOffset);
+         
           
 
           // --- Grounding: Lock the lowest foot firmly to the ground plane (-1.0) ---
@@ -709,13 +741,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           } else if (cameraRef.current) {
             cameraRef.current.lookAt(lookTarget);
 
-          const lookTarget = new THREE.Vector3().lerpVectors(hipCenter, shoulderCenter, 0.5);
-          if (controlsRef.current) {
-              controlsRef.current.target.lerp(lookTarget, 0.05);
-          } else if (cameraRef.current) {
-              cameraRef.current.lookAt(lookTarget);
 
-          }
         }
 
         const applyPose = (
