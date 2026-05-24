@@ -12,7 +12,7 @@ function setupSocketHandlers(io, sessions) {
 
     // ── Real-time frame processing ──
     socket.on("frame", (data) => {
-      if (!data || !Array.isArray(data.landmarks)) return;
+      if (!data || !Array.isArray(data.landmarks) || data.landmarks.length < 29) return;
 
       const now = Date.now();
       if (now - frameWindowStart >= 1000) {
@@ -22,8 +22,21 @@ function setupSocketHandlers(io, sessions) {
       frameCountInWindow += 1;
       if (frameCountInWindow > MAX_FRAMES_PER_SEC) return;
 
-      // Non-blocking inline — no setTimeout/setImmediate overhead for hot path
-      const result = processPose(data);
+      let result;
+try {
+  // Non-blocking inline — no setTimeout/setImmediate overhead for hot path
+  result = processPose(data);
+} catch (err) {
+  console.error("[SpectraX] Error processing frame:", err.message);
+  socket.emit("feedback", {
+    angles: {},
+    corrections: [],
+    status: "red",
+    feedback: "Error processing pose",
+    timestamp: data.timestamp ?? null,
+  });
+  return;
+}
 
       // Store frame in rolling buffer
       const sessionFrames = sessions.get(socket.id) || [];
