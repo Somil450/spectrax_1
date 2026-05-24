@@ -135,5 +135,32 @@ export const exercises: Record<string, ExerciseConfig> = {
         type: 'warning'
       }
     ]
+  },
+
+  lunge: {
+    key: "lunge",
+    name: "Lunges",
+    demoUrl: '/assets/demos/squat.mp4', // Fallback to squat demo or assume it exists
+    primaryJoint: "lungeKnee",
+    joints: [[23, 25], [25, 27], [24, 26], [26, 28]],
+    downThreshold: 110,
+    upThreshold: 160,
+    feedbackRules: [
+      {
+        condition: (ctx: any) => ctx.kneePastToes === 1,
+        message: "Knee past toes! Shift weight back ⚠️",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.stage === 'down' && ctx.downAngleReached > 115,
+        message: "Go lower for full depth 👇",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.stage === 'down' && ctx.backKnee > 130,
+        message: "Bend your back knee more ⚠️",
+        type: 'warning'
+      }
+    ]
   }
 };

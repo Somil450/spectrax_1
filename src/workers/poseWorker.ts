@@ -48,21 +48,62 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   const ankle    = landmarks[ids.a];
   const totalHeight = Math.abs((ankle?.y || 0) - (shoulder?.y || 0)) || 1;
 
+  // Lunge specific calculations
+  const leftKneeAngle = calculateAngle(landmarks[23], landmarks[25], landmarks[27]);
+  const rightKneeAngle = calculateAngle(landmarks[24], landmarks[26], landmarks[28]);
+  const activeSideLunge = leftKneeAngle < rightKneeAngle ? 'left' : 'right';
+  const activeKneeIdx = activeSideLunge === 'left' ? 25 : 26;
+  const activeToeIdx = activeSideLunge === 'left' ? 31 : 32;
+  const activeHeelIdx = activeSideLunge === 'left' ? 29 : 30;
+
+  let kneePastToes = 0;
+  const aKnee = landmarks[activeKneeIdx];
+  const aToe = landmarks[activeToeIdx];
+  const aHeel = landmarks[activeHeelIdx];
+  if (aKnee && aToe && aHeel) {
+    const footX = aToe.x - aHeel.x;
+    const kneeX = aKnee.x - aHeel.x;
+    const footZ = (aToe.z || 0) - (aHeel.z || 0);
+    const kneeZ = (aKnee.z || 0) - (aHeel.z || 0);
+
+    if (Math.abs(footX) > Math.abs(footZ)) {
+      if (Math.abs(footX) > 0.02 && (kneeX / footX) > 1.05) kneePastToes = 1;
+    } else {
+      if (Math.abs(footZ) > 0.02 && (kneeZ / footZ) > 1.05) kneePastToes = 1;
+    }
+  }
+
   return {
     knee:     calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
     elbow:    calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
     shoulder: calculateAngle(landmarks[ids.e], landmarks[ids.s], landmarks[ids.h]),
     bodyLine: calculateAngle(landmarks[ids.s], landmarks[ids.h], landmarks[ids.a]),
     hipDepth: Math.round(((ankle?.y || 0) - (hip?.y || 0)) / totalHeight * 100),
+    lungeKnee: Math.min(leftKneeAngle, rightKneeAngle),
+    backKnee: Math.max(leftKneeAngle, rightKneeAngle),
+    kneePastToes,
   };
 }
 
 function detectExercise(landmarks: any[], angles: Record<string, number>) {
   if (!landmarks || landmarks.length < 29) return { label: 'unknown', confidence: 0 };
 
-  const { knee, elbow, shoulder, hipDepth } = angles;
+  const { knee, elbow, shoulder, hipDepth, lungeKnee, backKnee } = angles;
 
-  if (knee < 140 && hipDepth < 60) return { label: 'squat', confidence: 0.9 };
+  if (knee < 140 && hipDepth < 60) {
+    // Distinguish between squat and lunge by checking if feet are apart
+    const lAnkle = landmarks[27];
+    const rAnkle = landmarks[28];
+    let feetApart = false;
+    if (lAnkle && rAnkle) {
+      const dist = Math.sqrt(Math.pow(lAnkle.x - rAnkle.x, 2) + Math.pow((lAnkle.z || 0) - (rAnkle.z || 0), 2));
+      if (dist > 0.2) feetApart = true;
+    }
+    if (feetApart && lungeKnee < 130) {
+      return { label: 'lunge', confidence: 0.85 };
+    }
+    return { label: 'squat', confidence: 0.9 };
+  }
   if (elbow < 80 && shoulder < 30) return { label: 'bicepCurl', confidence: 0.85 };
 
   const lShoulder = landmarks[11];
