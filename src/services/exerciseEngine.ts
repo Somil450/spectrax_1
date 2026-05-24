@@ -319,25 +319,13 @@ export class ExerciseEngine {
     const p = this.repParams(config.key);
 
 
-    const { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
-      currentState;
-
     const { reps, lastRepTime, history } = currentState;
     let { stage, isCalibrated, stageStartTime } = currentState;
-
 
     const currentVisibility = visibility[config.primaryJoint];
 
     // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
     const prevVisibilityBuffer = currentState.visibilityBuffer || [];
-
-    const newVisibilityBuffer = [
-      ...prevVisibilityBuffer,
-      currentVisibility,
-    ].slice(-this.SMOOTHING_WINDOW);
-    const avgVisibility =
-      newVisibilityBuffer.reduce((a, b) => a + b, 0) /
-      newVisibilityBuffer.length;
 
     const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-p.smoothingWindow);
     const avgVisibility = newVisibilityBuffer.reduce((a, b) => a + b, 0) / newVisibilityBuffer.length;

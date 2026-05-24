@@ -1,11 +1,3 @@
-
-import React, { useState, useEffect, useRef } from "react";
-import Draggable, {
-  type DraggableData,
-  type DraggableEvent,
-} from "react-draggable";
-import {
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { Activity, StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
@@ -13,7 +5,7 @@ import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -49,10 +41,6 @@ interface WorkoutScreenProps {
 }
 
 type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
-
-
-type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
-
 
 type PanelPosition = {
   x: number;
@@ -92,22 +80,6 @@ const getStoredPanelPositions = (): PanelPositions => {
       window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || "{}",
     ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
 
-
-    return (Object.keys(defaults) as WorkoutPanelId[]).reduce(
-      (positions, panelId) => {
-        const storedPosition = storedPositions[panelId];
-
-        positions[panelId] = {
-          x:
-            typeof storedPosition?.x === "number"
-              ? storedPosition.x
-              : defaults[panelId].x,
-          y:
-            typeof storedPosition?.y === "number"
-              ? storedPosition.y
-              : defaults[panelId].y,
-        };
-
     return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
       const storedPosition = storedPositions[panelId];
 
@@ -116,32 +88,13 @@ const getStoredPanelPositions = (): PanelPositions => {
         y: typeof storedPosition?.y === "number" ? storedPosition.y : defaults[panelId].y,
       };
 
-
-        return positions;
-      },
-      {} as PanelPositions,
-    );
+      return positions;
+    }, {} as PanelPositions);
   } catch {
     return defaults;
   }
 };
 
-const srOnly: React.CSSProperties = {
-  position: "absolute",
-  width: "1px",
-  height: "1px",
-  padding: "0",
-  margin: "-1px",
-  overflow: "hidden",
-  clip: "rect(0, 0, 0, 0)",
-  whiteSpace: "nowrap",
-  border: "0",
-};
-
-// ── Visually-hidden style (sr-only) ──────────────────────────────────────────
-// This CSS pattern hides an element from sighted users while keeping it fully
-// available to screen readers. clip-path: inset(50%) is the modern replacement
-// for the deprecated `clip: rect(...)` property.
 const srOnly: React.CSSProperties = {
   position: 'absolute',
   width: '1px',
@@ -154,62 +107,13 @@ const srOnly: React.CSSProperties = {
   border: 0,
 };
 
-type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
 
-type PanelPosition = {
-  x: number;
-  y: number;
-};
-
-type PanelPositions = Record<WorkoutPanelId, PanelPosition>;
-
-const PANEL_POSITION_STORAGE_KEY = 'spectrax.workoutPanelPositions.v1';
-
-const getViewportSize = () => ({
-  width: typeof window === 'undefined' ? 1280 : window.innerWidth,
-  height: typeof window === 'undefined' ? 720 : window.innerHeight
-});
-
-const getDefaultPanelPositions = (): PanelPositions => {
-  const { width, height } = getViewportSize();
-
-  return {
-    focus: { x: 30, y: 30 },
-    timer: { x: Math.max(width - 230, 30), y: 30 },
-    reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
-    engine: { x: 40, y: Math.max(height - 110, 30) },
-    sense: { x: 280, y: Math.max(height - 110, 30) }
-  };
-};
-
-const getStoredPanelPositions = (): PanelPositions => {
-  const defaults = getDefaultPanelPositions();
-
-  if (typeof window === 'undefined') {
-    return defaults;
-  }
-
-  try {
-    const storedPositions = JSON.parse(
-      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || '{}'
-    ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
-
-    return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
-      const storedPosition = storedPositions[panelId];
-
-      positions[panelId] = {
-        x: typeof storedPosition?.x === 'number' ? storedPosition.x : defaults[panelId].x,
-        y: typeof storedPosition?.y === 'number' ? storedPosition.y : defaults[panelId].y
-      };
-
-      return positions;
-    }, {} as PanelPositions);
-  } catch {
-    return defaults;
-  }
-};
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+  const bodyTypeRef = useRef(bodyType);
+  bodyTypeRef.current = bodyType;
+  const onAutoDetectRef = useRef(onAutoDetect);
+  onAutoDetectRef.current = onAutoDetect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRefs = useRef<Record<
@@ -234,12 +138,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
-
-  const { isOnline } = useWorkoutSync();
-  const [panelsLocked, setPanelsLocked] = useState(true);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() =>
-    getStoredPanelPositions(),
-  );
   const [showExitModal, setShowExitModal] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(3);
   const [isTrackingStarted, setIsTrackingStarted] = useState(false);
@@ -294,15 +192,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           y: Math.min(Math.max(positions[panelId].y, 0), maxY),
         };
 
-
         return nextPositions;
       },
       {} as PanelPositions,
     );
-  };
-
-      return nextPositions;
-    }, {} as PanelPositions);
   }, [panelRefsById]);
 
 
@@ -1156,57 +1049,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         style={srOnly}
       >
         {alertAnnouncement}
-      </div>
-
-
-      {/*
-        ══════════════════════════════════════════════════════════
-        ARIA LIVE REGIONS — Screen Reader Announcements
-        ══════════════════════════════════════════════════════════
-
-        HOW THIS WORKS:
-        - These <div>s are invisible to sighted users (srOnly style hides them).
-        - Screen readers watch them. When the text content changes, the screen
-          reader automatically reads the new text aloud — no focus change needed.
-        - We use THREE separate divs so announcements don't overwrite each other.
-
-        WHY NOT ONE DIV?
-        - If reps and feedback shared one string, every rep would re-announce
-          the full feedback sentence, making it repetitive and confusing.
-
-        IMPORTANT — These divs must ALWAYS be in the DOM (never inside an
-        `{condition && <div>}` block). If a live region is removed and re-added,
-        screen readers lose track of it and stop announcing.
-
-        aria-live="polite"   → waits for the user to finish reading, then speaks.
-        aria-live="assertive"→ interrupts immediately. Use only for urgent errors.
-        role="status"        → pairs with polite; improves NVDA/JAWS compatibility.
-        role="alert"         → pairs with assertive; for urgent alerts.
-        aria-atomic="true"   → reads the whole div content, not just the changed part.
-      */}
-
-      {/* Live region 1: Pose correction feedback */}
-      <div role="status" aria-live="polite" aria-atomic="true" style={srOnly}>
-        {feedbackAnnouncement}
-      </div>
-
-      {/* Live region 2: Rep count — announced separately so it's clean and distinct */}
-      <div role="status" aria-live="polite" aria-atomic="true" style={srOnly}>
-        {repAnnouncement}
-      </div>
-
-      {/* Live region 3: Urgent alerts (exercise mismatch) — interrupts screen reader */}
-      <div role="alert" aria-live="assertive" aria-atomic="true" style={srOnly}>
-        {alertAnnouncement}
-
-      <div className="workout-finish-action">
-        <button onClick={handleEnd} className="btn-neon" style={{ background: 'var(--neon-red)', color: '#fff' }}>
-          FINISH SESSION <StopCircle size={18} />
-        </button>
-
-      </div>
-
-      <style>{`
+      </div>      <style>{`
         @keyframes radar-pulse {
           0% { transform: scale(1); opacity: 0.8; }
           50% { transform: scale(1.5); opacity: 0.3; }
@@ -1229,66 +1072,63 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           25% { transform: translateX(-52%); }
           75% { transform: translateX(-48%); }
         }
-      `}
+      `}</style>
+
       {showExitModal && (
-  <div
-    style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      background: 'rgba(0,0,0,0.6)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 999,
-      backdropFilter: 'blur(8px)'
-    }}
-  >
-    <div
-      style={{
-        background: 'var(--bg-card)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '20px',
-        padding: '30px',
-        width: '320px',
-        textAlign: 'center',
-        color: 'white',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-      }}
-    >
-      <h2>Confirm Exit</h2>
-
-      <p>Are you sure you want to end your workout session?</p>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '20px',
-          marginTop: '20px'
-        }}
-      >
-        <button
-          className="btn-neon"
-          onClick={() => setShowExitModal(false)}
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 999,
+            backdropFilter: 'blur(8px)'
+          }}
         >
-          Stay
-        </button>
-
-        <button
-          className="btn-neon"
-          style={{ background: 'var(--neon-red)' }}
-          onClick={handleEnd}
-        >
-          Exit
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-      </style>
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '20px',
+              padding: '30px',
+              width: '320px',
+              textAlign: 'center',
+              color: 'white',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+            }}
+          >
+            <h2>Confirm Exit</h2>
+            <p>Are you sure you want to end your workout session?</p>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '20px',
+                marginTop: '20px'
+              }}
+            >
+              <button
+                className="btn-neon"
+                onClick={() => setShowExitModal(false)}
+              >
+                Stay
+              </button>
+              <button
+                className="btn-neon"
+                style={{ background: 'var(--neon-red)' }}
+                onClick={handleEnd}
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

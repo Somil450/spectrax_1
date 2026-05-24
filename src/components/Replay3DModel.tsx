@@ -740,8 +740,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             controlsRef.current.target.lerp(lookTarget, 0.05);
           } else if (cameraRef.current) {
             cameraRef.current.lookAt(lookTarget);
-
-
+          }
         }
 
         const applyPose = (
