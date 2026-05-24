@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, History, Trophy } from "lucide-react";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import "../styles/WelcomeScreen.css";
 
 interface WelcomeScreenProps {
   onStart: () => void;
@@ -27,7 +28,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+
+  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isMobile) return;
@@ -112,114 +116,222 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div
-      className="screen-container welcome-screen"
+      className="screen-container welcome-screen welcome-container"
+      data-theme={isDarkMode ? "dark" : "light"}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Particle canvas */}
-      <canvas ref={canvasRef} className="welcome-canvas" />
+      {/* Dark Mode Toggle (From your branch) */}
+      <button
+        className="dark-mode-toggle"
+        onClick={toggleDarkMode}
+        aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+        title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+        style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 50 }}
+      >
+        {isDarkMode ? "☀️" : "🌙"}
+      </button>
 
-      {/* Decorative radial glow orbs */}
+      {/* Particle canvas & Orbs (Merged) */}
+      <canvas ref={canvasRef} className="welcome-canvas particle-canvas" />
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
 
+      {/* Scrolling wrapper (From maintainer's branch) */}
       <div className="welcome-scroll-area">
         <div className="welcome-scroll-inner">
-          {/* ── Hero ── */}
-        <div
-          className="welcome-hero animate-in"
-          style={{
-            transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-            transition: "transform 0.15s ease-out",
-          }}
-        >
-          {/* Eyebrow */}
-          <div className="welcome-eyebrow" aria-hidden="true">
-            <span className="welcome-eyebrow__dot" />
-            AI-Powered Fitness
-          </div>
-
-          {/* Wordmark */}
-          <h1 className="welcome-wordmark">SPECTRAX</h1>
-
-          {/* Tagline */}
-          <p className="welcome-tagline">
-            Train smarter. Every rep counts.
-          </p>
-
-          {/* Level bar — only when user has progress data */}
-          {leveling && (
-            <div className="welcome-level-bar">
-              <div className="welcome-level-bar__header">
-                <span className="welcome-level-bar__label">Level {leveling.level}</span>
-                <span className="welcome-level-bar__xp">{leveling.xp} / {leveling.nextLevelXp} XP</span>
-              </div>
-              <div className="welcome-level-bar__track">
-                <div
-                  className="welcome-level-bar__fill"
-                  style={{ width: `${leveling.progress}%` }}
-                />
-              </div>
+          
+          {/* ── Hero Section (Maintainer's updated structure) ── */}
+          <div
+            className="welcome-hero animate-in"
+            style={{
+              transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+              transition: "transform 0.15s ease-out",
+            }}
+          >
+            <div className="welcome-eyebrow" aria-hidden="true">
+              <span className="welcome-eyebrow__dot" />
+              AI-Powered Fitness
             </div>
-          )}
 
-          {/* CTA buttons */}
-          <div className="welcome-actions">
-            <button
-              onClick={onStart}
-              className="btn-neon welcome-btn-primary"
-              aria-label="Start Training"
-              tabIndex={0}
-            >
-              <Play size={16} fill="currentColor" />
-              Start Training
-            </button>
+            <h1 className="welcome-wordmark">SPECTRAX</h1>
 
-            <div className="welcome-btn-row">
+            <p className="welcome-tagline">
+              Train smarter. Every rep counts.
+            </p>
+
+            {leveling && (
+              <div className="welcome-level-bar">
+                <div className="welcome-level-bar__header">
+                  <span className="welcome-level-bar__label">Level {leveling.level}</span>
+                  <span className="welcome-level-bar__xp">{leveling.xp} / {leveling.nextLevelXp} XP</span>
+                </div>
+                <div className="welcome-level-bar__track">
+                  <div
+                    className="welcome-level-bar__fill"
+                    style={{ width: `${leveling.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="welcome-actions">
               <button
-                onClick={onViewHistory}
-                className="welcome-btn-secondary welcome-btn-secondary--cyan"
-                aria-label="View Workout History"
+                onClick={onStart}
+                className="btn-neon welcome-btn-primary"
+                aria-label="Start Training"
                 tabIndex={0}
               >
-                <History size={15} />
-                History
+                <Play size={16} fill="currentColor" />
+                Start Training
               </button>
 
-              <button
-                onClick={onViewTrophies}
-                className="welcome-btn-secondary welcome-btn-secondary--gold"
-                aria-label="View Trophy Room"
-                tabIndex={0}
-              >
-                <Trophy size={15} />
-                Trophies
-              </button>
+              <div className="welcome-btn-row">
+                <button
+                  onClick={onViewHistory}
+                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                  aria-label="View Workout History"
+                  tabIndex={0}
+                >
+                  <History size={15} />
+                  History
+                </button>
+
+                <button
+                  onClick={onViewTrophies}
+                  className="welcome-btn-secondary welcome-btn-secondary--gold"
+                  aria-label="View Trophy Room"
+                  tabIndex={0}
+                >
+                  <Trophy size={15} />
+                  Trophies
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* ── Stat strip ── */}
-        <div className="welcome-stats">
-          {STATS.map(({ value, label }, i) => (
-            <React.Fragment key={label}>
-              <div className="welcome-stat">
-                <span className="welcome-stat__value">{value}</span>
-                <span className="welcome-stat__label">{label}</span>
+          {/* ── Stat strip (From maintainer's branch) ── */}
+          <div className="welcome-stats">
+            {STATS.map(({ value, label }, i) => (
+              <React.Fragment key={label}>
+                <div className="welcome-stat">
+                  <span className="welcome-stat__value">{value}</span>
+                  <span className="welcome-stat__label">{label}</span>
+                </div>
+                {i < STATS.length - 1 && (
+                  <div className="welcome-stat-divider" aria-hidden="true" />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* ── How it Works Section (From your branch) ── */}
+          <div className="how-it-works-section" style={{ marginTop: '60px' }}>
+            <div className="section-container">
+              <div className="section-header">
+                <div className="section-badge">
+                  <Sparkles size={14} color="#00f0ff" />
+                  <span>THE PROCESS</span>
+                </div>
+                <h2 className="section-title">How It Works</h2>
+                <p className="section-description">
+                  Four simple steps to transform your workout experience
+                </p>
               </div>
-              {i < STATS.length - 1 && (
-                <div className="welcome-stat-divider" aria-hidden="true" />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
 
-        {/* ── Footer ── */}
-        <footer className="welcome-footer">
-          Precision Performance Research Lab
-        </footer>
-        </div>{/* /welcome-scroll-inner */}
+              <div className="steps-grid">
+                {[
+                  { icon: User, title: "Welcome", desc: "Choose an exercise or let the AI auto-detect", step: "01", color: "#00f0ff" },
+                  { icon: Camera, title: "Calibration", desc: "Align with the camera for optimal tracking", step: "02", color: "#00ffcc" },
+                  { icon: Activity, title: "Workout", desc: "Start exercising with live real-time rep counting", step: "03", color: "#00f0ff" },
+                  { icon: BarChart3, title: "Summary", desc: "Review detailed post-workout analytics and streaks", step: "04", color: "#00ffcc" },
+                ].map((step, idx) => (
+                  <div key={idx} className="step-card">
+                    <div className="step-watermark" style={{ color: step.color }}>
+                      {step.step}
+                    </div>
+                    <div className="step-icon-wrapper" style={{ borderColor: `${step.color}30` }}>
+                      <step.icon size={32} color={step.color} />
+                    </div>
+                    <h3 className="step-title" style={{ color: step.color }}>
+                      {step.title}
+                    </h3>
+                    <p className="step-description">{step.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Footer Section (From your branch) ── */}
+          <footer className="footer" style={{ marginTop: '60px' }}>
+            <div className="footer-container">
+              <div className="footer-grid">
+                <div className="footer-column">
+                  <h3 className="footer-brand-name">SPECTRAX</h3>
+                  <p className="footer-brand-desc">
+                    Precision Performance Research Lab.
+                  </p>
+                  <div className="footer-badge">
+                    <GitFork size={12} color="#00f0ff" />
+                    <span>GSSoC 2026</span>
+                  </div>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">PRODUCT</h4>
+                  <ul className="footer-links">
+                    {["Features", "Usage", "API"].map((item) => (
+                      <li key={item}>
+                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">RESOURCES</h4>
+                  <ul className="footer-links">
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1" className="footer-link">
+                        <Github size={14} /> GitHub
+                      </a>
+                    </li>
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1/blob/main/README.md" className="footer-link">
+                        <FileText size={14} /> Documentation
+                      </a>
+                    </li>
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1/discussions" className="footer-link">
+                        <Star size={14} /> Community
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">LEGAL</h4>
+                  <ul className="footer-links">
+                    {["MIT License", "Privacy", "Terms"].map((item) => (
+                      <li key={item}>
+                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="footer-copyright">
+                <p>© 2026 SpectraX. All rights reserved.</p>
+              </div>
+            </div>
+          </footer>
+
+        </div>
       </div>
     </div>
   );
 };
+
+export default WelcomeScreen;

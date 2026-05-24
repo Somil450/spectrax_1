@@ -224,6 +224,9 @@ export interface EngineState {
   visibilityBuffer?: number[];
   lastValidAngles?: Record<string, number>;
   trackingLostFrames?: number;
+
+  // 🔥 Static hold time tracking
+  holdTime?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -283,6 +286,13 @@ export class ExerciseEngine {
     config: ExerciseConfig,
     stage: "up" | "down",
   ): boolean {
+    if (config.isStatic) {
+      // For static hold exercises, check if angle is within the acceptable hold range
+      const lastAngle = history[history.length - 1];
+      if (lastAngle >= config.downThreshold - 15) return true;
+      return false;
+    }
+
     if (stage === "down") return true;
 
     const firstAngle = history[0];
@@ -481,6 +491,19 @@ export class ExerciseEngine {
     }
 
     const isInExercisePosture = this.isValidExercisePosture(history, config, nextStage);
+    
+    // Accumulate hold time for static exercises (1/FPS approximately, or based on time diff)
+    // Since process is called roughly FPS times per second, we can estimate hold time.
+    // However, the cleanest way is to use a timestamp delta if we had previousTimestamp.
+    // We can just add 1/15th of a second roughly, or just pass the timestamp from `now`.
+    let nextHoldTime = currentState.holdTime || 0;
+    if (config.isStatic && isInExercisePosture && (currentState.status === 'green' || currentState.status === 'yellow')) {
+       // Estimate based on FPS_LIMIT=20 (from WorkoutScreen.tsx)
+       nextHoldTime += 1 / 20; 
+    } else if (config.isStatic && !isInExercisePosture) {
+       // Optional: Reset hold time if they break posture, or keep accumulating total?
+       // Usually we want total hold time. We'll keep accumulating.
+    }
 
     const context: any = {
       ...angles,
@@ -598,6 +621,9 @@ export class ExerciseEngine {
       visibilityBuffer: newVisibilityBuffer,
       trackingLostFrames: nextTrackingLostFrames,
       lastValidAngles: nextLastValidAngles,
+
+      // 🔥 Static hold time tracking
+      holdTime: nextHoldTime
     };
   }
 }
