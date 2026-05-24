@@ -152,6 +152,35 @@ const rules: Record<string, ExerciseRule> = {
     }
     return issues;
   },
+
+  lunge: (ctx: any) => {
+    const issues: DetectionIssue[] = [];
+    if (ctx.kneePastToes === 1) {
+      issues.push({
+        type: "knee_alignment",
+        severity: "medium",
+        message: "Knee past toes! Shift weight back ⚠️",
+        penalty: 35,
+      });
+    }
+    if (ctx.stage === "down" && ctx.downAngleReached > 115) {
+      issues.push({
+        type: "depth",
+        severity: "medium",
+        message: "Go lower for full depth 👇",
+        penalty: 35,
+      });
+    }
+    if (ctx.stage === "down" && ctx.backKnee > 130) {
+      issues.push({
+        type: "back_knee",
+        severity: "medium",
+        message: "Bend your back knee more ⚠️",
+        penalty: 30,
+      });
+    }
+    return issues;
+  },
 };
 
 // --- Scoring & Smoothing Logic ---
