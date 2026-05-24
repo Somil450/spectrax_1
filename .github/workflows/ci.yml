@@ -20,7 +20,6 @@ jobs:
         node-version: [20.x, 22.x]
 
     steps:
-
       # Checkout Repository
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -43,6 +42,10 @@ jobs:
       # Build Frontend
       - name: 🏗️ Build Frontend
         run: npm run build
+
+      # Run Frontend Tests
+      - name: 🧪 Run Frontend Tests
+        run: npm test
 
       # Install Backend Dependencies
       - name: 📦 Install Backend Dependencies
