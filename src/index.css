@@ -179,6 +179,10 @@ input {
   right: 196px;
 }
 
+.theme-selector-segmented.is-hidden {
+  display: none;
+}
+
 .selector-indicator {
   position: absolute;
   top: 4px;
