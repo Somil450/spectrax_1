@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 
 interface WelcomeScreenProps {
@@ -30,6 +31,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [userWeight, setUserWeight] = useState<string>(
+    String(getSavedUserWeight() ?? '')
+  );
 
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
@@ -206,6 +210,26 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <Trophy size={15} />
                   Trophies
                 </button>
+
+                </div>{/* end welcome-btn-row */}
+
+                {/* Weight input for calorie estimation */}
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'12px', background:'rgba(0,255,100,0.04)', border:'1px solid rgba(0,255,100,0.2)', borderRadius:'10px', padding:'10px 14px' }}>
+                  <span>⚖️</span>
+                  <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
+                  <input
+                    type="number" min="30" max="200" placeholder="70"
+                    value={userWeight}
+                    onChange={(e) => {
+                      setUserWeight(e.target.value);
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+                    }}
+                    style={{ background:'transparent', border:'none', outline:'none', color:'#fff', fontSize:'1rem', fontWeight:700, width:'50px' }}
+                  />
+                  <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
+                </div>
+
               </div>
             </div>
           </div>
