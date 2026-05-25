@@ -270,9 +270,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     // ── WebSocket connection to backend (optional, non-blocking) ─────────────
     let wsSocket: WebSocket | null = null;
     try {
-      wsSocket = new WebSocket(
-        "ws://localhost:3001/socket.io/?EIO=4&transport=websocket",
-      );
+      const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001").replace(/\/+$/, "");
+      const wsUrl = backendUrl.replace(/^http/, "ws") + "/socket.io/?EIO=4&transport=websocket";
+      wsSocket = new WebSocket(wsUrl);
       wsSocket.onopen = () => console.log("[SpectraX WS] connected to backend");
       wsSocket.onerror = () => {
         wsSocket = null;
