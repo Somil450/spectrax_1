@@ -6,6 +6,7 @@ interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
   onViewTrophies: () => void;
+  onViewProfile?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -24,6 +25,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
+  onViewProfile,
   leveling,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -206,6 +208,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <Trophy size={15} />
                   Trophies
                 </button>
+
+                {onViewProfile && (
+                  <button
+                    onClick={onViewProfile}
+                    className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                    aria-label="View Profile"
+                    tabIndex={0}
+                  >
+                    <User size={15} />
+                    Profile
+                  </button>
+                )}
               </div>
             </div>
           </div>
