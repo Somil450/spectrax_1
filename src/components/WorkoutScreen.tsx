@@ -104,6 +104,43 @@ const srOnly: React.CSSProperties = {
   border: '0',
 };
 
+const MAX_EXTRAPOLATED_FRAMES = 5;
+
+type PoseLandmark = {
+  x: number;
+  y: number;
+  z: number;
+  visibility: number;
+};
+
+const cloneLandmarks = (landmarks: PoseLandmark[]) =>
+  landmarks.map((landmark) => ({ ...landmark }));
+
+const extrapolateLandmarks = (
+  latest: PoseLandmark[] | null,
+  previous: PoseLandmark[] | null,
+  dropoutFrames: number,
+): PoseLandmark[] | null => {
+  if (!latest || !previous) return null;
+
+  const step = dropoutFrames + 1;
+  if (step > MAX_EXTRAPOLATED_FRAMES) return null;
+
+  return latest.map((landmark, index) => {
+    const prior = previous[index] ?? landmark;
+    const dx = landmark.x - prior.x;
+    const dy = landmark.y - prior.y;
+    const dz = landmark.z - prior.z;
+
+    return {
+      x: Math.min(Math.max(landmark.x + dx * step, 0), 1),
+      y: Math.min(Math.max(landmark.y + dy * step, 0), 1),
+      z: landmark.z + dz * step,
+      visibility: Math.max(0.5, Math.min(landmark.visibility, 1)),
+    };
+  });
+};
+
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -162,6 +199,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const frameSkipRef = useRef<number>(0); // frame-skip counter
   const workerRef = useRef<Worker | null>(null); // pose worker
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
+  const lastObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
+  const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
+  const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const FPS_LIMIT = 20; // ↑ Raised from 15 → 20 for smoother tracking
 
@@ -321,7 +361,36 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
           // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
           const filteredResults = poseLockService.filter(results);
-          if (!filteredResults || !filteredResults.poseLandmarks) return;
+
+          const observedLandmarks = filteredResults?.poseLandmarks as
+            | PoseLandmark[]
+            | undefined;
+          let activeLandmarks: PoseLandmark[] | null = null;
+
+          if (observedLandmarks && observedLandmarks.length > 0) {
+            previousObservedLandmarksRef.current = lastObservedLandmarksRef.current;
+            lastObservedLandmarksRef.current = cloneLandmarks(observedLandmarks);
+            dropoutFrameCountRef.current = 0;
+            activeLandmarks = observedLandmarks;
+          } else {
+            const extrapolatedLandmarks = extrapolateLandmarks(
+              lastObservedLandmarksRef.current,
+              previousObservedLandmarksRef.current,
+              dropoutFrameCountRef.current,
+            );
+
+            if (extrapolatedLandmarks) {
+              dropoutFrameCountRef.current += 1;
+              activeLandmarks = extrapolatedLandmarks;
+            } else {
+              return;
+            }
+          }
+
+          const processingResults = {
+            ...results,
+            poseLandmarks: activeLandmarks,
+          };
 
           // ── Frame skipping: process every other frame ─────────────────────
           frameSkipRef.current++;
@@ -330,7 +399,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             if (!offscreenEnabled) {
               const primaryJoints = exercise.joints?.flat() || [];
               overlayRenderer.draw(
-                results,
+                processingResults,
                 mutableState.current.status,
                 primaryJoints,
               );
@@ -339,7 +408,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           }
 
           // ── SKELETAL SENSE: auto-detect & mismatch (main thread, lightweight) ──
-          const skeletalResult = skeletalSense.analyze(results.poseLandmarks);
+          const skeletalResult = skeletalSense.analyze(activeLandmarks);
           if (skeletalResult && skeletalResult.confidence > 0.85) {
             const label = skeletalResult.label.toLowerCase();
             const detectedKey = label.includes("squat")
@@ -373,11 +442,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           }
 
           // ── Offload angle computation to Web Worker ────────────────────────
-          pendingLandmarksRef.current = results.poseLandmarks;
+          pendingLandmarksRef.current = activeLandmarks;
           const primaryJoints = exercise.joints?.flat() || [];
 
           worker.postMessage({
-            landmarks: results.poseLandmarks,
+            landmarks: activeLandmarks,
             exercise: exercise.key,
             frameId: frameSkipRef.current,
             status: mutableState.current.status,
@@ -388,9 +457,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           const angles =
             Object.keys(workerAngles).length > 0
               ? workerAngles
-              : getJointAngles(results.poseLandmarks); // Fallback if worker not ready yet
+              : getJointAngles(activeLandmarks); // Fallback if worker not ready yet
 
-          const visibility = getJointVisibility(results.poseLandmarks);
+          const visibility = getJointVisibility(activeLandmarks);
 
           // Adjust structural thresholds dynamically based on active detected body type
           const activeConfig = { ...exercise };
@@ -415,7 +484,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
           sessionRecorder.recordFrame({
             timestamp: Date.now(),
-            landmarks: results.poseLandmarks,
+            landmarks: activeLandmarks,
             angles,
             feedback: nextState.feedback,
             exercise: exercise.key,
@@ -423,7 +492,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
           // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
           if (!offscreenEnabled) {
-            overlayRenderer.draw(results, nextState.status, primaryJoints);
+            overlayRenderer.draw(processingResults, nextState.status, primaryJoints);
           }
         });
 
