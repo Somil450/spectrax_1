@@ -264,7 +264,18 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   // This prevents announcing "Rep 0" on first render.
   useEffect(() => {
     if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
-      setRepAnnouncement(`Rep ${engineState.reps} complete`);
+      // Announce the number for screen readers
+      setRepAnnouncement(engineState.reps.toString());
+      
+      // Voice Coach feature: Physically speak the rep count out loud
+      if ('speechSynthesis' in window) {
+        // Cancel any ongoing speech to prioritize the current rep count
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(engineState.reps.toString());
+        // Optional: you can tune rate and pitch here
+        utterance.rate = 1.1; 
+        window.speechSynthesis.speak(utterance);
+      }
     }
     prevRepsRef.current = engineState.reps;
   }, [engineState.reps]);
