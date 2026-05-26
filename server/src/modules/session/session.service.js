@@ -32,17 +32,27 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     }
   }
 
-  async function finalizeSession(socketId) {
+const finalizedSessions = new Set();
+
+async function finalizeSession(socketId) {
+  if (finalizedSessions.has(socketId)) return [];
+
+  finalizedSessions.add(socketId);
+
+  try {
     const frames = sessionStore.getSessionFrames(socketId);
 
-    if (frames.length > 0) {
+    if (frames && frames.length > 0) {
       await saveSession(frames, socketId);
     }
 
     sessionStore.deleteSession(socketId);
-    return frames;
-  }
 
+    return frames;
+  } finally {
+    finalizedSessions.delete(socketId);
+  }
+}
   async function saveAllSessions() {
     for (const [socketId, frames] of sessionStore.entries()) {
       if (frames.length > 0) {
