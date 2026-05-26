@@ -7,14 +7,20 @@ import { Results, NormalizedLandmarkList } from '@mediapipe/pose';
  */
 
 export class PoseLockService {
+  
   private lastCentroid: { x: number, y: number } | null = null;
   private lastArea: number | null = null;
   private isLocked = false;
-  private readonly MOVEMENT_THRESHOLD = 0.25; // Max jump as % of screen (0.25 = 25%)
-  private readonly SCALE_THRESHOLD = 0.40; // Max 40% area change between frames
-  private readonly LOCK_CONFIDENCE_THRESHOLD = 0.6;
-  private readonly UNLOCK_TIME_THRESHOLD = 2000; // 2 seconds of missing pose to unlock
+  private readonly MOVEMENT_THRESHOLD = 0.25;
+  private readonly MOVEMENT_RELEASE_THRESHOLD = 0.35;
+  private readonly SCALE_THRESHOLD = 0.40;
+  private readonly SCALE_RELEASE_THRESHOLD = 0.55;
+  private readonly LOCK_THRESHOLD = 0.7;
+  private readonly UNLOCK_THRESHOLD = 0.4;
+  private readonly UNLOCK_TIME_THRESHOLD = 2000;
   private lastSeenTime = 0;
+  private confidenceHistory: number[] = [];
+  private readonly CONFIDENCE_WINDOW = 5;
 
   /**
    * Evaluates if the current pose results belong to the "locked" user.
@@ -32,22 +38,28 @@ export class PoseLockService {
     const currentArea = this.calculateArea(results.poseLandmarks);
     const now = Date.now();
 
-    // 1. Initial Locking
+    const rawConfidence = this.calculateAvgConfidence(results.poseLandmarks);
+    const smoothedConfidence = this.smoothedConfidence(rawConfidence);
+
+    // 1. Initial Locking — requires high confidence to acquire
     if (!this.isLocked) {
-      // Find a stable pose to lock onto
-      const avgConfidence = this.calculateAvgConfidence(results.poseLandmarks);
-      if (avgConfidence > this.LOCK_CONFIDENCE_THRESHOLD) {
+      if (smoothedConfidence > this.LOCK_THRESHOLD) {
         this.lastCentroid = currentCentroid;
         this.lastArea = currentArea;
         this.isLocked = true;
         this.lastSeenTime = now;
-        console.log("[PoseLock] Locked onto user at:", currentCentroid, "Area:", currentArea);
         return results;
       }
       return null;
     }
 
-    // 2. Continuity Check
+    // 2. Confidence release check — requires very low confidence to release
+    if (smoothedConfidence < this.UNLOCK_THRESHOLD) {
+      this.reset();
+      return null;
+    }
+
+    // 3. Continuity check — use more forgiving thresholds while locked
     if (this.lastCentroid && this.lastArea !== null) {
       const distance = Math.sqrt(
         Math.pow(currentCentroid.x - this.lastCentroid.x, 2) +
@@ -56,14 +68,13 @@ export class PoseLockService {
 
       const areaChange = Math.abs(currentArea - this.lastArea) / (this.lastArea || 1);
 
-      // If the pose jumped too far OR scaled drastically, it's likely a different person
-      if (distance > this.MOVEMENT_THRESHOLD || areaChange > this.SCALE_THRESHOLD) {
-        console.warn(`[PoseLock] Potential person switch detected. Distance: ${distance.toFixed(3)}, Area Change: ${(areaChange * 100).toFixed(1)}%`);
+      if (distance > this.MOVEMENT_RELEASE_THRESHOLD || areaChange > this.SCALE_RELEASE_THRESHOLD) {
+        this.reset();
         return null;
       }
     }
 
-    // 3. Update state
+    // 4. Update state
     this.lastCentroid = currentCentroid;
     this.lastArea = currentArea;
     this.lastSeenTime = now;
@@ -75,7 +86,17 @@ export class PoseLockService {
     this.lastCentroid = null;
     this.lastArea = null;
     this.lastSeenTime = 0;
-    console.log("[PoseLock] Lock reset.");
+    this.confidenceHistory = [];
+  }
+
+  private smoothedConfidence(raw: number): number {
+    this.confidenceHistory.push(raw);
+    if (this.confidenceHistory.length > this.CONFIDENCE_WINDOW) {
+      this.confidenceHistory.shift();
+    }
+    const sorted = [...this.confidenceHistory].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
   private calculateCentroid(landmarks: NormalizedLandmarkList) {
