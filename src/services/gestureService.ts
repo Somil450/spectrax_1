@@ -1,3 +1,5 @@
+import type { NormalizedLandmark } from '@mediapipe/pose';
+
 export interface GestureResult {
   isHandRaised: boolean;
   confidence: number;
@@ -15,7 +17,7 @@ class GestureService {
   private frameBuffer: boolean[] = [];
   private bufferSize: number = 10;
 
-  private getJointVisibility(landmarks: any[], jointIndices: number[]): number {
+  private getJointVisibility(landmarks: NormalizedLandmark[], jointIndices: number[]): number {
     if (!landmarks) return 0;
     const visibilities = jointIndices
       .map(idx => landmarks[idx]?.visibility || 0)
@@ -25,7 +27,7 @@ class GestureService {
       : 0;
   }
 
-  private isJointAboveJoint(landmarks: any[], sourceIdx: number, targetIdx: number): boolean {
+  private isJointAboveJoint(landmarks: NormalizedLandmark[], sourceIdx: number, targetIdx: number): boolean {
     const source = landmarks[sourceIdx];
     const target = landmarks[targetIdx];
     
@@ -37,7 +39,7 @@ class GestureService {
     return source.y < target.y - 0.05;
   }
 
-  analyze(landmarks: any[]): GestureResult {
+  analyze(landmarks: NormalizedLandmark[]): GestureResult {
     if (!landmarks || landmarks.length < 33) {
       return {
         isHandRaised: false,
