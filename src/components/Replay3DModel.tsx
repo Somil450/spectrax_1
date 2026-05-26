@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
@@ -478,9 +481,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(width, height),
-        enableBloom ? bloomStrength : 0,
-        bloomRadius,
-        bloomThreshold,
+        0.5,
+        0.4,
+        0.8,
       );
       composer.addPass(bloomPass);
       bloomPassRef.current = bloomPass;
@@ -794,7 +797,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             cameraRef.current.lookAt(lookTarget);
           }
         }
-      }
 
         const applyPose = (
           boneKey: string,
