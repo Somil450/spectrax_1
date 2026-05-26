@@ -4,7 +4,34 @@
  */
 
 // --- Types & Interfaces ---
-import { JointDeviationProfiler } from '../services/skeletalSense';
+// Minimal in-file SkeletalSense fallback to avoid external module errors.
+// Provides update(value), getStandardDeviation(), and reset() used by the engine.
+class SkeletalSense {
+  private samples: number[] = [];
+
+  update(value: number) {
+    if (typeof value === "number" && !isNaN(value)) {
+      this.samples.push(value);
+      // keep a reasonable window to limit memory growth
+      if (this.samples.length > 100) {
+        this.samples.shift();
+      }
+    }
+  }
+
+  getStandardDeviation(): number {
+    if (this.samples.length === 0) return 0;
+    const mean = this.samples.reduce((a, b) => a + b, 0) / this.samples.length;
+    const variance =
+      this.samples.reduce((sum, v) => sum + (v - mean) * (v - mean), 0) /
+      this.samples.length;
+    return Math.sqrt(variance);
+  }
+
+  reset() {
+    this.samples = [];
+  }
+}
 
 export interface DetectionIssue {
   type: string;
@@ -207,7 +234,7 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
-const jointDeviationProfiler = new JointDeviationProfiler();
+const jointDeviationProfiler = new SkeletalSense();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
