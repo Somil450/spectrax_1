@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -859,6 +862,19 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       rebuildPasses(graphicsPresetRef.current, width, height);
 
       const controls = new OrbitControls(cameraRef.current, renderer.domElement);
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(width, height),
+        0.5,
+        0.4,
+        0.8,
+      );
+      composer.addPass(bloomPass);
+      bloomPassRef.current = bloomPass;
+
+      const controls = new OrbitControls(
+        cameraRef.current,
+        renderer.domElement,
+      );
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
       controls.maxPolarAngle = Math.PI / 2 + 0.1;

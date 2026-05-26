@@ -50,8 +50,13 @@ export class CameraService {
           resolve(this.stream!);
         };
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Camera access denied or unavailable:", error);
+      if (error.name === 'NotAllowedError') {
+        throw new Error("PERMISSION_DENIED");
+      } else if (error.name === 'NotFoundError') {
+        throw new Error("NO_CAMERA_FOUND");
+      }
       throw error;
     }
   }
