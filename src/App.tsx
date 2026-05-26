@@ -42,11 +42,18 @@ interface WorkoutStats {
   totalReps: number;
   correctReps: number;
   repScores: number[];
+  repDeviations?: number[];
   duration: number;
   accuracy: number;
   exerciseName: string;
   mistakes: Record<string, number>;
   bestStreak: number;
+  jumpingJackSync?: {
+    score: number | null;
+    lagMs: number | null;
+    confidence: number;
+    samples: number;
+  };
   tags?: string[];
   gainedXp?: number;
   calories?: number;
@@ -158,6 +165,8 @@ function App() {
       gainedXp,
       calories: calorieResult.calories,  // ADD THIS
     };
+    setStats(fullStats);
+    navigateTo("summary");
 
     // Award badges based on completed session
     checkAndAwardBadges({

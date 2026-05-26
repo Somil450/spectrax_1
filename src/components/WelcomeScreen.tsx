@@ -1,8 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Activity } from "lucide-react";
-import { getSavedUserWeight } from "../utils/calorieEstimator";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+
+const STATS = [
+  { value: "30+", label: "FPS tracking" },
+  { value: "6", label: "exercises" },
+  { value: "< 1s", label: "feedback lag" },
+];
 
 interface WelcomeScreenProps {
   onStart: () => void;
@@ -130,142 +136,238 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         onClick={toggleDarkMode}
         aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
         title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+        style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 50 }}
       >
         {isDarkMode ? "☀️" : "🌙"}
       </button>
 
       {/* Particle canvas & Orbs */}
-      <canvas ref={canvasRef} className="particle-canvas" />
+      <canvas ref={canvasRef} className="welcome-canvas particle-canvas" />
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
 
-      {/* Hero Section */}
-      <section className="hero-section">
-        <div className="hero-content animate-in">
-          {/* Level Display */}
-          {leveling && (
-            <div className="level-display">
-              <span className="level-label">LEVEL {leveling.level}</span>
-              <div className="level-progress-bar">
-                <div
-                  className="level-progress-fill"
-                  style={{ width: `${leveling.progress}%` }}
-                />
-              </div>
-              <span className="level-xp">
-                {leveling.xp} / {leveling.nextLevelXp} XP
-              </span>
+      {/* Scrolling wrapper */}
+      <div className="welcome-scroll-area">
+        <div className="welcome-scroll-inner">
+
+          {/* Hero Section */}
+          <div
+            className="welcome-hero animate-in"
+            style={{
+              transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+              transition: "transform 0.15s ease-out",
+            }}
+          >
+            <div className="welcome-eyebrow" aria-hidden="true">
+              <span className="welcome-eyebrow__dot" />
+              AI-Powered Fitness
             </div>
-          )}
 
-          {/* Badge Eyebrow */}
-          <div className="badge">
-            <Sparkles size={14} color="var(--neon-cyan)" />
-            <span>AI CALIBRATION SYSTEM 2.0</span>
-          </div>
+            <h1 className="welcome-wordmark">SPECTRAX</h1>
 
-          {/* Main Title */}
-          <h1 className="main-title">SPECTRAX</h1>
-
-          {/* Subtitle */}
-          <p className="subtitle">Real-time Pose Tracking & Performance Analysis</p>
-
-          {/* Button Group */}
-          <div className="button-group">
-            <button onClick={onStart} className="btn-primary" tabIndex={0}>
-              INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
-            </button>
-
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
-              <button
-                onClick={onViewHistory}
-                className="btn-secondary btn-cyan"
-                tabIndex={0}
-              >
-                <History size={15} /> VIEW HISTORY
-              </button>
-
-              <button
-                onClick={onViewTrophies}
-                className="btn-secondary btn-gold"
-                tabIndex={0}
-              >
-                <Trophy size={15} /> TROPHIES
-              </button>
-
-              {onViewProfile && (
-                <button
-                  onClick={onViewProfile}
-                  className="btn-secondary btn-cyan"
-                  tabIndex={0}
-                  style={{ opacity: 0.85 }}
-                >
-                  <User size={15} /> PROFILE
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section className="how-it-works-section">
-        <div className="section-container">
-          <div className="section-header">
-            <div className="section-badge">
-              <span>HOW IT WORKS</span>
-            </div>
-            <h2 className="section-title">TRAIN WITH AI PRECISION</h2>
-            <p className="section-description">
-              SpectraX tracks your joints in real-time, helping you improve form, count reps automatically, and avoid injuries.
+            <p className="welcome-tagline">
+              Train smarter. Every rep counts.
             </p>
+
+            {leveling && (
+              <div className="welcome-level-bar">
+                <div className="welcome-level-bar__header">
+                  <span className="welcome-level-bar__label">Level {leveling.level}</span>
+                  <span className="welcome-level-bar__xp">{leveling.xp} / {leveling.nextLevelXp} XP</span>
+                </div>
+                <div className="welcome-level-bar__track">
+                  <div
+                    className="welcome-level-bar__fill"
+                    style={{ width: `${leveling.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="welcome-actions">
+              <button
+                onClick={onStart}
+                className="btn-neon welcome-btn-primary"
+                aria-label="Start Training"
+                tabIndex={0}
+              >
+                <Play size={16} fill="currentColor" />
+                Start Training
+              </button>
+
+              <div className="welcome-btn-row">
+                <button
+                  onClick={onViewHistory}
+                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                  aria-label="View Workout History"
+                  tabIndex={0}
+                >
+                  <History size={15} />
+                  History
+                </button>
+
+                <button
+                  onClick={onViewTrophies}
+                  className="welcome-btn-secondary welcome-btn-secondary--gold"
+                  aria-label="View Trophy Room"
+                  tabIndex={0}
+                >
+                  <Trophy size={15} />
+                  Trophies
+                </button>
+              </div>
+
+              {/* Weight input for calorie estimation */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginTop: "12px",
+                  background: "rgba(0,255,100,0.04)",
+                  border: "1px solid rgba(0,255,100,0.2)",
+                  borderRadius: "10px",
+                  padding: "10px 14px",
+                }}
+              >
+                <span>⚖️</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--neon-green)', letterSpacing: '1px', textTransform: 'uppercase' }}>Weight:</span>
+                <input
+                  type="number" min="30" max="200" placeholder="70"
+                  value={userWeight}
+                  onChange={(e) => {
+                    setUserWeight(e.target.value);
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+                  }}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '1rem', fontWeight: 700, width: '50px' }}
+                />
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>kg</span>
+              </div>
+
+            </div>
           </div>
 
-          <div className="steps-grid">
-            <div className="step-card">
-              <span className="step-watermark">01</span>
-              <div className="step-icon-wrapper" style={{ borderColor: "var(--neon-cyan)" }}>
-                <Activity size={24} color="var(--neon-cyan)" />
-              </div>
-              <h3 className="step-title">Position</h3>
-              <p className="step-description">
-                Calibrate your camera to detect key body markers accurately before starting your workout.
-              </p>
-            </div>
+          {/* Stat strip */}
+          <div className="welcome-stats">
+            {STATS.map(({ value, label }, i) => (
+              <React.Fragment key={label}>
+                <div className="welcome-stat">
+                  <span className="welcome-stat__value">{value}</span>
+                  <span className="welcome-stat__label">{label}</span>
+                </div>
+                {i < STATS.length - 1 && (
+                  <div className="welcome-stat-divider" aria-hidden="true" />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
 
-            <div className="step-card">
-              <span className="step-watermark">02</span>
-              <div className="step-icon-wrapper" style={{ borderColor: "var(--neon-cyan)" }}>
-                <Play size={24} color="var(--neon-cyan)" />
+          {/* How it Works Section */}
+          <div className="how-it-works-section" style={{ marginTop: '60px' }}>
+            <div className="section-container">
+              <div className="section-header">
+                <div className="section-badge">
+                  <Sparkles size={14} color="#00f0ff" />
+                  <span>THE PROCESS</span>
+                </div>
+                <h2 className="section-title">How It Works</h2>
+                <p className="section-description">
+                  Four simple steps to transform your workout experience
+                </p>
               </div>
-              <h3 className="step-title">Execute</h3>
-              <p className="step-description">
-                Perform your exercises. The AI counts reps and checks angles using low-latency model processing.
-              </p>
-            </div>
 
-            <div className="step-card">
-              <span className="step-watermark">03</span>
-              <div className="step-icon-wrapper" style={{ borderColor: "var(--neon-yellow)" }}>
-                <Trophy size={24} color="var(--neon-yellow)" />
+              <div className="steps-grid">
+                {[
+                  { icon: User, title: "Welcome", desc: "Choose an exercise or let the AI auto-detect", step: "01", color: "#00f0ff" },
+                  { icon: Camera, title: "Calibration", desc: "Align with the camera for optimal tracking", step: "02", color: "#00ffcc" },
+                  { icon: Activity, title: "Workout", desc: "Start exercising with live real-time rep counting", step: "03", color: "#00f0ff" },
+                  { icon: BarChart3, title: "Summary", desc: "Review detailed post-workout analytics and streaks", step: "04", color: "#00ffcc" },
+                ].map((step, idx) => (
+                  <div key={idx} className="step-card">
+                    <div className="step-watermark" style={{ color: step.color }}>
+                      {step.step}
+                    </div>
+                    <div className="step-icon-wrapper" style={{ borderColor: `${step.color}30` }}>
+                      <step.icon size={32} color={step.color} />
+                    </div>
+                    <h3 className="step-title" style={{ color: step.color }}>
+                      {step.title}
+                    </h3>
+                    <p className="step-description">{step.desc}</p>
+                  </div>
+                ))}
               </div>
-              <h3 className="step-title">Analyze</h3>
-              <p className="step-description">
-                Receive visual biomechanics logs, replay clips of your set, and level up your workout grade.
-              </p>
             </div>
           </div>
+
+          {/* Footer Section */}
+          <footer className="footer" style={{ marginTop: '60px' }}>
+            <div className="footer-container">
+              <div className="footer-grid">
+                <div className="footer-column">
+                  <h3 className="footer-brand-name">SPECTRAX</h3>
+                  <p className="footer-brand-desc">
+                    Precision Performance Research Lab.
+                  </p>
+                  <div className="footer-badge">
+                    <GitFork size={12} color="#00f0ff" />
+                    <span>GSSoC 2026</span>
+                  </div>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">PRODUCT</h4>
+                  <ul className="footer-links">
+                    {["Features", "Usage", "API"].map((item) => (
+                      <li key={item}>
+                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">RESOURCES</h4>
+                  <ul className="footer-links">
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1" className="footer-link">
+                        <Github size={14} /> GitHub
+                      </a>
+                    </li>
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1/blob/main/README.md" className="footer-link">
+                        <FileText size={14} /> Documentation
+                      </a>
+                    </li>
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1/discussions" className="footer-link">
+                        <Star size={14} /> Community
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">LEGAL</h4>
+                  <ul className="footer-links">
+                    {["MIT License", "Privacy", "Terms"].map((item) => (
+                      <li key={item}>
+                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="footer-copyright">
+                <p>© 2026 SpectraX. All rights reserved.</p>
+              </div>
+            </div>
+          </footer>
+
         </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="footer">
-        <div className="footer-container">
-          <div className="footer-copyright">
-            Precision Performance Research Lab © {new Date().getFullYear()} — SpectraX AI Tracker
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { ExerciseEngine, EngineState } from "../exerciseEngine";
+import { calculateJumpingJackSyncMetrics, ExerciseEngine, EngineState } from "../exerciseEngine";
 import { resetFeedbackEngine } from "../../engine/feedbackEngine";
 import type { ExerciseConfig } from "../../config/exercises";
 import { initialSquatDepthStats } from "../Squat_depth_classifier";
@@ -11,6 +11,16 @@ const squatConfig: ExerciseConfig = {
   joints: [],
   downThreshold: 140,
   upThreshold: 160,
+  feedbackRules: [],
+};
+
+const jumpingJackConfig: ExerciseConfig = {
+  key: "jumpingJack",
+  name: "Jumping Jacks",
+  primaryJoint: "shoulder",
+  joints: [],
+  downThreshold: 60,
+  upThreshold: 150,
   feedbackRules: [],
 };
 
@@ -45,6 +55,8 @@ function makeState(overrides: Partial<EngineState> = {}): EngineState {
     visibilityBuffer: [],
     lastValidAngles: {},
     trackingLostFrames: 0,
+    jumpingJackSyncSamples: [],
+    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
     ...overrides,
   };
 }
@@ -165,5 +177,44 @@ describe("ExerciseEngine", () => {
 
     expect(result.isCalibrated).toBe(false);
     expect(result.feedback).toBe("ESTABLISHING POSTURE...");
+  });
+
+  it("scores synchronized jumping jack arm and leg signals", () => {
+    const samples = Array.from({ length: 48 }, (_, index) => {
+      const signal = Math.sin(index / 4);
+      return {
+        timestamp: index * 50,
+        armOpen: 90 + signal * 45,
+        legSpread: 140 + signal * 55,
+      };
+    });
+
+    const result = calculateJumpingJackSyncMetrics(samples);
+
+    expect(result.score).toBeGreaterThan(85);
+    expect(result.lagMs).toBe(0);
+    expect(result.confidence).toBe(1);
+  });
+
+  it("captures jumping jack synchronization samples during active frames", async () => {
+    const state = makeState({
+      stage: "down",
+      history: [70, 70, 70, 70],
+      isInExercisePosture: true,
+    });
+
+    const result = await engine.process(
+      jumpingJackConfig,
+      {
+        shoulder: 85,
+        jumpingJackArmOpen: 90,
+        jumpingJackLegSpread: 160,
+      },
+      { shoulder: 1.0 },
+      state
+    );
+
+    expect(result.jumpingJackSyncSamples).toHaveLength(1);
+    expect(result.jumpingJackSync?.samples).toBe(1);
   });
 });

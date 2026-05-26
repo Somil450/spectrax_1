@@ -1,23 +1,41 @@
-export class JointDeviationProfiler {
-  private values: number[] = [];
+// --- Types & Interfaces ---
+// Minimal in-file SkeletalSense fallback to avoid external module errors.
+// Provides update(value), getStandardDeviation(), and reset() used by the engine.
+class SkeletalSense {
+  private samples: number[] = [];
 
-  update(value: number): void {
-    if (value !== undefined && value !== null && !isNaN(value)) {
-      this.values.push(value);
+  update(value: number) {
+    if (typeof value === "number" && !isNaN(value)) {
+      this.samples.push(value);
+      // keep a reasonable window to limit memory growth
+      if (this.samples.length > 100) {
+        this.samples.shift();
+      }
     }
   }
 
   getStandardDeviation(): number {
-    const n = this.values.length;
-    if (n < 2) return 0;
-    const mean = this.values.reduce((a, b) => a + b, 0) / n;
-    const variance = this.values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (n - 1);
-    return parseFloat(Math.sqrt(variance).toFixed(2));
+    if (this.samples.length === 0) return 0;
+    const mean = this.samples.reduce((a, b) => a + b, 0) / this.samples.length;
+    const variance =
+      this.samples.reduce((sum, v) => sum + (v - mean) * (v - mean), 0) /
+      this.samples.length;
+    return Math.sqrt(variance);
   }
 
-  reset(): void {
-    this.values = [];
+  reset() {
+    this.samples = [];
   }
+class JointDeviationProfiler {
+  private values: number[] = [];
+  update(value: number) { this.values.push(value); if (this.values.length > 30) this.values.shift(); }
+  getStandardDeviation(): number {
+    if (this.values.length < 2) return 0;
+    const mean = this.values.reduce((a, b) => a + b, 0) / this.values.length;
+    const variance = this.values.reduce((s, v) => s + (v - mean) ** 2, 0) / this.values.length;
+    return Math.sqrt(variance);
+  }
+  reset() { this.values = []; }
 }
 
 export interface DetectionIssue {
@@ -221,7 +239,7 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
-const jointDeviationProfiler = new JointDeviationProfiler();
+const jointDeviationProfiler = new SkeletalSense();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
