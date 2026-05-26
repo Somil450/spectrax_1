@@ -166,7 +166,7 @@ To run SpectraX locally, create environment variable files for both the frontend
 Create a `.env` file in the root directory:
 
 ```env
-VITE_SERVER_URL=http://localhost:3000
+VITE_BACKEND_URL=http://localhost:3001
 ```
 
 ### Backend Environment Variables
@@ -174,7 +174,7 @@ VITE_SERVER_URL=http://localhost:3000
 Create a `.env` file inside the `server/` directory:
 
 ```env
-PORT=3000
+PORT=3001
 ```
 > Never commit `.env` files to version control.
 
@@ -187,7 +187,7 @@ PORT=3000
    cd server
    npm run dev
    ```
-   *Server runs on `http://localhost:3000`*
+   *Server runs on `http://localhost:3001`*
 
 2. **Start the Frontend** (In a new terminal)
    ```bash

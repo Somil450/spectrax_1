@@ -281,7 +281,7 @@ export class PoseService {
     try {
       this.pose = new Pose({
         locateFile: (file) =>
-          `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+          `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`,
       });
       this.pose.setOptions({
         modelComplexity: 1,
@@ -309,7 +309,7 @@ export class PoseService {
 
     if (!sharedFrame) return null;
 
-    while (true) {
+    for (;;) {
       const startSequence = Atomics.load(sharedFrame.sequence, 0);
       if (startSequence === 0 || (startSequence & 1) === 1) {
         return null;
@@ -444,7 +444,7 @@ export class PoseService {
 
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
-
+    
     this.pose.onResults((results: any) => {
       this.inProgress = false;
       this.errorCount = 0;
