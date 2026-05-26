@@ -617,6 +617,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             angles,
             visibility,
             mutableState.current,
+            bodyType
           );
 
           mutableState.current = nextState;
