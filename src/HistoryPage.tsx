@@ -1,6 +1,6 @@
 // src/HistoryPage.tsx
-import React, { useEffect, useState, useMemo } from "react";
-import { History, Trash2, ArrowLeft, TrendingUp, Filter } from "lucide-react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { History, Trash2, ArrowLeft, TrendingUp, Filter, Loader2, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
 
 // ── Debounce Hook ─────────────────────────────────────────────────────────────
@@ -15,6 +15,9 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
+import { useNetworkStatus } from "./hooks/useNetworkStatus";
+import { getQueue } from "./utils/offlineQueue";
+import { syncOfflineQueue } from "./services/syncQueue";
 import SessionCard from "./SessionCard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,6 +39,10 @@ interface HistoryPageProps {
   onBack: () => void;
 }
 
+// ── Offline Queue Sync State ──────────────────────────────────────────────────
+
+type OfflineSyncState = "idle" | "pending" | "syncing" | "synced" | "failed";
+
 const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
   const {
     sessions,
@@ -45,8 +52,104 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
     removeSession,
     clearHistory,
   } = useWorkoutHistory();
-  const { syncStatus, isOnline, manualSync } = useWorkoutSync();
+  const { syncStatus, isOnline: workoutIsOnline, manualSync } = useWorkoutSync();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Offline replay queue state
+  const [offlineSyncState, setOfflineSyncState] = useState<OfflineSyncState>("idle");
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [syncResultMessage, setSyncResultMessage] = useState<string>("");
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Trigger sync when coming back online
+  const handleReconnect = useCallback(async () => {
+    const queue = getQueue();
+    if (queue.length === 0) return;
+
+    setPendingCount(queue.length);
+    setOfflineSyncState("syncing");
+    setSyncResultMessage("");
+
+    try {
+      const result = await syncOfflineQueue();
+      if (result.failed === 0) {
+        setOfflineSyncState("synced");
+        setSyncResultMessage("All sessions synced");
+        // Auto-dismiss success after 4 seconds
+        syncTimeoutRef.current = setTimeout(() => {
+          setOfflineSyncState("idle");
+          setSyncResultMessage("");
+        }, 4000);
+      } else {
+        setOfflineSyncState("failed");
+        setSyncResultMessage(
+          `${result.synced} synced, ${result.failed} failed`,
+        );
+      }
+      setPendingCount(getQueue().length);
+    } catch (err) {
+      setOfflineSyncState("failed");
+      setSyncResultMessage("Sync failed — will retry on reconnect");
+      console.error("[HistoryPage] Offline queue sync error:", err);
+    }
+  }, []);
+
+  const { isOnline } = useNetworkStatus(handleReconnect);
+
+  // Check pending queue on mount and when online status changes
+  useEffect(() => {
+    const queue = getQueue();
+    setPendingCount(queue.length);
+    if (queue.length > 0 && !isOnline) {
+      setOfflineSyncState("pending");
+    } else if (queue.length === 0 && offlineSyncState === "pending") {
+      setOfflineSyncState("idle");
+    }
+  }, [isOnline, offlineSyncState]);
+
+  // Auto-sync when isOnline transitions to true and there are pending items
+  useEffect(() => {
+    if (isOnline && offlineSyncState === "pending") {
+      handleReconnect();
+    }
+  }, [isOnline, offlineSyncState, handleReconnect]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Manual retry for failed syncs
+  const handleRetrySync = useCallback(async () => {
+    if (!isOnline) return;
+    setOfflineSyncState("syncing");
+    setSyncResultMessage("");
+
+    try {
+      const result = await syncOfflineQueue();
+      if (result.failed === 0) {
+        setOfflineSyncState("synced");
+        setSyncResultMessage("All sessions synced");
+        syncTimeoutRef.current = setTimeout(() => {
+          setOfflineSyncState("idle");
+          setSyncResultMessage("");
+        }, 4000);
+      } else {
+        setOfflineSyncState("failed");
+        setSyncResultMessage(
+          `${result.synced} synced, ${result.failed} failed`,
+        );
+      }
+      setPendingCount(getQueue().length);
+    } catch (err) {
+      setOfflineSyncState("failed");
+      setSyncResultMessage("Sync failed — please try again");
+    }
+  }, [isOnline]);
 
   // Filter state
   const [filterType, setFilterType] = useState<string>("All");
@@ -218,6 +321,95 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           )}
         </div>
       </div>
+
+      {/* ── Offline Replay Queue Banner ── */}
+      {offlineSyncState !== "idle" && (
+        <div
+          className="offline-queue-banner"
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: "10px 28px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            fontSize: "0.82rem",
+            fontFamily: "'Space Mono', monospace",
+            borderBottom: "1px solid",
+            ...(offlineSyncState === "pending" || (!isOnline && pendingCount > 0)
+              ? {
+                  background: "rgba(251, 191, 36, 0.08)",
+                  borderColor: "rgba(251, 191, 36, 0.3)",
+                  color: "#fbbf24",
+                }
+              : offlineSyncState === "syncing"
+                ? {
+                    background: "rgba(96, 165, 250, 0.08)",
+                    borderColor: "rgba(96, 165, 250, 0.3)",
+                    color: "#60a5fa",
+                  }
+                : offlineSyncState === "synced"
+                  ? {
+                      background: "rgba(34, 211, 160, 0.08)",
+                      borderColor: "rgba(34, 211, 160, 0.3)",
+                      color: "#22d3a0",
+                    }
+                  : {
+                      background: "rgba(239, 68, 68, 0.08)",
+                      borderColor: "rgba(239, 68, 68, 0.3)",
+                      color: "#ef4444",
+                    }),
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {(!isOnline || offlineSyncState === "pending") && (
+              <>
+                <WifiOff size={14} />
+                <span>
+                  You're offline — {pendingCount} session{pendingCount !== 1 ? "s" : ""} will sync when you reconnect
+                </span>
+              </>
+            )}
+            {offlineSyncState === "syncing" && (
+              <>
+                <Loader2 size={14} className="spin-icon" />
+                <span>Syncing {pendingCount} session{pendingCount !== 1 ? "s" : ""}...</span>
+              </>
+            )}
+            {offlineSyncState === "synced" && (
+              <>
+                <CheckCircle2 size={14} />
+                <span>{syncResultMessage}</span>
+              </>
+            )}
+            {offlineSyncState === "failed" && (
+              <>
+                <AlertCircle size={14} />
+                <span>{syncResultMessage}</span>
+              </>
+            )}
+          </div>
+          {offlineSyncState === "failed" && isOnline && (
+            <button
+              onClick={handleRetrySync}
+              style={{
+                background: "rgba(239, 68, 68, 0.15)",
+                border: "1px solid rgba(239, 68, 68, 0.4)",
+                color: "#ef4444",
+                padding: "4px 10px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                fontFamily: "'Space Mono', monospace",
+              }}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Body ── */}
       <main className="history-body">
@@ -472,6 +664,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           animation: spin 0.75s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        .spin-icon {
+          animation: spin 1s linear infinite;
+        }
 
         .error-state { color: var(--neon-red); }
         .retry-btn {
