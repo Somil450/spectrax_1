@@ -14,6 +14,8 @@ import { BodyType } from '../services/bodyTypeEngine';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { ghostService } from '../services/ghostService';
+import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
@@ -175,6 +177,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions())
+
+  const ghostFramesRef = useRef<FrameData[]>([]);
+  const ghostStatsRef = useRef<{reps: number, accuracy: number, totalReps: number} | null>(null);
+  const [hasGhost, setHasGhost] = useState(false);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -461,6 +467,18 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
 
+    // Load Ghost Data
+    const ghostData = ghostService.loadGhost(exercise.key);
+    if (ghostData && ghostData.frames && ghostData.frames.length > 0) {
+      ghostFramesRef.current = ghostData.frames;
+      ghostStatsRef.current = ghostData.stats;
+      setHasGhost(true);
+    } else {
+      ghostFramesRef.current = [];
+      ghostStatsRef.current = null;
+      setHasGhost(false);
+    }
+
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
@@ -585,12 +603,23 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           pendingLandmarksRef.current = results.poseLandmarks;
           const primaryJoints = exercise.joints?.flat() || [];
 
+          // Compute ghost frame
+          const elapsedMs = Date.now() - startTimeRef.current;
+          let ghostLandmarks = null;
+          if (ghostFramesRef.current.length > 0) {
+            const ghostFrame = ghostService.getGhostFrameAtTime(ghostFramesRef.current, elapsedMs);
+            if (ghostFrame) {
+              ghostLandmarks = ghostFrame.landmarks;
+            }
+          }
+
           worker.postMessage({
             landmarks: results.poseLandmarks,
             exercise: exercise.key,
             frameId: frameSkipRef.current,
             status: mutableState.current.status,
             primaryJoints: primaryJoints,
+            ghostLandmarks: ghostLandmarks
           });
 
           // Use last worker result for angles (may be 1 frame stale — acceptable)
@@ -634,6 +663,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
           if (!offscreenEnabled) {
             overlayRenderer.draw(results, nextState.status, primaryJoints);
+            if (ghostLandmarks) {
+              overlayRenderer.drawGhost(ghostLandmarks);
+            }
           }
         });
 
@@ -725,6 +757,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               100,
           )
         : 100;
+
+    const archive = sessionRecorder.getArchive();
+    ghostService.saveBestGhost(exercise.key, {
+      reps: mutableState.current.reps,
+      accuracy: accuracy,
+      totalReps: mutableState.current.totalReps
+    }, archive);
 
     sessionRecorder.download();
 
@@ -945,9 +984,25 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               fontFamily: "var(--font-heading)",
               color: "var(--neon-cyan)",
               fontSize: "1.2rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px"
             }}
           >
             {exercise.name.toUpperCase()}
+            {hasGhost && (
+              <span style={{
+                fontSize: "0.6rem",
+                background: "rgba(0, 255, 255, 0.15)",
+                color: "#00ffff",
+                padding: "2px 6px",
+                borderRadius: "4px",
+                border: "1px solid rgba(0, 255, 255, 0.3)",
+                letterSpacing: "1px"
+              }}>
+                GHOST ACTIVE
+              </span>
+            )}
           </div>
         </div>
 
