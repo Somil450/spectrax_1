@@ -605,10 +605,10 @@
    Dark Mode Toggle Button
    ============================================= */
 .dark-mode-toggle {
-  position: fixed;
+  position: absolute;
   top: 20px;
-  right: 20px;
-  z-index: 1000;
+  left: 20px;
+  z-index: 50;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(0, 240, 255, 0.3);
   border-radius: 50%;

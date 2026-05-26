@@ -457,6 +457,59 @@ function drawSkeleton(
   });
 }
 
+function drawGhostSkeleton(landmarks: any[]) {
+  if (!offscreenCtx || !landmarks) return;
+  const ctx = offscreenCtx;
+  const { width, height } = ctx.canvas;
+
+  const ghostColor = "rgba(0, 255, 255, 0.4)";
+  const xOffset = -0.25;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 255, 255, 0.8)";
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = ghostColor;
+  ctx.lineWidth = 3;
+
+  const connections = [
+    [11, 13], [13, 15],
+    [12, 14], [14, 16],
+    [11, 12], [23, 24], [11, 23], [12, 24],
+    [23, 25], [25, 27], [27, 29], [29, 31], [31, 27],
+    [24, 26], [26, 28], [28, 30], [30, 32], [32, 28],
+    [0, 1], [1, 2], [2, 3], [3, 7],
+    [0, 4], [4, 5], [5, 6], [6, 8],
+    [9, 10]
+  ];
+
+  ctx.beginPath();
+  for (const [a, b] of connections) {
+    const lmA = landmarks[a];
+    const lmB = landmarks[b];
+    if (lmA && lmB && lmA.visibility > 0.5 && lmB.visibility > 0.5) {
+      const xA = (lmA.x + xOffset) * width;
+      const yA = lmA.y * height;
+      const xB = (lmB.x + xOffset) * width;
+      const yB = lmB.y * height;
+      ctx.moveTo(xA, yA);
+      ctx.lineTo(xB, yB);
+    }
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(0, 255, 255, 0.7)";
+  for (const lm of landmarks) {
+    if (lm.visibility > 0.5) {
+      const x = (lm.x + xOffset) * width;
+      const y = lm.y * height;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 self.onmessage = (event: MessageEvent) => {
   const {
     type,
@@ -550,13 +603,17 @@ self.onmessage = (event: MessageEvent) => {
   const predicted = predictor.predict(landmarks);
   const correctedLandmarks = predicted.landmarks;
 
-  if (offscreenCtx)
+  if (offscreenCtx) {
     drawSkeleton(
       correctedLandmarks,
       status || "green",
       primaryJoints || [],
       predicted.wasOccluded,
     );
+    if (event.data.ghostLandmarks) {
+      drawGhostSkeleton(event.data.ghostLandmarks);
+    }
+  }
 
   const angles = computeAngles(correctedLandmarks);
   const { label: detectedExercise, confidence } = detectExercise(
