@@ -21,6 +21,7 @@ import { useBadges } from "./hooks/useBadges";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
+import { CursorGlow } from "./components/CursorGlow";
 import React from "react";
 
 
@@ -256,6 +257,8 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
+      {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
+      <CursorGlow />
       <div
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
