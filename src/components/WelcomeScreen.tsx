@@ -37,6 +37,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [userWeight, setUserWeight] = useState<string>(
     String(getSavedUserWeight() ?? '')
   );
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 

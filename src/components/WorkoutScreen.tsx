@@ -128,6 +128,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }
 
   const panelRefsById = panelRefs.current;
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(getStoredPanelPositions());
+  const [panelsLocked, setPanelsLocked] = useState(false);
+  const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
@@ -653,7 +656,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       {/* Target Overlays for IndexedDB State logic */}
       {displayConfig.fpsDisplay && (
         <div style={{ position: "absolute", top: 10, left: 10, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "5px 10px", borderRadius: "5px", fontFamily: "monospace", fontSize: "12px", zIndex: 100 }}>
-          FPS: {FPS_LIMIT} / ACTIVE
+          FPS: 30 / ACTIVE
         </div>
       )}
 
@@ -692,7 +695,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       )}
       {/* Offline Indicator */}
-      {!isOnline && (
+      {!navigator.onLine && (
         <div
           style={{
             position: "absolute",
