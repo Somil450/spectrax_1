@@ -20,6 +20,7 @@ import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import React from "react";
 
 
@@ -48,6 +49,7 @@ interface WorkoutStats {
   bestStreak: number;
   tags?: string[];
   gainedXp?: number;
+  calories?: number;
 }
 
 // Derived from build-time env — safe to compute outside or at the top of the component
@@ -142,9 +144,20 @@ function App() {
   ) => {
     setStatsLoading(true);
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
-    const fullStats = { ...finalStats, exerciseName: selectedExercise.name, gainedXp };
-    setStats(fullStats);
-    navigateTo("summary");
+    const calorieResult = estimateCalories({
+      exerciseName: selectedExercise.name,
+      totalReps: finalStats.totalReps,
+      durationSeconds: finalStats.duration,
+      accuracyScore: finalStats.accuracy,
+      userWeightKg: getSavedUserWeight() ?? 70,
+    });
+
+    const fullStats = { 
+      ...finalStats, 
+      exerciseName: selectedExercise.name, 
+      gainedXp,
+      calories: calorieResult.calories,  // ADD THIS
+    };
 
     // Award badges based on completed session
     checkAndAwardBadges({

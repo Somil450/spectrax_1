@@ -64,7 +64,7 @@ export class CalibrationVisualRenderer {
         return this.renderNotCentered(state);
 
       case "calibration_ready":
-        return this.renderCalibrationReady();
+        return this.renderCalibrationReady(state);
 
       default:
         return this.renderDefault();
@@ -137,7 +137,7 @@ export class CalibrationVisualRenderer {
   /**
    * Calibration complete and ready
    */
-  private renderCalibrationReady(): CalibrationVisuals {
+  private renderCalibrationReady(state: CalibrationState): CalibrationVisuals {
     return {
       color: "var(--neon-green)",
       status: "success",

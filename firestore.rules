@@ -1,0 +1,100 @@
+rules_version = '2';
+
+// SpectraX Firestore Security Rules
+//
+// Deployment:
+//   npm install -g firebase-tools
+//   firebase login
+//   firebase deploy --only firestore:rules
+//
+// Without deploying these rules, the project is in Firebase "test mode"
+// (effectively open access). Any production deploy MUST run the command
+// above so these rules are enforced server-side.
+//
+// Data model (kept in sync with src/context/AuthContext.tsx and
+// src/services/workoutSyncService.ts):
+//   /users/{userId}
+//     { uid, email, displayName?, photoURL?, createdAt, lastLogin }
+//   /users/{userId}/workouts/{workoutId}
+//     { exerciseType, totalReps, accuracyScore, duration, timestamp,
+//       createdAt, updatedAt }
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function inRange(value, min, max) {
+      return value is number && value >= min && value <= max;
+    }
+
+    // ── User profile ────────────────────────────────────────────────
+    // The app uses setDoc({...}, { merge: true }) for both the initial
+    // create and subsequent partial updates, so we keep the update rule
+    // lenient on field set and only protect uid + createdAt.
+    match /users/{userId} {
+
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['uid', 'email', 'createdAt', 'lastLogin'])
+        && request.resource.data.uid == userId
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 256
+        && request.resource.data.createdAt is number
+        && request.resource.data.lastLogin is number;
+
+      allow update: if isOwner(userId)
+        && (!('uid' in request.resource.data.keys())
+            || request.resource.data.uid == resource.data.uid)
+        && (!('createdAt' in request.resource.data.keys())
+            || request.resource.data.createdAt == resource.data.createdAt);
+
+      // Profile deletion happens via Firebase Auth account deletion, not
+      // through the Firestore SDK, so we forbid direct doc deletion here.
+      allow delete: if false;
+
+      // ── Workout session subcollection ─────────────────────────────
+      // Strict schema: every workout document must contain exactly the
+      // seven fields below. Adding or removing a field requires updating
+      // both the client code and these rules at the same time, which is
+      // the intended safety net.
+      match /workouts/{workoutId} {
+
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && request.resource.data.keys().hasOnly([
+               'exerciseType', 'totalReps', 'accuracyScore',
+               'duration', 'timestamp', 'createdAt', 'updatedAt'
+             ])
+          && request.resource.data.keys().hasAll([
+               'exerciseType', 'totalReps', 'accuracyScore',
+               'duration', 'timestamp'
+             ])
+          && request.resource.data.exerciseType is string
+          && request.resource.data.exerciseType.size() > 0
+          && request.resource.data.exerciseType.size() <= 64
+          && inRange(request.resource.data.totalReps, 0, 10000)
+          && inRange(request.resource.data.accuracyScore, 0, 100)
+          && inRange(request.resource.data.duration, 0, 86400)
+          && request.resource.data.timestamp is number
+          && request.resource.data.timestamp > 1577836800000
+          && request.resource.data.timestamp <= request.time.toMillis() + 60000;
+
+        // The client never updates workout documents today (they are
+        // immutable history). Forbid it; revisit if that changes.
+        allow update: if false;
+
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // ── Default deny ───────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
