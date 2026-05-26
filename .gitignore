@@ -1,3 +1,6 @@
+# Session data files (auto-generated at runtime)
+server/sessions/*.json
+
 # Logs
 logs
 *.log
@@ -9,8 +12,15 @@ lerna-debug.log*
 
 node_modules
 dist
+build/
+node_modules/
 dist-ssr
 *.local
+
+# Environment variables
+.env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*

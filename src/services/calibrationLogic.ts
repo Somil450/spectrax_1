@@ -9,6 +9,8 @@ export interface CalibrationResult {
   status: 'red' | 'yellow' | 'green';
   message: string;
   isReady: boolean;
+  visibleCount: number;
+  totalCount: number;
 }
 
 export class CalibrationLogic {
@@ -22,7 +24,9 @@ export class CalibrationLogic {
       return {
         status: 'red',
         message: 'No body detected. Step into frame.',
-        isReady: false
+        isReady: false,
+        visibleCount: 0,
+        totalCount: 8
       };
     }
 
@@ -38,7 +42,9 @@ export class CalibrationLogic {
       return {
         status: 'red',
         message: 'Step back. Full body must be visible.',
-        isReady: false
+        isReady: false,
+        visibleCount,
+        totalCount: requiredIndices.length
       };
     }
 
@@ -46,7 +52,9 @@ export class CalibrationLogic {
       return {
         status: 'yellow',
         message: 'Adjust position. Ankles or knees not clear.',
-        isReady: false
+        isReady: false,
+        visibleCount,
+        totalCount: requiredIndices.length
       };
     }
 
@@ -56,7 +64,9 @@ export class CalibrationLogic {
       return {
         status: 'yellow',
         message: 'Center your body in the frame.',
-        isReady: false
+        isReady: false,
+        visibleCount,
+        totalCount: requiredIndices.length
       };
     }
 
@@ -64,7 +74,9 @@ export class CalibrationLogic {
     return {
       status: 'green',
       message: 'Good position. Calibration complete.',
-      isReady: true
+      isReady: true,
+      visibleCount,
+      totalCount: requiredIndices.length
     };
   }
 }
