@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
 interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
   onViewTrophies: () => void;
+  onViewProfile?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -24,17 +27,21 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
+  onViewProfile,
   leveling,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [userWeight, setUserWeight] = useState<string>(
+    String(getSavedUserWeight() ?? '')
+  );
 
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isMobile) return;
+    if (isMobile || prefersReducedMotion) return;
     const { clientX, clientY } = e;
     const { innerWidth, innerHeight } = window;
     const x = -((clientY - innerHeight / 2) / innerHeight) * 14;
@@ -51,6 +58,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   }, []);
 
   useEffect(() => {
+    if (prefersReducedMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -112,7 +120,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   return (
     <div
@@ -206,6 +214,26 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <Trophy size={15} />
                   Trophies
                 </button>
+
+                </div>{/* end welcome-btn-row */}
+
+                {/* Weight input for calorie estimation */}
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'12px', background:'rgba(0,255,100,0.04)', border:'1px solid rgba(0,255,100,0.2)', borderRadius:'10px', padding:'10px 14px' }}>
+                  <span>⚖️</span>
+                  <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
+                  <input
+                    type="number" min="30" max="200" placeholder="70"
+                    value={userWeight}
+                    onChange={(e) => {
+                      setUserWeight(e.target.value);
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+                    }}
+                    style={{ background:'transparent', border:'none', outline:'none', color:'#fff', fontSize:'1rem', fontWeight:700, width:'50px' }}
+                  />
+                  <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
+                </div>
+
               </div>
             </div>
           </div>

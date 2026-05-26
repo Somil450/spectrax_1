@@ -166,7 +166,7 @@ To run SpectraX locally, create environment variable files for both the frontend
 Create a `.env` file in the root directory:
 
 ```env
-VITE_SERVER_URL=http://localhost:3000
+VITE_BACKEND_URL=http://localhost:3001
 ```
 
 ### Backend Environment Variables
@@ -174,9 +174,21 @@ VITE_SERVER_URL=http://localhost:3000
 Create a `.env` file inside the `server/` directory:
 
 ```env
-PORT=3000
+PORT=3001
 ```
 > Never commit `.env` files to version control.
+
+### Firestore Security Rules
+
+Rules are version-controlled in `firestore.rules`. They are not enforced until they are deployed to your Firebase project. After cloning, run:
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules
+```
+
+Without deploying these rules, the project remains in Firebase test mode (effectively open access). Always deploy them before going to production.
 
 ---
 
@@ -187,7 +199,7 @@ PORT=3000
    cd server
    npm run dev
    ```
-   *Server runs on `http://localhost:3000`*
+   *Server runs on `http://localhost:3001`*
 
 2. **Start the Frontend** (In a new terminal)
    ```bash
