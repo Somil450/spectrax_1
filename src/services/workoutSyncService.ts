@@ -530,6 +530,30 @@ export async function bulkUploadWorkouts(
     });
 
     await batch.commit();
+
+    // Mark each uploaded workout as synced in IndexedDB so subsequent
+    // calls to getUnsyncedWorkouts do not find them again and re-upload them.
+    for (let i = 0; i < workouts.length; i++) {
+      const workout = workouts[i];
+      const firestoreId = uploadedIds[i];
+      const localKey =
+        workout.localId !== undefined
+          ? workout.localId
+          : typeof workout.id === "number"
+            ? workout.id
+            : undefined;
+      if (localKey !== undefined) {
+        try {
+          await markWorkoutAsSynced(localKey, firestoreId);
+        } catch (syncError) {
+          console.error(
+            `[SpectraX] Failed to mark workout ${localKey} as synced locally:`,
+            syncError,
+          );
+        }
+      }
+    }
+
     return uploadedIds;
   } catch (error) {
     console.error("Error in bulk upload:", error);
