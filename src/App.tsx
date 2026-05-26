@@ -21,6 +21,7 @@ import { useBadges } from "./hooks/useBadges";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
+import { CursorGlow } from "./components/CursorGlow";
 import React from "react";
 
 
@@ -42,11 +43,18 @@ interface WorkoutStats {
   totalReps: number;
   correctReps: number;
   repScores: number[];
+  repDeviations?: number[];
   duration: number;
   accuracy: number;
   exerciseName: string;
   mistakes: Record<string, number>;
   bestStreak: number;
+  jumpingJackSync?: {
+    score: number | null;
+    lagMs: number | null;
+    confidence: number;
+    samples: number;
+  };
   tags?: string[];
   gainedXp?: number;
   calories?: number;
@@ -158,6 +166,8 @@ function App() {
       gainedXp,
       calories: calorieResult.calories,  // ADD THIS
     };
+    setStats(fullStats);
+    navigateTo("summary");
 
     // Award badges based on completed session
     checkAndAwardBadges({
@@ -247,6 +257,8 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
+      {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
+      <CursorGlow />
       <div
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""

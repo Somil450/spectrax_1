@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
@@ -37,6 +37,12 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 }) => {
   
   // -- State variables --
+  const { sessions, fetchHistory } = useWorkoutHistory();
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   const [result, setResult] = useState<CalibrationResult>({
     status: 'red',
     message: 'Initializing system...',
@@ -54,21 +60,35 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isPoseLost: false,
     isThumbsUp: false,
     isCrossedArms: false,
+    isSingleHandRaised: false,
+    command: null,
+    gestureConfidences: { START: 0, PAUSE: 0, STOP: 0 },
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
   
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
   
-  const { sessions, fetchHistory } = useWorkoutHistory();
-  
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
-  
+  const frameId = useRef<number>(0);
+  const lastProcessTime = useRef<number>(0);
+  const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
 
-  const handleResults = (results: any) => {
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    let msg = "Something went wrong starting the camera. Try refreshing the page.";
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
+    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      msg = "No camera found on this device. Plug in a webcam and try again.";
+    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+      msg = "Your camera is being used by another app. Close it and try again.";
+    }
+    setError(msg);
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
+
+  const handleResults = useCallback((results: any) => {
     const evaluation = calibrationLogic.evaluate(results);
     setResult(evaluation);
     
@@ -85,21 +105,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  };
-
-  const handleCameraError = (err: any) => {
-    const name = (err instanceof Error) ? err.name : '';
-    let msg = "Something went wrong starting the camera. Try refreshing the page.";
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      msg = "No camera found on this device. Plug in a webcam and try again.";
-    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-      msg = "Your camera is being used by another app. Close it and try again.";
-    }
-    setError(msg);
-    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-  };
+  }, [selectedExercise, onBodyTypeDetected]);
 
   const {
     videoRef,
@@ -124,11 +130,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   // actually transitions (e.g., isReady going false → true), not on every frame.
   const prevIsReadyRef = useRef(false);
   const prevPoseLostRef = useRef(false);
-
-  // ── Announce calibration status messages ──────────────────────────────────────
-  // This runs whenever result.message changes to a new string.
-  // React's dependency check means the same message repeated across pose frames
-  // will NOT re-trigger this — only genuine new messages will.
   useEffect(() => {
     if (result.isReady && !prevIsReadyRef.current) {
       // Only announce "ready" once when we first become ready

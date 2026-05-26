@@ -1,8 +1,3 @@
-/**
- * feedbackEngine.ts
- * Real-time fitness coaching engine with prioritized feedback and scoring.
- */
-
 // --- Types & Interfaces ---
 
 export class GaussianMixtureModel {
@@ -304,7 +299,7 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
-const jointDeviationProfiler = new JointDeviationProfiler();
+const jointDeviationProfiler = new SkeletalSense();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
