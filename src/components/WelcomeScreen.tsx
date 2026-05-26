@@ -4,6 +4,12 @@ import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
+const STATS = [
+  { value: "30+", label: "FPS tracking" },
+  { value: "6", label: "exercises" },
+  { value: "< 1s", label: "feedback lag" },
+];
+
 interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
@@ -17,12 +23,6 @@ interface WelcomeScreenProps {
   };
 }
 
-const STATS = [
-  { value: "30+", label: "FPS tracking" },
-  { value: "6", label: "exercises" },
-  { value: "< 1s", label: "feedback lag" },
-];
-
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
@@ -35,7 +35,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [userWeight, setUserWeight] = useState<string>(
-    String(getSavedUserWeight() ?? '')
+    String(getSavedUserWeight() ?? "")
   );
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -125,23 +125,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div
-      className="screen-container welcome-screen welcome-container"
+      className="welcome-container"
       data-theme={isDarkMode ? "dark" : "light"}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Dark Mode Toggle (From your branch) */}
+      {/* Dark Mode Toggle */}
       <button
         className="dark-mode-toggle"
         onClick={toggleDarkMode}
         aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
         title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 50 }}
+        style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 50 }}
       >
         {isDarkMode ? "☀️" : "🌙"}
       </button>
 
-      {/* Particle canvas & Orbs (Merged) */}
+      {/* Particle canvas & Orbs */}
       <canvas ref={canvasRef} className="welcome-canvas particle-canvas" />
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
@@ -162,6 +162,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
+          </button>
+        </div>
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
 

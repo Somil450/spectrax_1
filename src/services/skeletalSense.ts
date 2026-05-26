@@ -115,7 +115,7 @@ function hasValidLandmarks(def: JointDefinition, landmarks: any[]): boolean {
   });
 }
 
-class SkeletalSense {
+export class SkeletalSense {
   private calculateAngle(a: any, b: any, c: any): number {
     const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
     let angle = Math.abs((radians * 180.0) / Math.PI);

@@ -1,4 +1,8 @@
 import type { Results } from "@mediapipe/pose";
+// MediaPipe's npm packages are not ESM-compatible. We use globals from the CDN scripts.
+const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
+const drawConnectors = (window as any).drawConnectors;
+const drawLandmarks = (window as any).drawLandmarks;
 
 /**
  * overlayRenderer.ts
@@ -51,6 +55,7 @@ export class OverlayRenderer {
     this.clear();
 
     const color = this.getStatusColor(status);
+    const glow = `${color}88`;
 
     for (const landmark of results.poseLandmarks) {
       this.ctx.beginPath();
