@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { cameraService } from '../services/cameraService';
-import { poseService } from '../services/poseService';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
 import { Camera, AlertCircle, Dumbbell, Hand } from 'lucide-react';
@@ -36,10 +35,14 @@ const srOnly: React.CSSProperties = {
 export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({ 
   selectedExercise, onSelectExercise, onNext, onBack, onBodyTypeDetected
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // -- State variables --
+  const { sessions, fetchHistory } = useWorkoutHistory();
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   const [result, setResult] = useState<CalibrationResult>({
     status: 'red',
     message: 'Initializing system...',
@@ -57,17 +60,14 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isPoseLost: false,
     isThumbsUp: false,
     isCrossedArms: false,
+    isSingleHandRaised: false,
+    command: null,
+    gestureConfidences: { START: 0, PAUSE: 0, STOP: 0 },
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
   
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
-  
-  const { sessions, fetchHistory } = useWorkoutHistory();
-  
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
   
   const frameId = useRef<number>(0);
 const lastProcessTime = useRef<number>(0);
@@ -90,6 +90,69 @@ function isStationary(prev: any[], curr: any[]): boolean {
   return true;
 }
 
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    let msg = "Something went wrong starting the camera. Try refreshing the page.";
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
+    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      msg = "No camera found on this device. Plug in a webcam and try again.";
+    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+      msg = "Your camera is being used by another app. Close it and try again.";
+    }
+    setError(msg);
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
+
+  const handleResults = useCallback((results: any) => {
+    const evaluation = calibrationLogic.evaluate(results);
+    setResult(evaluation);
+    
+    if (results.poseLandmarks) {
+      const bt = bodyTypeEngine.analyze(results.poseLandmarks);
+      setBodyTypeRes(bt);
+      if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
+        onBodyTypeDetected(bt.bodyType);
+      }
+
+      const gesture = gestureService.analyze(results.poseLandmarks);
+      setGestureResult(gesture);
+    }
+
+    const primaryJoints = selectedExercise.joints?.flat() || [];
+    overlayRenderer.draw(results, evaluation.status, primaryJoints);
+  };
+
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
+      setError('CAMERA_PERMISSION_DENIED');
+    } else {
+      let msg = "Something went wrong starting the camera. Try refreshing the page.";
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = "No camera found on this device. Plug in a webcam and try again.";
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = "Your camera is being used by another app. Close it and try again.";
+      }
+      setError(msg);
+    }
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
+
+  const {
+    videoRef,
+    canvasRef,
+    startSystem,
+    stopSystem,
+  } = useCameraPose({
+    initialFpsLimit: 15,
+    minFpsLimit: 8,
+    fpsDecrementStep: 3,
+    setupContext: true,
+    onResults: handleResults,
+    onCameraError: handleCameraError,
+  });
+
   // ── ARIA Live Region State ────────────────────────────────────────────────────
   // One string that the hidden live region will announce to screen readers.
   // We update it from useEffect hooks below, each watching a specific thing.
@@ -99,11 +162,6 @@ function isStationary(prev: any[], curr: any[]): boolean {
   // actually transitions (e.g., isReady going false → true), not on every frame.
   const prevIsReadyRef = useRef(false);
   const prevPoseLostRef = useRef(false);
-
-  // ── Announce calibration status messages ──────────────────────────────────────
-  // This runs whenever result.message changes to a new string.
-  // React's dependency check means the same message repeated across pose frames
-  // will NOT re-trigger this — only genuine new messages will.
   useEffect(() => {
     if (result.isReady && !prevIsReadyRef.current) {
       // Only announce "ready" once when we first become ready
@@ -136,7 +194,6 @@ function isStationary(prev: any[], curr: any[]): boolean {
       setAnnouncement(`Starting in ${countdownSeconds}`);
     }
   }, [countdownSeconds, countdownActive]);
-
   // ── Announce camera errors ─────────────────────────────────────────────────────
   useEffect(() => {
     if (error) {
@@ -221,16 +278,14 @@ function isStationary(prev: any[], curr: any[]): boolean {
     startSystem();
 
     return () => {
-      isMounted = false;
-      cancelAnimationFrame(frameId.current);
-      cameraService.stopCamera();
+      stopSystem();
       bodyTypeEngine.reset();
       gestureService.reset();
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, [selectedExercise, onBodyTypeDetected]);
+  }, [selectedExercise, onBodyTypeDetected, startSystem, stopSystem]);
 
   useEffect(() => {
     const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
@@ -453,15 +508,19 @@ function isStationary(prev: any[], curr: any[]): boolean {
 
         {/* Center Feedback Area */}
         <div style={{ alignSelf: 'center', textAlign: 'center' }}>
-          {error ? (
-            <div className="glass animate-in" style={{ padding: '32px 40px', border: '1px solid rgba(255,59,92,0.4)', background: 'rgba(255, 59, 92, 0.07)', maxWidth: '480px', pointerEvents: 'all', borderRadius: '18px' }}>
-              <AlertCircle color="var(--neon-red)" size={36} style={{ display: 'block', margin: '0 auto 16px' }} />
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '10px', fontSize: '1rem', letterSpacing: '1px' }}>Camera unavailable</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '24px' }}>{error}</p>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                <button onClick={onBack} className="btn-outline" style={{ padding: '10px 22px', fontSize: '0.78rem' }}>Go back</button>
-                <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '10px 22px', fontSize: '0.78rem' }}>Try again</button>
-              </div>
+          {error === 'CAMERA_PERMISSION_DENIED' ? (
+            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>CAMERA ACCESS DENIED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>RELOAD</button>
+            </div>
+          ) : error ? (
+            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>{error}</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>REINITIALIZE</button>
             </div>
           ) : (
             <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
