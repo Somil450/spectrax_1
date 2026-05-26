@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
 import "../styles/WelcomeScreen.css";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
 interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
   onViewTrophies: () => void;
+  onViewProfile?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -24,17 +26,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
+  onViewProfile,
   leveling,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isMobile) return;
+    if (isMobile || prefersReducedMotion) return;
     const { clientX, clientY } = e;
     const { innerWidth, innerHeight } = window;
     const x = -((clientY - innerHeight / 2) / innerHeight) * 14;
@@ -51,6 +55,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   }, []);
 
   useEffect(() => {
+    if (prefersReducedMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -112,7 +117,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   return (
     <div
@@ -206,6 +211,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <Trophy size={15} />
                   Trophies
                 </button>
+
+                {onViewProfile && (
+                  <button
+                    onClick={onViewProfile}
+                    className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                    aria-label="View Profile"
+                    tabIndex={0}
+                  >
+                    <User size={15} />
+                    Profile
+                  </button>
+                )}
               </div>
             </div>
           </div>

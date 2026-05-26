@@ -25,6 +25,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
   const frames = (sessionRecorder as any).frames || [];
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [sessionId] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
 
   // Derive live vectors from current frame
   const currentFrame = frames[currentFrameIdx];
@@ -155,6 +156,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           >
             3D SPATIAL REPLAY
           </div>
+
           <div
             style={{
               color: "rgba(255,255,255,0.4)",
@@ -165,6 +167,10 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           >
             {stats?.exerciseName?.toUpperCase() || "SQUAT"} MODULE — SESSION #
             {Math.random().toString(36).substr(2, 6).toUpperCase()}
+
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.6rem', letterSpacing: '1px', marginTop: '2px' }}>
+            {stats?.exerciseName?.toUpperCase() || 'SQUAT'} MODULE — SESSION #{sessionId}
+
           </div>
         </div>
 
