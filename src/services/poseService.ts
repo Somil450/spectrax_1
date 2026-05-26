@@ -350,6 +350,12 @@ export class PoseService {
   private isLoaded: boolean = false;
   private inProgress: boolean = false;
   private errorCount: number = 0;
+  private sharedLandmarkFrame: SharedLandmarkFrame | null = createSharedLandmarkFrame();
+  private pool: ArrayBuffer[] = [
+    new ArrayBuffer(BUF_BYTES),
+    new ArrayBuffer(BUF_BYTES),
+  ];
+  private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
 
   constructor() {
     this.init();
@@ -399,7 +405,7 @@ export class PoseService {
       const startSequence = Atomics.load(
         sharedFrame.sequence,
         0,
-      );
+      ) as number;
 
       if (
         startSequence === 0 ||
@@ -424,7 +430,7 @@ export class PoseService {
       const endSequence = Atomics.load(
         sharedFrame.sequence,
         0,
-      );
+      ) as number;
 
       if (
         startSequence === endSequence &&

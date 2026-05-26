@@ -69,7 +69,7 @@ async function loadModel(quantized: boolean) {
 }
 
 self.onmessage = async (event) => {
-  const { image, labels, type } = event.data;
+  const data = event.data;
 
   if (data.type === 'init') {
     try {

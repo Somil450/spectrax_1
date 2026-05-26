@@ -23,6 +23,7 @@ import {
   SquatDepthStats,
   DEFAULT_SQUAT_DEPTH_CONFIG,
 } from './Squat_depth_classifier';
+import { BodyType } from './bodyTypeEngine';
 
 // ─────────────────────────────────────────────
 // EngineState
@@ -72,6 +73,12 @@ export interface EngineState {
    * Empty string when no depth cue is active.
    */
   liveDepthFeedback: string;
+
+  // Tracking & recovery buffers
+  visibilityBuffer?: number[];
+  trackingLostFrames?: number;
+  lastValidAngles?: Record<string, number>;
+  holdTime?: number;
 }
 
 // ─────────────────────────────────────────────
@@ -83,6 +90,13 @@ export class ExerciseEngine {
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
   private readonly MIN_DOWN_DURATION = 150;
+
+  private repParams(key: string) {
+    return {
+      smoothingWindow: 5,
+      streakMinScore: 75,
+    };
+  }
 
   private isValidExercisePosture(
     history: number[],
@@ -234,15 +248,14 @@ export class ExerciseEngine {
     }
 
     let repJustCounted = false;
+    const durationInDown = now - stageStartTime;
 
     if (
-      smoothedAngle > (config.upThreshold + this.HYSTERESIS / 2) &&
+      smoothedAngle > (config.upThreshold + currentHysteresis / 2) &&
       stage === 'down'
     ) {
-      const durationInDown = currentTime - stageStartTime;
-
       if (
-        currentTime - lastRepTime > currentCooldown &&
+        now - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
         nextStage = "up";
@@ -292,6 +305,7 @@ export class ExerciseEngine {
         color: 'green',
         message: 'READY 🟢',
         issues: [],
+        deviation: 0,
       };
       frameScore = 100;
     }
@@ -374,8 +388,9 @@ export class ExerciseEngine {
 
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
+      nextRepDeviations.push(currentDeviation);
 
-      nextLastRepTime = currentTime;
+      nextLastRepTime = now;
 
       allowRep = nextMinScoreInRep > 70;
 
@@ -433,10 +448,6 @@ export class ExerciseEngine {
     const nextTotalScore = isInExercisePosture ? currentState.totalScore + frameScore : currentState.totalScore;
     const nextTotalFrames = isInExercisePosture ? currentState.totalFrames + 1 : currentState.totalFrames;
 
-    const nextTotalFrames = isInExercisePosture
-      ? currentState.totalFrames + 1
-      : currentState.totalFrames;
-
     // Final accuracy %
     const accuracy =
       nextTotalReps > 0
@@ -466,6 +477,7 @@ export class ExerciseEngine {
       correctReps: nextCorrectReps,
       minScoreInRep: nextMinScoreInRep,
       repScores: nextRepScores,
+      repDeviations: nextRepDeviations,
       accuracy,
 
       // Depth classification (NEW)
