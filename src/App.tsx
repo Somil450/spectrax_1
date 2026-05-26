@@ -5,6 +5,7 @@ import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
 import { ReplayScreen } from "./components/ReplayScreen";
 import { TrophyRoom } from "./components/TrophyRoom";
+import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
@@ -34,7 +35,8 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password"
-  | "trophy";
+  | "trophy"
+  | "profile";
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -245,7 +247,15 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
-      <div className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""}`}>
+      <div
+        className={`theme-selector-segmented ${
+          currentScreen === "workout" ? "workout-active" : ""
+        } ${
+          ["summary", "replay", "history", "trophy"].includes(currentScreen)
+            ? "is-hidden"
+            : ""
+        }`}
+      >
         <div className={`selector-indicator theme-${theme}`} />
         <button
           className={`selector-btn ${theme === "cyber-dark" ? "active" : ""}`}
@@ -277,6 +287,7 @@ function App() {
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
+          onViewProfile={user ? () => navigateTo("profile") : undefined}
           leveling={leveling}
         />
       )}
@@ -323,6 +334,10 @@ function App() {
 
         {currentScreen === "trophy" && (
           <TrophyRoom onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "profile" && (
+          <UserProfileScreen onLogout={() => navigateTo("welcome")} />
         )}
       </Suspense>
 

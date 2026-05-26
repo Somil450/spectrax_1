@@ -53,7 +53,9 @@ const DB_VERSION = 3; // Incremented for sync fields and localId keyPath upgrade
 const WORKOUTS_STORE = "workout_sessions";
 const SYNC_STATUS_STORE = "sync_status";
 
-async function openDB(): Promise<IDBDatabase> {
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function createDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -79,9 +81,31 @@ async function openDB(): Promise<IDBDatabase> {
       }
     };
 
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
+}
+
+async function openDB(): Promise<IDBDatabase> {
+  if (!dbPromise) {
+    dbPromise = createDB();
+  }
+  try {
+    return await dbPromise;
+  } catch (error) {
+    dbPromise = null;
+    throw error;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -281,7 +281,7 @@ export class PoseService {
     try {
       this.pose = new Pose({
         locateFile: (file) =>
-          `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+          `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`,
       });
       this.pose.setOptions({
         modelComplexity: 1,
