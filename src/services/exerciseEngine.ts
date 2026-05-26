@@ -274,6 +274,13 @@ export class ExerciseEngine {
   private readonly SMOOTHING_WINDOW = 5;
   private readonly MIN_DOWN_DURATION = 150;
 
+  private repParams(key: string): RepParams {
+    return {
+      ...ENGINE_DEFAULTS,
+      ...(layoutOverrides.get(key) || {}),
+    };
+  }
+
   private isValidExercisePosture(
     history: number[],
     config: ExerciseConfig,
@@ -303,6 +310,7 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
+    landmarks?: any[]
   ): Promise<EngineState> {
     const now = Date.now();
     const p = this.repParams(config.key);
@@ -323,8 +331,8 @@ export class ExerciseEngine {
       currentHysteresis = 10;
     }
 
-    const { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
-      currentState;
+    const { reps, lastRepTime, history } = currentState;
+    let { stage, isCalibrated, stageStartTime } = currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
 
@@ -477,10 +485,10 @@ export class ExerciseEngine {
       smoothedAngle > config.upThreshold + currentHysteresis / 2 &&
       stage === "down"
     ) {
-      const durationInDown = currentTime - stageStartTime;
+      const durationInDown = now - stageStartTime;
 
       if (
-        currentTime - lastRepTime > currentCooldown &&
+        now - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
         nextStage = "up";
