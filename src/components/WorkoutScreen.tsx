@@ -4,16 +4,19 @@ import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } fr
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
+import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { ghostService } from '../services/ghostService';
+import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
@@ -165,8 +168,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }
 
   const panelRefsById = panelRefs.current;
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(getStoredPanelPositions());
-  const [panelsLocked, setPanelsLocked] = useState(false);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+  const [panelsLocked, setPanelsLocked] = useState(true);
   const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
@@ -174,6 +177,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const { isOnline } = useWorkoutSync();
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
+
+  const ghostFramesRef = useRef<FrameData[]>([]);
+  const ghostStatsRef = useRef<{reps: number, accuracy: number, totalReps: number} | null>(null);
+  const [hasGhost, setHasGhost] = useState(false);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -199,9 +206,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     repScores: [],
     repDeviations: [],
     accuracy: 100,
-    plankSpline: createPlankCalibration(),
-    hipSplineDeviation: 0,
-
+    lastDepthResult: null,
+    depthStats: initialSquatDepthStats(),
+    liveDepthFeedback: ''
   });
 
   const startTimeRef = useRef<number>(Date.now());
@@ -262,8 +269,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     repScores: [],
     repDeviations: [],
     accuracy: 100,
-    plankSpline: createPlankCalibration(),
-    hipSplineDeviation: 0,
+    lastDepthResult: null,
+    depthStats: initialSquatDepthStats(),
+    liveDepthFeedback: ''
   });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
@@ -460,6 +468,18 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
 
+    // Load Ghost Data
+    const ghostData = ghostService.loadGhost(exercise.key);
+    if (ghostData && ghostData.frames && ghostData.frames.length > 0) {
+      ghostFramesRef.current = ghostData.frames;
+      ghostStatsRef.current = ghostData.stats;
+      setHasGhost(true);
+    } else {
+      ghostFramesRef.current = [];
+      ghostStatsRef.current = null;
+      setHasGhost(false);
+    }
+
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
@@ -583,6 +603,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               100,
           )
         : 100;
+
+    const archive = sessionRecorder.getArchive();
+    ghostService.saveBestGhost(exercise.key, {
+      reps: mutableState.current.reps,
+      accuracy: accuracy,
+      totalReps: mutableState.current.totalReps
+    }, archive);
 
     sessionRecorder.download();
 
@@ -803,9 +830,25 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               fontFamily: "var(--font-heading)",
               color: "var(--neon-cyan)",
               fontSize: "1.2rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px"
             }}
           >
             {exercise.name.toUpperCase()}
+            {hasGhost && (
+              <span style={{
+                fontSize: "0.6rem",
+                background: "rgba(0, 255, 255, 0.15)",
+                color: "#00ffff",
+                padding: "2px 6px",
+                borderRadius: "4px",
+                border: "1px solid rgba(0, 255, 255, 0.3)",
+                letterSpacing: "1px"
+              }}>
+                GHOST ACTIVE
+              </span>
+            )}
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
-import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
+import { Play, Sparkles, History, Trophy, User, Activity } from "lucide-react";
+import { getSavedUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
@@ -17,12 +17,6 @@ interface WelcomeScreenProps {
   };
 }
 
-const STATS = [
-  { value: "30+", label: "FPS tracking" },
-  { value: "6", label: "exercises" },
-  { value: "< 1s", label: "feedback lag" },
-];
-
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
@@ -35,7 +29,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [userWeight, setUserWeight] = useState<string>(
-    String(getSavedUserWeight() ?? '')
+    String(getSavedUserWeight() ?? "")
   );
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -125,7 +119,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div
-      className="screen-container welcome-screen welcome-container"
+      className="welcome-container"
       data-theme={isDarkMode ? "dark" : "light"}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -162,6 +156,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
+          )}
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
 
