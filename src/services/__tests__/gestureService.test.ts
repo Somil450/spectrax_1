@@ -13,7 +13,7 @@
  *     on the `analyze()` return value.
  */
 
-import { gestureService, GESTURE_BUFFER_SIZE, GESTURE_CONFIDENCE_THRESHOLD } from '../gestureService';
+import { gestureService, GESTURE_BUFFER_SIZE } from '../gestureService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

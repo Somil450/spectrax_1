@@ -147,12 +147,15 @@ export class ExerciseEngine {
       currentHysteresis = 10;
     }
 
-    let {
+    const {
       reps,
-      stage,
       lastRepTime,
-      isCalibrated,
       history,
+    } = currentState;
+
+    let {
+      stage,
+      isCalibrated,
       stageStartTime,
     } = currentState;
 
