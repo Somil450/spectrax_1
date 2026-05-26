@@ -37,6 +37,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [userWeight, setUserWeight] = useState<string>(
     String(getSavedUserWeight() ?? '')
   );
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
@@ -195,30 +196,40 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </button>
 
               <div className="welcome-btn-row">
-                <button
-                  onClick={onViewHistory}
-                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
-                  aria-label="View Workout History"
-                  tabIndex={0}
-                >
-                  <History size={15} />
-                  History
-                </button>
+  <button
+    onClick={onViewHistory}
+    className="welcome-btn-secondary welcome-btn-secondary--cyan"
+    aria-label="View Workout History"
+    tabIndex={0}
+  >
+    <History size={15} />
+    History
+  </button>
 
-                <button
-                  onClick={onViewTrophies}
-                  className="welcome-btn-secondary welcome-btn-secondary--gold"
-                  aria-label="View Trophy Room"
-                  tabIndex={0}
-                >
-                  <Trophy size={15} />
-                  Trophies
-                </button>
+  <button
+    onClick={onViewTrophies}
+    className="welcome-btn-secondary welcome-btn-secondary--gold"
+    aria-label="View Trophy Room"
+    tabIndex={0}
+  >
+    <Trophy size={15} />
+    Trophies
+  </button>
+</div>
 
-                </div>{/* end welcome-btn-row */}
-
-                {/* Weight input for calorie estimation */}
-                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'12px', background:'rgba(0,255,100,0.04)', border:'1px solid rgba(0,255,100,0.2)', borderRadius:'10px', padding:'10px 14px' }}>
+{/* Weight input for calorie estimation */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginTop: "12px",
+    background: "rgba(0,255,100,0.04)",
+    border: "1px solid rgba(0,255,100,0.2)",
+    borderRadius: "10px",
+    padding: "10px 14px",
+  }}
+>
                   <span>⚖️</span>
                   <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
                   <input
@@ -236,7 +247,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
               </div>
             </div>
-          </div>
 
           {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">

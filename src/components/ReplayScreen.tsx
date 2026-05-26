@@ -162,9 +162,9 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           >
             {stats?.exerciseName?.toUpperCase() || "SQUAT"} MODULE — SESSION #
             {Math.random().toString(36).substr(2, 6).toUpperCase()}
-
+          </div>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.6rem', letterSpacing: '1px', marginTop: '2px' }}>
-            {stats?.exerciseName?.toUpperCase() || 'SQUAT'} MODULE — SESSION #{sessionId}
+            {stats?.exerciseName?.toUpperCase() || 'SQUAT'} MODULE — SESSION #{Math.random().toString(36).substr(2, 6).toUpperCase()}
 
           </div>
         </div>
@@ -664,4 +664,4 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
       `}</style>
     </div>
   );
-};
+}

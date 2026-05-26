@@ -1,6 +1,8 @@
 const fs = require('fs');
 const { buildSessionFilePath } = require('../../shared/utils/paths');
 
+const finalizedSessions = new Set();
+
 function createSessionService({ sessionStore, sessionPath, maxSessionFrames, logger }) {
   function appendFrame(socketId, frame) {
     const sessionFrames = sessionStore.getSessionFrames(socketId);
@@ -32,17 +34,26 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     }
   }
 
-  async function finalizeSession(socketId) {
+
+async function finalizeSession(socketId) {
+  if (finalizedSessions.has(socketId)) return [];
+
+  finalizedSessions.add(socketId);
+
+  try {
     const frames = sessionStore.getSessionFrames(socketId);
 
-    if (frames.length > 0) {
+    if (frames && frames.length > 0) {
       await saveSession(frames, socketId);
     }
 
     sessionStore.deleteSession(socketId);
-    return frames;
-  }
 
+    return frames;
+  } finally {
+    finalizedSessions.delete(socketId);
+  }
+}
   async function saveAllSessions() {
     for (const [socketId, frames] of sessionStore.entries()) {
       if (frames.length > 0) {
