@@ -18,6 +18,7 @@ interface SummaryScreenProps {
     tags?: string[];
     gainedXp?: number;
     exerciseName?: string;
+    calories?: number; 
   };
   leveling?: {
     xp: number;
@@ -500,6 +501,107 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
            )}
         </div>
       ) : null}
+
+      {/* Calorie Estimate Card */}
+      {stats.calories !== undefined && stats.calories > 0 && (
+        <div
+          className="glass animate-in"
+          style={{
+            width: '100%',
+            maxWidth: '600px',
+            padding: '20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderColor: 'var(--neon-green)',
+            background: 'rgba(0, 255, 100, 0.04)',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          {/* Left: icon + label */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '2rem' }}>🔥</span>
+            <div>
+              <div
+                style={{
+                  fontSize: '0.65rem',
+                  color: 'var(--neon-green)',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  marginBottom: '4px',
+                }}
+              >
+                Est. Calories Burned
+              </div>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '2rem',
+                  fontWeight: 900,
+                  fontFamily: 'var(--font-heading)',
+                  lineHeight: 1,
+                }}
+              >
+                {stats.calories}
+                <span
+                  style={{
+                    fontSize: '1rem',
+                    color: 'var(--text-dim)',
+                    marginLeft: '4px',
+                  }}
+                >
+                  kcal
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: accuracy impact note */}
+          <div
+            style={{
+              textAlign: 'right',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '0.65rem',
+                color: 'var(--text-dim)',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Accuracy Impact
+            </div>
+            <div
+              style={{
+                fontSize: '0.85rem',
+                color: stats.accuracy > 75 ? 'var(--neon-green)' : 'var(--neon-yellow)',
+                fontWeight: 700,
+              }}
+            >
+              {stats.accuracy > 75
+                ? '✅ Full credit'
+                : stats.accuracy > 50
+                ? '⚠️ Reduced (form)'
+                : '⬇️ Low (poor form)'}
+            </div>
+            <div
+              style={{
+                fontSize: '0.7rem',
+                color: 'var(--text-dim)',
+              }}
+            >
+              MET-based estimate
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mistake & Streak Insights */}
       <div
