@@ -70,9 +70,25 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   }, [fetchHistory]);
   
   const frameId = useRef<number>(0);
-  const lastProcessTime = useRef<number>(0);
-  const FPS_LIMIT = 15;
-  const countdownIntervalRef = useRef<any>(null);
+const lastProcessTime = useRef<number>(0);
+const FPS_LIMIT = 15;
+const countdownIntervalRef = useRef<any>(null);
+
+// ── Debounce: skip canvas redraws when pose is stationary ─────────────────
+const lastLandmarksRef = useRef<any[] | null>(null);
+const MOVEMENT_THRESHOLD = 0.004; // normalised units (~0.4% of frame)
+
+function isStationary(prev: any[], curr: any[]): boolean {
+  if (!prev || !curr || prev.length !== curr.length) return false;
+  for (let i = 0; i < curr.length; i++) {
+    const dx = (curr[i]?.x || 0) - (prev[i]?.x || 0);
+    const dy = (curr[i]?.y || 0) - (prev[i]?.y || 0);
+    if (Math.abs(dx) > MOVEMENT_THRESHOLD || Math.abs(dy) > MOVEMENT_THRESHOLD) {
+      return false;
+    }
+  }
+  return true;
+}
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
   // One string that the hidden live region will announce to screen readers.
@@ -144,25 +160,35 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         await cameraService.startCamera(videoRef.current);
         
         poseService.onResults((results) => {
-          if (!isMounted) return;
-          const evaluation = calibrationLogic.evaluate(results);
-          setResult(evaluation);
-          
-          if (results.poseLandmarks) {
-            const bt = bodyTypeEngine.analyze(results.poseLandmarks);
-            setBodyTypeRes(bt);
-            if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-              onBodyTypeDetected(bt.bodyType);
-            }
+  if (!isMounted) return;
+  const evaluation = calibrationLogic.evaluate(results);
+  setResult(evaluation);
 
-            const gesture = gestureService.analyze(results.poseLandmarks);
-            setGestureResult(gesture);
-          }
+  if (results.poseLandmarks) {
+    const bt = bodyTypeEngine.analyze(results.poseLandmarks);
+    setBodyTypeRes(bt);
+    if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
+      onBodyTypeDetected(bt.bodyType);
+    }
 
-          const primaryJoints = selectedExercise.joints?.flat() || [];
-          overlayRenderer.draw(results, evaluation.status, primaryJoints);
-        });
+    const gesture = gestureService.analyze(results.poseLandmarks);
+    setGestureResult(gesture);
 
+    // ── Debounce canvas redraw when stationary ──────────────────────────
+    // If landmarks haven't moved beyond threshold, skip the draw call
+    // entirely — freezing the canvas and saving a full processor draw loop.
+    if (
+      lastLandmarksRef.current &&
+      isStationary(lastLandmarksRef.current, results.poseLandmarks)
+    ) {
+      return; // pose unchanged — skip redraw
+    }
+    lastLandmarksRef.current = results.poseLandmarks;
+  }
+
+  const primaryJoints = selectedExercise.joints?.flat() || [];
+  overlayRenderer.draw(results, evaluation.status, primaryJoints);
+});
         const processLoop = (timestamp: number) => {
           if (!isMounted) return;
           const elapsed = timestamp - lastProcessTime.current;
