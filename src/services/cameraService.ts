@@ -10,12 +10,19 @@ export class CameraService {
   private stream: MediaStream | null = null;
   private videoElement: HTMLVideoElement | null = null;
 
-  // ── RAF Precision Scheduler ─────────────────────────────────────
+  // ── RAF Precision Scheduler & Dynamic Adaptation ────────────────
   private rafId: number = 0;
   private isProcessing: boolean = false;
   private lastFrameTime: number = 0;
   private fpsLimit: number = 20; // Max frames per second to send to MediaPipe
-  private frameCallback: ((video: HTMLVideoElement) => void) | null = null;
+  private minFpsLimit: number = 10;
+  private fpsDecrementStep: number = 5;
+  private resolutionScale: number = 1.0;
+  private fpsHistory: number[] = [];
+  private consecutiveLagFrames: number = 0;
+  private lastResultTime: number = 0;
+  private downscaleCanvas: HTMLCanvasElement | null = null;
+  private frameCallback: ((source: HTMLVideoElement | HTMLCanvasElement) => void) | null = null;
 
   /**
    * Requests camera permission and starts the stream.
@@ -56,13 +63,21 @@ export class CameraService {
    * @param fpsLimit Max detections per second (default: 20).
    */
   startFrameLoop(
-    callback: (video: HTMLVideoElement) => void,
-    fpsLimit: number = 20
+    callback: (source: HTMLVideoElement | HTMLCanvasElement) => void,
+    fpsLimit: number = 20,
+    minFpsLimit: number = 10,
+    fpsDecrementStep: number = 5
   ): void {
     this.frameCallback = callback;
     this.fpsLimit = fpsLimit;
+    this.minFpsLimit = minFpsLimit;
+    this.fpsDecrementStep = fpsDecrementStep;
     this.isProcessing = false;
     this.lastFrameTime = 0;
+    this.resolutionScale = 1.0;
+    this.fpsHistory = [];
+    this.consecutiveLagFrames = 0;
+    this.lastResultTime = 0;
 
     const loop = (timestamp: number) => {
       if (!this.videoElement || !this.frameCallback) return;
@@ -79,7 +94,24 @@ export class CameraService {
       ) {
         this.isProcessing = true;      // Lock — prevent overlapping calls
         this.lastFrameTime = timestamp;
-        this.frameCallback(this.videoElement);
+
+        let sourceToProcess: HTMLVideoElement | HTMLCanvasElement = this.videoElement;
+
+        if (this.resolutionScale < 1.0) {
+          if (!this.downscaleCanvas) {
+            this.downscaleCanvas = document.createElement('canvas');
+          }
+          const canvas = this.downscaleCanvas;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          canvas.width = this.videoElement.videoWidth * this.resolutionScale;
+          canvas.height = this.videoElement.videoHeight * this.resolutionScale;
+          if (ctx) {
+            ctx.drawImage(this.videoElement, 0, 0, canvas.width, canvas.height);
+            sourceToProcess = canvas;
+          }
+        }
+
+        this.frameCallback(sourceToProcess);
       }
 
       // Schedule next tick synchronized with browser repaint
@@ -95,6 +127,42 @@ export class CameraService {
    */
   onFrameComplete(): void {
     this.isProcessing = false;
+
+    const now = Date.now();
+    if (this.lastResultTime > 0) {
+      const dt = now - this.lastResultTime;
+      this.fpsHistory.push(1000 / dt);
+      if (this.fpsHistory.length > 30) {
+        this.fpsHistory.shift();
+      }
+
+      if (this.fpsHistory.length === 30) {
+        const avgFps = this.fpsHistory.reduce((a, b) => a + b, 0) / 30;
+        if (avgFps < this.fpsLimit * 0.7) {
+          // Lagging by 30%+
+          this.consecutiveLagFrames++;
+          if (this.consecutiveLagFrames > 15) {
+            // Consistently lagging
+            if (this.fpsLimit > this.minFpsLimit) {
+              this.fpsLimit -= this.fpsDecrementStep;
+              console.warn(
+                `[Performance] Lag detected. Dropping sample frequency to ${this.fpsLimit} FPS`
+              );
+            } else if (this.resolutionScale > 0.5) {
+              this.resolutionScale -= 0.25;
+              console.warn(
+                `[Performance] Lag detected. Dropping resolution scale to ${this.resolutionScale}`
+              );
+            }
+            this.consecutiveLagFrames = 0;
+            this.fpsHistory = [];
+          }
+        } else {
+          this.consecutiveLagFrames = 0;
+        }
+      }
+    }
+    this.lastResultTime = now;
   }
 
   /**
@@ -106,6 +174,7 @@ export class CameraService {
     this.rafId = 0;
     this.isProcessing = false;
     this.frameCallback = null;
+    this.downscaleCanvas = null;
   }
 
   /**

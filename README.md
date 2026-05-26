@@ -178,6 +178,18 @@ PORT=3001
 ```
 > Never commit `.env` files to version control.
 
+### Firestore Security Rules
+
+Rules are version-controlled in `firestore.rules`. They are not enforced until they are deployed to your Firebase project. After cloning, run:
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules
+```
+
+Without deploying these rules, the project remains in Firebase test mode (effectively open access). Always deploy them before going to production.
+
 ---
 
 ## 💻 Usage
