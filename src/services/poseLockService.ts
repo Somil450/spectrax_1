@@ -7,12 +7,20 @@ import { Results, NormalizedLandmarkList } from '@mediapipe/pose';
  */
 
 export class PoseLockService {
+  
   private lastCentroid: { x: number, y: number } | null = null;
+  private lastArea: number | null = null;
   private isLocked = false;
-  private readonly MOVEMENT_THRESHOLD = 0.25; // Max jump as % of screen (0.25 = 25%)
-  private readonly LOCK_CONFIDENCE_THRESHOLD = 0.6;
-  private readonly UNLOCK_TIME_THRESHOLD = 2000; // 2 seconds of missing pose to unlock
+  private readonly MOVEMENT_THRESHOLD = 0.25;
+  private readonly MOVEMENT_RELEASE_THRESHOLD = 0.35;
+  private readonly SCALE_THRESHOLD = 0.40;
+  private readonly SCALE_RELEASE_THRESHOLD = 0.55;
+  private readonly LOCK_THRESHOLD = 0.7;
+  private readonly UNLOCK_THRESHOLD = 0.4;
+  private readonly UNLOCK_TIME_THRESHOLD = 2000;
   private lastSeenTime = 0;
+  private confidenceHistory: number[] = [];
+  private readonly CONFIDENCE_WINDOW = 5;
 
   /**
    * Evaluates if the current pose results belong to the "locked" user.
@@ -27,40 +35,48 @@ export class PoseLockService {
     }
 
     const currentCentroid = this.calculateCentroid(results.poseLandmarks);
+    const currentArea = this.calculateArea(results.poseLandmarks);
     const now = Date.now();
 
-    // 1. Initial Locking
+    const rawConfidence = this.calculateAvgConfidence(results.poseLandmarks);
+    const smoothedConfidence = this.smoothedConfidence(rawConfidence);
+
+    // 1. Initial Locking — requires high confidence to acquire
     if (!this.isLocked) {
-      // Find a stable pose to lock onto
-      const avgConfidence = this.calculateAvgConfidence(results.poseLandmarks);
-      if (avgConfidence > this.LOCK_CONFIDENCE_THRESHOLD) {
+      if (smoothedConfidence > this.LOCK_THRESHOLD) {
         this.lastCentroid = currentCentroid;
+        this.lastArea = currentArea;
         this.isLocked = true;
         this.lastSeenTime = now;
-        console.log("[PoseLock] Locked onto user at:", currentCentroid);
         return results;
       }
       return null;
     }
 
-    // 2. Continuity Check
-    if (this.lastCentroid) {
+    // 2. Confidence release check — requires very low confidence to release
+    if (smoothedConfidence < this.UNLOCK_THRESHOLD) {
+      this.reset();
+      return null;
+    }
+
+    // 3. Continuity check — use more forgiving thresholds while locked
+    if (this.lastCentroid && this.lastArea !== null) {
       const distance = Math.sqrt(
         Math.pow(currentCentroid.x - this.lastCentroid.x, 2) +
         Math.pow(currentCentroid.y - this.lastCentroid.y, 2)
       );
 
-      // If the pose jumped too far, it's likely a different person or a glitch
-      if (distance > this.MOVEMENT_THRESHOLD) {
-        // Check if the jump is sustained (maybe the user moved fast?)
-        // For fitness, 25% of screen in < 50ms is almost always a different person
-        console.warn("[PoseLock] Potential person switch detected. Ignoring frame. Distance:", distance.toFixed(3));
+      const areaChange = Math.abs(currentArea - this.lastArea) / (this.lastArea || 1);
+
+      if (distance > this.MOVEMENT_RELEASE_THRESHOLD || areaChange > this.SCALE_RELEASE_THRESHOLD) {
+        this.reset();
         return null;
       }
     }
 
-    // 3. Update state
+    // 4. Update state
     this.lastCentroid = currentCentroid;
+    this.lastArea = currentArea;
     this.lastSeenTime = now;
     return results;
   }
@@ -68,8 +84,19 @@ export class PoseLockService {
   reset() {
     this.isLocked = false;
     this.lastCentroid = null;
+    this.lastArea = null;
     this.lastSeenTime = 0;
-    console.log("[PoseLock] Lock reset.");
+    this.confidenceHistory = [];
+  }
+
+  private smoothedConfidence(raw: number): number {
+    this.confidenceHistory.push(raw);
+    if (this.confidenceHistory.length > this.CONFIDENCE_WINDOW) {
+      this.confidenceHistory.shift();
+    }
+    const sorted = [...this.confidenceHistory].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
   private calculateCentroid(landmarks: NormalizedLandmarkList) {
@@ -106,6 +133,22 @@ export class PoseLockService {
     }
 
     return count > 0 ? sum / count : 0;
+  }
+
+  private calculateArea(landmarks: NormalizedLandmarkList) {
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    const points = [11, 12, 23, 24, 25, 26, 27, 28, 0]; // Head, shoulders, hips, knees, ankles
+
+    for (const i of points) {
+      if (landmarks[i]) {
+        minX = Math.min(minX, landmarks[i].x);
+        maxX = Math.max(maxX, landmarks[i].x);
+        minY = Math.min(minY, landmarks[i].y);
+        maxY = Math.max(maxY, landmarks[i].y);
+      }
+    }
+    
+    return Math.max(0, (maxX - minX) * (maxY - minY));
   }
 }
 
