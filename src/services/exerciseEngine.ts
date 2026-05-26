@@ -24,10 +24,10 @@ import {
   DEFAULT_SQUAT_DEPTH_CONFIG,
 } from './Squat_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
+import { VBTMetrics, KinematicEngine } from './kinematicEngine';
+import { NormalizedLandmark } from "@mediapipe/pose";
 
-// ─────────────────────────────────────────────
-// EngineState
-// ─────────────────────────────────────────────
+// ─── EngineState ──────────────
 
 export interface EngineState {
   reps: number;
@@ -74,6 +74,9 @@ export interface EngineState {
    */
   liveDepthFeedback: string;
 
+  // VBT Metrics
+  vbtMetrics?: VBTMetrics;
+
   // Tracking & recovery buffers
   visibilityBuffer?: number[];
   trackingLostFrames?: number;
@@ -89,6 +92,8 @@ export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
+
+  private kinematicEngine = new KinematicEngine();
   private readonly MIN_DOWN_DURATION = 150;
 
   private repParams(key: string) {
@@ -127,9 +132,30 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
+    landmarks?: NormalizedLandmark[],
+    timestamp?: number
   ): Promise<EngineState> {
     const now = Date.now();
     const p = this.repParams(config.key);
+
+    // ───────── KINEMATICS ENGINE ─────────
+    let updatedVbtMetrics = currentState.vbtMetrics;
+    if (landmarks && timestamp !== undefined) {
+      const jointMap: Record<string, number> = {
+        squat: 24, // Right Hip
+        pushup: 11, // Left Shoulder
+        bicepCurl: 15, // Left Wrist
+        jumpingJack: 15, // Left Wrist
+        plank: 24, // Right Hip
+        lunge: 24 // Right Hip
+      };
+      const primaryJointIndex = jointMap[config.key] ?? 24;
+      updatedVbtMetrics = this.kinematicEngine.update(
+        landmarks,
+        timestamp,
+        primaryJointIndex
+      );
+    }
 
 
     // Adaptive Difficulty Tuning
@@ -353,6 +379,8 @@ export class ExerciseEngine {
     let nextDepthStats = currentState.depthStats ?? initialSquatDepthStats();
 
     if (repJustCounted) {
+      this.kinematicEngine.onRepComplete();
+
       // ── Classify depth for the completed rep ─────────────────────────────
       //
       // `downAngleReached` holds the minimum femur angle for this rep.
@@ -484,6 +512,8 @@ export class ExerciseEngine {
       lastDepthResult: nextLastDepthResult,
       depthStats: nextDepthStats,
       liveDepthFeedback,
+
+      vbtMetrics: updatedVbtMetrics,
     };
   }
 }
