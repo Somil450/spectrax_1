@@ -18,6 +18,7 @@ import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './Wo
 import { ghostService } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
+import { poseService } from "../services/poseService";
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -176,12 +177,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+ fix-workout-screen-memory-leaks
+  
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showExitModal, setShowExitModal] = useState(false);
+  
+
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
 
   const ghostFramesRef = useRef<FrameData[]>([]);
   const ghostStatsRef = useRef<{reps: number, accuracy: number, totalReps: number} | null>(null);
   const [hasGhost, setHasGhost] = useState(false);
+ main
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -222,6 +230,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
@@ -513,6 +522,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       wsSocketRef.current = null;
     }
 
+    
+  
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
@@ -563,25 +574,70 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     startWorkout();
 
-    const timer = setInterval(() => {
+    const timerRef = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
       setSeconds(elapsed);
     }, 1000);
 
     return () => {
-      isMountedRef.current = false;
-      stopSystem();
-      worker.terminate();
-      if (wsSocketRef.current) {
-        try {
-          wsSocketRef.current.close();
-        } catch (err) {
-          console.warn("WS close failed:", err);
-        }
-      }
-      clearInterval(timer);
-    };
+  isMountedRef.current = false;
+
+  stopSystem();
+
+  if (animationFrameRef.current !== null) {
+    cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+  }
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+
+  if (workerRef.current) {
+    workerRef.current.terminate();
+    workerRef.current = null;
+  }
+
+  if (wsSocketRef.current) {
+    try {
+      wsSocketRef.current.close();
+    } catch (err) {
+      console.warn("WS close failed:", err);
+    }
+
+    wsSocketRef.current = null;
+  }
+
+  pendingLandmarksRef.current = null;
+  lastObservedLandmarksRef.current = null;
+  previousObservedLandmarksRef.current = null;
+
+  dropoutFrameCountRef.current = 0;
+
+  workerAnglesRef.current = {};
+  if (videoRef.current?.srcObject) {
+  const stream = videoRef.current.srcObject as MediaStream;
+
+  stream.getTracks().forEach((track) => {
+    track.stop();
+  });
+
+  videoRef.current.srcObject = null;
+}
+  const canvas = canvasRef.current;
+
+  if (canvas) {
+    const ctx = canvas.getContext("2d");
+
+    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  (overlayRenderer as any).setContext?.(null);
+  
+  panelRefs.current = null;
+  
+  clearInterval(timerRef);
+};
   }, [exercise, startSystem, stopSystem]);
 
   useEffect(() => {
