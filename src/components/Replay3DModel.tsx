@@ -897,29 +897,38 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         composer.render();
       };
 
-      const handleResize = () => {
-        if (!mountRef.current || !cameraRef.current || !rendererRef.current) return;
-        const w = mountRef.current.clientWidth;
-        const h = mountRef.current.clientHeight;
-        cameraRef.current.aspect = w / h;
-        cameraRef.current.updateProjectionMatrix();
-        rendererRef.current.setSize(w, h);
-        composerRef.current?.setSize(w, h);
-        bloomPassRef.current?.setSize(w, h);
-        if (smaaPassRef.current) {
-          // SMAAPass doesn't have setSize — recreate passes on resize
-          rebuildPasses(graphicsPresetRef.current, w, h);
+      // ResizeObserver for accurate element-level resize tracking
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          if (!cameraRef.current || !rendererRef.current) return;
+          const { width: w, height: h } = entry.contentRect;
+          if (w === 0 || h === 0) return;
+
+          rendererRef.current.setSize(w, h);
+          rendererRef.current.setPixelRatio(window.devicePixelRatio);
+          cameraRef.current.aspect = w / h;
+          cameraRef.current.updateProjectionMatrix();
+          composerRef.current?.setSize(w, h);
+          bloomPassRef.current?.setSize(w, h);
+          if (smaaPassRef.current) {
+            rebuildPasses(graphicsPresetRef.current, w, h);
+          }
         }
-      };
+      });
+
+      if (mountRef.current) {
+        resizeObserver.observe(mountRef.current);
+      }
 
       renderer.domElement.addEventListener("webglcontextlost",     handleContextLost);
       renderer.domElement.addEventListener("webglcontextrestored", handleContextRestored);
-      window.addEventListener("resize", handleResize);
 
       rendererPipelineCleanupRef.current = () => {
+        resizeObserver.disconnect();
+
         renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
         renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
-        window.removeEventListener("resize", handleResize);
+
         controls.dispose();
         composer.dispose();
         composerRef.current  = null;
@@ -1251,7 +1260,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", position: "relative" }}>
       <div
         ref={mountRef}
-        style={{ flex: 1, minHeight: "400px", width: "100%", borderRadius: "8px", overflow: "hidden" }}
+        style={{ flex: 1, minHeight: "400px", width: "100%", height: "100%", borderRadius: "8px", overflow: "hidden" }}
       />
 
       {/* Graphic Settings Overlay */}
