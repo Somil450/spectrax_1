@@ -1,5 +1,4 @@
 import type { Results } from "@mediapipe/pose";
-
 // MediaPipe's npm packages are not ESM-compatible. We use globals from the CDN scripts.
 const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
 const drawConnectors = (window as any).drawConnectors;
@@ -58,7 +57,18 @@ export class OverlayRenderer {
     const color = this.getStatusColor(status);
     const glow = `${color}88`;
 
-    this.drawScanningLine();
+    for (const landmark of results.poseLandmarks) {
+      this.ctx.beginPath();
+
+      this.ctx.arc(
+        landmark.x * this.ctx.canvas.width,
+        landmark.y * this.ctx.canvas.height,
+        5,
+        0,
+        2 * Math.PI
+      );
+      this.ctx.fill();
+    }
 
     // 1. Draw standard connectors with status color
     drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
@@ -97,7 +107,7 @@ export class OverlayRenderer {
 
     // Global glow
     this.ctx.shadowBlur = 15;
-    this.ctx.shadowColor = glow;
+    this.ctx.shadowColor = color;
   }
 
   drawGhost(landmarks: any[]) {
