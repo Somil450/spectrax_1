@@ -179,6 +179,10 @@ input {
   right: 196px;
 }
 
+.theme-selector-segmented.is-hidden {
+  display: none;
+}
+
 .selector-indicator {
   position: absolute;
   top: 4px;
@@ -748,9 +752,9 @@ body {
 /* Wordmark */
 .welcome-wordmark {
   font-family: var(--font-heading);
-  font-size: clamp(3rem, 9vw, 5.5rem);
+  font-size: clamp(2rem, 10vw, 5.5rem);
   font-weight: 900;
-  letter-spacing: clamp(6px, 2vw, 14px);
+  letter-spacing: clamp(2px, 1.5vw, 14px);
   background: linear-gradient(135deg, #ffffff 0%, var(--neon-cyan) 55%, var(--neon-purple) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -996,6 +1000,7 @@ body {
 
   .welcome-btn-row {
     flex-direction: column;
+    gap: 16px;
   }
 
   .welcome-btn-secondary {
