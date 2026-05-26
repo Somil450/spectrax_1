@@ -4,6 +4,7 @@ import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } fr
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { getPostureErrorCategories } from '../engine/feedbackEngine';
 import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
@@ -728,6 +729,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     sessionRecorder.download();
 
+    const gmmCategories = getPostureErrorCategories();
+    const finalMistakes = { ...mutableState.current.mistakes };
+    for (const [cat, count] of Object.entries(gmmCategories)) {
+      if (count > 0) {
+        finalMistakes[cat] = (finalMistakes[cat] || 0) + count;
+      }
+    }
+
     onEnd({
       reps: mutableState.current.reps,
       totalReps: mutableState.current.totalReps,
@@ -736,12 +745,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       repDeviations: mutableState.current.repDeviations,
       duration: seconds,
       accuracy: accuracy,
-      mistakes: mutableState.current.mistakes,
+      mistakes: finalMistakes,
       bestStreak: mutableState.current.bestStreak,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
-        mistakes: Object.keys(mutableState.current.mistakes),
+        mistakes: Object.keys(finalMistakes),
         duration: seconds,
       }),
     });
