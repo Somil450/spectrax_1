@@ -136,7 +136,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         onClick={toggleDarkMode}
         aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
         title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 50 }}
+        style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 50 }}
       >
         {isDarkMode ? "☀️" : "🌙"}
       </button>
