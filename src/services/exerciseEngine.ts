@@ -2,7 +2,7 @@
  * exerciseEngine.ts  (updated — squat depth classification integrated)
  *
  * Changes vs. original:
- *  1. EngineState gains `depthClass`, `depthStats`, and `liveDepthFeedback`.
+ *  1. EngineState gains `lastDepthResult`, `depthStats`, and `liveDepthFeedback`.
  *  2. After a rep is counted, `classifySquatDepth()` runs on `downAngleReached`
  *     and the result is stored + merged into session stats.
  *  3. During the DOWN phase, `getLiveDepthFeedback()` overlays a depth cue
@@ -291,6 +291,7 @@ export class ExerciseEngine {
         nextLastDepthResult = depthResult;
         nextDepthStats = accumulateDepthStats(nextDepthStats, depthResult);
         depthScoreModifier = depthResult.scoreModifier;
+        if (!depthResult.isFullDepth) nextMinScoreInRep = 0;
 
         // Apply depth modifier to the quality score for this rep.
         // Clamp to [0, 100] so a bonus never exceeds perfect.
@@ -298,6 +299,10 @@ export class ExerciseEngine {
           0,
           Math.min(100, nextMinScoreInRep + depthScoreModifier)
         );
+
+        if (!depthResult.isFullDepth) {
+          nextMinScoreInRep = 0;
+        }
       }
 
       nextTotalReps += 1;

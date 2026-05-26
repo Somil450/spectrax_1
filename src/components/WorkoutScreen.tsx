@@ -11,6 +11,7 @@ import { skeletalSense } from '../services/skeletalSense'; // Kept on main threa
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
+import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -64,13 +65,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     repScores: [],
     accuracy: 100,
     lastDepthResult: null,
-    depthStats: {
-      deepCount: 0,
-      parallelCount: 0,
-      halfCount: 0,
-      totalClassified: 0,
-      depthScore: 100
-    },
+    depthStats: initialSquatDepthStats(),
     liveDepthFeedback: ''
   });
 
