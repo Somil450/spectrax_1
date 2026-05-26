@@ -224,10 +224,10 @@ export class ExerciseEngine {
   private kinematicEngine = new KinematicEngine();
   private readonly MIN_DOWN_DURATION = 150;
 
-  private repParams(key: string) {
+  private repParams(key: string): RepParams {
     return {
-      smoothingWindow: 5,
-      streakMinScore: 75,
+      ...ENGINE_DEFAULTS,
+      ...(layoutOverrides.get(key) || {}),
     };
   }
 
@@ -260,8 +260,7 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
-    landmarks?: NormalizedLandmark[],
-    timestamp?: number
+    landmarks?: any[]
   ): Promise<EngineState> {
     const now = Date.now();
     const p = this.repParams(config.key);
