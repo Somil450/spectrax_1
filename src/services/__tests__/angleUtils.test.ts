@@ -41,8 +41,7 @@ describe("calculateAngle", () => {
   });
 
   it("returns 0 when a landmark is missing (null guard)", () => {
-    // @ts-expect-error — intentionally testing the null guard
-    expect(calculateAngle(null, lm(0, 0), lm(1, 0))).toBe(0);
+    expect(calculateAngle(null as any, lm(0, 0), lm(1, 0))).toBe(0);
   });
 });
 
