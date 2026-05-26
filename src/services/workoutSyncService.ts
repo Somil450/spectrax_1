@@ -593,9 +593,19 @@ export async function deleteWorkout(
  * Clear all workouts for a user locally and from Firestore
  */
 export async function clearAllWorkouts(userId: string): Promise<void> {
-  const db = await openDB();
+  // Phase 1: delete from Firestore first.
+  // If this throws (network error, permission denied) the local records are
+  // left intact and the error propagates to the caller so the UI can surface
+  // a meaningful message instead of falsely reporting success.
+  const remoteWorkouts = await getFirestoreWorkouts();
+  for (const w of remoteWorkouts) {
+    if (w.id) {
+      await deleteWorkoutFromFirestore(w.id as string);
+    }
+  }
 
-  // 1. Delete all user records locally from IndexedDB
+  // Phase 2: wipe IndexedDB only after remote deletion is confirmed.
+  const db = await openDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");
     const store = tx.objectStore(WORKOUTS_STORE);
@@ -607,24 +617,12 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
       if (cursor) {
         cursor.delete();
         cursor.continue();
-      } else {
-        resolve();
       }
     };
     req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
-
-  // 2. Get and delete all workouts from Firestore for this user
-  try {
-    const workouts = await getFirestoreWorkouts();
-    for (const w of workouts) {
-      if (w.id) {
-        await deleteWorkoutFromFirestore(w.id as string);
-      }
-    }
-  } catch (error) {
-    console.error("Failed to clear workouts from Firestore:", error);
-  }
 }
 
 export default {
