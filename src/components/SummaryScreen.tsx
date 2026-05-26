@@ -20,6 +20,12 @@ interface SummaryScreenProps {
     gainedXp?: number;
     exerciseName?: string;
     calories?: number; 
+    jumpingJackSync?: {
+      score: number | null;
+      lagMs: number | null;
+      confidence: number;
+      samples: number;
+    };
   };
   leveling?: {
     xp: number;
@@ -517,6 +523,32 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
                  </div>
                );
              })}
+          </div>
+        </div>
+      )}
+
+      {stats.jumpingJackSync?.score !== null && stats.jumpingJackSync?.score !== undefined && (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px', borderTop: '2px solid var(--neon-cyan)' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 700, textAlign: 'left' }}>
+            JUMPING JACK COORDINATION
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', textAlign: 'center' }}>
+            <div>
+              <div style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 900 }}>{stats.jumpingJackSync.score}%</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase' }}>Sync Score</div>
+            </div>
+            <div>
+              <div style={{ color: stats.jumpingJackSync.lagMs && stats.jumpingJackSync.lagMs > 0 ? 'var(--neon-yellow)' : 'var(--neon-green)', fontSize: '1.6rem', fontWeight: 900 }}>
+                {stats.jumpingJackSync.lagMs ? `${Math.abs(stats.jumpingJackSync.lagMs)}ms` : '0ms'}
+              </div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                {stats.jumpingJackSync.lagMs && stats.jumpingJackSync.lagMs < 0 ? 'Arms Lead' : 'Arm Lag'}
+              </div>
+            </div>
+            <div>
+              <div style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 900 }}>{Math.round(stats.jumpingJackSync.confidence * 100)}%</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase' }}>Confidence</div>
+            </div>
           </div>
         </div>
       )}

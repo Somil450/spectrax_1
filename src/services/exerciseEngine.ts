@@ -36,7 +36,118 @@ import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
 import type { NormalizedLandmark } from "@mediapipe/pose";
 
-// ─── EngineState ──────────────
+export interface JumpingJackSyncSample {
+  timestamp: number;
+  armOpen: number;
+  legSpread: number;
+}
+
+export interface JumpingJackSyncMetrics {
+  score: number | null;
+  lagMs: number | null;
+  confidence: number;
+  samples: number;
+}
+
+const JUMPING_JACK_SYNC_WINDOW = 160;
+const JUMPING_JACK_SYNC_MAX_LAG_FRAMES = 12;
+const JUMPING_JACK_GOOD_LAG_MS = 350;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeSeries(values: number[]): number[] | null {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min;
+  if (range < 5) return null;
+  return values.map((value) => (value - min) / range);
+}
+
+function correlationAtLag(legs: number[], arms: number[], lag: number): number | null {
+  const legValues: number[] = [];
+  const armValues: number[] = [];
+
+  for (let i = 0; i < legs.length; i += 1) {
+    const armIndex = i + lag;
+    if (armIndex < 0 || armIndex >= arms.length) continue;
+    legValues.push(legs[i]);
+    armValues.push(arms[armIndex]);
+  }
+
+  if (legValues.length < 8) return null;
+
+  const legMean = legValues.reduce((sum, value) => sum + value, 0) / legValues.length;
+  const armMean = armValues.reduce((sum, value) => sum + value, 0) / armValues.length;
+  let numerator = 0;
+  let legVariance = 0;
+  let armVariance = 0;
+
+  for (let i = 0; i < legValues.length; i += 1) {
+    const legDelta = legValues[i] - legMean;
+    const armDelta = armValues[i] - armMean;
+    numerator += legDelta * armDelta;
+    legVariance += legDelta * legDelta;
+    armVariance += armDelta * armDelta;
+  }
+
+  const denominator = Math.sqrt(legVariance * armVariance);
+  return denominator > 0 ? numerator / denominator : null;
+}
+
+export function calculateJumpingJackSyncMetrics(
+  samples: JumpingJackSyncSample[],
+): JumpingJackSyncMetrics {
+  if (samples.length < 12) {
+    return { score: null, lagMs: null, confidence: 0, samples: samples.length };
+  }
+
+  const armSeries = normalizeSeries(samples.map((sample) => sample.armOpen));
+  const legSeries = normalizeSeries(samples.map((sample) => sample.legSpread));
+  if (!armSeries || !legSeries) {
+    return { score: null, lagMs: null, confidence: 0, samples: samples.length };
+  }
+
+  let bestLag = 0;
+  let bestCorrelation = -Infinity;
+  for (let lag = -JUMPING_JACK_SYNC_MAX_LAG_FRAMES; lag <= JUMPING_JACK_SYNC_MAX_LAG_FRAMES; lag += 1) {
+    const correlation = correlationAtLag(legSeries, armSeries, lag);
+    if (correlation !== null && correlation > bestCorrelation) {
+      bestCorrelation = correlation;
+      bestLag = lag;
+    }
+  }
+
+  if (!Number.isFinite(bestCorrelation)) {
+    return { score: null, lagMs: null, confidence: 0, samples: samples.length };
+  }
+
+  const intervals = samples
+    .slice(1)
+    .map((sample, index) => sample.timestamp - samples[index].timestamp)
+    .filter((interval) => interval > 0 && interval < 250);
+  const averageInterval =
+    intervals.length > 0
+      ? intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length
+      : 50;
+  const lagMs = Math.round(bestLag * averageInterval);
+  const timingScore = clamp(1 - Math.abs(lagMs) / JUMPING_JACK_GOOD_LAG_MS, 0, 1);
+  const rhythmScore = clamp(bestCorrelation, 0, 1);
+  const confidence = clamp(samples.length / 45, 0, 1);
+  const score = Math.round((rhythmScore * 0.65 + timingScore * 0.35) * confidence * 100);
+
+  return {
+    score,
+    lagMs,
+    confidence: Math.round(confidence * 100) / 100,
+    samples: samples.length,
+  };
+}
+
+// ─────────────────────────────────────────────
+// EngineState
+// ─────────────────────────────────────────────
 
 export interface EngineState {
   reps: number;
@@ -97,6 +208,8 @@ export interface EngineState {
   trackingLostFrames?: number;
   lastValidAngles?: Record<string, number>;
   holdTime?: number;
+  jumpingJackSyncSamples?: JumpingJackSyncSample[];
+  jumpingJackSync?: JumpingJackSyncMetrics;
 }
 
 // ─────────────────────────────────────────────
@@ -188,12 +301,14 @@ export class ExerciseEngine {
       currentHysteresis = 10;
     }
 
-    let {
+    const {
       reps,
-      stage,
       lastRepTime,
-      isCalibrated,
       history,
+    } = currentState;
+    let {
+      stage,
+      isCalibrated,
       stageStartTime,
     } = currentState;
 
@@ -411,6 +526,30 @@ export class ExerciseEngine {
     let nextDepthStats = currentState.depthStats ?? initialSquatDepthStats();
     let nextLastPushupDepthResult = currentState.lastPushupDepthResult ?? null;
     let nextPushupDepthStats = currentState.pushupDepthStats ?? initialPushupDepthStats();
+    let nextJumpingJackSyncSamples = currentState.jumpingJackSyncSamples ?? [];
+    let nextJumpingJackSync = currentState.jumpingJackSync ?? {
+      score: null,
+      lagMs: null,
+      confidence: 0,
+      samples: 0,
+    };
+
+    if (
+      config.key === 'jumpingJack' &&
+      isInExercisePosture &&
+      Number.isFinite(activeAngles.jumpingJackArmOpen) &&
+      Number.isFinite(activeAngles.jumpingJackLegSpread)
+    ) {
+      nextJumpingJackSyncSamples = [
+        ...nextJumpingJackSyncSamples,
+        {
+          timestamp: now,
+          armOpen: activeAngles.jumpingJackArmOpen,
+          legSpread: activeAngles.jumpingJackLegSpread,
+        },
+      ].slice(-JUMPING_JACK_SYNC_WINDOW);
+      nextJumpingJackSync = calculateJumpingJackSyncMetrics(nextJumpingJackSyncSamples);
+    }
 
     if (repJustCounted) {
       this.kinematicEngine.onRepComplete();
@@ -574,6 +713,8 @@ export class ExerciseEngine {
       pushupDepthStats: nextPushupDepthStats,
       livePushupDepthFeedback,
       downZReached,
+      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
+      jumpingJackSync: nextJumpingJackSync,
     };
   }
 }

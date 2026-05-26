@@ -37,6 +37,7 @@ interface WorkoutScreenProps {
     accuracy: number;
     mistakes: Record<string, number>;
     bestStreak: number;
+    jumpingJackSync?: EngineState["jumpingJackSync"];
     tags?: string[];
   }) => void;
   onAutoDetect?: (key: string) => void;
@@ -208,7 +209,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100,
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: ''
+    liveDepthFeedback: '',
+    jumpingJackSyncSamples: [],
+    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   const startTimeRef = useRef<number>(Date.now());
@@ -271,7 +274,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100,
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: ''
+    liveDepthFeedback: '',
+    jumpingJackSyncSamples: [],
+    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
@@ -626,6 +631,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       accuracy: accuracy,
       mistakes: mutableState.current.mistakes,
       bestStreak: mutableState.current.bestStreak,
+      jumpingJackSync: mutableState.current.jumpingJackSync,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
