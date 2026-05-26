@@ -1,3 +1,16 @@
+import { ExerciseConfig } from "../config/exercises";
+import {
+  getFeedback,
+  resetFeedbackEngine,
+  FeedbackResult,
+} from "../engine/feedbackEngine";
+import { BodyType } from "./bodyTypeEngine";
+import { getSupinationScore } from "./wristRotationDetector";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plank Spline Types & Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * exerciseEngine.ts  (updated — squat depth classification integrated)
  *
@@ -183,10 +196,24 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
 
-  /**
-   * Running session depth statistics accumulated across all reps.
-   */
-  depthStats: SquatDepthStats;
+  // 🔥 Static hold time tracking
+  holdTime?: number;
+
+  wristSupinationScore?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout Parser & Defaults
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
 
   /**
    * Real-time depth coaching string emitted during the DOWN phase.
@@ -218,6 +245,13 @@ export interface EngineState {
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
+
+  private repParams(key: string): RepParams {
+    return {
+      ...ENGINE_DEFAULTS,
+      ...(layoutOverrides.get(key) || {}),
+    };
+  }
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
 
@@ -436,6 +470,11 @@ export class ExerciseEngine {
       // Usually we want total hold time. We'll keep accumulating.
     }
 
+    // ───────── WRIST ROTATION DETECTION ─────────
+    const wristSupinationScore = config.key === 'bicepCurl'
+      ? getSupinationScore(landmarks)
+      : NaN;
+
     const context: any = {
       ...angles,
       stage: nextStage,
@@ -443,7 +482,12 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      downZReached,
+      // 🔥 Plank-specific spline deviation injected into feedback context
+      hipSplineDeviation,
+      plankSplineCalibrated: nextPlankSpline.isCalibrated,
+      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
+      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+      wristSupinationScore,
     };
 
     let feedbackResult: FeedbackResult;
@@ -699,13 +743,10 @@ export class ExerciseEngine {
 
       vbtMetrics: updatedVbtMetrics,
 
-      // Pushup Depth classification (NEW)
-      lastPushupDepthResult: nextLastPushupDepthResult,
-      pushupDepthStats: nextPushupDepthStats,
-      livePushupDepthFeedback,
-      downZReached,
-      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
-      jumpingJackSync: nextJumpingJackSync,
+      // 🔥 Static hold time tracking
+      holdTime: nextHoldTime,
+
+      wristSupinationScore
     };
   }
 }

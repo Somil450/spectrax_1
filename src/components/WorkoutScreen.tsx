@@ -171,15 +171,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }
 
   const panelRefsById = panelRefs.current;
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
   const [panelsLocked, setPanelsLocked] = useState(true);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+  const [showExitModal, setShowExitModal] = useState(false);
   const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [showExitModal, setShowExitModal] = useState(false);
+
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -466,7 +467,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       visibility,
       mutableState.current,
       bodyTypeRef.current,
-      results.poseLandmarks,
+      results.poseLandmarks
     );
     mutableState.current = nextState;
     setEngineState(nextState);
@@ -508,6 +509,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     setupContext: false, // We manually handle canvas context and worker setup
     onResults: handlePoseResults,
     onFrame: handleFrameTick,
+    onCameraError: (err: any) => {
+      console.error("Workout camera error callback:", err);
+      if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraError('CAMERA_PERMISSION_DENIED');
+      } else {
+        setCameraError('UNKNOWN_ERROR');
+      }
+    }
   });
 
   useEffect(() => {
@@ -608,7 +617,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         await startSystem();
       } catch (err: any) {
         console.error("Workout camera error:", err);
-        if (err.message === 'PERMISSION_DENIED') {
+        if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           setCameraError('CAMERA_PERMISSION_DENIED');
         } else {
           setCameraError('UNKNOWN_ERROR');

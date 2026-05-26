@@ -897,6 +897,15 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       // Build effect passes for initial preset
       rebuildPasses(graphicsPresetRef.current, width, height);
 
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(width, height),
+        0.5,
+        0.4,
+        0.8,
+      );
+      composer.addPass(bloomPass);
+      bloomPassRef.current = bloomPass;
+
       const controls = new OrbitControls(
         cameraRef.current,
         renderer.domElement,

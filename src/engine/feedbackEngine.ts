@@ -178,6 +178,8 @@ const rules: Record<string, ExerciseRule> = {
 
   bicepCurl: (ctx: any) => {
     const issues: DetectionIssue[] = [];
+
+    // ── Existing form checks ──────────────────────────────────────────────
     if (ctx.stage === "down" && ctx.downAngleReached > 75) {
       issues.push({
         type: "squeeze",
@@ -194,6 +196,36 @@ const rules: Record<string, ExerciseRule> = {
         penalty: 35,
       });
     }
+
+    // ── Pronation / Supination check ─────────────────────────────────────
+    // At the top of the curl ("down" stage) the palm should be fully
+    // supinated (facing upward).  A score below the threshold means the
+    // user is curling without twisting the wrist correctly.
+    const supScore: number | undefined = ctx.wristSupinationScore;
+
+    if (typeof supScore === 'number' && !isNaN(supScore)) {
+      if (ctx.stage === 'down' && supScore < 0.2) {
+        // Palm is pronated or neutral at peak of curl
+        issues.push({
+          type: 'wrist_pronation',
+          severity: 'high',
+          message: supScore < -0.2
+            ? 'Flip your wrist! Palm should face UP 🔄'
+            : 'Rotate wrist – supinate at the top 🔄',
+          penalty: 40,
+        });
+      } else if (ctx.stage === 'up' && supScore > 0.2) {
+        // Wrist should return to neutral / slight pronation at the bottom
+        // This is optional coaching – use a lower penalty
+        issues.push({
+          type: 'wrist_return',
+          severity: 'low',
+          message: 'Return wrist to neutral at the bottom ↩️',
+          penalty: 10,
+        });
+      }
+    }
+
     return issues;
   },
 
@@ -326,7 +358,13 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   } else if (exerciseKey === 'squat' || exerciseKey === 'lunge') {
     postureMetric = ctx.lateralScore;
   } else if (exerciseKey === 'bicepCurl') {
+    // Use shoulder angle for primary posture tracking, plus supination as secondary
     postureMetric = ctx.shoulder;
+    // Also track wrist rotation deviation when available
+    const supScore = ctx.wristSupinationScore;
+    if (typeof supScore === 'number' && !isNaN(supScore)) {
+      jointDeviationProfiler.update(supScore * 100);
+    }
   }
   
   if (postureMetric !== undefined && postureMetric !== null && !isNaN(postureMetric)) {
