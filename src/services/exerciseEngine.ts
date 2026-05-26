@@ -30,9 +30,9 @@ import {
 
 export interface EngineState {
   reps: number;
-  stage: 'up' | 'down';
+  stage: "up" | "down";
   feedback: string;
-  status: 'green' | 'yellow' | 'red';
+  status: "green" | "yellow" | "red";
   lastRepTime: number;
   isCalibrated: boolean;
   history: number[];
@@ -52,6 +52,7 @@ export interface EngineState {
   correctReps: number;
   minScoreInRep: number;
   repScores: number[];
+  repDeviations: number[];
   accuracy: number;
 
   // ── Squat depth classification (NEW) ──────────────────────────
@@ -78,28 +79,31 @@ export interface EngineState {
 // ─────────────────────────────────────────────
 
 export class ExerciseEngine {
-  private readonly REP_COOLDOWN = 600;
-  private readonly HYSTERESIS = 10;
+  private readonly BASE_REP_COOLDOWN = 600;
+  private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
   private readonly MIN_DOWN_DURATION = 150;
 
   private isValidExercisePosture(
     history: number[],
     config: ExerciseConfig,
-    stage: 'up' | 'down'
+    stage: "up" | "down",
   ): boolean {
-    if (stage === 'down') return true;
+    if (config.isStatic) {
+      // For static hold exercises, check if angle is within the acceptable hold range
+      const lastAngle = history[history.length - 1];
+      if (lastAngle >= config.downThreshold - 15) return true;
+      return false;
+    }
+
+    if (stage === "down") return true;
 
     const firstAngle = history[0];
     const lastAngle = history[history.length - 1];
     const movementDelta = Math.abs(lastAngle - firstAngle);
-
     const isInRestingPosition = lastAngle >= config.upThreshold - 5;
 
-    if (isInRestingPosition && movementDelta < 2) {
-      return false;
-    }
-
+    if (isInRestingPosition && movementDelta < 2) return false;
     return true;
   }
 
@@ -107,9 +111,27 @@ export class ExerciseEngine {
     config: ExerciseConfig,
     angles: Record<string, number>,
     visibility: Record<string, number>,
-    currentState: EngineState
+    currentState: EngineState,
+    bodyType?: BodyType,
   ): Promise<EngineState> {
-    const currentTime = Date.now();
+    const now = Date.now();
+    const p = this.repParams(config.key);
+
+
+    // Adaptive Difficulty Tuning
+    let currentCooldown = this.BASE_REP_COOLDOWN;
+    let currentHysteresis = this.BASE_HYSTERESIS;
+    
+    if (bodyType === 'ecto') {
+      currentCooldown = 750; // Longer limbs take more time to complete full ROM
+      currentHysteresis = 12; // Ectos need slightly larger movement bands
+    } else if (bodyType === 'meso') {
+      currentCooldown = 500; // Mesomorphs can achieve faster athletic cadence
+      currentHysteresis = 8;  // Stricter form requirements
+    } else if (bodyType === 'endo') {
+      currentCooldown = 650;
+      currentHysteresis = 10;
+    }
 
     let {
       reps,
@@ -120,11 +142,35 @@ export class ExerciseEngine {
       stageStartTime,
     } = currentState;
 
-    const rawAngle = angles[config.primaryJoint];
     const currentVisibility = visibility[config.primaryJoint];
 
-    // ───────── VISIBILITY GUARD ─────────
-    if (currentVisibility < 0.5) {
+    // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
+    const prevVisibilityBuffer = currentState.visibilityBuffer || [];
+
+    const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-p.smoothingWindow);
+    const avgVisibility = newVisibilityBuffer.reduce((a, b) => a + b, 0) / newVisibilityBuffer.length;
+
+
+    let nextTrackingLostFrames = currentState.trackingLostFrames || 0;
+    let nextLastValidAngles = currentState.lastValidAngles || angles;
+
+    // Use a slightly more forgiving threshold for tracking loss (e.g. 0.4)
+    if (currentVisibility < 0.4) {
+      nextTrackingLostFrames++;
+    } else {
+      nextTrackingLostFrames = 0;
+      nextLastValidAngles = angles;
+    }
+
+    // Temporal buffering: use last known valid angles if tracking drops momentarily (up to 10 frames)
+    const activeAngles =
+      nextTrackingLostFrames > 0 && nextTrackingLostFrames < 10
+        ? nextLastValidAngles
+        : angles;
+    const rawAngle = activeAngles[config.primaryJoint];
+
+    // Only block exercise if visibility is consistently low for several frames
+    if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
         ...currentState,
         feedback: 'SENSORS BLURRED — POSITION BODY',
@@ -134,18 +180,26 @@ export class ExerciseEngine {
       };
     }
 
-    // ───────── SMOOTHING ─────────
-    const newHistory = [...history, rawAngle].slice(-this.SMOOTHING_WINDOW);
+    const newHistory = [...history, rawAngle].slice(-p.smoothingWindow);
     const smoothedAngle = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
 
-    // ───────── CALIBRATION ─────────
     if (!isCalibrated) {
       const isUpPosture = smoothedAngle > config.upThreshold - 5;
+      const isDownPosture = smoothedAngle < config.downThreshold + 5;
+      const fromDown = config.key === "jumpingJack" && isDownPosture;
+      const fromUp = config.key !== "jumpingJack" && isUpPosture;
 
-      if (isUpPosture && newHistory.length >= this.SMOOTHING_WINDOW) {
+      const shouldCalibrateFromDown =
+        config.key === "jumpingJack" && isDownPosture;
+      const shouldCalibrateFromUp = config.key !== "jumpingJack" && isUpPosture;
+
+      if (
+        (shouldCalibrateFromDown || shouldCalibrateFromUp) &&
+        newHistory.length >= p.smoothingWindow
+      ) {
         isCalibrated = true;
-        stage = 'up';
-        stageStartTime = currentTime;
+        stage = fromDown ? "down" : "up";
+        stageStartTime = now;
         resetFeedbackEngine();
       }
 
@@ -168,14 +222,13 @@ export class ExerciseEngine {
     let nextLastRepTime = lastRepTime;
     let downAngleReached = currentState.downAngleReached;
 
-    if (smoothedAngle < (config.downThreshold - this.HYSTERESIS / 2)) {
-      if (stage === 'up') {
-        nextStage = 'down';
-        stageStartTime = currentTime;
+    if (smoothedAngle < config.downThreshold - currentHysteresis / 2) {
+      if (stage === "up") {
+        nextStage = "down";
+        stageStartTime = now;
         downAngleReached = smoothedAngle;
       }
-
-      if (nextStage === 'down') {
+      if (nextStage === "down") {
         downAngleReached = Math.min(downAngleReached, smoothedAngle);
       }
     }
@@ -189,11 +242,11 @@ export class ExerciseEngine {
       const durationInDown = currentTime - stageStartTime;
 
       if (
-        currentTime - lastRepTime > this.REP_COOLDOWN &&
+        currentTime - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
-        nextStage = 'up';
-        stageStartTime = currentTime;
+        nextStage = "up";
+        stageStartTime = now;
         repJustCounted = true;
       }
     }
@@ -204,6 +257,19 @@ export class ExerciseEngine {
       config,
       nextStage
     );
+
+    // Accumulate hold time for static exercises (1/FPS approximately, or based on time diff)
+    // Since process is called roughly FPS times per second, we can estimate hold time.
+    // However, the cleanest way is to use a timestamp delta if we had previousTimestamp.
+    // We can just add 1/15th of a second roughly, or just pass the timestamp from `now`.
+    let nextHoldTime = currentState.holdTime || 0;
+    if (config.isStatic && isInExercisePosture && (currentState.status === 'green' || currentState.status === 'yellow')) {
+      // Estimate based on FPS_LIMIT=20 (from WorkoutScreen.tsx)
+      nextHoldTime += 1 / 20;
+    } else if (config.isStatic && !isInExercisePosture) {
+      // Optional: Reset hold time if they break posture, or keep accumulating total?
+      // Usually we want total hold time. We'll keep accumulating.
+    }
 
     const context: any = {
       ...angles,
@@ -230,11 +296,11 @@ export class ExerciseEngine {
       frameScore = 100;
     }
 
-    // ───────── TRACK REP SCORE ─────────
     let nextMinScoreInRep = currentState.minScoreInRep;
-
+    let currentDeviation = 0;
     if (isInExercisePosture) {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
+      currentDeviation = feedbackResult.deviation || 0;
     }
 
     // ───────── LIVE DEPTH FEEDBACK (during down phase) ────────────────────
@@ -263,7 +329,8 @@ export class ExerciseEngine {
     let nextBestStreak = currentState.bestStreak;
     let nextTotalReps = currentState.totalReps;
     let nextCorrectReps = currentState.correctReps;
-    let nextRepScores = [...currentState.repScores];
+    const nextRepScores = [...currentState.repScores];
+    const nextRepDeviations = [...currentState.repDeviations];
 
     let allowRep = currentState.allowRep;
 
@@ -310,8 +377,7 @@ export class ExerciseEngine {
       if (allowRep) {
         nextCorrectReps += 1;
         nextReps += 1;
-
-        if (nextMinScoreInRep > 80) {
+        if (nextMinScoreInRep > p.streakMinScore) {
           nextCurrentStreak += 1;
           nextBestStreak = Math.max(nextBestStreak, nextCurrentStreak);
         } else {
@@ -326,7 +392,7 @@ export class ExerciseEngine {
 
     // ───────── FEEDBACK DISPLAY ─────────
     let displayFeedback: string;
-    let displayStatus: 'green' | 'yellow' | 'red';
+    let displayStatus: "green" | "yellow" | "red";
 
     if (!isInExercisePosture) {
       displayFeedback = 'Get into position...';
@@ -359,10 +425,8 @@ export class ExerciseEngine {
         (nextMistakes[displayFeedback] || 0) + 1;
     }
 
-    // ───────── SCORE TRACKING ─────────
-    const nextTotalScore = isInExercisePosture
-      ? currentState.totalScore + frameScore
-      : currentState.totalScore;
+    const nextTotalScore = isInExercisePosture ? currentState.totalScore + frameScore : currentState.totalScore;
+    const nextTotalFrames = isInExercisePosture ? currentState.totalFrames + 1 : currentState.totalFrames;
 
     const nextTotalFrames = isInExercisePosture
       ? currentState.totalFrames + 1

@@ -4,6 +4,8 @@ export interface GestureResult {
   leftWristAboveShoulder: boolean;
   rightWristAboveShoulder: boolean;
   isPoseLost: boolean;
+  isThumbsUp?: boolean;
+  isCrossedArms: boolean;
 }
 
 const VISIBILITY_THRESHOLD = 0.5;
@@ -43,6 +45,8 @@ class GestureService {
         leftWristAboveShoulder: false,
         rightWristAboveShoulder: false,
         isPoseLost: true,
+        isThumbsUp: false,
+        isCrossedArms: false,
       };
     }
 
@@ -67,6 +71,8 @@ class GestureService {
         leftWristAboveShoulder: false,
         rightWristAboveShoulder: false,
         isPoseLost: true,
+        isThumbsUp: false,
+        isCrossedArms: false,
       };
     }
 
@@ -83,7 +89,46 @@ class GestureService {
 
     const bothHandsRaised = leftWristAboveShoulder && rightWristAboveShoulder;
 
-    this.frameBuffer.push(bothHandsRaised);
+    const leftThumbIdx = 21;
+    const leftIndexIdx = 19;
+    const leftPinkyIdx = 17;
+    const rightThumbIdx = 22;
+    const rightIndexIdx = 20;
+    const rightPinkyIdx = 18;
+
+    const leftThumbsUp = 
+      this.isJointAboveJoint(landmarks, leftThumbIdx, leftIndexIdx) && 
+      this.isJointAboveJoint(landmarks, leftThumbIdx, leftPinkyIdx) &&
+      this.isJointAboveJoint(landmarks, leftIndexIdx, leftWristIdx);
+
+    const rightThumbsUp = 
+      this.isJointAboveJoint(landmarks, rightThumbIdx, rightIndexIdx) && 
+      this.isJointAboveJoint(landmarks, rightThumbIdx, rightPinkyIdx) &&
+      this.isJointAboveJoint(landmarks, rightIndexIdx, rightWristIdx);
+
+    const isThumbsUpDetected = leftThumbsUp || rightThumbsUp;
+
+    // Detect Crossed Arms (Wrists close together near chest level)
+    let isCrossedArms = false;
+    const leftWrist = landmarks[leftWristIdx];
+    const rightWrist = landmarks[rightWristIdx];
+    const leftShoulder = landmarks[leftShoulderIdx];
+    const leftHip = landmarks[leftHipIdx];
+    
+    if (leftWrist && rightWrist && leftShoulder && leftHip) {
+      if (leftWrist.visibility > VISIBILITY_THRESHOLD && rightWrist.visibility > VISIBILITY_THRESHOLD) {
+        const wristDistX = Math.abs(leftWrist.x - rightWrist.x);
+        const wristDistY = Math.abs(leftWrist.y - rightWrist.y);
+        const isBetweenShoulderAndHip = leftWrist.y > leftShoulder.y && leftWrist.y < leftHip.y;
+        
+        // Wrists are very close to each other horizontally and vertically, and at chest level
+        if (wristDistX < 0.15 && wristDistY < 0.15 && isBetweenShoulderAndHip) {
+          isCrossedArms = true;
+        }
+      }
+    }
+
+    this.frameBuffer.push(bothHandsRaised || isThumbsUpDetected || isCrossedArms);
     if (this.frameBuffer.length > this.bufferSize) {
       this.frameBuffer.shift();
     }
@@ -97,6 +142,8 @@ class GestureService {
       leftWristAboveShoulder,
       rightWristAboveShoulder,
       isPoseLost: false,
+      isThumbsUp: isThumbsUpDetected,
+      isCrossedArms,
     };
   }
 

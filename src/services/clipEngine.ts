@@ -36,6 +36,8 @@ class ClipEngine {
     "person standing"
   ];
 
+  private helperCanvas: HTMLCanvasElement | null = null;
+
   public isReady() {
     return !!this.classifier;
   }
@@ -91,8 +93,23 @@ class ClipEngine {
   /**
    * Analyzes a video frame using either local CLIP or Hugging Face Cloud Inference.
    */
-  public async analyzeFrame(image: HTMLCanvasElement | HTMLImageElement): Promise<ClipResult | null> {
+  public async analyzeFrame(image: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement): Promise<ClipResult | null> {
     if (this.isAnalyzing) return null;
+
+    let targetImage: HTMLCanvasElement | HTMLImageElement = image as any;
+
+    if (image instanceof HTMLVideoElement) {
+      if (!this.helperCanvas) {
+        this.helperCanvas = document.createElement('canvas');
+      }
+      this.helperCanvas.width = image.videoWidth || 640;
+      this.helperCanvas.height = image.videoHeight || 480;
+      const ctx = this.helperCanvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(image, 0, 0, this.helperCanvas.width, this.helperCanvas.height);
+      }
+      targetImage = this.helperCanvas;
+    }
 
     if (this.mode === 'local') {
       if (!this.workerReady) return null;
@@ -114,8 +131,8 @@ class ClipEngine {
         this.worker?.addEventListener('message', handleMessage);
 
         // Send image data to worker
-        if (image instanceof HTMLCanvasElement) {
-          const imageData = image.getContext('2d')?.getImageData(0, 0, image.width, image.height);
+        if (targetImage instanceof HTMLCanvasElement) {
+          const imageData = targetImage.getContext('2d')?.getImageData(0, 0, targetImage.width, targetImage.height);
           this.worker?.postMessage({
             type: 'analyze',
             image: imageData,
@@ -124,7 +141,7 @@ class ClipEngine {
         }
       });
     } else if (this.mode === 'cloud') {
-      return this.analyzeFrameCloud(image);
+      return this.analyzeFrameCloud(targetImage);
     }
 
     return null;
