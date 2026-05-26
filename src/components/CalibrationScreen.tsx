@@ -162,52 +162,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     }
   }, [countdownSeconds, countdownActive]);
 
-        await cameraService.startCamera(videoRef.current);
-        
-        poseService.onResults((results) => {
-          if (!isMounted) return;
-          const evaluation = calibrationLogic.evaluate(results);
-          setResult(evaluation);
-          
-          if (results.poseLandmarks) {
-            const bt = bodyTypeEngine.analyze(results.poseLandmarks);
-            setBodyTypeRes(bt);
-            if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-              onBodyTypeDetected(bt.bodyType);
-            }
-
-            const gesture = gestureService.analyze(results.poseLandmarks);
-            setGestureResult(gesture);
-          }
-
-          const primaryJoints = selectedExercise.joints?.flat() || [];
-          overlayRenderer.draw(results, evaluation.status, primaryJoints);
-        });
-
-        const processLoop = (timestamp: number) => {
-          if (!isMounted) return;
-          const elapsed = timestamp - lastProcessTime.current;
-          if (elapsed > (1000 / FPS_LIMIT)) {
-            if (videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused) {
-              poseService.send(videoRef.current);
-            }
-            lastProcessTime.current = timestamp;
-          }
-          frameId.current = requestAnimationFrame(processLoop);
-        };
-        frameId.current = requestAnimationFrame(processLoop);
-      } catch (err: any) {
-        if (isMounted) {
-          if (err.message === 'PERMISSION_DENIED') {
-            setError('CAMERA_PERMISSION_DENIED');
-          } else {
-            setError("Hardware synchronization error. Verify camera and refresh.");
-          }
-          setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-        }
-      }
-    };
-
 
   useEffect(() => {
     setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
