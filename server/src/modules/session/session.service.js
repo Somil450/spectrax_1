@@ -1,6 +1,8 @@
 const fs = require('fs');
 const { buildSessionFilePath } = require('../../shared/utils/paths');
 
+const finalizedSessions = new Set();
+
 function createSessionService({ sessionStore, sessionPath, maxSessionFrames, logger }) {
   function appendFrame(socketId, frame) {
     const sessionFrames = sessionStore.getSessionFrames(socketId);
@@ -32,7 +34,6 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     }
   }
 
-const finalizedSessions = new Set();
 
 async function finalizeSession(socketId) {
   if (finalizedSessions.has(socketId)) return [];
