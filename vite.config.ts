@@ -139,4 +139,4 @@ export default defineConfig({
     globals: true,
     exclude: ["server/**", "node_modules/**"],
   },
-});
+} as any);

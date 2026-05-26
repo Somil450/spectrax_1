@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState,createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -29,6 +29,7 @@ interface WorkoutScreenProps {
     totalReps: number;
     correctReps: number;
     repScores: number[];
+    repDeviations: number[];
     duration: number;
     accuracy: number;
     mistakes: Record<string, number>;
@@ -38,7 +39,8 @@ interface WorkoutScreenProps {
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
 }
-type WorkoutPanelId = 'focus' | 'timer' | 'reps' | 'engine' | 'sense';
+
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
 
 type PanelPosition = {
   x: number;
@@ -47,7 +49,51 @@ type PanelPosition = {
 
 type PanelPositions = Record<WorkoutPanelId, PanelPosition>;
 
-const PANEL_POSITION_STORAGE_KEY = 'spectrax.workoutPanelPositions.v1';
+const PANEL_POSITION_STORAGE_KEY = "spectrax.workoutPanelPositions.v1";
+
+const getViewportSize = () => ({
+  width: typeof window === "undefined" ? 1280 : window.innerWidth,
+  height: typeof window === "undefined" ? 720 : window.innerHeight,
+});
+
+const getDefaultPanelPositions = (): PanelPositions => {
+  const { width, height } = getViewportSize();
+
+  return {
+    focus: { x: 30, y: 30 },
+    timer: { x: Math.max(width - 230, 30), y: 30 },
+    reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
+    engine: { x: 40, y: Math.max(height - 110, 30) },
+    sense: { x: 280, y: Math.max(height - 110, 30) },
+  };
+};
+
+const getStoredPanelPositions = (): PanelPositions => {
+  const defaults = getDefaultPanelPositions();
+
+  if (typeof window === "undefined") {
+    return defaults;
+  }
+
+  try {
+    const storedPositions = JSON.parse(
+      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || "{}",
+    ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
+
+    return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
+      const storedPosition = storedPositions[panelId];
+
+      positions[panelId] = {
+        x: typeof storedPosition?.x === "number" ? storedPosition.x : defaults[panelId].x,
+        y: typeof storedPosition?.y === "number" ? storedPosition.y : defaults[panelId].y,
+      };
+
+      return positions;
+    }, {} as PanelPositions);
+  } catch {
+    return defaults;
+  }
+};
 
 const srOnly: React.CSSProperties = {
   position: 'absolute',
@@ -61,49 +107,7 @@ const srOnly: React.CSSProperties = {
   border: 0,
 };
 
-const getViewportSize = () => ({
-  width: typeof window === 'undefined' ? 1280 : window.innerWidth,
-  height: typeof window === 'undefined' ? 720 : window.innerHeight
-});
 
-const getDefaultPanelPositions = (): PanelPositions => {
-  const { width, height } = getViewportSize();
-
-  return {
-    focus: { x: 30, y: 30 },
-    timer: { x: Math.max(width - 230, 30), y: 30 },
-    reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
-    engine: { x: 40, y: Math.max(height - 110, 30) },
-    sense: { x: 280, y: Math.max(height - 110, 30) }
-  };
-};
-
-const getStoredPanelPositions = (): PanelPositions => {
-  const defaults = getDefaultPanelPositions();
-
-  if (typeof window === 'undefined') {
-    return defaults;
-  }
-
-  try {
-    const storedPositions = JSON.parse(
-      window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY) || '{}'
-    ) as Partial<Record<WorkoutPanelId, Partial<PanelPosition>>>;
-
-    return (Object.keys(defaults) as WorkoutPanelId[]).reduce((positions, panelId) => {
-      const storedPosition = storedPositions[panelId];
-
-      positions[panelId] = {
-        x: typeof storedPosition?.x === 'number' ? storedPosition.x : defaults[panelId].x,
-        y: typeof storedPosition?.y === 'number' ? storedPosition.y : defaults[panelId].y
-      };
-
-      return positions;
-    }, {} as PanelPositions);
-  } catch {
-    return defaults;
-  }
-};
 
 const srOnly: React.CSSProperties = {
   position: 'absolute',
@@ -118,6 +122,10 @@ const srOnly: React.CSSProperties = {
 };
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+  const bodyTypeRef = useRef(bodyType);
+  bodyTypeRef.current = bodyType;
+  const onAutoDetectRef = useRef(onAutoDetect);
+  onAutoDetectRef.current = onAutoDetect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isMountedRef = useRef<boolean>(true);
@@ -137,16 +145,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
-  const { isOnline } = useWorkoutSync();
-  const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
-  const displayConfigRef = useRef(displayConfig);
-  const [panelsLocked, setPanelsLocked] = useState(true);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
-
-  useEffect(() => {
-    displayConfigRef.current = displayConfig;
-  }, [displayConfig]);
-
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(3);
+  const [isTrackingStarted, setIsTrackingStarted] = useState(false);
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -169,6 +170,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     correctReps: 0,
     minScoreInRep: 100,
     repScores: [],
+    repDeviations: [],
     accuracy: 100,
     plankSpline: createPlankCalibration(),
     hipSplineDeviation: 0,
@@ -190,13 +192,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
       const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-      nextPositions[panelId] = {
-        x: Math.min(Math.max(positions[panelId].x, 0), maxX),
-        y: Math.min(Math.max(positions[panelId].y, 0), maxY)
-      };
-
-      return nextPositions;
-    }, {} as PanelPositions);
+        return nextPositions;
+      },
+      {} as PanelPositions,
+    );
   }, [panelRefsById]);
 
   const bodyTypeRef = useRef(bodyType);
@@ -233,6 +232,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     correctReps: 0,
     minScoreInRep: 100,
     repScores: [],
+    repDeviations: [],
     accuracy: 100,
     plankSpline: createPlankCalibration(),
     hipSplineDeviation: 0,
@@ -558,6 +558,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       totalReps: mutableState.current.totalReps,
       correctReps: mutableState.current.correctReps,
       repScores: mutableState.current.repScores,
+      repDeviations: mutableState.current.repDeviations,
       duration: seconds,
       accuracy: accuracy,
       mistakes: mutableState.current.mistakes,
@@ -1202,9 +1203,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         style={srOnly}
       >
         {alertAnnouncement}
-      </div>
-
-      <style>{`
+      </div>      <style>{`
         @keyframes radar-pulse {
           0% { transform: scale(1); opacity: 0.8; }
           50% { transform: scale(1.5); opacity: 0.3; }
@@ -1228,6 +1227,62 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           75% { transform: translateX(-48%); }
         }
       `}</style>
+
+      {showExitModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 999,
+            backdropFilter: 'blur(8px)'
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '20px',
+              padding: '30px',
+              width: '320px',
+              textAlign: 'center',
+              color: 'white',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+            }}
+          >
+            <h2>Confirm Exit</h2>
+            <p>Are you sure you want to end your workout session?</p>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '20px',
+                marginTop: '20px'
+              }}
+            >
+              <button
+                className="btn-neon"
+                onClick={() => setShowExitModal(false)}
+              >
+                Stay
+              </button>
+              <button
+                className="btn-neon"
+                style={{ background: 'var(--neon-red)' }}
+                onClick={handleEnd}
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

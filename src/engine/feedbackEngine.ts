@@ -4,6 +4,7 @@
  */
 
 // --- Types & Interfaces ---
+import { JointDeviationProfiler } from '../services/skeletalSense';
 
 export interface DetectionIssue {
   type: string;
@@ -17,6 +18,7 @@ export interface FeedbackResult {
   color: "green" | "yellow" | "red";
   message: string;
   issues: DetectionIssue[];
+  deviation: number;
 }
 
 type ExerciseRule = (ctx: any) => DetectionIssue[];
@@ -205,6 +207,8 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
+const jointDeviationProfiler = new JointDeviationProfiler();
+
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
 
@@ -219,7 +223,22 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
       color: "green",
       message: "Good form ✅",
       issues: [],
+      deviation: jointDeviationProfiler.getStandardDeviation(),
     };
+  }
+
+  // Update the deviation profiler with a posture metric specific to the exercise
+  let postureMetric = 0;
+  if (exerciseKey === 'pushup' || exerciseKey === 'plank') {
+    postureMetric = ctx.bodyLine;
+  } else if (exerciseKey === 'squat' || exerciseKey === 'lunge') {
+    postureMetric = ctx.lateralScore;
+  } else if (exerciseKey === 'bicepCurl') {
+    postureMetric = ctx.shoulder;
+  }
+  
+  if (postureMetric !== undefined && postureMetric !== null && !isNaN(postureMetric)) {
+    jointDeviationProfiler.update(postureMetric);
   }
 
   const detectedIssues = ruleFn(ctx);
@@ -255,6 +274,7 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
     color,
     message,
     issues: detectedIssues,
+    deviation: jointDeviationProfiler.getStandardDeviation(),
   };
 }
 
@@ -263,4 +283,5 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
  */
 export function resetFeedbackEngine(): void {
   scoreHistory = [];
+  jointDeviationProfiler.reset();
 }

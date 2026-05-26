@@ -67,3 +67,56 @@ class SkeletalSense {
 }
 
 export const skeletalSense = new SkeletalSense();
+
+/**
+ * A helper class to compute running variance and standard deviation
+ * dynamically using Welford's online algorithm. Used to track form fatigue
+ * and posture inconsistencies across repetitions.
+ */
+export class JointDeviationProfiler {
+  private count = 0;
+  private mean = 0;
+  private m2 = 0;
+
+  /**
+   * Adds a new value to the running statistics.
+   */
+  public update(value: number): void {
+    this.count++;
+    const delta = value - this.mean;
+    this.mean += delta / this.count;
+    const delta2 = value - this.mean;
+    this.m2 += delta * delta2;
+  }
+
+  /**
+   * Returns the current variance of the collected values.
+   */
+  public getVariance(): number {
+    if (this.count < 2) return 0;
+    return this.m2 / (this.count - 1);
+  }
+
+  /**
+   * Returns the current standard deviation of the collected values.
+   */
+  public getStandardDeviation(): number {
+    return Math.sqrt(this.getVariance());
+  }
+
+  /**
+   * Returns the current mean.
+   */
+  public getMean(): number {
+    return this.mean;
+  }
+
+  /**
+   * Resets the running statistics.
+   */
+  public reset(): void {
+    this.count = 0;
+    this.mean = 0;
+    this.m2 = 0;
+  }
+}
