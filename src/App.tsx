@@ -5,6 +5,7 @@ import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
 import { ReplayScreen } from "./components/ReplayScreen";
 import { TrophyRoom } from "./components/TrophyRoom";
+import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
@@ -33,7 +34,8 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password"
-  | "trophy";
+  | "trophy"
+  | "profile";
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -272,6 +274,7 @@ function App() {
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
+          onViewProfile={user ? () => navigateTo("profile") : undefined}
           leveling={leveling}
         />
       )}
@@ -318,6 +321,10 @@ function App() {
 
         {currentScreen === "trophy" && (
           <TrophyRoom onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "profile" && (
+          <UserProfileScreen onLogout={() => navigateTo("welcome")} />
         )}
       </Suspense>
 
