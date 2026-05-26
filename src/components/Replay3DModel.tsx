@@ -2,9 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { createBaseMaterialForSkin } from "../utils/avatarSkins";
 
 
 export interface ReplayFrame {
@@ -24,10 +22,7 @@ export interface Replay3DModelProps {
   onFrameChange?: (idx: number) => void;
   onPlayToggle?: () => void;
   hideControls?: boolean;
-  enableBloom?: boolean;
-  bloomStrength?: number;
-  bloomRadius?: number;
-  bloomThreshold?: number;
+  skin?: string;
 }
 
 type HudLabel = {
@@ -117,10 +112,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   onFrameChange,
   onPlayToggle,
   hideControls = false,
-  enableBloom = true,
-  bloomStrength = 1.15,
-  bloomRadius = 0.25,
-  bloomThreshold = 0.18,
+  skin = "Standard Human",
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying] = useState(false);
@@ -174,6 +166,21 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => {
     console.log("Replay frames:", frames?.length || 0);
   }, [frames]);
+
+  useEffect(() => {
+    if (modelLoaded && skinnedMeshesRef.current.length > 0) {
+      skinnedMeshesRef.current.forEach((mesh) => {
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => m.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+        }
+        mesh.material = createBaseMaterialForSkin(skin);
+      });
+    }
+  }, [skin, modelLoaded]);
 
   useEffect(() => {
     if (!frames || frames.length === 0) return;
@@ -345,14 +352,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
             const mesh = o as THREE.SkinnedMesh;
             skinnedMeshesRef.current.push(mesh);
-            // Fix: Avoid array material cloning crash by creating a fresh green holographic material
-            mesh.material = new THREE.MeshStandardMaterial({
-              color: 0x00ff00,
-              roughness: 0.2,
-              metalness: 0.8,
-              emissive: 0x00ff00,
-              emissiveIntensity: 0.1,
-            });
+            mesh.material = createBaseMaterialForSkin(skin);
             // ✨ Enable shadows on skinned mesh for dynamic lighting
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -919,9 +919,25 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const hasError = badJoints.size > 0;
           const targetColor = hasError ? mistakeColor || COLOR_RED : baseColor;
 
-          // Lerp model tint to highlight issues
-          if (mat && mat.color) mat.color.lerp(targetColor, 0.2);
-          if (mat && mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+          if (skin === "Cyberpunk Neon") {
+            // Cyberpunk Neon: Dark base color, neon glowing grid (Cyan normal, Orange warn, Magenta/Red error)
+            const neonColor = hasError
+              ? (mistakeColor || new THREE.Color(0xff00ff))
+              : targetColor;
+            if (mat.color) mat.color.lerp(new THREE.Color(0x050505), 0.2);
+            if (mat.emissive) mat.emissive.lerp(neonColor, 0.2);
+            mat.emissiveIntensity = hasError ? 1.5 : 1.2;
+          } else if (skin === "Robot") {
+            // Robot: Silver metallic body with subtle glowing status reflections (Green optimal, Yellow warm, Red error)
+            if (mat.color) mat.color.lerp(new THREE.Color(0xd0d0d0), 0.2);
+            if (mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+            mat.emissiveIntensity = hasError ? 1.0 : (baseColor.equals(COLOR_GREEN) ? 0.3 : 0.6);
+          } else {
+            // Standard Human: Realistic skin tone with dynamic warning glow on mistakes/calibration status
+            if (mat.color) mat.color.lerp(new THREE.Color(0xe0a080), 0.2);
+            if (mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+            mat.emissiveIntensity = hasError ? 0.4 : (baseColor.equals(COLOR_GREEN) ? 0.05 : 0.1);
+          }
         });
       } else {
         // --- Output to Fallback Skeleton ---
@@ -988,7 +1004,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx]);
+  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx, skin]);
 
   if (!frames || frames.length === 0) {
     return (

@@ -1,13 +1,8 @@
-import React, { useState, useEffect } from "react";
-import {
-  LayoutDashboard,
-  Play,
-  Pause,
-  CheckCircle2,
-  AlertTriangle,
-} from "lucide-react";
-import { Replay3DModel } from "./Replay3DModel";
-import { sessionRecorder } from "../services/sessionRecorder";
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, Play, Pause, CheckCircle2, AlertTriangle, Palette } from 'lucide-react';
+import { Replay3DModel } from './Replay3DModel';
+import { sessionRecorder } from '../services/sessionRecorder';
+import { AVATAR_SKINS } from '../utils/avatarSkins';
 
 interface ReplayScreenProps {
   onBack: () => void;
@@ -25,7 +20,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
   const frames = (sessionRecorder as any).frames || [];
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [sessionId] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
+  const [selectedSkin, setSelectedSkin] = useState<string>(AVATAR_SKINS.STANDARD_HUMAN);
 
   // Derive live vectors from current frame
   const currentFrame = frames[currentFrameIdx];
@@ -244,6 +239,90 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
         </button>
       </div>
 
+      {/* ── RIGHT SETTINGS PANEL ── */}
+      <div style={{
+        position: 'absolute', top: '90px', right: '20px',
+        width: '260px',
+        zIndex: 20,
+        background: 'rgba(0,0,0,0.7)',
+        border: '1px solid rgba(0,255,255,0.15)',
+        borderRadius: '10px',
+        padding: '16px',
+        backdropFilter: 'blur(12px)',
+        boxShadow: '0 0 30px rgba(0,255,255,0.05)',
+      }}>
+        <div style={{
+          fontSize: '0.7rem', letterSpacing: '2px', color: 'rgba(255,255,255,0.5)',
+          textTransform: 'uppercase', fontWeight: 700, marginBottom: '14px',
+          paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', gap: '6px'
+        }}>
+          <Palette size={14} color="#00ffff" /> AVATAR CUSTOMIZATION
+        </div>
+        
+        <div style={{ marginBottom: '8px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.6)', letterSpacing: '1px' }}>
+          SELECT AVATAR SKIN
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { id: AVATAR_SKINS.STANDARD_HUMAN, label: 'STANDARD HUMAN', desc: 'Natural skin, moderate roughness' },
+            { id: AVATAR_SKINS.ROBOT, label: 'CHROME ROBOT', desc: 'High metalness, smooth reflections' },
+            { id: AVATAR_SKINS.CYBERPUNK_NEON, label: 'CYBERPUNK NEON', desc: 'Dark wireframe, bright emissive glow' }
+          ].map((skinOption) => {
+            const isSelected = selectedSkin === skinOption.id;
+            return (
+              <button
+                key={skinOption.id}
+                onClick={() => setSelectedSkin(skinOption.id)}
+                style={{
+                  background: isSelected ? 'rgba(0, 255, 255, 0.15)' : 'rgba(255,255,255,0.03)',
+                  border: isSelected ? '1px solid rgba(0, 255, 255, 0.6)' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                }}
+                onMouseEnter={e => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.border = '1px solid rgba(255,255,255,0.2)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                    e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)';
+                  }
+                }}
+              >
+                <div style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  color: isSelected ? '#00ffff' : '#fff',
+                  letterSpacing: '1px',
+                  textShadow: isSelected ? '0 0 10px rgba(0,255,255,0.5)' : 'none',
+                }}>
+                  {skinOption.label}
+                </div>
+                <div style={{
+                  fontSize: '0.6rem',
+                  color: 'rgba(255,255,255,0.4)',
+                  letterSpacing: '0.5px'
+                }}>
+                  {skinOption.desc}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── LEFT ANALYTICS PANEL ── */}
       <div
         style={{
@@ -459,10 +538,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           onFrameChange={setCurrentFrameIdx}
           onPlayToggle={() => setIsPlaying((p) => !p)}
           hideControls
-          enableBloom
-          bloomStrength={1.25}
-          bloomRadius={0.3}
-          bloomThreshold={0.16}
+          skin={selectedSkin}
         />
       </div>
 
