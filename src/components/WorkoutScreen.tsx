@@ -18,7 +18,7 @@ import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './Wo
 import { ghostService } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
-import { poseService } from "../services/poseService";
+import { gestureService, GestureCommand } from '../services/gestureService';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -186,6 +186,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
 
+  // ── Gesture workout controls ──────────────────────────────────────────────
+  /** 'idle' = not yet started, 'running' = active, 'paused' = gesture-paused */
+  type WorkoutControlState = 'idle' | 'running' | 'paused';
+  const [workoutControlState, setWorkoutControlState] = useState<WorkoutControlState>('idle');
+  const workoutControlRef = useRef<WorkoutControlState>('idle');
+  const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
+  const [gestureHudVisible, setGestureHudVisible] = useState(false);
+  const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [gestureConfidences, setGestureConfidences] = useState<Record<GestureCommand, number>>({ START: 0, PAUSE: 0, STOP: 0 });
+
   const ghostFramesRef = useRef<FrameData[]>([]);
   const ghostStatsRef = useRef<{reps: number, accuracy: number, totalReps: number} | null>(null);
   const [hasGhost, setHasGhost] = useState(false);
@@ -348,6 +358,48 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
     const filteredResults = poseLockService.filter(results);
     if (!filteredResults || !filteredResults.poseLandmarks) return;
+
+    // ── GESTURE COMMAND PARSING ─────────────────────────────────────────────
+    const gestureResult = gestureService.analyze(results.poseLandmarks);
+
+    // Keep HUD confidences updated every processed frame
+    setGestureConfidences({ ...gestureResult.gestureConfidences });
+
+    if (gestureResult.command) {
+      const cmd = gestureResult.command;
+      setLastGestureCommand(cmd);
+
+      // Show HUD flash for 3 seconds
+      setGestureHudVisible(true);
+      if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
+      gestureHudTimerRef.current = setTimeout(() => setGestureHudVisible(false), 3000);
+
+      if (cmd === 'STOP') {
+        // Trigger the existing end-session flow
+        handleEnd();
+        return;
+      } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
+        workoutControlRef.current = 'paused';
+        setWorkoutControlState('paused');
+      } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
+        workoutControlRef.current = 'running';
+        setWorkoutControlState('running');
+      }
+    }
+
+    // Skip exercise engine processing while paused
+    if (workoutControlRef.current === 'paused') {
+      if (!offscreenEnabledRef.current) {
+        overlayRenderer.draw(results, 'yellow', exercise.joints?.flat() || []);
+      }
+      return;
+    }
+
+    // Mark workout as running once the first valid frame is processed
+    if (workoutControlRef.current === 'idle') {
+      workoutControlRef.current = 'running';
+      setWorkoutControlState('running');
+    }
 
     // ── Frame skipping: process every other frame ─────────────────────
     frameSkipRef.current++;
@@ -581,63 +633,20 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     }, 1000);
 
     return () => {
-  isMountedRef.current = false;
-
-  stopSystem();
-
-  if (animationFrameRef.current !== null) {
-    cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = null;
-  }
-
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-  }
-
-  if (workerRef.current) {
-    workerRef.current.terminate();
-    workerRef.current = null;
-  }
-
-  if (wsSocketRef.current) {
-    try {
-      wsSocketRef.current.close();
-    } catch (err) {
-      console.warn("WS close failed:", err);
-    }
-
-    wsSocketRef.current = null;
-  }
-
-  pendingLandmarksRef.current = null;
-  lastObservedLandmarksRef.current = null;
-  previousObservedLandmarksRef.current = null;
-
-  dropoutFrameCountRef.current = 0;
-
-  workerAnglesRef.current = {};
-  if (videoRef.current?.srcObject) {
-  const stream = videoRef.current.srcObject as MediaStream;
-
-  stream.getTracks().forEach((track) => {
-    track.stop();
-  });
-
-  videoRef.current.srcObject = null;
-}
-  const canvas = canvasRef.current;
-
-  if (canvas) {
-    const ctx = canvas.getContext("2d");
-
-    ctx?.clearRect(0, 0, canvas.width, canvas.height);
-  }
-  (overlayRenderer as any).setContext?.(null);
-  
-  panelRefs.current = null;
-  
-  clearInterval(timerRef);
-};
+      isMountedRef.current = false;
+      stopSystem();
+      worker.terminate();
+      if (wsSocketRef.current) {
+        try {
+          wsSocketRef.current.close();
+        } catch (err) {
+          console.warn("WS close failed:", err);
+        }
+      }
+      clearInterval(timer);
+      gestureService.reset();
+      if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
+    };
   }, [exercise, startSystem, stopSystem]);
 
   useEffect(() => {
@@ -1147,6 +1156,154 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       </div>
+
+      {/* ── GESTURE PAUSED OVERLAY ─────────────────────────────────────────── */}
+      {workoutControlState === 'paused' && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 200,
+            background: 'rgba(8,12,20,0.82)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '20px',
+            pointerEvents: 'none',
+          }}
+          role="status"
+          aria-live="polite"
+          aria-label="Workout paused"
+        >
+          <div style={{ fontSize: '4rem', lineHeight: 1 }}>⏸️</div>
+          <div style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '2.4rem',
+            fontWeight: 900,
+            color: 'var(--neon-yellow)',
+            letterSpacing: '4px',
+            textShadow: '0 0 30px rgba(255,200,0,0.5)',
+          }}>
+            PAUSED
+          </div>
+          <div style={{
+            fontSize: '0.85rem',
+            color: 'rgba(255,255,255,0.7)',
+            letterSpacing: '2px',
+            textAlign: 'center',
+            maxWidth: '300px',
+            lineHeight: 1.6,
+          }}>
+            Raise <strong>both palms</strong> above your shoulders<br />
+            or give a <strong>thumbs-up</strong> to resume
+          </div>
+        </div>
+      )}
+
+      {/* ── GESTURE COMMAND HUD ────────────────────────────────────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: '24px',
+          transform: 'translateY(-50%)',
+          zIndex: 150,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          opacity: gestureHudVisible ? 1 : 0.35,
+          transition: 'opacity 0.4s ease',
+          pointerEvents: 'none',
+        }}
+        aria-label="Gesture command panel"
+      >
+        {/* Flashing command label */}
+        {gestureHudVisible && lastGestureCommand && (
+          <div style={{
+            background: lastGestureCommand === 'STOP'
+              ? 'rgba(239,68,68,0.9)'
+              : lastGestureCommand === 'PAUSE'
+                ? 'rgba(234,179,8,0.9)'
+                : 'rgba(34,197,94,0.9)',
+            color: '#fff',
+            fontFamily: 'var(--font-heading)',
+            fontWeight: 900,
+            fontSize: '0.75rem',
+            letterSpacing: '3px',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            textAlign: 'center',
+            boxShadow: '0 0 20px currentColor',
+            animation: 'gesture-flash 0.3s ease',
+          }}>
+            ✋ {lastGestureCommand}
+          </div>
+        )}
+
+        {/* Confidence bars for each gesture */}
+        {(['START', 'PAUSE', 'STOP'] as GestureCommand[]).map((cmd) => {
+          const pct = Math.round((gestureConfidences[cmd] ?? 0) * 100);
+          const barColor = cmd === 'STOP'
+            ? '#ef4444'
+            : cmd === 'PAUSE'
+              ? '#eab308'
+              : '#22c55e';
+          const icon = cmd === 'STOP' ? '🤞' : cmd === 'PAUSE' ? '✋' : '🙌';
+          return (
+            <div key={cmd} style={{
+              background: 'rgba(8,12,20,0.75)',
+              border: `1px solid ${barColor}44`,
+              borderRadius: '10px',
+              padding: '6px 10px',
+              minWidth: '100px',
+              backdropFilter: 'blur(8px)',
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '4px',
+              }}>
+                <span style={{ fontSize: '0.6rem', color: barColor, fontWeight: 700, letterSpacing: '1px' }}>
+                  {icon} {cmd}
+                </span>
+                <span style={{ fontSize: '0.6rem', color: barColor, fontWeight: 700 }}>{pct}%</span>
+              </div>
+              <div style={{ height: '3px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${pct}%`,
+                  height: '100%',
+                  background: barColor,
+                  transition: 'width 0.15s linear',
+                  borderRadius: '2px',
+                }} />
+              </div>
+            </div>
+          );
+        })}
+
+        <div style={{
+          fontSize: '0.55rem',
+          color: 'rgba(255,255,255,0.4)',
+          textAlign: 'center',
+          letterSpacing: '1px',
+          marginTop: '2px',
+        }}>
+          GESTURE CTRL
+        </div>
+      </div>
+
+      {/* Gesture animation keyframe */}
+      <style>{`
+        @keyframes gesture-flash {
+          0%   { transform: scale(0.85); opacity: 0; }
+          60%  { transform: scale(1.08); opacity: 1; }
+          100% { transform: scale(1);    opacity: 1; }
+        }
+      `}</style>
+
       {/* Bottom Metrics Bar */}
       <div
         style={{

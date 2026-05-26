@@ -306,6 +306,7 @@ export class ExerciseEngine {
       lastRepTime,
       history,
     } = currentState;
+
     let {
       stage,
       isCalibrated,
