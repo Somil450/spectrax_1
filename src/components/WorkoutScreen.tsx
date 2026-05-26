@@ -13,6 +13,7 @@ import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
+import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
@@ -124,8 +125,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+  const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
+  const displayConfigRef = useRef(displayConfig);
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+
+  useEffect(() => {
+    displayConfigRef.current = displayConfig;
+  }, [displayConfig]);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -339,12 +346,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           if (frameSkipRef.current % 2 !== 0) {
             // Still render overlay on skipped frames for smooth display
             if (!offscreenEnabled) {
-              const primaryJoints = exercise.joints?.flat() || [];
-              overlayRenderer.draw(
-                results,
-                mutableState.current.status,
-                primaryJoints,
-              );
+              if (displayConfigRef.current.skeletonWires) {
+                const primaryJoints = exercise.joints?.flat() || [];
+                overlayRenderer.draw(
+                  results,
+                  mutableState.current.status,
+                  primaryJoints,
+                );
+              } else {
+                overlayRenderer.clear();
+              }
             }
             return;
           }
@@ -434,7 +445,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
           // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
           if (!offscreenEnabled) {
-            overlayRenderer.draw(results, nextState.status, primaryJoints);
+            if (displayConfigRef.current.skeletonWires) {
+              overlayRenderer.draw(results, nextState.status, primaryJoints);
+            } else {
+              overlayRenderer.clear();
+            }
           }
         });
 
@@ -637,6 +652,25 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         />
       </div>
 
+      {/* Target Overlays for IndexedDB State logic */}
+      {displayConfig.fpsDisplay && (
+        <div style={{ position: "absolute", top: 10, left: 10, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "5px 10px", borderRadius: "5px", fontFamily: "monospace", fontSize: "12px", zIndex: 100 }}>
+          FPS: {FPS_LIMIT} / ACTIVE
+        </div>
+      )}
+
+      {displayConfig.graphFeeds && (
+        <div style={{ position: "absolute", bottom: 10, right: 10, width: "150px", height: "80px", color: "var(--neon-green)", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-green)", padding: "5px", borderRadius: "5px", fontFamily: "monospace", fontSize: "10px", zIndex: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+          <span>Telemetry Graph Feed</span>
+          <div style={{ height: "40px", borderBottom: "1px solid var(--neon-green)", position: "relative" }}>
+            <div style={{ position: "absolute", bottom: 0, left: "10%", width: "10%", height: "20%", background: "var(--neon-green)" }}></div>
+            <div style={{ position: "absolute", bottom: 0, left: "30%", width: "10%", height: "60%", background: "var(--neon-green)" }}></div>
+            <div style={{ position: "absolute", bottom: 0, left: "50%", width: "10%", height: "40%", background: "var(--neon-green)" }}></div>
+            <div style={{ position: "absolute", bottom: 0, left: "70%", width: "10%", height: "90%", background: "var(--neon-green)" }}></div>
+          </div>
+        </div>
+      )}
+
       {/* Model Loading Status Overlay */}
       {clipEngine.isBusy() && (
         <div
@@ -754,7 +788,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       </div>
-      <div className="workout-layout-controls">
+      <div className="workout-layout-controls" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button
           type="button"
           className={`workout-lock-toggle ${panelsLocked ? 'is-locked' : 'is-unlocked'}`}
@@ -762,6 +796,27 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         >
           {panelsLocked ? <Lock size={16} /> : <Unlock size={16} />}
           {panelsLocked ? 'Unlock Layout' : 'Lock Layout'}
+        </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle is-unlocked`}
+          onClick={() => updateDisplayConfig({ skeletonWires: !displayConfig.skeletonWires })}
+        >
+          {displayConfig.skeletonWires ? 'Hide Skeleton' : 'Show Skeleton'}
+        </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle is-unlocked`}
+          onClick={() => updateDisplayConfig({ graphFeeds: !displayConfig.graphFeeds })}
+        >
+          {displayConfig.graphFeeds ? 'Hide Graph' : 'Show Graph'}
+        </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle is-unlocked`}
+          onClick={() => updateDisplayConfig({ fpsDisplay: !displayConfig.fpsDisplay })}
+        >
+          {displayConfig.fpsDisplay ? 'Hide FPS' : 'Show FPS'}
         </button>
       </div>
 
