@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
-import { cameraService } from '../services/cameraService';
-import { poseService } from '../services/poseService';
+import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { exerciseEngine, EngineState,createPlankCalibration } from '../services/exerciseEngine';
@@ -13,6 +12,7 @@ import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
+import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
@@ -107,6 +107,7 @@ const srOnly: React.CSSProperties = {
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isMountedRef = useRef<boolean>(true);
   const panelRefs = useRef<Record<WorkoutPanelId, React.RefObject<HTMLDivElement>> | null>(null);
 
   if (!panelRefs.current) {
@@ -124,8 +125,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+  const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
+  const displayConfigRef = useRef(displayConfig);
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+
+  useEffect(() => {
+    displayConfigRef.current = displayConfig;
+  }, [displayConfig]);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -155,17 +162,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
   });
 
-  const frameId = useRef<number>(0);
-  const lastProcessTime = useRef<number>(0);
-  const countRef = useRef<number>(0);
   const startTimeRef = useRef<number>(Date.now());
   const frameSkipRef = useRef<number>(0); // frame-skip counter
   const workerRef = useRef<Worker | null>(null); // pose worker
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
   const [mismatchError, setMismatchError] = useState<string | null>(null);
-  const FPS_LIMIT = 20; // ↑ Raised from 15 → 20 for smoother tracking
 
-  const clampPanelPositions = (positions: PanelPositions) => {
+
+  const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
 
     return (Object.keys(positions) as WorkoutPanelId[]).reduce((nextPositions, panelId) => {
@@ -180,7 +184,18 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
       return nextPositions;
     }, {} as PanelPositions);
-  };
+  }, [panelRefsById]);
+
+  const bodyTypeRef = useRef(bodyType);
+  const onAutoDetectRef = useRef(onAutoDetect);
+
+  useEffect(() => {
+    bodyTypeRef.current = bodyType;
+  }, [bodyType]);
+
+  useEffect(() => {
+    onAutoDetectRef.current = onAutoDetect;
+  }, [onAutoDetect]);
 
   // Use refs for real-time logic to avoid state lags in the pose callback
   const mutableState = useRef<EngineState>({
@@ -251,210 +266,211 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }, [mismatchError]);
 
 
-  useEffect(() => {
-    let isMounted = true;
+  const workerAnglesRef = useRef<Record<string, number>>({});
+  const wsSocketRef = useRef<WebSocket | null>(null);
+  const offscreenEnabledRef = useRef<boolean>(false);
 
+  const handlePoseResults = useCallback(async (results: any) => {
+    // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
+    const filteredResults = poseLockService.filter(results);
+    if (!filteredResults || !filteredResults.poseLandmarks) return;
+
+    // ── Frame skipping: process every other frame ─────────────────────
+    frameSkipRef.current++;
+    if (frameSkipRef.current % 2 !== 0) {
+      // Still render overlay on skipped frames for smooth display
+      if (!offscreenEnabledRef.current) {
+        const primaryJoints = exercise.joints?.flat() || [];
+        overlayRenderer.draw(
+          results,
+          mutableState.current.status,
+          primaryJoints,
+        );
+      }
+      return;
+    }
+
+    // ── SKELETAL SENSE: auto-detect & mismatch (main thread, lightweight) ──
+    const skeletalResult = skeletalSense.analyze(results.poseLandmarks);
+    if (skeletalResult && skeletalResult.confidence > 0.85) {
+      const label = skeletalResult.label.toLowerCase();
+      const detectedKey = label.includes("squat")
+        ? "squat"
+        : label.includes("pushup")
+          ? "pushup"
+          : label.includes("plank")
+            ? "plank"
+            : label.includes("jumping jack")
+              ? "jumpingJack"
+              : label.includes("bicep curl")
+                ? "bicepCurl"
+                : "";
+
+      if (
+        detectedKey &&
+        detectedKey !== exercise.key &&
+        mutableState.current.reps < 2
+      ) {
+        onAutoDetectRef.current?.(detectedKey);
+      }
+      if (
+        detectedKey &&
+        detectedKey !== exercise.key &&
+        mutableState.current.reps >= 2
+      ) {
+        setMismatchError(detectedKey.toUpperCase());
+      } else {
+        setMismatchError(null);
+      }
+    }
+
+    // ── Offload angle computation to Web Worker ────────────────────────
+    pendingLandmarksRef.current = results.poseLandmarks;
+    const primaryJoints = exercise.joints?.flat() || [];
+
+    workerRef.current?.postMessage({
+      landmarks: results.poseLandmarks,
+      exercise: exercise.key,
+      frameId: frameSkipRef.current,
+      status: mutableState.current.status,
+      primaryJoints: primaryJoints,
+    });
+
+    // Use last worker result for angles (may be 1 frame stale — acceptable)
+    const angles =
+      Object.keys(workerAnglesRef.current).length > 0
+        ? workerAnglesRef.current
+        : getJointAngles(results.poseLandmarks); // Fallback if worker not ready yet
+
+    const visibility = getJointVisibility(results.poseLandmarks);
+
+    // Adjust structural thresholds dynamically based on active detected body type
+    const activeConfig = { ...exercise };
+    if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
+      activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
+    } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
+      activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
+    } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
+      activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
+    }
+
+    // 2. Process through multi-exercise engine (stays on main thread — manages state)
+    const nextState = await exerciseEngine.process(
+      activeConfig,
+      angles,
+      visibility,
+      mutableState.current,
+    );
+
+    mutableState.current = nextState;
+    setEngineState(nextState);
+
+    sessionRecorder.recordFrame({
+      timestamp: Date.now(),
+      landmarks: results.poseLandmarks,
+      angles,
+      feedback: nextState.feedback,
+      exercise: exercise.key,
+    });
+
+    // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
+    if (!offscreenEnabledRef.current) {
+      overlayRenderer.draw(results, nextState.status, primaryJoints);
+    }
+  }, [exercise]);
+
+  const handleFrameTick = useCallback((count: number) => {
+    setVlmProgress(clipEngine.getProgress());
+    if (count % 15 === 0 && videoRef.current) {
+      clipEngine.analyzeFrame(videoRef.current).then((res) => {
+        if (res && isMountedRef.current) {
+          setClipResult(res);
+        }
+      });
+    }
+  }, [videoRef]);
+
+  const {
+    startSystem,
+    stopSystem,
+  } = useCameraPose({
+    videoRef,
+    canvasRef,
+    initialFpsLimit: 20,
+    minFpsLimit: 10,
+    fpsDecrementStep: 5,
+    setupContext: false, // We manually handle canvas context and worker setup
+    onResults: handlePoseResults,
+    onFrame: handleFrameTick,
+  });
+
+  useEffect(() => {
+    isMountedRef.current = true;
     startTimeRef.current = Date.now();
 
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
-    let workerAngles: Record<string, number> = {};
 
     // Worker posts back computed angles — exercise detection stays on main thread
     worker.onmessage = (evt: MessageEvent) => {
       const { angles } = evt.data;
-      workerAngles = angles;
+      workerAnglesRef.current = angles;
     };
 
     // ── WebSocket connection to backend (optional, non-blocking) ─────────────
     let wsSocket: WebSocket | null = null;
     try {
-      wsSocket = new WebSocket(
-        "ws://localhost:3001/socket.io/?EIO=4&transport=websocket",
-      );
+      const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001").replace(/\/+$/, "");
+      const wsUrl = backendUrl.replace(/^http/, "ws") + "/socket.io/?EIO=4&transport=websocket";
+      wsSocket = new WebSocket(wsUrl);
+      wsSocketRef.current = wsSocket;
       wsSocket.onopen = () => console.log("[SpectraX WS] connected to backend");
       wsSocket.onerror = () => {
-        wsSocket = null;
+        wsSocketRef.current = null;
       }; // Silently degrade if backend offline
     } catch (_) {
-      wsSocket = null;
+      wsSocketRef.current = null;
     }
 
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
       try {
-        const isOffscreenSupported = !!(canvasRef.current as any)
-          .transferControlToOffscreen;
-        let offscreenEnabled = false;
+        const canvasEl = canvasRef.current as any;
+        if (canvasEl.__offscreenTransferred) {
+          offscreenEnabledRef.current = true;
+          console.log("[WorkoutScreen] Canvas already has Offscreen control transferred.");
+        } else {
+          const isOffscreenSupported = !!canvasEl.transferControlToOffscreen;
+          offscreenEnabledRef.current = false;
 
-        if (isOffscreenSupported) {
-          try {
-            const offscreen = (
-              canvasRef.current as any
-            ).transferControlToOffscreen();
-            worker.postMessage({ type: "initCanvas", canvas: offscreen }, [
-              offscreen,
-            ]);
-            offscreenEnabled = true;
-            console.log("[WorkoutScreen] OffscreenCanvas enabled.");
-          } catch (e) {
-            console.warn(
-              "[WorkoutScreen] Failed to transfer canvas control:",
-              e,
-            );
+          if (isOffscreenSupported) {
+            try {
+              const offscreen = canvasEl.transferControlToOffscreen();
+              worker.postMessage({ type: "initCanvas", canvas: offscreen }, [
+                offscreen,
+              ]);
+              offscreenEnabledRef.current = true;
+              canvasEl.__offscreenTransferred = true;
+              console.log("[WorkoutScreen] OffscreenCanvas enabled.");
+            } catch (e) {
+              console.warn(
+                "[WorkoutScreen] Failed to transfer canvas control:",
+                e,
+              );
+            }
           }
         }
 
-        const ctx = !offscreenEnabled
+        const ctx = !offscreenEnabledRef.current
           ? canvasRef.current.getContext("2d")
           : null;
         if (ctx) overlayRenderer.setContext(ctx);
 
         sessionRecorder.start();
         await clipEngine.init();
-        await cameraService.startCamera(videoRef.current);
-
-        poseService.onResults(async (results) => {
-          if (!isMounted) return;
-
-          // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
-          const filteredResults = poseLockService.filter(results);
-          if (!filteredResults || !filteredResults.poseLandmarks) return;
-
-          // ── Frame skipping: process every other frame ─────────────────────
-          frameSkipRef.current++;
-          if (frameSkipRef.current % 2 !== 0) {
-            // Still render overlay on skipped frames for smooth display
-            if (!offscreenEnabled) {
-              const primaryJoints = exercise.joints?.flat() || [];
-              overlayRenderer.draw(
-                results,
-                mutableState.current.status,
-                primaryJoints,
-              );
-            }
-            return;
-          }
-
-          // ── SKELETAL SENSE: auto-detect & mismatch (main thread, lightweight) ──
-          const skeletalResult = skeletalSense.analyze(results.poseLandmarks);
-          if (skeletalResult && skeletalResult.confidence > 0.85) {
-            const label = skeletalResult.label.toLowerCase();
-            const detectedKey = label.includes("squat")
-              ? "squat"
-              : label.includes("pushup")
-                ? "pushup"
-                : label.includes("plank")
-                  ? "plank"
-                  : label.includes("jumping jack")
-                    ? "jumpingJack"
-                    : label.includes("bicep curl")
-                      ? "bicepCurl"
-                      : "";
-
-            if (
-              detectedKey &&
-              detectedKey !== exercise.key &&
-              mutableState.current.reps < 2
-            ) {
-              onAutoDetect?.(detectedKey);
-            }
-            if (
-              detectedKey &&
-              detectedKey !== exercise.key &&
-              mutableState.current.reps >= 2
-            ) {
-              setMismatchError(detectedKey.toUpperCase());
-            } else {
-              setMismatchError(null);
-            }
-          }
-
-          // ── Offload angle computation to Web Worker ────────────────────────
-          pendingLandmarksRef.current = results.poseLandmarks;
-          const primaryJoints = exercise.joints?.flat() || [];
-
-          worker.postMessage({
-            landmarks: results.poseLandmarks,
-            exercise: exercise.key,
-            frameId: frameSkipRef.current,
-            status: mutableState.current.status,
-            primaryJoints: primaryJoints,
-          });
-
-          // Use last worker result for angles (may be 1 frame stale — acceptable)
-          const angles =
-            Object.keys(workerAngles).length > 0
-              ? workerAngles
-              : getJointAngles(results.poseLandmarks); // Fallback if worker not ready yet
-
-          const visibility = getJointVisibility(results.poseLandmarks);
-
-          // Adjust structural thresholds dynamically based on active detected body type
-          const activeConfig = { ...exercise };
-          if (bodyType === "endo" && activeConfig.key === "squat") {
-            activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
-          } else if (bodyType === "ecto" && activeConfig.key === "squat") {
-            activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
-          } else if (bodyType === "endo" && activeConfig.key === "pushup") {
-            activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
-          }
-
-          // 2. Process through multi-exercise engine (stays on main thread — manages state)
-          const nextState = await exerciseEngine.process(
-            activeConfig,
-            angles,
-            visibility,
-            mutableState.current,
-          );
-
-          mutableState.current = nextState;
-          setEngineState(nextState);
-
-          sessionRecorder.recordFrame({
-            timestamp: Date.now(),
-            landmarks: results.poseLandmarks,
-            angles,
-            feedback: nextState.feedback,
-            exercise: exercise.key,
-          });
-
-          // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
-          if (!offscreenEnabled) {
-            overlayRenderer.draw(results, nextState.status, primaryJoints);
-          }
-        });
-
-        const loop = (timestamp: number) => {
-          if (!isMounted) return;
-          const elapsed = timestamp - lastProcessTime.current;
-          if (elapsed > 1000 / FPS_LIMIT) {
-            if (
-              videoRef.current &&
-              videoRef.current.readyState >= 2 &&
-              !videoRef.current.paused
-            ) {
-              poseService.send(videoRef.current);
-
-              countRef.current++;
-              if (countRef.current % 5 === 0)
-                setVlmProgress(clipEngine.getProgress());
-
-              if (countRef.current % 15 === 0 && canvasRef.current) {
-                clipEngine.analyzeFrame(canvasRef.current).then((res) => {
-                  if (res && isMounted) {
-                    setClipResult(res);
-                  }
-                });
-              }
-            }
-            lastProcessTime.current = timestamp;
-          }
-          frameId.current = requestAnimationFrame(loop);
-        };
-        frameId.current = requestAnimationFrame(loop);
+        await startSystem();
       } catch (err) {
         console.error("Workout camera error:", err);
       }
@@ -469,18 +485,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     }, 1000);
 
     return () => {
-      isMounted = false;
-      cancelAnimationFrame(frameId.current);
+      isMountedRef.current = false;
+      stopSystem();
       worker.terminate();
-      if (wsSocket) {
+      if (wsSocketRef.current) {
         try {
-          wsSocket.close();
-        } catch (_) {}
+          wsSocketRef.current.close();
+        } catch (err) {
+          console.warn("WS close failed:", err);
+        }
       }
-      cameraService.stopCamera();
       clearInterval(timer);
     };
-  }, [exercise]);
+  }, [exercise, startSystem, stopSystem]);
 
   useEffect(() => {
     setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
@@ -494,7 +511,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [clampPanelPositions]);
 
   useEffect(() => {
     window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));
@@ -624,6 +641,25 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         />
       </div>
 
+      {/* Target Overlays for IndexedDB State logic */}
+      {displayConfig.fpsDisplay && (
+        <div style={{ position: "absolute", top: 10, left: 10, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "5px 10px", borderRadius: "5px", fontFamily: "monospace", fontSize: "12px", zIndex: 100 }}>
+          FPS: {FPS_LIMIT} / ACTIVE
+        </div>
+      )}
+
+      {displayConfig.graphFeeds && (
+        <div style={{ position: "absolute", bottom: 10, right: 10, width: "150px", height: "80px", color: "var(--neon-green)", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-green)", padding: "5px", borderRadius: "5px", fontFamily: "monospace", fontSize: "10px", zIndex: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+          <span>Telemetry Graph Feed</span>
+          <div style={{ height: "40px", borderBottom: "1px solid var(--neon-green)", position: "relative" }}>
+            <div style={{ position: "absolute", bottom: 0, left: "10%", width: "10%", height: "20%", background: "var(--neon-green)" }}></div>
+            <div style={{ position: "absolute", bottom: 0, left: "30%", width: "10%", height: "60%", background: "var(--neon-green)" }}></div>
+            <div style={{ position: "absolute", bottom: 0, left: "50%", width: "10%", height: "40%", background: "var(--neon-green)" }}></div>
+            <div style={{ position: "absolute", bottom: 0, left: "70%", width: "10%", height: "90%", background: "var(--neon-green)" }}></div>
+          </div>
+        </div>
+      )}
+
       {/* Model Loading Status Overlay */}
       {clipEngine.isBusy() && (
         <div
@@ -741,7 +777,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       </div>
-      <div className="workout-layout-controls">
+      <div className="workout-layout-controls" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button
           type="button"
           className={`workout-lock-toggle ${panelsLocked ? 'is-locked' : 'is-unlocked'}`}
@@ -749,6 +785,27 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         >
           {panelsLocked ? <Lock size={16} /> : <Unlock size={16} />}
           {panelsLocked ? 'Unlock Layout' : 'Lock Layout'}
+        </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle is-unlocked`}
+          onClick={() => updateDisplayConfig({ skeletonWires: !displayConfig.skeletonWires })}
+        >
+          {displayConfig.skeletonWires ? 'Hide Skeleton' : 'Show Skeleton'}
+        </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle is-unlocked`}
+          onClick={() => updateDisplayConfig({ graphFeeds: !displayConfig.graphFeeds })}
+        >
+          {displayConfig.graphFeeds ? 'Hide Graph' : 'Show Graph'}
+        </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle is-unlocked`}
+          onClick={() => updateDisplayConfig({ fpsDisplay: !displayConfig.fpsDisplay })}
+        >
+          {displayConfig.fpsDisplay ? 'Hide FPS' : 'Show FPS'}
         </button>
       </div>
 

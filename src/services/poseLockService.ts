@@ -7,6 +7,7 @@ import { Results, NormalizedLandmarkList } from '@mediapipe/pose';
  */
 
 export class PoseLockService {
+  
   private lastCentroid: { x: number, y: number } | null = null;
   private lastArea: number | null = null;
   private isLocked = false;
