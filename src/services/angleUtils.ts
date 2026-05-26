@@ -42,6 +42,14 @@ export function getJointAngles(landmarks: any): Record<string, number> {
   const shoulder = landmarks[ids.s];
   const hip = landmarks[ids.h];
   const ankle = landmarks[ids.a];
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftElbow = landmarks[13];
+  const rightElbow = landmarks[14];
+  const leftHip = landmarks[23];
+  const rightHip = landmarks[24];
+  const leftAnkle = landmarks[27];
+  const rightAnkle = landmarks[28];
 
   // 1. Vertical Depth (Squats)
   const totalVerticalHeight = Math.abs(ankle.y - shoulder.y) || 1;
@@ -56,6 +64,11 @@ export function getJointAngles(landmarks: any): Record<string, number> {
   // Body length in X-space. Should be large for plank/pushup.
   const horizontalStretch = Math.abs(ankle.x - shoulder.x);
 
+  const leftArmOpen = calculateAngle(leftElbow, leftShoulder, leftHip);
+  const rightArmOpen = calculateAngle(rightElbow, rightShoulder, rightHip);
+  const hipWidth = Math.abs((leftHip?.x ?? 0) - (rightHip?.x ?? 0)) || 0.1;
+  const ankleGap = Math.abs((leftAnkle?.x ?? 0) - (rightAnkle?.x ?? 0));
+
   return {
     knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
     elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
@@ -63,7 +76,9 @@ export function getJointAngles(landmarks: any): Record<string, number> {
     bodyLine: calculateAngle(landmarks[ids.s], landmarks[ids.h], landmarks[ids.a]),
     hipDepth: hipDepth * 100,
     lateralScore: lateralScore * 100,
-    horizontalStretch: horizontalStretch * 100
+    horizontalStretch: horizontalStretch * 100,
+    jumpingJackArmOpen: (leftArmOpen + rightArmOpen) / 2,
+    jumpingJackLegSpread: Math.min(300, (ankleGap / hipWidth) * 100),
   };
 }
 
