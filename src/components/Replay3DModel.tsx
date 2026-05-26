@@ -3,11 +3,30 @@ import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
+
+// ─── Module-Level GLTF Cache ──────────────────────────────────────────────────
+
+const gltfCache = new Map<string, GLTF>();
+
+/**
+ * Clear the module-level GLTF cache.
+ * Useful for hot-reload and testing environments.
+ */
+export function clearGLTFCache(): void {
+  gltfCache.clear();
+}
+
+// Vite HMR: clear cache on hot module replacement
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    clearGLTFCache();
+  });
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -513,6 +532,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const [_isPlaying, _setIsPlaying] = useState(false);
   const [_currentFrameIdx, _setCurrentFrameIdx] = useState(0);
   const [modelLoaded, setModelLoaded] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
 
   // ─ Graphic state ─
   const [graphicsPreset, setGraphicsPreset] = useState<GraphicsPreset>("high");
@@ -736,93 +757,111 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     });
     bonesRef.current = createdBones;
 
-    // GLTF model
-    const loader = new GLTFLoader();
-    loader.load(
-      modelUrl,
-      (gltf) => {
-        const model = gltf.scene;
-        model.position.y = -1;
-        scene.add(model);
-        modelGroupRef.current = model;
+    // GLTF model — cache-first loading
+    setModelLoading(true);
+    setModelError(null);
 
-        const bones: Record<string, THREE.Bone> = {};
-        model.traverse((o) => {
-          if (o.type === "Bone") {
-            const name = o.name.toLowerCase();
-            if (name.includes("leftarm")  && !name.includes("fore")) bones.leftShoulder  = o as THREE.Bone;
-            if (name.includes("leftforearm"))                         bones.leftElbow     = o as THREE.Bone;
-            if (name.includes("lefthand")  || name.includes("leftwrist"))  bones.leftWrist  = o as THREE.Bone;
-            if (name.includes("rightarm") && !name.includes("fore")) bones.rightShoulder = o as THREE.Bone;
-            if (name.includes("rightforearm"))                        bones.rightElbow    = o as THREE.Bone;
-            if (name.includes("righthand") || name.includes("rightwrist")) bones.rightWrist = o as THREE.Bone;
-            if (name.includes("leftupleg")  || name.includes("lefthip"))   bones.leftHip   = o as THREE.Bone;
-            if (name.includes("leftleg")    || name.includes("leftknee"))  bones.leftKnee  = o as THREE.Bone;
-            if (name.includes("leftfoot")   || name.includes("leftankle")) bones.leftAnkle = o as THREE.Bone;
-            if (name.includes("rightupleg") || name.includes("righthip"))  bones.rightHip  = o as THREE.Bone;
-            if (name.includes("rightleg")   || name.includes("rightknee")) bones.rightKnee = o as THREE.Bone;
-            if (name.includes("rightfoot")  || name.includes("rightankle"))bones.rightAnkle= o as THREE.Bone;
-            if (name.includes("spine")) {
-              if (name.includes("1")) bones.spine1 = o as THREE.Bone;
-              else if (name.includes("2")) bones.spine2 = o as THREE.Bone;
-              else bones.spine = o as THREE.Bone;
-            }
-            if (name.includes("hips") && !name.includes("left") && !name.includes("right"))
-              bones.hips = o as THREE.Bone;
-            if (name.includes("neck")) bones.neck = o as THREE.Bone;
-            if (name.includes("head")) bones.head = o as THREE.Bone;
-          }
-          if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
-            const mesh = o as THREE.SkinnedMesh;
-            skinnedMeshesRef.current.push(mesh);
-            mesh.material     = createBaseMaterialForSkin(skin);
-            mesh.castShadow   = true;
-            mesh.receiveShadow = true;
-          }
-        });
-        boneMapRef.current = bones;
+    const setupModel = (gltf: GLTF) => {
+      // Always clone from cache — never mutate the cached original
+      const model = gltf.scene.clone(true);
+      model.position.y = -1;
+      scene.add(model);
+      modelGroupRef.current = model;
 
-        model.updateMatrixWorld(true);
-        const hipPos = new THREE.Vector3();
-        if (bones.hips) {
-          bones.hips.getWorldPosition(hipPos);
-          rootOffsetRef.current = model.position.clone().sub(hipPos);
+      const bones: Record<string, THREE.Bone> = {};
+      model.traverse((o) => {
+        if (o.type === "Bone") {
+          const name = o.name.toLowerCase();
+          if (name.includes("leftarm")  && !name.includes("fore")) bones.leftShoulder  = o as THREE.Bone;
+          if (name.includes("leftforearm"))                         bones.leftElbow     = o as THREE.Bone;
+          if (name.includes("lefthand")  || name.includes("leftwrist"))  bones.leftWrist  = o as THREE.Bone;
+          if (name.includes("rightarm") && !name.includes("fore")) bones.rightShoulder = o as THREE.Bone;
+          if (name.includes("rightforearm"))                        bones.rightElbow    = o as THREE.Bone;
+          if (name.includes("righthand") || name.includes("rightwrist")) bones.rightWrist = o as THREE.Bone;
+          if (name.includes("leftupleg")  || name.includes("lefthip"))   bones.leftHip   = o as THREE.Bone;
+          if (name.includes("leftleg")    || name.includes("leftknee"))  bones.leftKnee  = o as THREE.Bone;
+          if (name.includes("leftfoot")   || name.includes("leftankle")) bones.leftAnkle = o as THREE.Bone;
+          if (name.includes("rightupleg") || name.includes("righthip"))  bones.rightHip  = o as THREE.Bone;
+          if (name.includes("rightleg")   || name.includes("rightknee")) bones.rightKnee = o as THREE.Bone;
+          if (name.includes("rightfoot")  || name.includes("rightankle"))bones.rightAnkle= o as THREE.Bone;
+          if (name.includes("spine")) {
+            if (name.includes("1")) bones.spine1 = o as THREE.Bone;
+            else if (name.includes("2")) bones.spine2 = o as THREE.Bone;
+            else bones.spine = o as THREE.Bone;
+          }
+          if (name.includes("hips") && !name.includes("left") && !name.includes("right"))
+            bones.hips = o as THREE.Bone;
+          if (name.includes("neck")) bones.neck = o as THREE.Bone;
+          if (name.includes("head")) bones.head = o as THREE.Bone;
         }
+        if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
+          const mesh = o as THREE.SkinnedMesh;
+          skinnedMeshesRef.current.push(mesh);
+          mesh.material     = createBaseMaterialForSkin(skin);
+          mesh.castShadow   = true;
+          mesh.receiveShadow = true;
+        }
+      });
+      boneMapRef.current = bones;
 
-        const recordRest = (boneKey: string, childKey: string) => {
-          const bone = bones[boneKey], childBone = bones[childKey];
-          if (!bone || !childBone) return;
-          const pPos = new THREE.Vector3(), cPos = new THREE.Vector3();
-          bone.getWorldPosition(pPos);
-          childBone.getWorldPosition(cPos);
-          const dir = new THREE.Vector3().subVectors(cPos, pPos).normalize();
-          if (dir.lengthSq() < 0.001) return;
-          const worldQ = new THREE.Quaternion();
-          bone.getWorldQuaternion(worldQ);
-          restDataRef.current[boneKey] = { worldQuat: worldQ.clone(), localQuat: bone.quaternion.clone(), dir: dir.clone() };
-        };
+      model.updateMatrixWorld(true);
+      const hipPos = new THREE.Vector3();
+      if (bones.hips) {
+        bones.hips.getWorldPosition(hipPos);
+        rootOffsetRef.current = model.position.clone().sub(hipPos);
+      }
 
-        recordRest("leftShoulder", "leftElbow");
-        recordRest("leftElbow",    "leftWrist");
-        recordRest("rightShoulder","rightElbow");
-        recordRest("rightElbow",   "rightWrist");
-        recordRest("leftHip",      "leftKnee");
-        recordRest("leftKnee",     "leftAnkle");
-        recordRest("rightHip",     "rightKnee");
-        recordRest("rightKnee",    "rightAnkle");
-        if (bones.spine && bones.spine1) recordRest("spine", "spine1");
-        if (bones.neck  && bones.head)   recordRest("neck",  "head");
+      const recordRest = (boneKey: string, childKey: string) => {
+        const bone = bones[boneKey], childBone = bones[childKey];
+        if (!bone || !childBone) return;
+        const pPos = new THREE.Vector3(), cPos = new THREE.Vector3();
+        bone.getWorldPosition(pPos);
+        childBone.getWorldPosition(cPos);
+        const dir = new THREE.Vector3().subVectors(cPos, pPos).normalize();
+        if (dir.lengthSq() < 0.001) return;
+        const worldQ = new THREE.Quaternion();
+        bone.getWorldQuaternion(worldQ);
+        restDataRef.current[boneKey] = { worldQuat: worldQ.clone(), localQuat: bone.quaternion.clone(), dir: dir.clone() };
+      };
 
-        setModelLoaded(true);
-        jointsRef.current.forEach((j) => (j.visible = false));
-        bonesRef.current.forEach((b) => (b.line.visible = false));
-      },
-      undefined,
-      (err) => {
-        console.warn("Replay3DModel: Failed to load GLTF, falling back to skeleton.", err);
-        setModelLoaded(false);
-      },
-    );
+      recordRest("leftShoulder", "leftElbow");
+      recordRest("leftElbow",    "leftWrist");
+      recordRest("rightShoulder","rightElbow");
+      recordRest("rightElbow",   "rightWrist");
+      recordRest("leftHip",      "leftKnee");
+      recordRest("leftKnee",     "leftAnkle");
+      recordRest("rightHip",     "rightKnee");
+      recordRest("rightKnee",    "rightAnkle");
+      if (bones.spine && bones.spine1) recordRest("spine", "spine1");
+      if (bones.neck  && bones.head)   recordRest("neck",  "head");
+
+      setModelLoaded(true);
+      setModelLoading(false);
+      jointsRef.current.forEach((j) => (j.visible = false));
+      bonesRef.current.forEach((b) => (b.line.visible = false));
+    };
+
+    // Check cache first
+    if (gltfCache.has(modelUrl)) {
+      setupModel(gltfCache.get(modelUrl)!);
+    } else {
+      const loader = new GLTFLoader();
+      loader.load(
+        modelUrl,
+        (gltf) => {
+          // Store in cache, then clone for use
+          gltfCache.set(modelUrl, gltf);
+          setupModel(gltf);
+        },
+        undefined,
+        (err) => {
+          console.warn("Replay3DModel: Failed to load GLTF, falling back to skeleton.", err);
+          setModelLoaded(false);
+          setModelLoading(false);
+          setModelError("Failed to load 3D model. Using skeleton fallback.");
+        },
+      );
+    }
 
     let cancelled = false;
 
@@ -937,6 +976,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         ssaoPassRef.current  = null;
         if (mountRef.current?.contains(renderer.domElement)) mountRef.current.removeChild(renderer.domElement);
         renderer.dispose();
+        renderer.forceContextLoss();
         if (rendererRef.current  === renderer) rendererRef.current  = null;
         if (controlsRef.current  === controls) controlsRef.current  = null;
       };
@@ -973,8 +1013,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const mesh = obj as THREE.Mesh;
           if (mesh.isMesh) {
             mesh.geometry.dispose();
-            if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose());
-            else (mesh.material as THREE.Material).dispose();
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const mat of materials) {
+              // Dispose all mapped textures
+              Object.values(mat).forEach((value) => {
+                if (value instanceof THREE.Texture) {
+                  value.dispose();
+                }
+              });
+              mat.dispose();
+            }
           }
         });
         sceneRef.current?.remove(modelGroupRef.current);
@@ -990,8 +1038,17 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const mesh = obj as THREE.Mesh;
           if (mesh.isMesh) {
             mesh.geometry?.dispose();
-            if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose());
-            else (mesh.material as THREE.Material)?.dispose();
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const mat of materials) {
+              if (mat) {
+                Object.values(mat).forEach((value) => {
+                  if (value instanceof THREE.Texture) {
+                    value.dispose();
+                  }
+                });
+                mat.dispose();
+              }
+            }
           }
         });
         sceneRef.current.clear();
@@ -1262,6 +1319,61 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         ref={mountRef}
         style={{ flex: 1, minHeight: "400px", width: "100%", height: "100%", borderRadius: "8px", overflow: "hidden" }}
       />
+
+      {/* Loading Spinner Overlay */}
+      {modelLoading && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(17, 17, 17, 0.85)",
+            borderRadius: "8px",
+            zIndex: 15,
+          }}
+        >
+          <div style={{ textAlign: "center", color: "#00ffcc" }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                border: "3px solid rgba(0, 255, 204, 0.2)",
+                borderTopColor: "#00ffcc",
+                borderRadius: "50%",
+                animation: "gltf-spin 0.75s linear infinite",
+                margin: "0 auto 12px",
+              }}
+            />
+            <span style={{ fontSize: "0.8rem", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1 }}>
+              Loading 3D model...
+            </span>
+          </div>
+          <style>{`@keyframes gltf-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+      {/* Model Error Message */}
+      {modelError && (
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: 10,
+            background: "rgba(239, 68, 68, 0.15)",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            borderRadius: 6,
+            padding: "6px 12px",
+            fontSize: "0.72rem",
+            color: "#ef4444",
+            fontFamily: "'JetBrains Mono', monospace",
+            zIndex: 15,
+          }}
+        >
+          {modelError}
+        </div>
+      )}
 
       {/* Graphic Settings Overlay */}
       <GraphicsPanel
