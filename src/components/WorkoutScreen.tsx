@@ -121,6 +121,43 @@ const srOnly: React.CSSProperties = {
   border: '0',
 };
 
+const MAX_EXTRAPOLATED_FRAMES = 5;
+
+type PoseLandmark = {
+  x: number;
+  y: number;
+  z: number;
+  visibility: number;
+};
+
+const cloneLandmarks = (landmarks: PoseLandmark[]) =>
+  landmarks.map((landmark) => ({ ...landmark }));
+
+const extrapolateLandmarks = (
+  latest: PoseLandmark[] | null,
+  previous: PoseLandmark[] | null,
+  dropoutFrames: number,
+): PoseLandmark[] | null => {
+  if (!latest || !previous) return null;
+
+  const step = dropoutFrames + 1;
+  if (step > MAX_EXTRAPOLATED_FRAMES) return null;
+
+  return latest.map((landmark, index) => {
+    const prior = previous[index] ?? landmark;
+    const dx = landmark.x - prior.x;
+    const dy = landmark.y - prior.y;
+    const dz = landmark.z - prior.z;
+
+    return {
+      x: Math.min(Math.max(landmark.x + dx * step, 0), 1),
+      y: Math.min(Math.max(landmark.y + dy * step, 0), 1),
+      z: landmark.z + dz * step,
+      visibility: Math.max(0.5, Math.min(landmark.visibility, 1)),
+    };
+  });
+};
+
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const bodyTypeRef = useRef(bodyType);
   bodyTypeRef.current = bodyType;
@@ -181,6 +218,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const frameSkipRef = useRef<number>(0); // frame-skip counter
   const workerRef = useRef<Worker | null>(null); // pose worker
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
+  const lastObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
+  const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
+  const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
 
 
