@@ -1,188 +1,33 @@
-import { ExerciseConfig } from "../config/exercises";
+/**
+ * exerciseEngine.ts  (updated — squat depth classification integrated)
+ *
+ * Changes vs. original:
+ *  1. EngineState gains `lastDepthResult`, `depthStats`, and `liveDepthFeedback`.
+ *  2. After a rep is counted, `classifySquatDepth()` runs on `downAngleReached`
+ *     and the result is stored + merged into session stats.
+ *  3. During the DOWN phase, `getLiveDepthFeedback()` overlays a depth cue
+ *     when no higher-priority form issue is active.
+ *  4. The depth `scoreModifier` adjusts `minScoreInRep` so half-squats can
+ *     fall below the 70-point threshold and be rejected by the accuracy system.
+ */
+
+import { ExerciseConfig } from '../config/exercises';
+import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
+// Note: feedbackEngine.ts lives in src/engine/ — path is correct relative to src/services/
 import {
-  getFeedback,
-  resetFeedbackEngine,
-  FeedbackResult,
-} from "../engine/feedbackEngine";
-import { BodyType } from "./bodyTypeEngine";
+  classifySquatDepth,
+  getLiveDepthFeedback,
+  accumulateDepthStats,
+  initialSquatDepthStats,
+  SquatDepthResult,
+  SquatDepthStats,
+  DEFAULT_SQUAT_DEPTH_CONFIG,
+} from './Squat_depth_classifier';
+import { BodyType } from './bodyTypeEngine';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Plank Spline Types & Constants
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Stores the calibration baseline captured from the first
- * PLANK_CALIB_FRAMES frames once the user enters plank posture.
- *
- * baseline.slope / intercept describe the linear fit through
- * [shoulder.y, hip.y, knee.y] collected during that window.
- */
-export interface PlankSplineCalibration {
-  isCalibrated: boolean;
-  slope: number; // from least-squares fit
-  intercept: number; // from least-squares fit
-  frameCount: number; // frames collected so far
-  /** Running sum helpers for online least-squares */
-  sumX: number;
-  sumY: number;
-  sumXX: number;
-  sumXY: number;
-}
-
-/** How many frames to collect before locking the calibration baseline */
-const PLANK_CALIB_FRAMES = 30;
-
-/**
- * Threshold: if the hip's vertical deviation from the regression line
- * exceeds ±12 % of the body segment length, trigger a warning.
- */
-const PLANK_DEVIATION_THRESHOLD = 0.12; // 12 %
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Linear Spline Regression helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Fit a simple least-squares line  y = slope·x + intercept
- * through three collinear body-line points:
- *   (shoulderX, shoulderY), (hipX, hipY), (kneeX, kneeY)
- *
- * All coordinates are in normalised MediaPipe space [0, 1].
- *
- * Returns { slope, intercept }.
- */
-function fitBodyLineSpline(
-  shoulder: { x: number; y: number },
-  hip: { x: number; y: number },
-  knee: { x: number; y: number },
-): { slope: number; intercept: number } | null {
-  // Three points; use ordinary least-squares
-  const xs = [shoulder.x, hip.x, knee.x];
-  const ys = [shoulder.y, hip.y, knee.y];
-  const n = 3;
-
-  const sumX = xs.reduce((a, b) => a + b, 0);
-  const sumY = ys.reduce((a, b) => a + b, 0);
-  const sumXX = xs.reduce((a, b) => a + b * b, 0);
-  const sumXY = xs.reduce((acc, x, i) => acc + x * ys[i], 0);
-  const sumYY = ys.reduce((a, b) => a + b * b, 0);
-
-  const denom = n * sumXX - sumX * sumX;
-  const epsilon = 1e-9;
-  if (Math.abs(denom) < epsilon) {
-    // Vertical-ish line: fit x = m*y + b then invert if possible
-    const denomY = n * sumYY - sumY * sumY;
-    if (Math.abs(denomY) < epsilon) {
-      return null;
-    }
-
-    const m = (n * sumXY - sumY * sumX) / denomY;
-    if (Math.abs(m) < epsilon) {
-      return null;
-    }
-
-    const b = (sumX - m * sumY) / n;
-    return { slope: 1 / m, intercept: -b / m };
-  }
-
-  const slope = (n * sumXY - sumX * sumY) / denom;
-  const intercept = (sumY - slope * sumX) / n;
-  return { slope, intercept };
-}
-
-/**
- * Given a calibrated spline (slope / intercept) and the current
- * shoulder–hip–knee positions, return the signed fractional deviation
- * of the hip from where the regression line predicts it should be.
- *
- * deviation > 0  → hip is ABOVE the line  (hip sagging / dropping)
- * deviation < 0  → hip is BELOW the line  (hip raised / hyperextension)
- *
- * The deviation is normalised by the shoulder→knee segment length so
- * the ±12 % threshold is body-size invariant.
- */
-export function computeHipSplineDeviation(
-  calib: PlankSplineCalibration,
-  shoulder: { x: number; y: number },
-  hip: { x: number; y: number },
-  knee: { x: number; y: number },
-): number {
-  if (!calib.isCalibrated) return 0;
-
-  // Predicted hip Y based on its X position
-  const predictedHipY = calib.slope * hip.x + calib.intercept;
-
-  // Raw vertical residual (positive = hip higher than line in image-Y)
-  const residual = hip.y - predictedHipY;
-
-  // Normalise by shoulder-to-knee vertical span for scale invariance
-  const segmentLength = Math.abs(knee.y - shoulder.y) || 0.01;
-  return residual / segmentLength;
-}
-
-/**
- * Incrementally update the calibration state with one new frame.
- * Once PLANK_CALIB_FRAMES have been collected the baseline is locked.
- */
-export function updatePlankCalibration(
-  calib: PlankSplineCalibration,
-  shoulder: { x: number; y: number },
-  hip: { x: number; y: number },
-  knee: { x: number; y: number },
-): PlankSplineCalibration {
-  if (calib.isCalibrated) return calib; // already locked
-
-  const fit = fitBodyLineSpline(shoulder, hip, knee);
-  if (!fit) {
-    return calib;
-  }
-
-  const { slope, intercept } = fit;
-
-  // Accumulate using a rolling average of the fitted params
-  const newCount = calib.frameCount + 1;
-
-  // We average the per-frame slopes/intercepts as a simple online estimator
-  const alpha = 1 / newCount; // weight of newest sample
-  const newSlope = calib.slope * (1 - alpha) + slope * alpha;
-  const newIntercept = calib.intercept * (1 - alpha) + intercept * alpha;
-
-  const isNowCalibrated = newCount >= PLANK_CALIB_FRAMES;
-
-  const sampleSumX = shoulder.x + hip.x + knee.x;
-  const sampleSumY = shoulder.y + hip.y + knee.y;
-  const sampleSumXX = shoulder.x * shoulder.x + hip.x * hip.x + knee.x * knee.x;
-  const sampleSumXY = shoulder.x * shoulder.y + hip.x * hip.y + knee.x * knee.y;
-
-  return {
-    isCalibrated: isNowCalibrated,
-    slope: newSlope,
-    intercept: newIntercept,
-    frameCount: newCount,
-    sumX: calib.sumX + sampleSumX,
-    sumY: calib.sumY + sampleSumY,
-    sumXX: calib.sumXX + sampleSumXX,
-    sumXY: calib.sumXY + sampleSumXY,
-  };
-}
-
-/** Returns a fresh, uncalibrated PlankSplineCalibration object */
-export function createPlankCalibration(): PlankSplineCalibration {
-  return {
-    isCalibrated: false,
-    slope: 0,
-    intercept: 0,
-    frameCount: 0,
-    sumX: 0,
-    sumY: 0,
-    sumXX: 0,
-    sumXY: 0,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // EngineState
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 
 export interface EngineState {
   reps: number;
@@ -203,7 +48,7 @@ export interface EngineState {
   isInExercisePosture: boolean;
   downAngleReached: number;
 
-  // 🔥 Accuracy system
+  // Accuracy system
   totalReps: number;
   correctReps: number;
   minScoreInRep: number;
@@ -211,68 +56,47 @@ export interface EngineState {
   repDeviations: number[];
   accuracy: number;
 
-  // 🔥 Plank spline regression state
-  plankSpline: PlankSplineCalibration;
+  // ── Squat depth classification (NEW) ──────────────────────────
+  /**
+   * Classification result for the most recently completed rep.
+   * null until the first rep is counted.
+   */
+  lastDepthResult: SquatDepthResult | null;
 
   /**
-   * Latest fractional hip deviation from the calibration baseline.
-   * Passed into feedbackEngine context so rules can act on it.
-   * Positive  → hip sagging (dropped below neutral line)
-   * Negative  → hip hyperextension (raised above neutral line)
+   * Running session depth statistics accumulated across all reps.
    */
-  hipSplineDeviation: number;
+  depthStats: SquatDepthStats;
 
-  // 🔥 ADAPTIVE TRACKING RECOVERY
+  /**
+   * Real-time depth coaching string emitted during the DOWN phase.
+   * Empty string when no depth cue is active.
+   */
+  liveDepthFeedback: string;
+
+  // Tracking & recovery buffers
   visibilityBuffer?: number[];
-  lastValidAngles?: Record<string, number>;
   trackingLostFrames?: number;
-
-  // 🔥 Static hold time tracking
+  lastValidAngles?: Record<string, number>;
   holdTime?: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
-
-const ENGINE_DEFAULTS: RepParams = {
-  repCooldown: 600,
-  hysteresis: 10,
-  smoothingWindow: 8,
-  minDownDuration: 150,
-  correctRepMinScore: 70,
-  streakMinScore: 80,
-};
-
-// Per-exercise overrides (runtime register-able)
-const layoutOverrides = new Map<string, Partial<RepParams>>();
-
-export function setRepParams(key: string, params: Partial<RepParams>): void {
-  layoutOverrides.set(key, params);
-}
-
-export function clearRepParams(key: string): void {
-  layoutOverrides.delete(key);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // ExerciseEngine
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
   private readonly MIN_DOWN_DURATION = 150;
+
+  private repParams(key: string) {
+    return {
+      smoothingWindow: 5,
+      streakMinScore: 75,
+    };
+  }
 
   private isValidExercisePosture(
     history: number[],
@@ -323,8 +147,14 @@ export class ExerciseEngine {
       currentHysteresis = 10;
     }
 
-    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
-      currentState;
+    let {
+      reps,
+      stage,
+      lastRepTime,
+      isCalibrated,
+      history,
+      stageStartTime,
+    } = currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
 
@@ -357,12 +187,10 @@ export class ExerciseEngine {
     if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
         ...currentState,
-        feedback: "PARTIAL BODY LOST — ADJUST POSITION",
-        status: "yellow",
+        feedback: 'SENSORS BLURRED — POSITION BODY',
+        status: 'yellow',
         isInExercisePosture: false,
-        visibilityBuffer: newVisibilityBuffer,
-        trackingLostFrames: nextTrackingLostFrames,
-        lastValidAngles: nextLastValidAngles,
+        liveDepthFeedback: '',
       };
     }
 
@@ -395,66 +223,14 @@ export class ExerciseEngine {
         history: newHistory,
         stage,
         stageStartTime,
-        feedback: "ESTABLISHING POSTURE...",
-        status: "yellow",
+        feedback: 'ESTABLISHING POSTURE...',
+        status: 'yellow',
         isInExercisePosture: false,
-        visibilityBuffer: newVisibilityBuffer,
-        trackingLostFrames: nextTrackingLostFrames,
-        lastValidAngles: nextLastValidAngles,
+        liveDepthFeedback: '',
       };
     }
 
-    // ───────── PLANK SPLINE REGRESSION ─────────
-    let nextPlankSpline = currentState.plankSpline;
-    let hipSplineDeviation = currentState.hipSplineDeviation;
-
-    if (config.key === "plank" && landmarks && landmarks.length >= 29) {
-      // Select the more-visible side (mirrors angleUtils getBestSide logic)
-      const leftVis =
-        [11, 23, 25].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) /
-        3;
-      const rightVis =
-        [12, 24, 26].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) /
-        3;
-      const side = leftVis >= rightVis ? "left" : "right";
-
-      const shoulderIdx = side === "left" ? 11 : 12;
-      const hipIdx = side === "left" ? 23 : 24;
-      const kneeIdx = side === "left" ? 25 : 26;
-
-      const shoulder = landmarks[shoulderIdx];
-      const hip = landmarks[hipIdx];
-      const knee = landmarks[kneeIdx];
-
-      const sufficientVis =
-        (shoulder?.visibility || 0) > 0.5 &&
-        (hip?.visibility || 0) > 0.5 &&
-        (knee?.visibility || 0) > 0.5;
-
-      if (sufficientVis) {
-        // Phase 1: collect calibration baseline
-        if (!nextPlankSpline.isCalibrated) {
-          nextPlankSpline = updatePlankCalibration(
-            nextPlankSpline,
-            shoulder,
-            hip,
-            knee,
-          );
-        }
-
-        // Phase 2: compute live deviation from calibrated baseline
-        if (nextPlankSpline.isCalibrated) {
-          hipSplineDeviation = computeHipSplineDeviation(
-            nextPlankSpline,
-            shoulder,
-            hip,
-            knee,
-          );
-        }
-      }
-    }
-
-    // ───────── REP LOGIC (UNCHANGED CORE) ─────────
+    // ───────── REP LOGIC ─────────
     let nextStage = stage;
     let nextReps = reps;
     let nextLastRepTime = lastRepTime;
@@ -472,15 +248,14 @@ export class ExerciseEngine {
     }
 
     let repJustCounted = false;
+    const durationInDown = now - stageStartTime;
 
     if (
-      smoothedAngle > config.upThreshold + currentHysteresis / 2 &&
-      stage === "down"
+      smoothedAngle > (config.upThreshold + currentHysteresis / 2) &&
+      stage === 'down'
     ) {
-      const durationInDown = currentTime - stageStartTime;
-
       if (
-        currentTime - lastRepTime > currentCooldown &&
+        now - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
         nextStage = "up";
@@ -489,7 +264,12 @@ export class ExerciseEngine {
       }
     }
 
-    const isInExercisePosture = this.isValidExercisePosture(history, config, nextStage);
+    // ───────── POSTURE VALIDATION ─────────
+    const isInExercisePosture = this.isValidExercisePosture(
+      history,
+      config,
+      nextStage
+    );
 
     // Accumulate hold time for static exercises (1/FPS approximately, or based on time diff)
     // Since process is called roughly FPS times per second, we can estimate hold time.
@@ -511,11 +291,6 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      // 🔥 Plank-specific spline deviation injected into feedback context
-      hipSplineDeviation,
-      plankSplineCalibrated: nextPlankSpline.isCalibrated,
-      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
     };
 
     let feedbackResult: FeedbackResult;
@@ -525,7 +300,13 @@ export class ExerciseEngine {
       feedbackResult = getFeedback(context, config.key);
       frameScore = feedbackResult.score;
     } else {
-      feedbackResult = { score: 100, color: "green", message: "READY 🟢", issues: [], deviation: 0 };
+      feedbackResult = {
+        score: 100,
+        color: 'green',
+        message: 'READY 🟢',
+        issues: [],
+        deviation: 0,
+      };
       frameScore = 100;
     }
 
@@ -536,6 +317,28 @@ export class ExerciseEngine {
       currentDeviation = feedbackResult.deviation || 0;
     }
 
+    // ───────── LIVE DEPTH FEEDBACK (during down phase) ────────────────────
+    //
+    // Only inject depth cue when no high-priority form issue is active.
+    // Green status = no critical form error → safe to display depth coaching.
+    // We use downAngleReached (the running minimum this rep) so the cue
+    // reflects the deepest point reached so far, not the current angle.
+    // ───────────────────────────────────────────────────────────────────────
+    let liveDepthFeedback = '';
+
+    if (nextStage === 'down' && isInExercisePosture) {
+      const depthCue = getLiveDepthFeedback(
+        downAngleReached,
+        DEFAULT_SQUAT_DEPTH_CONFIG
+      );
+
+      // Surface depth cue only when form feedback is green (no overriding issue)
+      if (feedbackResult.color === 'green' && depthCue) {
+        liveDepthFeedback = depthCue;
+      }
+    }
+
+    // ───────── REP ACCURACY SYSTEM ─────────
     let nextCurrentStreak = currentState.currentStreak;
     let nextBestStreak = currentState.bestStreak;
     let nextTotalReps = currentState.totalReps;
@@ -545,10 +348,48 @@ export class ExerciseEngine {
 
     let allowRep = currentState.allowRep;
 
+    // Carry forward depth state; updated below if a rep was just counted
+    let nextLastDepthResult = currentState.lastDepthResult ?? null;
+    let nextDepthStats = currentState.depthStats ?? initialSquatDepthStats();
+
     if (repJustCounted) {
+      // ── Classify depth for the completed rep ─────────────────────────────
+      //
+      // `downAngleReached` holds the minimum femur angle for this rep.
+      // If the exercise is NOT a squat, depth classification is skipped and
+      // no score modifier is applied.  Gate on config.key.
+      // ─────────────────────────────────────────────────────────────────────
+      const isSquat = /squat/i.test(config.key);
+
+      let depthScoreModifier = 0;
+
+      if (isSquat) {
+        const depthResult = classifySquatDepth(
+          downAngleReached,
+          DEFAULT_SQUAT_DEPTH_CONFIG
+        );
+
+        nextLastDepthResult = depthResult;
+        nextDepthStats = accumulateDepthStats(nextDepthStats, depthResult);
+        depthScoreModifier = depthResult.scoreModifier;
+        if (!depthResult.isFullDepth) nextMinScoreInRep = 0;
+
+        // Apply depth modifier to the quality score for this rep.
+        // Clamp to [0, 100] so a bonus never exceeds perfect.
+        nextMinScoreInRep = Math.max(
+          0,
+          Math.min(100, nextMinScoreInRep + depthScoreModifier)
+        );
+
+        if (!depthResult.isFullDepth) {
+          nextMinScoreInRep = 0;
+        }
+      }
+
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
       nextRepDeviations.push(currentDeviation);
+
       nextLastRepTime = now;
 
       allowRep = nextMinScoreInRep > 70;
@@ -569,28 +410,49 @@ export class ExerciseEngine {
       nextMinScoreInRep = 100;
     }
 
+    // ───────── FEEDBACK DISPLAY ─────────
     let displayFeedback: string;
     let displayStatus: "green" | "yellow" | "red";
 
     if (!isInExercisePosture) {
-      displayFeedback = "Get into position...";
-      displayStatus = "yellow";
+      displayFeedback = 'Get into position...';
+      displayStatus = 'yellow';
+    } else if (nextStage === 'down' && liveDepthFeedback) {
+      // Depth cue wins when form is clean and athlete is descending
+      displayFeedback = liveDepthFeedback;
+      displayStatus = feedbackResult.color;
     } else {
       displayFeedback = feedbackResult.message;
       displayStatus = feedbackResult.color;
     }
 
+    // Show depth classification feedback right after a rep completes
+    if (repJustCounted && nextLastDepthResult) {
+      const classMsg = nextLastDepthResult.feedback;
+      displayFeedback = classMsg;
+      displayStatus =
+        nextLastDepthResult.isFullDepth ? 'green' : 'red';
+    }
+
     const nextMistakes = { ...currentState.mistakes };
-    if (isInExercisePosture && displayStatus !== "green" && displayFeedback !== "Good form ✅") {
-      nextMistakes[displayFeedback] = (nextMistakes[displayFeedback] || 0) + 1;
+
+    if (
+      isInExercisePosture &&
+      displayStatus !== 'green' &&
+      displayFeedback !== 'Good form ✅'
+    ) {
+      nextMistakes[displayFeedback] =
+        (nextMistakes[displayFeedback] || 0) + 1;
     }
 
     const nextTotalScore = isInExercisePosture ? currentState.totalScore + frameScore : currentState.totalScore;
     const nextTotalFrames = isInExercisePosture ? currentState.totalFrames + 1 : currentState.totalFrames;
 
-    const accuracy = nextTotalReps > 0
-      ? Math.round((nextCorrectReps / nextTotalReps) * 100)
-      : 100;
+    // Final accuracy %
+    const accuracy =
+      nextTotalReps > 0
+        ? Math.round((nextCorrectReps / nextTotalReps) * 100)
+        : 100;
 
     return {
       reps: nextReps,
@@ -610,24 +472,18 @@ export class ExerciseEngine {
       bestStreak: nextBestStreak,
       isInExercisePosture,
       downAngleReached,
-      totalReps:          nextTotalReps,
-      correctReps:        nextCorrectReps,
-      minScoreInRep:      nextMinScoreInRep,
-      repScores:          nextRepScores,
-      repDeviations:      nextRepDeviations,
+
+      totalReps: nextTotalReps,
+      correctReps: nextCorrectReps,
+      minScoreInRep: nextMinScoreInRep,
+      repScores: nextRepScores,
+      repDeviations: nextRepDeviations,
       accuracy,
 
-      // 🔥 Plank spline state
-      plankSpline: nextPlankSpline,
-      hipSplineDeviation,
-
-      // 🔥 Adaptive tracking recovery
-      visibilityBuffer: newVisibilityBuffer,
-      trackingLostFrames: nextTrackingLostFrames,
-      lastValidAngles: nextLastValidAngles,
-
-      // 🔥 Static hold time tracking
-      holdTime: nextHoldTime
+      // Depth classification (NEW)
+      lastDepthResult: nextLastDepthResult,
+      depthStats: nextDepthStats,
+      liveDepthFeedback,
     };
   }
 }

@@ -5,9 +5,6 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
@@ -861,7 +858,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       // Build effect passes for initial preset
       rebuildPasses(graphicsPresetRef.current, width, height);
 
-      const controls = new OrbitControls(cameraRef.current, renderer.domElement);
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(width, height),
         0.5,

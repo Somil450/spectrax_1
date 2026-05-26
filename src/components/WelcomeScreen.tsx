@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
-import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
+import { Play, Sparkles, History, Trophy, User, Activity } from "lucide-react";
+import { getSavedUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
@@ -17,12 +17,6 @@ interface WelcomeScreenProps {
   };
 }
 
-const STATS = [
-  { value: "30+", label: "FPS tracking" },
-  { value: "6", label: "exercises" },
-  { value: "< 1s", label: "feedback lag" },
-];
-
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
@@ -35,7 +29,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [userWeight, setUserWeight] = useState<string>(
-    String(getSavedUserWeight() ?? '')
+    String(getSavedUserWeight() ?? "")
   );
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -125,96 +119,153 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div
-      className="screen-container welcome-screen welcome-container"
+      className="welcome-container"
       data-theme={isDarkMode ? "dark" : "light"}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Dark Mode Toggle (From your branch) */}
+      {/* Dark Mode Toggle */}
       <button
         className="dark-mode-toggle"
         onClick={toggleDarkMode}
         aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
         title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 50 }}
       >
         {isDarkMode ? "☀️" : "🌙"}
       </button>
 
-      {/* Particle canvas & Orbs (Merged) */}
-      <canvas ref={canvasRef} className="welcome-canvas particle-canvas" />
+      {/* Particle canvas & Orbs */}
+      <canvas ref={canvasRef} className="particle-canvas" />
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
 
-        <h1
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "clamp(3.5rem, 14vw, 7rem)",
-            fontWeight: 900,
-            letterSpacing: "14px",
-            color: "var(--neon-cyan)",
-            textShadow:
-              "0 0 20px rgba(0,240,255,0.8), 0 0 40px rgba(0,240,255,0.6), 0 0 60px rgba(0,240,255,0.4), 0 0 80px rgba(0,240,255,0.2)",
-            margin: "20px 0",
-            fontStyle: "normal",
-            textTransform: "uppercase",
-          }}
-        >
-          SPECTRAX
-        </h1>
+      {/* Hero Section */}
+      <section className="hero-section">
+        <div className="hero-content animate-in">
+          {/* Level Display */}
+          {leveling && (
+            <div className="level-display">
+              <span className="level-label">LEVEL {leveling.level}</span>
+              <div className="level-progress-bar">
+                <div
+                  className="level-progress-fill"
+                  style={{ width: `${leveling.progress}%` }}
+                />
+              </div>
+              <span className="level-xp">
+                {leveling.xp} / {leveling.nextLevelXp} XP
+              </span>
+            </div>
+          )}
 
-        <p
-          style={{
-            color: "var(--text-secondary)",
-            fontSize: "1rem",
-            letterSpacing: "3px",
-            fontWeight: 300,
-            marginBottom: "48px",
-          }}
-        >
-          Real-time Pose Tracking & Performance Analysis
-        </p>
+          {/* Badge Eyebrow */}
+          <div className="badge">
+            <Sparkles size={14} color="var(--neon-cyan)" />
+            <span>AI CALIBRATION SYSTEM 2.0</span>
+          </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
-          <button onClick={onStart} className="btn-neon" tabIndex={0}>
-            INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
-          </button>
+          {/* Main Title */}
+          <h1 className="main-title">SPECTRAX</h1>
 
-          <button
-            onClick={onViewHistory}
-            tabIndex={0}
-            style={{
-              transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-              transition: "transform 0.15s ease-out",
-            }}
-          >
-            <div className="welcome-eyebrow" aria-hidden="true">
-              <span className="welcome-eyebrow__dot" />
-              AI-Powered Fitness
+          {/* Subtitle */}
+          <p className="subtitle">Real-time Pose Tracking & Performance Analysis</p>
+
+          {/* Button Group */}
+          <div className="button-group">
+            <button onClick={onStart} className="btn-primary" tabIndex={0}>
+              INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
+            </button>
+
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+              <button
+                onClick={onViewHistory}
+                className="btn-secondary btn-cyan"
+                tabIndex={0}
+              >
+                <History size={15} /> VIEW HISTORY
+              </button>
+
+              <button
+                onClick={onViewTrophies}
+                className="btn-secondary btn-gold"
+                tabIndex={0}
+              >
+                <Trophy size={15} /> TROPHIES
+              </button>
+
+              {onViewProfile && (
+                <button
+                  onClick={onViewProfile}
+                  className="btn-secondary btn-cyan"
+                  tabIndex={0}
+                  style={{ opacity: 0.85 }}
+                >
+                  <User size={15} /> PROFILE
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className="how-it-works-section">
+        <div className="section-container">
+          <div className="section-header">
+            <div className="section-badge">
+              <span>HOW IT WORKS</span>
+            </div>
+            <h2 className="section-title">TRAIN WITH AI PRECISION</h2>
+            <p className="section-description">
+              SpectraX tracks your joints in real-time, helping you improve form, count reps automatically, and avoid injuries.
+            </p>
+          </div>
+
+          <div className="steps-grid">
+            <div className="step-card">
+              <span className="step-watermark">01</span>
+              <div className="step-icon-wrapper" style={{ borderColor: "var(--neon-cyan)" }}>
+                <Activity size={24} color="var(--neon-cyan)" />
+              </div>
+              <h3 className="step-title">Position</h3>
+              <p className="step-description">
+                Calibrate your camera to detect key body markers accurately before starting your workout.
+              </p>
             </div>
 
-      <div
-        style={{
-          position: "absolute",
-          bottom: "40px",
-          left: "0",
-          right: "0",
-          color: "var(--text-secondary)",
-          fontSize: "0.7rem",
-          letterSpacing: "4px",
-          textTransform: "uppercase",
-          zIndex: 10,
-        }}
-      >
-        Precision Performance Research Lab
-      </div>
+            <div className="step-card">
+              <span className="step-watermark">02</span>
+              <div className="step-icon-wrapper" style={{ borderColor: "var(--neon-cyan)" }}>
+                <Play size={24} color="var(--neon-cyan)" />
+              </div>
+              <h3 className="step-title">Execute</h3>
+              <p className="step-description">
+                Perform your exercises. The AI counts reps and checks angles using low-latency model processing.
+              </p>
+            </div>
+
+            <div className="step-card">
+              <span className="step-watermark">03</span>
+              <div className="step-icon-wrapper" style={{ borderColor: "var(--neon-yellow)" }}>
+                <Trophy size={24} color="var(--neon-yellow)" />
+              </div>
+              <h3 className="step-title">Analyze</h3>
+              <p className="step-description">
+                Receive visual biomechanics logs, replay clips of your set, and level up your workout grade.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="footer">
+        <div className="footer-container">
+          <div className="footer-copyright">
+            Precision Performance Research Lab © {new Date().getFullYear()} — SpectraX AI Tracker
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

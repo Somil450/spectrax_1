@@ -347,22 +347,15 @@ const createSharedLandmarkFrame =
 
 export class PoseService {
   private pose: PoseType | null = null;
-  private isLoaded = false;
-  private inProgress = false;
-  private errorCount = 0;
-
-  private smoothingFilters: LandmarkFilter[] =
-    DEFAULT_FILTERS.map(createFilter);
-
-  private readonly sharedLandmarkFrame =
-    createSharedLandmarkFrame();
-
-  // Two buffers in a pool: one can be in flight to the worker while the other
-  // is ready. Avoids per-frame allocation and GC churn.
+  private isLoaded: boolean = false;
+  private inProgress: boolean = false;
+  private errorCount: number = 0;
+  private sharedLandmarkFrame: SharedLandmarkFrame | null = createSharedLandmarkFrame();
   private pool: ArrayBuffer[] = [
     new ArrayBuffer(BUF_BYTES),
     new ArrayBuffer(BUF_BYTES),
   ];
+  private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
 
   constructor() {
     this.init();
@@ -412,7 +405,7 @@ export class PoseService {
       const startSequence = Atomics.load(
         sharedFrame.sequence,
         0,
-      );
+      ) as number;
 
       if (
         startSequence === 0 ||
@@ -437,7 +430,7 @@ export class PoseService {
       const endSequence = Atomics.load(
         sharedFrame.sequence,
         0,
-      );
+      ) as number;
 
       if (
         startSequence === endSequence &&
@@ -609,8 +602,8 @@ export class PoseService {
 
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
-
-    this.pose.onResults((results: any) => {
+    
+    this.pose.onResults((results: Results) => {
       this.inProgress = false;
       this.errorCount = 0;
 
