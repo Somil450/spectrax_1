@@ -298,6 +298,8 @@ export class ExerciseEngine {
       smoothedAngle > (config.upThreshold + currentHysteresis / 2) &&
       stage === 'down'
     ) {
+      const durationInDown = now - stageStartTime;
+
       if (
         now - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
