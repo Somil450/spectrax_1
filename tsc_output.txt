@@ -1,0 +1,11 @@
+﻿src/components/Replay3DModel.tsx(960,9): error TS1005: ',' expected.
+src/components/Replay3DModel.tsx(961,7): error TS1005: ':' expected.
+src/components/Replay3DModel.tsx(961,68): error TS1005: ',' expected.
+src/components/Replay3DModel.tsx(1035,7): error TS1005: ',' expected.
+src/components/Replay3DModel.tsx(1046,3): error TS1128: Declaration or statement expected.
+src/components/Replay3DModel.tsx(1046,4): error TS1128: Declaration or statement expected.
+src/components/Replay3DModel.tsx(1046,81): error TS1005: ';' expected.
+src/components/Replay3DModel.tsx(1182,1): error TS1128: Declaration or statement expected.
+src/components/WelcomeScreen.tsx(371,5): error TS1005: ')' expected.
+src/components/WelcomeScreen.tsx(372,3): error TS1109: Expression expected.
+src/components/WelcomeScreen.tsx(373,1): error TS1128: Declaration or statement expected.
