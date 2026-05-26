@@ -207,6 +207,7 @@ export interface EngineState {
   correctReps: number;
   minScoreInRep: number;
   repScores: number[];
+  repDeviations: number[];
   accuracy: number;
 
   // 🔥 Plank spline regression state
@@ -321,6 +322,7 @@ export class ExerciseEngine {
 
     const { reps, lastRepTime, history } = currentState;
     let { stage, isCalibrated, stageStartTime } = currentState;
+
     const currentVisibility = visibility[config.primaryJoint];
 
     // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
@@ -513,13 +515,15 @@ export class ExerciseEngine {
       feedbackResult = getFeedback(context, config.key);
       frameScore = feedbackResult.score;
     } else {
-      feedbackResult = { score: 100, color: "green", message: "READY 🟢", issues: [] };
+      feedbackResult = { score: 100, color: "green", message: "READY 🟢", issues: [], deviation: 0 };
       frameScore = 100;
     }
 
     let nextMinScoreInRep = currentState.minScoreInRep;
+    let currentDeviation = 0;
     if (isInExercisePosture) {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
+      currentDeviation = feedbackResult.deviation || 0;
     }
 
     let nextCurrentStreak = currentState.currentStreak;
@@ -527,12 +531,14 @@ export class ExerciseEngine {
     let nextTotalReps = currentState.totalReps;
     let nextCorrectReps = currentState.correctReps;
     const nextRepScores = [...currentState.repScores];
+    const nextRepDeviations = [...currentState.repDeviations];
 
     let allowRep = currentState.allowRep;
 
     if (repJustCounted) {
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
+      nextRepDeviations.push(currentDeviation);
       nextLastRepTime = now;
 
       allowRep = nextMinScoreInRep > 70;
@@ -594,10 +600,11 @@ export class ExerciseEngine {
       bestStreak: nextBestStreak,
       isInExercisePosture,
       downAngleReached,
-      totalReps: nextTotalReps,
-      correctReps: nextCorrectReps,
-      minScoreInRep: nextMinScoreInRep,
-      repScores: nextRepScores,
+      totalReps:          nextTotalReps,
+      correctReps:        nextCorrectReps,
+      minScoreInRep:      nextMinScoreInRep,
+      repScores:          nextRepScores,
+      repDeviations:      nextRepDeviations,
       accuracy,
 
       // 🔥 Plank spline state

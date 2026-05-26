@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
-import { useAuth } from "../context/AuthContext";
-import { getLocalWorkouts, WorkoutRecord } from "../services/workoutSyncService";
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { updateWorkoutStreak } from "../utils/streakUtils";
+import { useAuth } from '../context/AuthContext';
+import { getLocalWorkouts, WorkoutRecord } from '../services/workoutSyncService';
 
 interface SummaryScreenProps {
   stats: { 
@@ -11,6 +11,7 @@ interface SummaryScreenProps {
     totalReps: number;
     correctReps: number;
     repScores: number[];
+    repDeviations?: number[];
     duration: number; 
     accuracy: number; 
     mistakes: Record<string, number>; 
@@ -18,6 +19,7 @@ interface SummaryScreenProps {
     tags?: string[];
     gainedXp?: number;
     exerciseName?: string;
+    calories?: number; 
   };
   leveling?: {
     xp: number;
@@ -485,6 +487,40 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         </div>
       </div>
 
+      {/* Form Fatigue Insights */}
+      {stats.repDeviations && stats.repDeviations.length > 0 && (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px', fontWeight: 700, textAlign: 'left' }}>
+            FORM FATIGUE (POSTURE DEVIATION)
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100px', padding: '0 10px', paddingTop: '10px' }}>
+             {stats.repDeviations.map((dev, index) => {
+               // Normalise deviation to a max of 30 for visualization
+               const maxDev = 30;
+               const heightPct = Math.min(100, Math.max(5, (dev / maxDev) * 100));
+               // Color logic: low deviation is green, high is red
+               const color = dev < 10 ? 'var(--neon-green)' : dev < 20 ? 'var(--neon-yellow)' : 'var(--neon-red)';
+               return (
+                 <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end', gap: '4px' }}>
+                   <span style={{ fontSize: '0.55rem', color: '#fff', opacity: 0.8 }}>{Math.round(dev)}</span>
+                   <div style={{
+                     width: '60%',
+                     maxWidth: '20px',
+                     height: `${heightPct}%`,
+                     background: color,
+                     borderRadius: '2px 2px 0 0',
+                     boxShadow: `0 0 8px ${color}44`,
+                     transition: 'height 1s ease-in-out',
+                     minHeight: '4px'
+                   }}></div>
+                   <span style={{ fontSize: '0.55rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>R{index + 1}</span>
+                 </div>
+               );
+             })}
+          </div>
+        </div>
+      )}
+
       {stats.gainedXp ? (
         <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderColor: 'var(--neon-yellow)', background: 'rgba(255, 235, 59, 0.05)' }}>
            <div style={{ fontSize: '0.8rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px', fontWeight: 700 }}>XP Gained</div>
@@ -500,6 +536,107 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
            )}
         </div>
       ) : null}
+
+      {/* Calorie Estimate Card */}
+      {stats.calories !== undefined && stats.calories > 0 && (
+        <div
+          className="glass animate-in"
+          style={{
+            width: '100%',
+            maxWidth: '600px',
+            padding: '20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderColor: 'var(--neon-green)',
+            background: 'rgba(0, 255, 100, 0.04)',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          {/* Left: icon + label */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '2rem' }}>🔥</span>
+            <div>
+              <div
+                style={{
+                  fontSize: '0.65rem',
+                  color: 'var(--neon-green)',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  marginBottom: '4px',
+                }}
+              >
+                Est. Calories Burned
+              </div>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '2rem',
+                  fontWeight: 900,
+                  fontFamily: 'var(--font-heading)',
+                  lineHeight: 1,
+                }}
+              >
+                {stats.calories}
+                <span
+                  style={{
+                    fontSize: '1rem',
+                    color: 'var(--text-dim)',
+                    marginLeft: '4px',
+                  }}
+                >
+                  kcal
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: accuracy impact note */}
+          <div
+            style={{
+              textAlign: 'right',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '0.65rem',
+                color: 'var(--text-dim)',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Accuracy Impact
+            </div>
+            <div
+              style={{
+                fontSize: '0.85rem',
+                color: stats.accuracy > 75 ? 'var(--neon-green)' : 'var(--neon-yellow)',
+                fontWeight: 700,
+              }}
+            >
+              {stats.accuracy > 75
+                ? '✅ Full credit'
+                : stats.accuracy > 50
+                ? '⚠️ Reduced (form)'
+                : '⬇️ Low (poor form)'}
+            </div>
+            <div
+              style={{
+                fontSize: '0.7rem',
+                color: 'var(--text-dim)',
+              }}
+            >
+              MET-based estimate
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mistake & Streak Insights */}
       <div

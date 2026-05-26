@@ -1,3 +1,5 @@
+import { encode } from "@msgpack/msgpack";
+
 export interface FrameData {
   timestamp: number;
   landmarks: any[];
@@ -478,12 +480,13 @@ recordFrame(frame: FrameData) {
     });
     const exercise = this.frames[0]?.exercise || "workout";
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `spectrax_session_${exercise}_${timestamp}.json`;
+    const filename = `spectrax_session_${exercise}_${timestamp}.msgpack`;
 
-    // Persist the compressed archive instead of the expanded frame list.
+    // Persist the compressed archive using MessagePack instead of the expanded frame list.
     try {
-      const blob = new Blob([JSON.stringify(this.getArchive())], {
-        type: "application/json",
+      const buffer = encode(this.getArchive());
+      const blob = new Blob([buffer], {
+        type: "application/x-msgpack",
       });
       const url = URL.createObjectURL(blob);
 

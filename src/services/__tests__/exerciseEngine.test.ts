@@ -47,6 +47,7 @@ function makeState(overrides: Partial<EngineState> = {}): EngineState {
     correctReps: 0,
     minScoreInRep: 100,
     repScores: [],
+    repDeviations: [],
     accuracy: 100,
     plankSpline: defaultPlankSpline,
     hipSplineDeviation: 0,

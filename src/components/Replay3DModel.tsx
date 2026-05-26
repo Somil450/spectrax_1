@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { createBaseMaterialForSkin } from "../utils/avatarSkins";
 
 
 export interface ReplayFrame {
@@ -10,6 +11,7 @@ export interface ReplayFrame {
   angles?: Record<string, number>;
   feedback: string;
   exercise?: string;
+  repCount?: number;
 }
 
 export interface Replay3DModelProps {
@@ -21,6 +23,7 @@ export interface Replay3DModelProps {
   onFrameChange?: (idx: number) => void;
   onPlayToggle?: () => void;
   hideControls?: boolean;
+  skin?: string;
 }
 
 type HudLabel = {
@@ -53,7 +56,24 @@ const BONES_CONNECTIONS = [
 
 const COLOR_GREEN = new THREE.Color(0x00ff00);
 const COLOR_YELLOW = new THREE.Color(0xffff00);
+const COLOR_ORANGE = new THREE.Color(0xff8c00);
 const COLOR_RED = new THREE.Color(0xff0000);
+
+const getStrainColor = (repCount = 0) => {
+  const normalizedStrain = Math.min(repCount / 20, 1);
+
+  if (normalizedStrain < 0.5) {
+    return COLOR_GREEN.clone().lerp(COLOR_YELLOW, normalizedStrain * 2);
+  }
+
+  return COLOR_ORANGE.clone().lerp(COLOR_RED, (normalizedStrain - 0.5) * 2);
+};
+
+const MUSCLE_JOINT_GROUPS: Record<string, number[]> = {
+  arms: [11, 12, 13, 14, 15, 16],
+  core: [11, 12, 23, 24],
+  legs: [23, 24, 25, 26, 27, 28],
+};
 
 const parseFeedback = (feedback: string) => {
   if (
@@ -110,6 +130,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   onFrameChange,
   onPlayToggle,
   hideControls = false,
+  skin = "Standard Human",
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying] = useState(false);
@@ -128,6 +149,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const composerRef = useRef<EffectComposer | null>(null);
+  const bloomPassRef = useRef<UnrealBloomPass | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   // Fallback refs
@@ -161,6 +184,21 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => {
     console.log("Replay frames:", frames?.length || 0);
   }, [frames]);
+
+  useEffect(() => {
+    if (modelLoaded && skinnedMeshesRef.current.length > 0) {
+      skinnedMeshesRef.current.forEach((mesh) => {
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => m.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+        }
+        mesh.material = createBaseMaterialForSkin(skin);
+      });
+    }
+  }, [skin, modelLoaded]);
 
   useEffect(() => {
     if (!frames || frames.length === 0) return;
@@ -332,14 +370,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
             const mesh = o as THREE.SkinnedMesh;
             skinnedMeshesRef.current.push(mesh);
-            // Fix: Avoid array material cloning crash by creating a fresh green holographic material
-            mesh.material = new THREE.MeshStandardMaterial({
-              color: 0x00ff00,
-              roughness: 0.2,
-              metalness: 0.8,
-              emissive: 0x00ff00,
-              emissiveIntensity: 0.1,
-            });
+            mesh.material = createBaseMaterialForSkin(skin);
             // ✨ Enable shadows on skinned mesh for dynamic lighting
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -429,14 +460,30 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       disposeRendererPipeline();
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       renderer.setSize(width, height);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
       // ✨ Enable shadow mapping for dynamic lighting
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFShadowMap; // Better quality shadows
       renderer.shadowMap.autoUpdate = true;
       mountRef.current.appendChild(renderer.domElement);
       rendererRef.current = renderer;
+
+      const composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(sceneRef.current, cameraRef.current));
+      composerRef.current = composer;
+
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(width, height),
+        enableBloom ? bloomStrength : 0,
+        bloomRadius,
+        bloomThreshold,
+      );
+      composer.addPass(bloomPass);
+      bloomPassRef.current = bloomPass;
 
       const controls = new OrbitControls(
         cameraRef.current,
@@ -476,7 +523,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           return;
         }
 
-        renderer.render(sceneRef.current, cameraRef.current);
+        composer.render();
       };
 
       const handleResize = () => {
@@ -487,6 +534,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         cameraRef.current.aspect = w / h;
         cameraRef.current.updateProjectionMatrix();
         rendererRef.current.setSize(w, h);
+        composerRef.current?.setSize(w, h);
+        bloomPassRef.current?.setSize(w, h);
       };
 
       renderer.domElement.addEventListener(
@@ -511,6 +560,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         window.removeEventListener("resize", handleResize);
 
         controls.dispose();
+        composer.dispose();
+        composerRef.current = null;
+        bloomPassRef.current = null;
 
         if (mountRef.current?.contains(renderer.domElement)) {
           mountRef.current.removeChild(renderer.domElement);
@@ -535,7 +587,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           rendererRef.current !== renderer
         )
           return;
-        renderer.render(sceneRef.current, cameraRef.current);
+        composer.render();
       });
     };
 
@@ -740,6 +792,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             controlsRef.current.target.lerp(lookTarget, 0.05);
           } else if (cameraRef.current) {
             cameraRef.current.lookAt(lookTarget);
+          }
         }
       }
 
@@ -884,16 +937,53 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const hasError = badJoints.size > 0;
           const targetColor = hasError ? mistakeColor || COLOR_RED : baseColor;
 
-          // Lerp model tint to highlight issues
-          if (mat && mat.color) mat.color.lerp(targetColor, 0.2);
-          if (mat && mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+          if (skin === "Cyberpunk Neon") {
+            // Cyberpunk Neon: Dark base color, neon glowing grid (Cyan normal, Orange warn, Magenta/Red error)
+            const neonColor = hasError
+              ? (mistakeColor || new THREE.Color(0xff00ff))
+              : targetColor;
+            if (mat.color) mat.color.lerp(new THREE.Color(0x050505), 0.2);
+            if (mat.emissive) mat.emissive.lerp(neonColor, 0.2);
+            mat.emissiveIntensity = hasError ? 1.5 : 1.2;
+          } else if (skin === "Robot") {
+            // Robot: Silver metallic body with subtle glowing status reflections (Green optimal, Yellow warm, Red error)
+            if (mat.color) mat.color.lerp(new THREE.Color(0xd0d0d0), 0.2);
+            if (mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+            mat.emissiveIntensity = hasError ? 1.0 : (baseColor.equals(COLOR_GREEN) ? 0.3 : 0.6);
+          } else {
+            // Standard Human: Realistic skin tone with dynamic warning glow on mistakes/calibration status
+            if (mat.color) mat.color.lerp(new THREE.Color(0xe0a080), 0.2);
+            if (mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+            mat.emissiveIntensity = hasError ? 0.4 : (baseColor.equals(COLOR_GREEN) ? 0.05 : 0.1);
+          }
         });
       } else {
-        // --- Output to Fallback Skeleton ---
-        const jointTargetColors = new Array(33).fill(baseColor);
-        badJoints.forEach((j) => {
-          jointTargetColors[j] = mistakeColor || COLOR_RED;
-        });
+const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
+const strainColor = getStrainColor(repCount);
+
+const jointTargetColors = new Array(33).fill(baseColor);
+
+const exerciseName = frame.exercise?.toLowerCase() || "";
+
+const activeMuscleGroups = exerciseName.includes("squat")
+  ? MUSCLE_JOINT_GROUPS.legs
+  : exerciseName.includes("plank")
+    ? MUSCLE_JOINT_GROUPS.core
+    : exerciseName.includes("curl") || exerciseName.includes("push")
+      ? MUSCLE_JOINT_GROUPS.arms
+      : [
+          ...MUSCLE_JOINT_GROUPS.arms,
+          ...MUSCLE_JOINT_GROUPS.core,
+          ...MUSCLE_JOINT_GROUPS.legs,
+        ];
+
+activeMuscleGroups.forEach((jointIdx) => {
+  jointTargetColors[jointIdx] = strainColor;
+});
+
+badJoints.forEach((j) => {
+  jointTargetColors[j] = mistakeColor || COLOR_RED;
+});
 
         for (let i = 0; i < 33; i++) {
           const landmark = frame.landmarks[i];
@@ -933,8 +1023,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const isBadBone =
             badJoints.has(bone.startIdx) || badJoints.has(bone.endIdx);
           const targetBoneColor = isBadBone
-            ? mistakeColor || COLOR_RED
-            : baseColor;
+              ? mistakeColor || COLOR_RED
+              : strainColor;
           (bone.line.material as THREE.LineBasicMaterial).color.lerp(
             targetBoneColor,
             0.2,
@@ -947,13 +1037,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       if (sceneRef.current && cameraRef.current && rendererRef.current) {
-        rendererRef.current.render(sceneRef.current, cameraRef.current);
+        composerRef.current?.render();
       }
     };
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx]);
+  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx, skin]);
 
   if (!frames || frames.length === 0) {
     return (
