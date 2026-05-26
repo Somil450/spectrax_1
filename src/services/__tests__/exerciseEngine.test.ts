@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { ExerciseEngine, EngineState } from "../exerciseEngine";
 import { resetFeedbackEngine } from "../../engine/feedbackEngine";
 import type { ExerciseConfig } from "../../config/exercises";
+import { initialSquatDepthStats } from "../Squat_depth_classifier";
 
 const squatConfig: ExerciseConfig = {
   key: "squat",
@@ -11,17 +12,6 @@ const squatConfig: ExerciseConfig = {
   downThreshold: 140,
   upThreshold: 160,
   feedbackRules: [],
-};
-
-const defaultPlankSpline = {
-  isCalibrated: false,
-  slope: 0,
-  intercept: 0,
-  frameCount: 0,
-  sumX: 0,
-  sumY: 0,
-  sumXX: 0,
-  sumXY: 0,
 };
 
 function makeState(overrides: Partial<EngineState> = {}): EngineState {
@@ -49,8 +39,9 @@ function makeState(overrides: Partial<EngineState> = {}): EngineState {
     repScores: [],
     repDeviations: [],
     accuracy: 100,
-    plankSpline: defaultPlankSpline,
-    hipSplineDeviation: 0,
+    lastDepthResult: null,
+    depthStats: initialSquatDepthStats(),
+    liveDepthFeedback: "",
     visibilityBuffer: [],
     lastValidAngles: {},
     trackingLostFrames: 0,
@@ -75,6 +66,7 @@ describe("ExerciseEngine", () => {
       lastRepTime: 0,
       history: [170, 170, 170, 170],
       minScoreInRep: 100,
+      downAngleReached: 80,
     });
 
     const result = await engine.process(
@@ -95,6 +87,7 @@ describe("ExerciseEngine", () => {
       lastRepTime: 0,
       history: [170, 170, 170, 170],
       minScoreInRep: 50,
+      downAngleReached: 80,
     });
 
     const result = await engine.process(
@@ -118,6 +111,7 @@ describe("ExerciseEngine", () => {
       minScoreInRep: 90,
       currentStreak: 2,
       bestStreak: 2,
+      downAngleReached: 80,
     });
 
     const result = await engine.process(
