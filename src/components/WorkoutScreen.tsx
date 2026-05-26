@@ -62,7 +62,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     correctReps: 0,
     minScoreInRep: 100,
     repScores: [],
-    accuracy: 100
+    accuracy: 100,
+    lastDepthResult: null,
+    depthStats: {
+      deepCount: 0,
+      parallelCount: 0,
+      halfCount: 0,
+      totalClassified: 0,
+      depthScore: 100
+    },
+    liveDepthFeedback: ''
   });
 
   const frameId = useRef<number>(0);
@@ -98,7 +107,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     correctReps: 0,
     minScoreInRep: 100,
     repScores: [],
-    accuracy: 100
+    accuracy: 100,
+    lastDepthResult: null,
+    depthStats: {
+      deepCount: 0,
+      parallelCount: 0,
+      halfCount: 0,
+      totalClassified: 0,
+      depthScore: 100
+    },
+    liveDepthFeedback: ''
   });
 
 

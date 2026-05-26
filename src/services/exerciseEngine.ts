@@ -1,5 +1,32 @@
+/**
+ * exerciseEngine.ts  (updated — squat depth classification integrated)
+ *
+ * Changes vs. original:
+ *  1. EngineState gains `depthClass`, `depthStats`, and `liveDepthFeedback`.
+ *  2. After a rep is counted, `classifySquatDepth()` runs on `downAngleReached`
+ *     and the result is stored + merged into session stats.
+ *  3. During the DOWN phase, `getLiveDepthFeedback()` overlays a depth cue
+ *     when no higher-priority form issue is active.
+ *  4. The depth `scoreModifier` adjusts `minScoreInRep` so half-squats can
+ *     fall below the 70-point threshold and be rejected by the accuracy system.
+ */
+
 import { ExerciseConfig } from '../config/exercises';
 import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
+// Note: feedbackEngine.ts lives in src/engine/ — path is correct relative to src/services/
+import {
+  classifySquatDepth,
+  getLiveDepthFeedback,
+  accumulateDepthStats,
+  initialSquatDepthStats,
+  SquatDepthResult,
+  SquatDepthStats,
+  DEFAULT_SQUAT_DEPTH_CONFIG,
+} from './Squat_depth_classifier';
+
+// ─────────────────────────────────────────────
+// EngineState
+// ─────────────────────────────────────────────
 
 export interface EngineState {
   reps: number;
@@ -20,13 +47,35 @@ export interface EngineState {
   isInExercisePosture: boolean;
   downAngleReached: number;
 
-  // 🔥 NEW ACCURACY SYSTEM
+  // Accuracy system
   totalReps: number;
   correctReps: number;
   minScoreInRep: number;
   repScores: number[];
   accuracy: number;
+
+  // ── Squat depth classification (NEW) ──────────────────────────
+  /**
+   * Classification result for the most recently completed rep.
+   * null until the first rep is counted.
+   */
+  lastDepthResult: SquatDepthResult | null;
+
+  /**
+   * Running session depth statistics accumulated across all reps.
+   */
+  depthStats: SquatDepthStats;
+
+  /**
+   * Real-time depth coaching string emitted during the DOWN phase.
+   * Empty string when no depth cue is active.
+   */
+  liveDepthFeedback: string;
 }
+
+// ─────────────────────────────────────────────
+// ExerciseEngine
+// ─────────────────────────────────────────────
 
 export class ExerciseEngine {
   private readonly REP_COOLDOWN = 600;
@@ -68,7 +117,7 @@ export class ExerciseEngine {
       lastRepTime,
       isCalibrated,
       history,
-      stageStartTime
+      stageStartTime,
     } = currentState;
 
     const rawAngle = angles[config.primaryJoint];
@@ -78,9 +127,10 @@ export class ExerciseEngine {
     if (currentVisibility < 0.5) {
       return {
         ...currentState,
-        feedback: "SENSORS BLURRED — POSITION BODY",
+        feedback: 'SENSORS BLURRED — POSITION BODY',
         status: 'yellow',
-        isInExercisePosture: false
+        isInExercisePosture: false,
+        liveDepthFeedback: '',
       };
     }
 
@@ -105,13 +155,14 @@ export class ExerciseEngine {
         history: newHistory,
         stage,
         stageStartTime,
-        feedback: "ESTABLISHING POSTURE...",
+        feedback: 'ESTABLISHING POSTURE...',
         status: 'yellow',
-        isInExercisePosture: false
+        isInExercisePosture: false,
+        liveDepthFeedback: '',
       };
     }
 
-    // ───────── REP LOGIC (UNCHANGED CORE) ─────────
+    // ───────── REP LOGIC ─────────
     let nextStage = stage;
     let nextReps = reps;
     let nextLastRepTime = lastRepTime;
@@ -131,7 +182,10 @@ export class ExerciseEngine {
 
     let repJustCounted = false;
 
-    if (smoothedAngle > (config.upThreshold + this.HYSTERESIS / 2) && stage === 'down') {
+    if (
+      smoothedAngle > (config.upThreshold + this.HYSTERESIS / 2) &&
+      stage === 'down'
+    ) {
       const durationInDown = currentTime - stageStartTime;
 
       if (
@@ -145,7 +199,11 @@ export class ExerciseEngine {
     }
 
     // ───────── POSTURE VALIDATION ─────────
-    const isInExercisePosture = this.isValidExercisePosture(history, config, nextStage);
+    const isInExercisePosture = this.isValidExercisePosture(
+      history,
+      config,
+      nextStage
+    );
 
     const context: any = {
       ...angles,
@@ -153,7 +211,7 @@ export class ExerciseEngine {
       lateralScore: angles.lateralScore,
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
-      downAngleReached
+      downAngleReached,
     };
 
     let feedbackResult: FeedbackResult;
@@ -167,7 +225,7 @@ export class ExerciseEngine {
         score: 100,
         color: 'green',
         message: 'READY 🟢',
-        issues: []
+        issues: [],
       };
       frameScore = 100;
     }
@@ -179,6 +237,27 @@ export class ExerciseEngine {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
     }
 
+    // ───────── LIVE DEPTH FEEDBACK (during down phase) ────────────────────
+    //
+    // Only inject depth cue when no high-priority form issue is active.
+    // Green status = no critical form error → safe to display depth coaching.
+    // We use downAngleReached (the running minimum this rep) so the cue
+    // reflects the deepest point reached so far, not the current angle.
+    // ───────────────────────────────────────────────────────────────────────
+    let liveDepthFeedback = '';
+
+    if (nextStage === 'down' && isInExercisePosture) {
+      const depthCue = getLiveDepthFeedback(
+        downAngleReached,
+        DEFAULT_SQUAT_DEPTH_CONFIG
+      );
+
+      // Surface depth cue only when form feedback is green (no overriding issue)
+      if (feedbackResult.color === 'green' && depthCue) {
+        liveDepthFeedback = depthCue;
+      }
+    }
+
     // ───────── REP ACCURACY SYSTEM ─────────
     let nextCurrentStreak = currentState.currentStreak;
     let nextBestStreak = currentState.bestStreak;
@@ -188,11 +267,42 @@ export class ExerciseEngine {
 
     let allowRep = currentState.allowRep;
 
+    // Carry forward depth state; updated below if a rep was just counted
+    let nextLastDepthResult = currentState.lastDepthResult ?? null;
+    let nextDepthStats = currentState.depthStats ?? initialSquatDepthStats();
+
     if (repJustCounted) {
+      // ── Classify depth for the completed rep ─────────────────────────────
+      //
+      // `downAngleReached` holds the minimum femur angle for this rep.
+      // If the exercise is NOT a squat, depth classification is skipped and
+      // no score modifier is applied.  Gate on config.key.
+      // ─────────────────────────────────────────────────────────────────────
+      const isSquat = /squat/i.test(config.key);
+
+      let depthScoreModifier = 0;
+
+      if (isSquat) {
+        const depthResult = classifySquatDepth(
+          downAngleReached,
+          DEFAULT_SQUAT_DEPTH_CONFIG
+        );
+
+        nextLastDepthResult = depthResult;
+        nextDepthStats = accumulateDepthStats(nextDepthStats, depthResult);
+        depthScoreModifier = depthResult.scoreModifier;
+
+        // Apply depth modifier to the quality score for this rep.
+        // Clamp to [0, 100] so a bonus never exceeds perfect.
+        nextMinScoreInRep = Math.max(
+          0,
+          Math.min(100, nextMinScoreInRep + depthScoreModifier)
+        );
+      }
+
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
 
-      // cooldown ALWAYS
       nextLastRepTime = currentTime;
 
       allowRep = nextMinScoreInRep > 70;
@@ -214,22 +324,39 @@ export class ExerciseEngine {
       nextMinScoreInRep = 100;
     }
 
-    // ───────── FEEDBACK ─────────
+    // ───────── FEEDBACK DISPLAY ─────────
     let displayFeedback: string;
     let displayStatus: 'green' | 'yellow' | 'red';
 
     if (!isInExercisePosture) {
-      displayFeedback = "Get into position...";
+      displayFeedback = 'Get into position...';
       displayStatus = 'yellow';
+    } else if (nextStage === 'down' && liveDepthFeedback) {
+      // Depth cue wins when form is clean and athlete is descending
+      displayFeedback = liveDepthFeedback;
+      displayStatus = feedbackResult.color;
     } else {
       displayFeedback = feedbackResult.message;
       displayStatus = feedbackResult.color;
     }
 
+    // Show depth classification feedback right after a rep completes
+    if (repJustCounted && nextLastDepthResult) {
+      const classMsg = nextLastDepthResult.feedback;
+      displayFeedback = classMsg;
+      displayStatus =
+        nextLastDepthResult.isFullDepth ? 'green' : 'red';
+    }
+
     const nextMistakes = { ...currentState.mistakes };
 
-    if (isInExercisePosture && displayStatus !== 'green' && displayFeedback !== "Good form ✅") {
-      nextMistakes[displayFeedback] = (nextMistakes[displayFeedback] || 0) + 1;
+    if (
+      isInExercisePosture &&
+      displayStatus !== 'green' &&
+      displayFeedback !== 'Good form ✅'
+    ) {
+      nextMistakes[displayFeedback] =
+        (nextMistakes[displayFeedback] || 0) + 1;
     }
 
     // ───────── SCORE TRACKING ─────────
@@ -241,10 +368,11 @@ export class ExerciseEngine {
       ? currentState.totalFrames + 1
       : currentState.totalFrames;
 
-    // 🔥 FINAL ACCURACY %
-    const accuracy = nextTotalReps > 0
-      ? Math.round((nextCorrectReps / nextTotalReps) * 100)
-      : 100;
+    // Final accuracy %
+    const accuracy =
+      nextTotalReps > 0
+        ? Math.round((nextCorrectReps / nextTotalReps) * 100)
+        : 100;
 
     return {
       reps: nextReps,
@@ -269,7 +397,12 @@ export class ExerciseEngine {
       correctReps: nextCorrectReps,
       minScoreInRep: nextMinScoreInRep,
       repScores: nextRepScores,
-      accuracy
+      accuracy,
+
+      // Depth classification (NEW)
+      lastDepthResult: nextLastDepthResult,
+      depthStats: nextDepthStats,
+      liveDepthFeedback,
     };
   }
 }

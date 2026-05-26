@@ -45,7 +45,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
   const FPS_LIMIT = 15;
-  const countdownIntervalRef = useRef<number | null>(null);
+  const countdownIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     let isMounted = true;
