@@ -38,6 +38,7 @@ interface WorkoutScreenProps {
     accuracy: number;
     mistakes: Record<string, number>;
     bestStreak: number;
+    jumpingJackSync?: EngineState["jumpingJackSync"];
     tags?: string[];
   }) => void;
   onAutoDetect?: (key: string) => void;
@@ -176,6 +177,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+ fix-workout-screen-memory-leaks
+  
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showExitModal, setShowExitModal] = useState(false);
+  
+
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
 
@@ -192,6 +199,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const ghostFramesRef = useRef<FrameData[]>([]);
   const ghostStatsRef = useRef<{reps: number, accuracy: number, totalReps: number} | null>(null);
   const [hasGhost, setHasGhost] = useState(false);
+ main
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -219,7 +227,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100,
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: ''
+    liveDepthFeedback: '',
+    jumpingJackSyncSamples: [],
+    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   const startTimeRef = useRef<number>(Date.now());
@@ -230,6 +240,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
@@ -282,7 +293,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100,
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: ''
+    liveDepthFeedback: '',
+    jumpingJackSyncSamples: [],
+    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
@@ -473,6 +486,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       angles,
       visibility,
       mutableState.current,
+      bodyTypeRef.current,
+      filteredResults.poseLandmarks,
+      performance.now()
     );
 
     mutableState.current = nextState;
@@ -558,6 +574,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       wsSocketRef.current = null;
     }
 
+    
+  
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
@@ -608,7 +626,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     startWorkout();
 
-    const timer = setInterval(() => {
+    const timerRef = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
       setSeconds(elapsed);
@@ -678,6 +696,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       accuracy: accuracy,
       mistakes: mutableState.current.mistakes,
       bestStreak: mutableState.current.bestStreak,
+      jumpingJackSync: mutableState.current.jumpingJackSync,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
