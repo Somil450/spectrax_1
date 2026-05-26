@@ -23,6 +23,8 @@ import { BodyType } from '../services/bodyTypeEngine';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
+import FpsOverlay from './FpsOverlay';
+import { useFpsCounter } from '../hooks/useFpsCounter';
 
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
@@ -212,6 +214,27 @@ const getStoredPanelPositions = (): PanelPositions => {
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // ── FPS overlay state ─────────────────────────────────────────────────────
+const [showFps, setShowFps] = useState(false);
+const fps = useFpsCounter(showFps);
+const viewportRef = useRef<HTMLDivElement>(null);
+
+// ── Canvas ResizeObserver ─────────────────────────────────────────────────
+useEffect(() => {
+  const el = viewportRef.current;
+  if (!el) return;
+  const ro = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect;
+      if (canvasRef.current) {
+        canvasRef.current.width = Math.round(width);
+        canvasRef.current.height = Math.round(height);
+      }
+    }
+  });
+  ro.observe(el);
+  return () => ro.disconnect();
+}, []);
   const panelRefs = useRef<Record<
     WorkoutPanelId,
     React.RefObject<HTMLDivElement>
@@ -746,9 +769,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     {/* Background Video Layer */}
     <CameraErrorBoundary>
       <div
-        className="camera-viewport"
-        style={{ position: "absolute", inset: 0 }}
-      >
+  ref={viewportRef}
+  className="camera-viewport"
+  style={{ position: "absolute", inset: 0 }}
+>
         <video
           ref={videoRef}
           playsInline
@@ -793,8 +817,29 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             transform: "scaleX(-1)",
           }}
         />
+        {showFps && <FpsOverlay fps={fps} />}
       </div>
     </CameraErrorBoundary>
+    <button
+      onClick={() => setShowFps((v) => !v)}
+      style={{
+        position: "absolute",
+        top: 12,
+        right: 12,
+        zIndex: 200,
+        background: showFps ? "rgba(0,255,136,0.15)" : "rgba(0,0,0,0.5)",
+        border: `1px solid ${showFps ? "#00ff88" : "#555"}`,
+        borderRadius: 6,
+        color: showFps ? "#00ff88" : "#aaa",
+        fontFamily: "monospace",
+        fontSize: 11,
+        fontWeight: 700,
+        padding: "4px 10px",
+        cursor: "pointer",
+      }}
+    >
+      {showFps ? "FPS ✓" : "FPS"}
+    </button>
 
     {/* Model Loading Status Overlay */}
     {clipEngine.isBusy() && (
