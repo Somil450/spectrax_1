@@ -1,3 +1,4 @@
+import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import type {
   Pose as PoseType,
   Results,

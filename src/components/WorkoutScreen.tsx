@@ -14,6 +14,7 @@ import { BodyType } from '../services/bodyTypeEngine';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { FpsMonitor } from './FpsMonitor';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -47,6 +48,18 @@ type PanelPosition = {
 type PanelPositions = Record<WorkoutPanelId, PanelPosition>;
 
 const PANEL_POSITION_STORAGE_KEY = 'spectrax.workoutPanelPositions.v1';
+
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
 
 const getViewportSize = () => ({
   width: typeof window === 'undefined' ? 1280 : window.innerWidth,
