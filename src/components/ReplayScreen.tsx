@@ -660,4 +660,4 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
       `}</style>
     </div>
   );
-};
+}
