@@ -23,6 +23,15 @@ import {
   SquatDepthStats,
   DEFAULT_SQUAT_DEPTH_CONFIG,
 } from './Squat_depth_classifier';
+import {
+  classifyPushupDepth,
+  getLivePushupDepthFeedback,
+  accumulatePushupDepthStats,
+  initialPushupDepthStats,
+  PushupDepthResult,
+  PushupDepthStats,
+  DEFAULT_PUSHUP_DEPTH_CONFIG,
+} from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 
 // ─────────────────────────────────────────────
@@ -73,6 +82,12 @@ export interface EngineState {
    * Empty string when no depth cue is active.
    */
   liveDepthFeedback: string;
+
+  // ── Pushup depth classification (NEW) ──────────────────────────
+  lastPushupDepthResult?: PushupDepthResult | null;
+  pushupDepthStats?: PushupDepthStats;
+  livePushupDepthFeedback?: string;
+  downZReached?: number;
 
   // Tracking & recovery buffers
   visibilityBuffer?: number[];
@@ -235,15 +250,18 @@ export class ExerciseEngine {
     let nextReps = reps;
     let nextLastRepTime = lastRepTime;
     let downAngleReached = currentState.downAngleReached;
+    let downZReached = currentState.downZReached ?? 1000;
 
     if (smoothedAngle < config.downThreshold - currentHysteresis / 2) {
       if (stage === "up") {
         nextStage = "down";
         stageStartTime = now;
         downAngleReached = smoothedAngle;
+        downZReached = angles.pushupDepthZ ?? 1000;
       }
       if (nextStage === "down") {
         downAngleReached = Math.min(downAngleReached, smoothedAngle);
+        downZReached = Math.min(downZReached, angles.pushupDepthZ ?? 1000);
       }
     }
 
@@ -291,6 +309,7 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
+      downZReached,
     };
 
     let feedbackResult: FeedbackResult;
@@ -325,16 +344,27 @@ export class ExerciseEngine {
     // reflects the deepest point reached so far, not the current angle.
     // ───────────────────────────────────────────────────────────────────────
     let liveDepthFeedback = '';
+    let livePushupDepthFeedback = '';
 
     if (nextStage === 'down' && isInExercisePosture) {
-      const depthCue = getLiveDepthFeedback(
-        downAngleReached,
-        DEFAULT_SQUAT_DEPTH_CONFIG
-      );
+      if (/squat/i.test(config.key)) {
+        const depthCue = getLiveDepthFeedback(
+          downAngleReached,
+          DEFAULT_SQUAT_DEPTH_CONFIG
+        );
 
-      // Surface depth cue only when form feedback is green (no overriding issue)
-      if (feedbackResult.color === 'green' && depthCue) {
-        liveDepthFeedback = depthCue;
+        // Surface depth cue only when form feedback is green (no overriding issue)
+        if (feedbackResult.color === 'green' && depthCue) {
+          liveDepthFeedback = depthCue;
+        }
+      } else if (/pushup/i.test(config.key)) {
+        const depthCue = getLivePushupDepthFeedback(
+          downZReached,
+          DEFAULT_PUSHUP_DEPTH_CONFIG
+        );
+        if (feedbackResult.color === 'green' && depthCue) {
+          livePushupDepthFeedback = depthCue;
+        }
       }
     }
 
@@ -351,6 +381,8 @@ export class ExerciseEngine {
     // Carry forward depth state; updated below if a rep was just counted
     let nextLastDepthResult = currentState.lastDepthResult ?? null;
     let nextDepthStats = currentState.depthStats ?? initialSquatDepthStats();
+    let nextLastPushupDepthResult = currentState.lastPushupDepthResult ?? null;
+    let nextPushupDepthStats = currentState.pushupDepthStats ?? initialPushupDepthStats();
 
     if (repJustCounted) {
       // ── Classify depth for the completed rep ─────────────────────────────
@@ -360,6 +392,7 @@ export class ExerciseEngine {
       // no score modifier is applied.  Gate on config.key.
       // ─────────────────────────────────────────────────────────────────────
       const isSquat = /squat/i.test(config.key);
+      const isPushup = /pushup/i.test(config.key);
 
       let depthScoreModifier = 0;
 
@@ -380,10 +413,21 @@ export class ExerciseEngine {
           0,
           Math.min(100, nextMinScoreInRep + depthScoreModifier)
         );
+      } else if (isPushup) {
+        const depthResult = classifyPushupDepth(
+          downZReached,
+          DEFAULT_PUSHUP_DEPTH_CONFIG
+        );
 
-        if (!depthResult.isFullDepth) {
-          nextMinScoreInRep = 0;
-        }
+        nextLastPushupDepthResult = depthResult;
+        nextPushupDepthStats = accumulatePushupDepthStats(nextPushupDepthStats, depthResult);
+        depthScoreModifier = depthResult.scoreModifier;
+        if (!depthResult.isFullDepth) nextMinScoreInRep = 0;
+
+        nextMinScoreInRep = Math.max(
+          0,
+          Math.min(100, nextMinScoreInRep + depthScoreModifier)
+        );
       }
 
       nextTotalReps += 1;
@@ -421,17 +465,25 @@ export class ExerciseEngine {
       // Depth cue wins when form is clean and athlete is descending
       displayFeedback = liveDepthFeedback;
       displayStatus = feedbackResult.color;
+    } else if (nextStage === 'down' && livePushupDepthFeedback) {
+      displayFeedback = livePushupDepthFeedback;
+      displayStatus = feedbackResult.color;
     } else {
       displayFeedback = feedbackResult.message;
       displayStatus = feedbackResult.color;
     }
 
     // Show depth classification feedback right after a rep completes
-    if (repJustCounted && nextLastDepthResult) {
+    if (repJustCounted && nextLastDepthResult && /squat/i.test(config.key)) {
       const classMsg = nextLastDepthResult.feedback;
       displayFeedback = classMsg;
       displayStatus =
         nextLastDepthResult.isFullDepth ? 'green' : 'red';
+    } else if (repJustCounted && nextLastPushupDepthResult && /pushup/i.test(config.key)) {
+      const classMsg = nextLastPushupDepthResult.feedback;
+      displayFeedback = classMsg;
+      displayStatus =
+        nextLastPushupDepthResult.isFullDepth ? 'green' : 'red';
     }
 
     const nextMistakes = { ...currentState.mistakes };
@@ -484,6 +536,12 @@ export class ExerciseEngine {
       lastDepthResult: nextLastDepthResult,
       depthStats: nextDepthStats,
       liveDepthFeedback,
+
+      // Pushup Depth classification (NEW)
+      lastPushupDepthResult: nextLastPushupDepthResult,
+      pushupDepthStats: nextPushupDepthStats,
+      livePushupDepthFeedback,
+      downZReached,
     };
   }
 }

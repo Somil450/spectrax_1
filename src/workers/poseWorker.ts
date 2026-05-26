@@ -335,6 +335,7 @@ function computeAngles(landmarks: any[]): Record<string, number> {
     hipDepth: Math.round(
       (((ankle?.y || 0) - (hip?.y || 0)) / totalHeight) * 100,
     ),
+    pushupDepthZ: Math.abs((landmarks[ids.s]?.z || 0) - (landmarks[ids.w]?.z || 0)) * 100,
   };
 }
 
