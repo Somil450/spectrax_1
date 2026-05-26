@@ -3,6 +3,7 @@ import { OcclusionPredictor } from "../services/occlusionPredictor";
 const STRIDE = 4;
 const LM_COUNT = 33;
 const SHARED_HEADER_BYTES = Int32Array.BYTES_PER_ELEMENT;
+const MAX_EXTRAPOLATED_FRAMES = 5;
 
 const predictor = new OcclusionPredictor();
 
@@ -13,7 +14,14 @@ interface SharedLandmarkFrame {
   view: Float32Array;
 }
 
+interface FrameState {
+  landmarks: Landmark[];
+}
+
 let sharedLandmarkFrame: SharedLandmarkFrame | null = null;
+let lastObservedFrame: FrameState | null = null;
+let previousObservedFrame: FrameState | null = null;
+let consecutiveDropoutFrames = 0;
 
 function isLandmarkPoint(value: unknown): value is Landmark {
   return (
@@ -182,6 +190,47 @@ function initSharedLandmarks(buffer: SharedArrayBuffer | ArrayBuffer) {
   }
 
   sharedLandmarkFrame = null;
+}
+
+function cloneLandmarks(landmarks: Landmark[]): Landmark[] {
+  return landmarks.map((lm) => ({ ...lm }));
+}
+
+function storeObservedFrame(landmarks: Landmark[]) {
+  previousObservedFrame = lastObservedFrame;
+  lastObservedFrame = { landmarks: cloneLandmarks(landmarks) };
+  consecutiveDropoutFrames = 0;
+}
+
+function extrapolateLandmarks(): Landmark[] | null {
+  if (!lastObservedFrame || !previousObservedFrame) return null;
+
+  const step = consecutiveDropoutFrames + 1;
+  if (step > MAX_EXTRAPOLATED_FRAMES) return null;
+
+  const latest = lastObservedFrame.landmarks;
+  const prior = previousObservedFrame.landmarks;
+
+  return latest.map((lm, i) => {
+    const prev = prior[i] ?? lm;
+    const dx = lm.x - prev.x;
+    const dy = lm.y - prev.y;
+    const dz = lm.z - prev.z;
+
+    const predicted = {
+      x: lm.x + dx * step,
+      y: lm.y + dy * step,
+      z: lm.z + dz * step,
+      visibility: lm.visibility,
+    };
+
+    return {
+      x: Math.min(Math.max(predicted.x, 0), 1),
+      y: Math.min(Math.max(predicted.y, 0), 1),
+      z: predicted.z,
+      visibility: Math.max(0.5, Math.min(predicted.visibility, 1)),
+    };
+  });
 }
 
 function readSharedLandmarks(): Landmark[] | null {
@@ -451,6 +500,47 @@ self.onmessage = (event: MessageEvent) => {
     (buf ? unpackLandmarks(buf) : readSharedLandmarks());
 
   if (!landmarks || landmarks.length === 0) {
+    const extrapolatedLandmarks = extrapolateLandmarks();
+    if (extrapolatedLandmarks) {
+      consecutiveDropoutFrames++;
+      const predicted = predictor.predict(extrapolatedLandmarks);
+
+      if (offscreenCtx)
+        drawSkeleton(
+          predicted.landmarks,
+          status || "yellow",
+          primaryJoints || [],
+          predicted.wasOccluded,
+        );
+
+      const angles = computeAngles(predicted.landmarks);
+      const { label: detectedExercise, confidence } = detectExercise(
+        predicted.landmarks,
+        angles,
+      );
+      const ipcMs = t0 != null ? performance.now() - t0 : undefined;
+
+      const reply: any = {
+        frameId,
+        angles,
+        detectedExercise,
+        confidence,
+        ipcMs,
+        occlusionConfidence: predicted.confidence,
+        wasOccluded: predicted.wasOccluded,
+        extrapolated: true,
+        dropoutFrames: consecutiveDropoutFrames,
+      };
+
+      if (buf) {
+        reply.buf = buf;
+        (self as any).postMessage(reply, [buf]);
+      } else {
+        (self as any).postMessage(reply);
+      }
+      return;
+    }
+
     const msg: any = {
       frameId,
       angles: {},
@@ -464,6 +554,8 @@ self.onmessage = (event: MessageEvent) => {
     }
     return;
   }
+
+  storeObservedFrame(landmarks);
 
   const predicted = predictor.predict(landmarks);
   const correctedLandmarks = predicted.landmarks;
