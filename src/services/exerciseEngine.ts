@@ -5,6 +5,7 @@ import {
   FeedbackResult,
 } from "../engine/feedbackEngine";
 import { BodyType } from "./bodyTypeEngine";
+import { getSupinationScore } from "./wristRotationDetector";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plank Spline Types & Constants
@@ -229,6 +230,8 @@ export interface EngineState {
 
   // 🔥 Static hold time tracking
   holdTime?: number;
+
+  wristSupinationScore?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,6 +273,13 @@ export function clearRepParams(key: string): void {
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
+
+  private repParams(key: string): RepParams {
+    return {
+      ...ENGINE_DEFAULTS,
+      ...(layoutOverrides.get(key) || {}),
+    };
+  }
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
   private readonly MIN_DOWN_DURATION = 150;
@@ -303,6 +313,7 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
+    landmarks?: any[]
   ): Promise<EngineState> {
     const now = Date.now();
     const p = this.repParams(config.key);
@@ -323,8 +334,8 @@ export class ExerciseEngine {
       currentHysteresis = 10;
     }
 
-    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
-      currentState;
+    const { reps, lastRepTime, history } = currentState;
+    let { stage, isCalibrated, stageStartTime } = currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
 
@@ -477,10 +488,10 @@ export class ExerciseEngine {
       smoothedAngle > config.upThreshold + currentHysteresis / 2 &&
       stage === "down"
     ) {
-      const durationInDown = currentTime - stageStartTime;
+      const durationInDown = now - stageStartTime;
 
       if (
-        currentTime - lastRepTime > currentCooldown &&
+        now - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
         nextStage = "up";
@@ -504,6 +515,11 @@ export class ExerciseEngine {
       // Usually we want total hold time. We'll keep accumulating.
     }
 
+    // ───────── WRIST ROTATION DETECTION ─────────
+    const wristSupinationScore = config.key === 'bicepCurl'
+      ? getSupinationScore(landmarks)
+      : NaN;
+
     const context: any = {
       ...angles,
       stage: nextStage,
@@ -516,6 +532,7 @@ export class ExerciseEngine {
       plankSplineCalibrated: nextPlankSpline.isCalibrated,
       hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
       hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+      wristSupinationScore,
     };
 
     let feedbackResult: FeedbackResult;
@@ -627,7 +644,9 @@ export class ExerciseEngine {
       lastValidAngles: nextLastValidAngles,
 
       // 🔥 Static hold time tracking
-      holdTime: nextHoldTime
+      holdTime: nextHoldTime,
+
+      wristSupinationScore
     };
   }
 }

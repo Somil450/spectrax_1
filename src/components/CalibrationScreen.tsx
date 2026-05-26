@@ -89,15 +89,17 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   const handleCameraError = (err: any) => {
     const name = (err instanceof Error) ? err.name : '';
-    let msg = "Something went wrong starting the camera. Try refreshing the page.";
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      msg = "No camera found on this device. Plug in a webcam and try again.";
-    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-      msg = "Your camera is being used by another app. Close it and try again.";
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
+      setError('CAMERA_PERMISSION_DENIED');
+    } else {
+      let msg = "Something went wrong starting the camera. Try refreshing the page.";
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = "No camera found on this device. Plug in a webcam and try again.";
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = "Your camera is being used by another app. Close it and try again.";
+      }
+      setError(msg);
     }
-    setError(msg);
     setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
   };
 
@@ -161,52 +163,12 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       setAnnouncement(`Starting in ${countdownSeconds}`);
     }
   }, [countdownSeconds, countdownActive]);
-
-        await cameraService.startCamera(videoRef.current);
-        
-        poseService.onResults((results) => {
-          if (!isMounted) return;
-          const evaluation = calibrationLogic.evaluate(results);
-          setResult(evaluation);
-          
-          if (results.poseLandmarks) {
-            const bt = bodyTypeEngine.analyze(results.poseLandmarks);
-            setBodyTypeRes(bt);
-            if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-              onBodyTypeDetected(bt.bodyType);
-            }
-
-            const gesture = gestureService.analyze(results.poseLandmarks);
-            setGestureResult(gesture);
-          }
-
-          const primaryJoints = selectedExercise.joints?.flat() || [];
-          overlayRenderer.draw(results, evaluation.status, primaryJoints);
-        });
-
-        const processLoop = (timestamp: number) => {
-          if (!isMounted) return;
-          const elapsed = timestamp - lastProcessTime.current;
-          if (elapsed > (1000 / FPS_LIMIT)) {
-            if (videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused) {
-              poseService.send(videoRef.current);
-            }
-            lastProcessTime.current = timestamp;
-          }
-          frameId.current = requestAnimationFrame(processLoop);
-        };
-        frameId.current = requestAnimationFrame(processLoop);
-      } catch (err: any) {
-        if (isMounted) {
-          if (err.message === 'PERMISSION_DENIED') {
-            setError('CAMERA_PERMISSION_DENIED');
-          } else {
-            setError("Hardware synchronization error. Verify camera and refresh.");
-          }
-          setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-        }
-      }
-    };
+  // ── Announce camera errors ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (error) {
+      setAnnouncement('Camera error. Please verify camera access and refresh the page.');
+    }
+  }, [error]);
 
 
   useEffect(() => {
