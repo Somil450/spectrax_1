@@ -67,40 +67,9 @@ export class OverlayRenderer {
         0,
         2 * Math.PI
       );
+      this.ctx.fillStyle = color;
       this.ctx.fill();
     }
-
-    // 1. Draw standard connectors with status color
-    drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-      color: 'rgba(255, 255, 255, 0.2)',
-      lineWidth: 2,
-    });
-
-    // 2. Draw highlighted connections for primary workout joints
-    // This provides stronger visual feedback on the active movement.
-    drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-      color: color,
-      lineWidth: 4,
-    });
-
-    // 3. Draw Landmarks with dynamic size/glow
-    drawLandmarks(this.ctx, results.poseLandmarks, {
-      color: '#ffffff',
-      fillColor: (data: { index?: number }) => {
-          // Highlight primary joints with stronger color
-          if (primaryJoints.includes(data.index!)) return color;
-          
-          if (data.index! >= 11) {
-            if (data.index! % 2 !== 0) return 'rgba(0, 240, 255, 0.8)'; // Neon Blue (Left)
-            if (data.index! % 2 === 0) return 'rgba(157, 78, 221, 0.8)'; // Neon Purple (Right)
-          }
-          return 'rgba(255,255,255,0.5)';
-      },
-      lineWidth: 1,
-      radius: (data: { index?: number }) => {
-        return primaryJoints.includes(data.index!) ? 6 : 2;
-      }
-    });
 
     // 4. Draw Center of Mass and Base of Support
     this.drawCenterOfMass(results.poseLandmarks);
@@ -108,76 +77,6 @@ export class OverlayRenderer {
     // Global glow
     this.ctx.shadowBlur = 15;
     this.ctx.shadowColor = color;
-  }
-
-  drawGhost(landmarks: any[]) {
-    if (!this.ctx || !landmarks) return;
-
-    // Ghost color: glowing cyan with transparency
-    const ghostColor = "rgba(0, 255, 255, 0.4)";
-    // Shift ghost to the left (note: the canvas might be horizontally flipped depending on setup, 
-    // but typically a shift of -0.25 moves it visually to the side)
-    const xOffset = -0.25; 
-
-    this.ctx.save();
-    this.ctx.shadowColor = "rgba(0, 255, 255, 0.8)";
-    this.ctx.shadowBlur = 12;
-
-    // Draw lines
-    const connections = [
-      [11, 13], [13, 15], // left arm
-      [12, 14], [14, 16], // right arm
-      [11, 12], [23, 24], [11, 23], [12, 24], // torso
-      [23, 25], [25, 27], [27, 29], [29, 31], [31, 27], // left leg + foot
-      [24, 26], [26, 28], [28, 30], [30, 32], [32, 28], // right leg + foot
-      [0, 1], [1, 2], [2, 3], [3, 7], // face right
-      [0, 4], [4, 5], [5, 6], [6, 8], // face left
-      [9, 10] // mouth
-    ];
-
-    this.ctx.strokeStyle = ghostColor;
-    this.ctx.lineWidth = 3;
-
-    for (const [a, b] of connections) {
-      const lmA = landmarks[a];
-      const lmB = landmarks[b];
-      
-      if (!lmA || !lmB) continue;
-      if ((lmA.visibility && lmA.visibility < 0.5) || (lmB.visibility && lmB.visibility < 0.5)) continue;
-
-      const xA = (lmA.x + xOffset) * this.ctx.canvas.width;
-      const yA = lmA.y * this.ctx.canvas.height;
-      const xB = (lmB.x + xOffset) * this.ctx.canvas.width;
-      const yB = lmB.y * this.ctx.canvas.height;
-
-      this.ctx.beginPath();
-      this.ctx.moveTo(xA, yA);
-      this.ctx.lineTo(xB, yB);
-      this.ctx.stroke();
-    }
-
-    // Draw joints
-    for (const landmark of landmarks) {
-      if (landmark.visibility && landmark.visibility < 0.5) continue;
-
-      this.ctx.beginPath();
-      
-      const x = (landmark.x + xOffset) * this.ctx.canvas.width;
-      const y = landmark.y * this.ctx.canvas.height;
-      
-      this.ctx.arc(
-        x,
-        y,
-        4,
-        0,
-        2 * Math.PI
-      );
-
-      this.ctx.fillStyle = "rgba(0, 255, 255, 0.7)";
-      this.ctx.fill();
-    }
-
-    this.ctx.restore();
   }
 
   private drawScanningLine() {

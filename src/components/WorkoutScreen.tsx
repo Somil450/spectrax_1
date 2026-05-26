@@ -4,7 +4,8 @@ import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } fr
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { getPostureErrorCategories } from '../engine/feedbackEngine';
+import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -177,30 +178,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
- fix-workout-screen-memory-leaks
-  
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
-  
-
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [showExitModal, setShowExitModal] = useState(false);
-
-  // ── Gesture workout controls ──────────────────────────────────────────────
-  /** 'idle' = not yet started, 'running' = active, 'paused' = gesture-paused */
-  type WorkoutControlState = 'idle' | 'running' | 'paused';
-  const [workoutControlState, setWorkoutControlState] = useState<WorkoutControlState>('idle');
-  const workoutControlRef = useRef<WorkoutControlState>('idle');
-  const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [gestureConfidences, setGestureConfidences] = useState<Record<GestureCommand, number>>({ START: 0, PAUSE: 0, STOP: 0 });
-
-  const ghostFramesRef = useRef<FrameData[]>([]);
-  const ghostStatsRef = useRef<{reps: number, accuracy: number, totalReps: number} | null>(null);
-  const [hasGhost, setHasGhost] = useState(false);
- main
-
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -487,10 +466,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       visibility,
       mutableState.current,
       bodyTypeRef.current,
-      filteredResults.poseLandmarks,
-      performance.now()
+      results.poseLandmarks,
     );
-
     mutableState.current = nextState;
     setEngineState(nextState);
 
@@ -701,6 +678,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     sessionRecorder.download();
 
+    const gmmCategories = getPostureErrorCategories();
+    const finalMistakes = { ...mutableState.current.mistakes };
+    for (const [cat, count] of Object.entries(gmmCategories)) {
+      if (count > 0) {
+        finalMistakes[cat] = (finalMistakes[cat] || 0) + count;
+      }
+    }
+
     onEnd({
       reps: mutableState.current.reps,
       totalReps: mutableState.current.totalReps,
@@ -709,13 +694,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       repDeviations: mutableState.current.repDeviations,
       duration: seconds,
       accuracy: accuracy,
-      mistakes: mutableState.current.mistakes,
+      mistakes: finalMistakes,
       bestStreak: mutableState.current.bestStreak,
       jumpingJackSync: mutableState.current.jumpingJackSync,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
-        mistakes: Object.keys(mutableState.current.mistakes),
+        mistakes: Object.keys(finalMistakes),
         duration: seconds,
       }),
     });
