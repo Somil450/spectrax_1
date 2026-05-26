@@ -9,9 +9,7 @@ import {
   collection,
   addDoc,
   query,
-  where,
   getDocs,
-  updateDoc,
   deleteDoc,
   doc,
   serverTimestamp,
@@ -181,20 +179,19 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     const getReq = store.get(localId);
 
     getReq.onsuccess = () => {
-      const workout = getReq.result as WorkoutRecord;
-      if (workout) {
-        // Delete the record with numeric ID to prevent duplication
-        store.delete(localId);
-        // Save the record with the new Firestore string ID
-        store.put({
-          ...workout,
-          id: firestoreId,
-          synced: true,
-        });
-      }
-      resolve();
-    };
-    getReq.onerror = () => reject(getReq.error);
+  const workout = getReq.result as WorkoutRecord;
+  if (workout) {
+    store.delete(localId);
+    store.put({ ...workout, id: firestoreId, synced: true });
+  }
+  // ✅ Do NOT resolve here
+};
+
+getReq.onerror = () => reject(getReq.error);
+
+tx.oncomplete = () => resolve();           // ✅ resolve only after commit
+tx.onerror    = () => reject(tx.error);    // ✅ surface transaction errors
+tx.onabort    = () => reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
