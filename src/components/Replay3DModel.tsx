@@ -11,6 +11,7 @@ export interface ReplayFrame {
   angles?: Record<string, number>;
   feedback: string;
   exercise?: string;
+  repCount?: number;
 }
 
 export interface Replay3DModelProps {
@@ -55,7 +56,24 @@ const BONES_CONNECTIONS = [
 
 const COLOR_GREEN = new THREE.Color(0x00ff00);
 const COLOR_YELLOW = new THREE.Color(0xffff00);
+const COLOR_ORANGE = new THREE.Color(0xff8c00);
 const COLOR_RED = new THREE.Color(0xff0000);
+
+const getStrainColor = (repCount = 0) => {
+  const normalizedStrain = Math.min(repCount / 20, 1);
+
+  if (normalizedStrain < 0.5) {
+    return COLOR_GREEN.clone().lerp(COLOR_YELLOW, normalizedStrain * 2);
+  }
+
+  return COLOR_ORANGE.clone().lerp(COLOR_RED, (normalizedStrain - 0.5) * 2);
+};
+
+const MUSCLE_JOINT_GROUPS: Record<string, number[]> = {
+  arms: [11, 12, 13, 14, 15, 16],
+  core: [11, 12, 23, 24],
+  legs: [23, 24, 25, 26, 27, 28],
+};
 
 const parseFeedback = (feedback: string) => {
   if (
@@ -940,11 +958,32 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           }
         });
       } else {
-        // --- Output to Fallback Skeleton ---
-        const jointTargetColors = new Array(33).fill(baseColor);
-        badJoints.forEach((j) => {
-          jointTargetColors[j] = mistakeColor || COLOR_RED;
-        });
+const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
+const strainColor = getStrainColor(repCount);
+
+const jointTargetColors = new Array(33).fill(baseColor);
+
+const exerciseName = frame.exercise?.toLowerCase() || "";
+
+const activeMuscleGroups = exerciseName.includes("squat")
+  ? MUSCLE_JOINT_GROUPS.legs
+  : exerciseName.includes("plank")
+    ? MUSCLE_JOINT_GROUPS.core
+    : exerciseName.includes("curl") || exerciseName.includes("push")
+      ? MUSCLE_JOINT_GROUPS.arms
+      : [
+          ...MUSCLE_JOINT_GROUPS.arms,
+          ...MUSCLE_JOINT_GROUPS.core,
+          ...MUSCLE_JOINT_GROUPS.legs,
+        ];
+
+activeMuscleGroups.forEach((jointIdx) => {
+  jointTargetColors[jointIdx] = strainColor;
+});
+
+badJoints.forEach((j) => {
+  jointTargetColors[j] = mistakeColor || COLOR_RED;
+});
 
         for (let i = 0; i < 33; i++) {
           const landmark = frame.landmarks[i];
@@ -984,8 +1023,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const isBadBone =
             badJoints.has(bone.startIdx) || badJoints.has(bone.endIdx);
           const targetBoneColor = isBadBone
-            ? mistakeColor || COLOR_RED
-            : baseColor;
+              ? mistakeColor || COLOR_RED
+              : strainColor;
           (bone.line.material as THREE.LineBasicMaterial).color.lerp(
             targetBoneColor,
             0.2,
