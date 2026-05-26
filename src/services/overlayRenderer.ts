@@ -1,4 +1,6 @@
 import type { Results } from "@mediapipe/pose";
+import { POSE_CONNECTIONS } from "@mediapipe/pose";
+import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
 
 /**
  * overlayRenderer.ts
@@ -62,6 +64,8 @@ export class OverlayRenderer {
         0,
         2 * Math.PI
       );
+      this.ctx.fill();
+    }
 
     // 1. Draw standard connectors with status color
     drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
@@ -97,7 +101,7 @@ export class OverlayRenderer {
 
     // Global glow
     this.ctx.shadowBlur = 15;
-    this.ctx.shadowColor = glow;
+    this.ctx.shadowColor = color;
   }
 
   private drawScanningLine() {

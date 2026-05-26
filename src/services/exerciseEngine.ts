@@ -303,9 +303,10 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
+    landmarks?: any[],
   ): Promise<EngineState> {
     const now = Date.now();
-    const p = this.repParams(config.key);
+    const p: RepParams = { ...ENGINE_DEFAULTS, ...(layoutOverrides.get(config.key) ?? {}) };
 
 
     // Adaptive Difficulty Tuning
@@ -477,10 +478,10 @@ export class ExerciseEngine {
       smoothedAngle > config.upThreshold + currentHysteresis / 2 &&
       stage === "down"
     ) {
-      const durationInDown = currentTime - stageStartTime;
+      const durationInDown = now - stageStartTime;
 
       if (
-        currentTime - lastRepTime > currentCooldown &&
+        now - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
         nextStage = "up";

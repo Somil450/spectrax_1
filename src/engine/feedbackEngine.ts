@@ -4,7 +4,17 @@
  */
 
 // --- Types & Interfaces ---
-import { JointDeviationProfiler } from '../services/skeletalSense';
+class JointDeviationProfiler {
+  private values: number[] = [];
+  update(value: number) { this.values.push(value); if (this.values.length > 30) this.values.shift(); }
+  getStandardDeviation(): number {
+    if (this.values.length < 2) return 0;
+    const mean = this.values.reduce((a, b) => a + b, 0) / this.values.length;
+    const variance = this.values.reduce((s, v) => s + (v - mean) ** 2, 0) / this.values.length;
+    return Math.sqrt(variance);
+  }
+  reset() { this.values = []; }
+}
 
 export interface DetectionIssue {
   type: string;
