@@ -40,27 +40,27 @@ The project features a full-stack architecture with a React frontend and an Expr
 ## 📸 Screenshots
 
 ### Welcome Screen
-![Welcome Screen](assets/screenshots/01-welcome.png)
+![Welcome Screen](assets/screenshots/01-welcome.png.jpeg)
 *The SpectraX landing page — initialize your session or view workout history.*
 
 ### Exercise Selection — Bodyweight Squats
-![Squats](assets/screenshots/02-exercise-selection-squats.png)
+![Squats](assets/screenshots/02-exercise-selection-squats.png.jpeg)
 *Select from 5 exercises. Live camera preview updates as you choose.*
 
 ### Exercise Selection — Bicep Curls
-![Bicep Curls](assets/screenshots/04-exercise-selection-bicep-curls.png)
+![Bicep Curls](assets/screenshots/04-exercise-selection-bicep-curls.png.jpeg)
 *Real-time pose detection ready for bicep curl tracking.*
 
 ### Exercise Selection — Plank
-![Plank](assets/screenshots/03-exercise-selection-plank.png)
+![Plank](assets/screenshots/03-exercise-selection-plank.png.jpeg)
 *Plank hold detection with live camera feed.*
 
 ### Exercise Selection — Push-Ups
-![Push-Ups](assets/screenshots/05-exercise-selection-pushup.png)
+![Push-Ups](assets/screenshots/05-exercise-selection-pushup.png.jpeg)
 *Push-up rep counting with form analysis.*
 
 ### Session History
-![Session History](assets/screenshots/06-exercise-session-history.png)
+![Session History](assets/screenshots/06-exercise-session-history.png.jpeg)
 *Review past workout sessions and track your progress over time.*
 
 ### Frontend
@@ -166,7 +166,7 @@ To run SpectraX locally, create environment variable files for both the frontend
 Create a `.env` file in the root directory:
 
 ```env
-VITE_SERVER_URL=http://localhost:3000
+VITE_BACKEND_URL=http://localhost:3001
 ```
 
 ### Backend Environment Variables
@@ -174,9 +174,21 @@ VITE_SERVER_URL=http://localhost:3000
 Create a `.env` file inside the `server/` directory:
 
 ```env
-PORT=3000
+PORT=3001
 ```
 > Never commit `.env` files to version control.
+
+### Firestore Security Rules
+
+Rules are version-controlled in `firestore.rules`. They are not enforced until they are deployed to your Firebase project. After cloning, run:
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules
+```
+
+Without deploying these rules, the project remains in Firebase test mode (effectively open access). Always deploy them before going to production.
 
 ---
 
@@ -187,7 +199,7 @@ PORT=3000
    cd server
    npm run dev
    ```
-   *Server runs on `http://localhost:3000`*
+   *Server runs on `http://localhost:3001`*
 
 2. **Start the Frontend** (In a new terminal)
    ```bash

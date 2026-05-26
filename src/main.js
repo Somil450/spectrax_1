@@ -1,3 +1,4 @@
+/* eslint-env browser */
 import './style.css';
 import * as THREE from 'three';
 
