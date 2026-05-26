@@ -562,14 +562,29 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     // ── WebSocket connection to backend (optional, non-blocking) ─────────────
     let wsSocket: WebSocket | null = null;
     try {
-      const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001").replace(/\/+$/, "");
+      const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
+      if (!rawBackendUrl) {
+        console.warn(
+          "[SpectraX] VITE_BACKEND_URL is not set. " +
+          "Falling back to http://localhost:3001. " +
+          "Set VITE_BACKEND_URL in .env.local for non-local deployments " +
+          "(see .env.example for the expected format).",
+        );
+      }
+      const backendUrl = (rawBackendUrl ?? "http://localhost:3001").replace(/\/+$/, "");
       const wsUrl = backendUrl.replace(/^http/, "ws") + "/socket.io/?EIO=4&transport=websocket";
       wsSocket = new WebSocket(wsUrl);
       wsSocketRef.current = wsSocket;
-      wsSocket.onopen = () => console.log("[SpectraX WS] connected to backend");
+      wsSocket.onopen = () => console.log("[SpectraX WS] connected to backend at", backendUrl);
       wsSocket.onerror = () => {
+        console.warn(
+          "[SpectraX WS] Could not connect to backend at",
+          wsUrl,
+          "— live backend features will be unavailable. " +
+          "Check that the server is running and that VITE_BACKEND_URL is correct in .env.local.",
+        );
         wsSocketRef.current = null;
-      }; // Silently degrade if backend offline
+      };
     } catch (_) {
       wsSocketRef.current = null;
     }

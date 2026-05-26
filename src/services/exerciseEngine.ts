@@ -301,17 +301,8 @@ export class ExerciseEngine {
       currentHysteresis = 10;
     }
 
-    const {
-      reps,
-      lastRepTime,
-      history,
-    } = currentState;
-
-    let {
-      stage,
-      isCalibrated,
-      stageStartTime,
-    } = currentState;
+    const { reps, lastRepTime, history } = currentState;
+    let { stage, isCalibrated, stageStartTime } = currentState;
 
     const currentVisibility = visibility[config.primaryJoint];
 
