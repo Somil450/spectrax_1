@@ -1,7 +1,7 @@
 import { pipeline, env } from '@xenova/transformers';
 
 // Skip local model check (fetch from Hugging Face)
-env.allowLocalModels = false;
+(env as any).allowLocalModels = false;
 
 const PIPELINE_TYPE = 'zero-shot-image-classification';
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
@@ -68,7 +68,7 @@ async function loadModel(quantized: boolean) {
   }
 }
 
-self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
+self.onmessage = async (event) => {
   const data = event.data;
 
   if (data.type === 'init') {
