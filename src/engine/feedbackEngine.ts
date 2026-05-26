@@ -1,10 +1,24 @@
-/**
- * feedbackEngine.ts
- * Real-time fitness coaching engine with prioritized feedback and scoring.
- */
+export class JointDeviationProfiler {
+  private values: number[] = [];
 
-// --- Types & Interfaces ---
-import { JointDeviationProfiler } from '../services/skeletalSense';
+  update(value: number): void {
+    if (value !== undefined && value !== null && !isNaN(value)) {
+      this.values.push(value);
+    }
+  }
+
+  getStandardDeviation(): number {
+    const n = this.values.length;
+    if (n < 2) return 0;
+    const mean = this.values.reduce((a, b) => a + b, 0) / n;
+    const variance = this.values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (n - 1);
+    return parseFloat(Math.sqrt(variance).toFixed(2));
+  }
+
+  reset(): void {
+    this.values = [];
+  }
+}
 
 export interface DetectionIssue {
   type: string;
