@@ -1,7 +1,4 @@
 import type { Results } from "@mediapipe/pose";
-import { POSE_CONNECTIONS } from "@mediapipe/pose";
-import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
-
 // MediaPipe's npm packages are not ESM-compatible. We use globals from the CDN scripts.
 const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
 const drawConnectors = (window as any).drawConnectors;

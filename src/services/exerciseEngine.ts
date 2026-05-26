@@ -145,7 +145,7 @@ export class ExerciseEngine {
     landmarks?: any[],
   ): Promise<EngineState> {
     const now = Date.now();
-    const p: RepParams = { ...ENGINE_DEFAULTS, ...(layoutOverrides.get(config.key) ?? {}) };
+    const p = this.repParams(config.key);
 
 
     // Adaptive Difficulty Tuning

@@ -1,8 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Activity } from "lucide-react";
-import { getSavedUserWeight } from "../utils/calorieEstimator";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+
+const STATS = [
+  { value: "30+", label: "FPS tracking" },
+  { value: "6", label: "exercises" },
+  { value: "< 1s", label: "feedback lag" },
+];
 
 interface WelcomeScreenProps {
   onStart: () => void;
@@ -156,7 +162,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
-          )}
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
 
