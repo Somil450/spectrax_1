@@ -3,6 +3,7 @@ import { OcclusionPredictor } from "../services/occlusionPredictor";
 const STRIDE = 4;
 const LM_COUNT = 33;
 const SHARED_HEADER_BYTES = Int32Array.BYTES_PER_ELEMENT;
+const MAX_EXTRAPOLATED_FRAMES = 5;
 
 const predictor = new OcclusionPredictor();
 
@@ -13,12 +14,160 @@ interface SharedLandmarkFrame {
   view: Float32Array;
 }
 
+interface FrameState {
+  landmarks: Landmark[];
+}
+
 let sharedLandmarkFrame: SharedLandmarkFrame | null = null;
+let lastObservedFrame: FrameState | null = null;
+let previousObservedFrame: FrameState | null = null;
+let consecutiveDropoutFrames = 0;
+
+function isLandmarkPoint(value: unknown): value is Landmark {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    typeof (value as Landmark).x === "number" &&
+    typeof (value as Landmark).y === "number"
+  );
+}
+
+function normalizeSkeleton(landmarks: any[]): Landmark[] {
+  return (landmarks || []).filter(isLandmarkPoint).map((landmark) => ({
+    x: landmark.x,
+    y: landmark.y,
+    z: typeof landmark.z === "number" ? landmark.z : 0,
+    visibility:
+      typeof landmark.visibility === "number" ? landmark.visibility : 0,
+  }));
+}
+
+function extractSkeletonCandidates(payload: unknown): Landmark[][] | null {
+  if (!payload) return null;
+
+  const source = Array.isArray(payload)
+    ? payload
+    : ((
+        payload as {
+          candidates?: unknown;
+          skeletons?: unknown;
+          people?: unknown;
+          multiLandmarks?: unknown;
+        }
+      )?.candidates ??
+      (payload as { skeletons?: unknown })?.skeletons ??
+      (payload as { people?: unknown })?.people ??
+      (payload as { multiLandmarks?: unknown })?.multiLandmarks);
+
+  if (!Array.isArray(source)) return null;
+  if (source.length === 0) return [];
+
+  if (Array.isArray(source[0])) {
+    return source
+      .map((candidate) =>
+        normalizeSkeleton(Array.isArray(candidate) ? candidate : []),
+      )
+      .filter((candidate) => candidate.length > 0);
+  }
+
+  if (isLandmarkPoint(source[0])) {
+    return [normalizeSkeleton(source)];
+  }
+
+  return null;
+}
+
+function scoreSkeleton(landmarks: Landmark[]) {
+  const visibleLandmarks = landmarks.filter(
+    (landmark) => landmark.visibility > 0.25,
+  );
+  const points = visibleLandmarks.length > 0 ? visibleLandmarks : landmarks;
+
+  if (points.length === 0) {
+    return {
+      area: 0,
+      visibleCount: 0,
+      centroidDistance: Number.POSITIVE_INFINITY,
+    };
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let centroidX = 0;
+  let centroidY = 0;
+
+  for (const landmark of points) {
+    minX = Math.min(minX, landmark.x);
+    minY = Math.min(minY, landmark.y);
+    maxX = Math.max(maxX, landmark.x);
+    maxY = Math.max(maxY, landmark.y);
+    centroidX += landmark.x;
+    centroidY += landmark.y;
+  }
+
+  const width = Math.max(maxX - minX, 0);
+  const height = Math.max(maxY - minY, 0);
+  const centroid = {
+    x: centroidX / points.length,
+    y: centroidY / points.length,
+  };
+
+  return {
+    area: width * height,
+    visibleCount: visibleLandmarks.length,
+    centroidDistance: Math.hypot(centroid.x - 0.5, centroid.y - 0.5),
+  };
+}
+
+function selectPrimarySkeleton(candidates: Landmark[][]): Landmark[] | null {
+  if (!candidates || candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  let selected = candidates[0];
+  let selectedScore = scoreSkeleton(selected);
+
+  for (let i = 1; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    const candidateScore = scoreSkeleton(candidate);
+
+    if (
+      candidateScore.area > selectedScore.area ||
+      (candidateScore.area === selectedScore.area &&
+        candidateScore.visibleCount > selectedScore.visibleCount) ||
+      (candidateScore.area === selectedScore.area &&
+        candidateScore.visibleCount === selectedScore.visibleCount &&
+        candidateScore.centroidDistance < selectedScore.centroidDistance)
+    ) {
+      selected = candidate;
+      selectedScore = candidateScore;
+    }
+  }
+
+  return selected;
+}
+
+function isolatePrimarySkeleton(payload: unknown): Landmark[] | null {
+  const candidates = extractSkeletonCandidates(payload);
+  if (candidates) {
+    return selectPrimarySkeleton(candidates);
+  }
+
+  if (
+    Array.isArray(payload) &&
+    payload.length > 0 &&
+    isLandmarkPoint(payload[0])
+  ) {
+    return normalizeSkeleton(payload);
+  }
+
+  return null;
+}
 
 function unpackLandmarks(buf: ArrayBuffer) {
   const view = new Float32Array(buf);
-  const out: Array<{ x: number; y: number; z: number; visibility: number }> =
-    [];
+  const out: Landmark[] = [];
   for (let i = 0; i < LM_COUNT; i++) {
     const o = i * STRIDE;
     out.push({
@@ -41,6 +190,47 @@ function initSharedLandmarks(buffer: SharedArrayBuffer | ArrayBuffer) {
   }
 
   sharedLandmarkFrame = null;
+}
+
+function cloneLandmarks(landmarks: Landmark[]): Landmark[] {
+  return landmarks.map((lm) => ({ ...lm }));
+}
+
+function storeObservedFrame(landmarks: Landmark[]) {
+  previousObservedFrame = lastObservedFrame;
+  lastObservedFrame = { landmarks: cloneLandmarks(landmarks) };
+  consecutiveDropoutFrames = 0;
+}
+
+function extrapolateLandmarks(): Landmark[] | null {
+  if (!lastObservedFrame || !previousObservedFrame) return null;
+
+  const step = consecutiveDropoutFrames + 1;
+  if (step > MAX_EXTRAPOLATED_FRAMES) return null;
+
+  const latest = lastObservedFrame.landmarks;
+  const prior = previousObservedFrame.landmarks;
+
+  return latest.map((lm, i) => {
+    const prev = prior[i] ?? lm;
+    const dx = lm.x - prev.x;
+    const dy = lm.y - prev.y;
+    const dz = lm.z - prev.z;
+
+    const predicted = {
+      x: lm.x + dx * step,
+      y: lm.y + dy * step,
+      z: lm.z + dz * step,
+      visibility: lm.visibility,
+    };
+
+    return {
+      x: Math.min(Math.max(predicted.x, 0), 1),
+      y: Math.min(Math.max(predicted.y, 0), 1),
+      z: predicted.z,
+      visibility: Math.max(0.5, Math.min(predicted.visibility, 1)),
+    };
+  });
 }
 
 function readSharedLandmarks(): Landmark[] | null {
@@ -107,28 +297,26 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   const totalHeight = Math.abs((ankle?.y || 0) - (shoulder?.y || 0)) || 1;
 
   // Lunge specific calculations
-  const leftKneeAngle = calculateAngle(landmarks[23], landmarks[25], landmarks[27]);
-  const rightKneeAngle = calculateAngle(landmarks[24], landmarks[26], landmarks[28]);
-  const activeSideLunge = leftKneeAngle < rightKneeAngle ? 'left' : 'right';
-  const activeKneeIdx = activeSideLunge === 'left' ? 25 : 26;
-  const activeToeIdx = activeSideLunge === 'left' ? 31 : 32;
-  const activeHeelIdx = activeSideLunge === 'left' ? 29 : 30;
+  const leftKneeAngle = calculateAngle(
+    landmarks[23],
+    landmarks[25],
+    landmarks[27],
+  );
+  const rightKneeAngle = calculateAngle(
+    landmarks[24],
+    landmarks[26],
+    landmarks[28],
+  );
+  const activeSideLunge = leftKneeAngle < rightKneeAngle ? "left" : "right";
+  const activeKneeIdx = activeSideLunge === "left" ? 25 : 26;
+  const activeToeIdx = activeSideLunge === "left" ? 31 : 32;
+  const activeHeelIdx = activeSideLunge === "left" ? 29 : 30;
 
-  let kneePastToes = 0;
   const aKnee = landmarks[activeKneeIdx];
   const aToe = landmarks[activeToeIdx];
   const aHeel = landmarks[activeHeelIdx];
   if (aKnee && aToe && aHeel) {
-    const footX = aToe.x - aHeel.x;
-    const kneeX = aKnee.x - aHeel.x;
-    const footZ = (aToe.z || 0) - (aHeel.z || 0);
-    const kneeZ = (aKnee.z || 0) - (aHeel.z || 0);
-
-    if (Math.abs(footX) > Math.abs(footZ)) {
-      if (Math.abs(footX) > 0.02 && (kneeX / footX) > 1.05) kneePastToes = 1;
-    } else {
-      if (Math.abs(footZ) > 0.02 && (kneeZ / footZ) > 1.05) kneePastToes = 1;
-    }
+    // knee past toes calculation omitted since it is unused
   }
 
   return {
@@ -154,7 +342,7 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
   if (!landmarks || landmarks.length < 29)
     return { label: "unknown", confidence: 0 };
 
-  const { knee, elbow, shoulder, hipDepth, lungeKnee, backKnee } = angles;
+  const { knee, elbow, shoulder, hipDepth } = angles;
 
   if (knee < 140 && hipDepth < 60) return { label: "squat", confidence: 0.9 };
   if (elbow < 80 && shoulder < 30)
@@ -351,9 +539,51 @@ self.onmessage = (event: MessageEvent) => {
   }
 
   const landmarks =
-    readSharedLandmarks() ?? (buf ? unpackLandmarks(buf) : rawLandmarks);
+    isolatePrimarySkeleton(rawLandmarks) ??
+    (buf ? unpackLandmarks(buf) : readSharedLandmarks());
 
   if (!landmarks || landmarks.length === 0) {
+    const extrapolatedLandmarks = extrapolateLandmarks();
+    if (extrapolatedLandmarks) {
+      consecutiveDropoutFrames++;
+      const predicted = predictor.predict(extrapolatedLandmarks);
+
+      if (offscreenCtx)
+        drawSkeleton(
+          predicted.landmarks,
+          status || "yellow",
+          primaryJoints || [],
+          predicted.wasOccluded,
+        );
+
+      const angles = computeAngles(predicted.landmarks);
+      const { label: detectedExercise, confidence } = detectExercise(
+        predicted.landmarks,
+        angles,
+      );
+      const ipcMs = t0 != null ? performance.now() - t0 : undefined;
+
+      const reply: any = {
+        frameId,
+        angles,
+        detectedExercise,
+        confidence,
+        ipcMs,
+        occlusionConfidence: predicted.confidence,
+        wasOccluded: predicted.wasOccluded,
+        extrapolated: true,
+        dropoutFrames: consecutiveDropoutFrames,
+      };
+
+      if (buf) {
+        reply.buf = buf;
+        (self as any).postMessage(reply, [buf]);
+      } else {
+        (self as any).postMessage(reply);
+      }
+      return;
+    }
+
     const msg: any = {
       frameId,
       angles: {},
@@ -367,6 +597,8 @@ self.onmessage = (event: MessageEvent) => {
     }
     return;
   }
+
+  storeObservedFrame(landmarks);
 
   const predicted = predictor.predict(landmarks);
   const correctedLandmarks = predicted.landmarks;

@@ -5,6 +5,7 @@ import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
 import { ReplayScreen } from "./components/ReplayScreen";
 import { TrophyRoom } from "./components/TrophyRoom";
+import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
@@ -19,6 +20,7 @@ import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import React from "react";
 
 
@@ -33,7 +35,8 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password"
-  | "trophy";
+  | "trophy"
+  | "profile";
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -46,6 +49,7 @@ interface WorkoutStats {
   bestStreak: number;
   tags?: string[];
   gainedXp?: number;
+  calories?: number;
 }
 
 // Derived from build-time env — safe to compute outside or at the top of the component
@@ -140,9 +144,20 @@ function App() {
   ) => {
     setStatsLoading(true);
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
-    const fullStats = { ...finalStats, exerciseName: selectedExercise.name, gainedXp };
-    setStats(fullStats);
-    navigateTo("summary");
+    const calorieResult = estimateCalories({
+      exerciseName: selectedExercise.name,
+      totalReps: finalStats.totalReps,
+      durationSeconds: finalStats.duration,
+      accuracyScore: finalStats.accuracy,
+      userWeightKg: getSavedUserWeight() ?? 70,
+    });
+
+    const fullStats = { 
+      ...finalStats, 
+      exerciseName: selectedExercise.name, 
+      gainedXp,
+      calories: calorieResult.calories,  // ADD THIS
+    };
 
     // Award badges based on completed session
     checkAndAwardBadges({
@@ -232,7 +247,15 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
-      <div className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""}`}>
+      <div
+        className={`theme-selector-segmented ${
+          currentScreen === "workout" ? "workout-active" : ""
+        } ${
+          ["summary", "replay", "history", "trophy"].includes(currentScreen)
+            ? "is-hidden"
+            : ""
+        }`}
+      >
         <div className={`selector-indicator theme-${theme}`} />
         <button
           className={`selector-btn ${theme === "cyber-dark" ? "active" : ""}`}
@@ -264,6 +287,7 @@ function App() {
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
+          onViewProfile={user ? () => navigateTo("profile") : undefined}
           leveling={leveling}
         />
       )}
@@ -310,6 +334,10 @@ function App() {
 
         {currentScreen === "trophy" && (
           <TrophyRoom onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "profile" && (
+          <UserProfileScreen onLogout={() => navigateTo("welcome")} />
         )}
       </Suspense>
 

@@ -4,6 +4,7 @@ import {
   resetFeedbackEngine,
   FeedbackResult,
 } from "../engine/feedbackEngine";
+import { BodyType } from "./bodyTypeEngine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plank Spline Types & Constants
@@ -207,6 +208,7 @@ export interface EngineState {
   correctReps: number;
   minScoreInRep: number;
   repScores: number[];
+  repDeviations: number[];
   accuracy: number;
 
   // 🔥 Plank spline regression state
@@ -267,19 +269,10 @@ export function clearRepParams(key: string): void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class ExerciseEngine {
-  // Pull rep-counter params from registered overrides or fall back to defaults.
-  private repParams(key: string): RepParams {
-    const custom = layoutOverrides.get(key);
-    if (!custom) return ENGINE_DEFAULTS;
-    return {
-      repCooldown: custom.repCooldown ?? ENGINE_DEFAULTS.repCooldown,
-      hysteresis: custom.hysteresis ?? ENGINE_DEFAULTS.hysteresis,
-      smoothingWindow: custom.smoothingWindow ?? ENGINE_DEFAULTS.smoothingWindow,
-      minDownDuration: custom.minDownDuration ?? ENGINE_DEFAULTS.minDownDuration,
-      correctRepMinScore: custom.correctRepMinScore ?? ENGINE_DEFAULTS.correctRepMinScore,
-      streakMinScore: custom.streakMinScore ?? ENGINE_DEFAULTS.streakMinScore,
-    };
-  }
+  private readonly BASE_REP_COOLDOWN = 600;
+  private readonly BASE_HYSTERESIS = 10;
+  private readonly SMOOTHING_WINDOW = 5;
+  private readonly MIN_DOWN_DURATION = 150;
 
   private isValidExercisePosture(
     history: number[],
@@ -309,18 +302,30 @@ export class ExerciseEngine {
     angles: Record<string, number>,
     visibility: Record<string, number>,
     currentState: EngineState,
-    /**
-     * Raw MediaPipe landmarks array.
-     * Required for plank spline regression; optional for other exercises.
-     */
-    landmarks?: any[],
+    bodyType?: BodyType,
   ): Promise<EngineState> {
     const now = Date.now();
     const p = this.repParams(config.key);
 
 
-    const { reps, lastRepTime, history } = currentState;
-    let { stage, isCalibrated, stageStartTime } = currentState;
+    // Adaptive Difficulty Tuning
+    let currentCooldown = this.BASE_REP_COOLDOWN;
+    let currentHysteresis = this.BASE_HYSTERESIS;
+    
+    if (bodyType === 'ecto') {
+      currentCooldown = 750; // Longer limbs take more time to complete full ROM
+      currentHysteresis = 12; // Ectos need slightly larger movement bands
+    } else if (bodyType === 'meso') {
+      currentCooldown = 500; // Mesomorphs can achieve faster athletic cadence
+      currentHysteresis = 8;  // Stricter form requirements
+    } else if (bodyType === 'endo') {
+      currentCooldown = 650;
+      currentHysteresis = 10;
+    }
+
+    let { reps, stage, lastRepTime, isCalibrated, history, stageStartTime } =
+      currentState;
+
     const currentVisibility = visibility[config.primaryJoint];
 
     // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
@@ -455,7 +460,7 @@ export class ExerciseEngine {
     let nextLastRepTime = lastRepTime;
     let downAngleReached = currentState.downAngleReached;
 
-    if (smoothedAngle < config.downThreshold - p.hysteresis / 2) {
+    if (smoothedAngle < config.downThreshold - currentHysteresis / 2) {
       if (stage === "up") {
         nextStage = "down";
         stageStartTime = now;
@@ -468,9 +473,16 @@ export class ExerciseEngine {
 
     let repJustCounted = false;
 
-    if (smoothedAngle > config.upThreshold + p.hysteresis / 2 && stage === "down") {
-      const timeInDown = now - stageStartTime;
-      if (now - lastRepTime > p.repCooldown && timeInDown > p.minDownDuration) {
+    if (
+      smoothedAngle > config.upThreshold + currentHysteresis / 2 &&
+      stage === "down"
+    ) {
+      const durationInDown = currentTime - stageStartTime;
+
+      if (
+        currentTime - lastRepTime > currentCooldown &&
+        durationInDown > this.MIN_DOWN_DURATION
+      ) {
         nextStage = "up";
         stageStartTime = now;
         repJustCounted = true;
@@ -513,13 +525,15 @@ export class ExerciseEngine {
       feedbackResult = getFeedback(context, config.key);
       frameScore = feedbackResult.score;
     } else {
-      feedbackResult = { score: 100, color: "green", message: "READY 🟢", issues: [] };
+      feedbackResult = { score: 100, color: "green", message: "READY 🟢", issues: [], deviation: 0 };
       frameScore = 100;
     }
 
     let nextMinScoreInRep = currentState.minScoreInRep;
+    let currentDeviation = 0;
     if (isInExercisePosture) {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
+      currentDeviation = feedbackResult.deviation || 0;
     }
 
     let nextCurrentStreak = currentState.currentStreak;
@@ -527,12 +541,14 @@ export class ExerciseEngine {
     let nextTotalReps = currentState.totalReps;
     let nextCorrectReps = currentState.correctReps;
     const nextRepScores = [...currentState.repScores];
+    const nextRepDeviations = [...currentState.repDeviations];
 
     let allowRep = currentState.allowRep;
 
     if (repJustCounted) {
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
+      nextRepDeviations.push(currentDeviation);
       nextLastRepTime = now;
 
       allowRep = nextMinScoreInRep > 70;
@@ -594,10 +610,11 @@ export class ExerciseEngine {
       bestStreak: nextBestStreak,
       isInExercisePosture,
       downAngleReached,
-      totalReps: nextTotalReps,
-      correctReps: nextCorrectReps,
-      minScoreInRep: nextMinScoreInRep,
-      repScores: nextRepScores,
+      totalReps:          nextTotalReps,
+      correctReps:        nextCorrectReps,
+      minScoreInRep:      nextMinScoreInRep,
+      repScores:          nextRepScores,
+      repDeviations:      nextRepDeviations,
       accuracy,
 
       // 🔥 Plank spline state
