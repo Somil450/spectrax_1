@@ -131,7 +131,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   // Fallback refs
-  const jointsRef = useRef<THREE.Mesh[]>([]);
+  // ── XYZ Axis visualizers — one per joint hub ──────────────────────────────
+  const axesRef = useRef<THREE.AxesHelper[]>([]);
+  const [showAxes, setShowAxes] = useState(false);
   const bonesRef = useRef<
     { line: THREE.Line; startIdx: number; endIdx: number }[]
   >([]);
@@ -251,6 +253,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       createdJoints.push(sphere);
     }
     jointsRef.current = createdJoints;
+    // ── Create XYZ axis helpers for each joint hub ────────────────────────
+    // Each AxesHelper shows X=red, Y=green, Z=blue rotational planes in 3D
+    const createdAxes: THREE.AxesHelper[] = [];
+    for (let i = 0; i < 33; i++) {
+      const axesHelper = new THREE.AxesHelper(0.08);
+      axesHelper.visible = false; // hidden by default
+      scene.add(axesHelper);
+      createdAxes.push(axesHelper);
+    }
+    axesRef.current = createdAxes;
 
     const createdBones: {
       line: THREE.Line;
@@ -515,7 +527,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         if (mountRef.current?.contains(renderer.domElement)) {
           mountRef.current.removeChild(renderer.domElement);
         }
-
+// Dispose axis helpers
+      axesRef.current.forEach((a) => {
+        scene.remove(a);
+        a.dispose();
+      });
+      axesRef.current = [];
         renderer.dispose();
 
         if (rendererRef.current === renderer) {
@@ -882,6 +899,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const targetZ = -landmark.z * 2;
 
           mesh.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.1);
+          // ── Sync axis helper position and visibility with joint ───────────
+          const axisHelper = axesRef.current[i];
+          if (axisHelper) {
+            axisHelper.position.copy(mesh.position);
+            axisHelper.visible = showAxes;
+          }
           const jMat = mesh.material as THREE.MeshStandardMaterial;
           if (jMat && jMat.color) {
             jMat.color.lerp(jointTargetColors[i], 0.2);
@@ -966,6 +989,27 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           overflow: "hidden",
         }}
       />
+      {/* XYZ Axis Toggle */}
+      <button
+        onClick={() => setShowAxes((v) => !v)}
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          zIndex: 50,
+          background: showAxes ? 'rgba(0,255,136,0.15)' : 'rgba(0,0,0,0.5)',
+          border: `1px solid ${showAxes ? '#00ff88' : '#555'}`,
+          borderRadius: 6,
+          color: showAxes ? '#00ff88' : '#aaa',
+          fontFamily: 'monospace',
+          fontSize: 11,
+          fontWeight: 700,
+          padding: '4px 10px',
+          cursor: 'pointer',
+        }}
+      >
+        {showAxes ? 'AXES ✓' : 'AXES'}
+      </button>
 
       {/* 3D HUD Layer */}
       <div
