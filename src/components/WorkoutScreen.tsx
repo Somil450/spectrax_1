@@ -420,7 +420,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       angles,
       visibility,
       mutableState.current,
-        bodyTypeRef.current,
+      bodyTypeRef.current,
+      filteredResults.poseLandmarks,
+      performance.now()
+    );
+
+    mutableState.current = nextState;
+    setEngineState(nextState);
 
     sessionRecorder.recordFrame({
       timestamp: Date.now(),
