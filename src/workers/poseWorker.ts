@@ -312,21 +312,11 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   const activeToeIdx = activeSideLunge === "left" ? 31 : 32;
   const activeHeelIdx = activeSideLunge === "left" ? 29 : 30;
 
-  let kneePastToes = 0;
   const aKnee = landmarks[activeKneeIdx];
   const aToe = landmarks[activeToeIdx];
   const aHeel = landmarks[activeHeelIdx];
   if (aKnee && aToe && aHeel) {
-    const footX = aToe.x - aHeel.x;
-    const kneeX = aKnee.x - aHeel.x;
-    const footZ = (aToe.z || 0) - (aHeel.z || 0);
-    const kneeZ = (aKnee.z || 0) - (aHeel.z || 0);
-
-    if (Math.abs(footX) > Math.abs(footZ)) {
-      if (Math.abs(footX) > 0.02 && kneeX / footX > 1.05) kneePastToes = 1;
-    } else {
-      if (Math.abs(footZ) > 0.02 && kneeZ / footZ > 1.05) kneePastToes = 1;
-    }
+    // knee past toes calculation omitted since it is unused
   }
 
   return {
@@ -352,7 +342,7 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
   if (!landmarks || landmarks.length < 29)
     return { label: "unknown", confidence: 0 };
 
-  const { knee, elbow, shoulder, hipDepth, lungeKnee, backKnee } = angles;
+  const { knee, elbow, shoulder, hipDepth } = angles;
 
   if (knee < 140 && hipDepth < 60) return { label: "squat", confidence: 0.9 };
   if (elbow < 80 && shoulder < 30)
