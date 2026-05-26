@@ -1,4 +1,4 @@
-import { NormalizedLandmark } from "@mediapipe/pose";
+import type { NormalizedLandmark } from "@mediapipe/pose";
 
 export interface VBTMetrics {
   currentVelocity: number; 

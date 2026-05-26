@@ -25,7 +25,7 @@ import {
 } from './Squat_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
-import { NormalizedLandmark } from "@mediapipe/pose";
+import type { NormalizedLandmark } from "@mediapipe/pose";
 
 // ─── EngineState ──────────────
 
