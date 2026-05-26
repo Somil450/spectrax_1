@@ -111,10 +111,11 @@ const srOnly: React.CSSProperties = {
 
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
-  const bodyTypeRef = useRef(bodyType);
-  bodyTypeRef.current = bodyType;
-  const onAutoDetectRef = useRef(onAutoDetect);
-  onAutoDetectRef.current = onAutoDetect;
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(getStoredPanelPositions());
+  const [panelsLocked, setPanelsLocked] = useState(false);
+  const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
+  const { isOnline } = useWorkoutSync();
+  const FPS_LIMIT = 30;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isMountedRef = useRef<boolean>(true);

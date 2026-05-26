@@ -794,7 +794,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             cameraRef.current.lookAt(lookTarget);
           }
         }
-      }
 
         const applyPose = (
           boneKey: string,
