@@ -54,32 +54,47 @@
 }
 
 
-[data-theme="light"], [data-theme-style="light"] {
-  /* Backgrounds — clean white / soft light theme */
-  --bg-primary:    #ffffff;
-  --bg-secondary:  #f5f7fb;
-  --bg-tertiary:   #eef4ff;
+/* =========================================
+   PREMIUM LIGHT THEME
+========================================= */
 
-  /* Neon accents — premium light mode palette */
-  --neon-cyan:        #00cfff;
-  --neon-cyan-dim:    #0f9be0;
-  --neon-purple:      #6c63ff;
-  --neon-purple-dim:  #5f53d6;
-  --neon-green:       #00a858;
-  --neon-yellow:      #cc9600;
-  --neon-red:         #d6002f;
-  --neon-orange:      #d65a00;
+[data-theme="light"],
+[data-theme-style="light"] {
 
-  /* Glass — white-tinted instead of dark-tinted */
-  --glass-bg:     rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(108, 99, 255, 0.16);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  --glass-blur: 16px;
+  /* Backgrounds */
+  --bg-primary: #f4f7fb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eaf1ff;
 
-  /* Text — dark on light background */
-  --text-primary:   #111827;
-  --text-secondary: #4b5563;
-  --text-dim:       #6b7280;
+  /* Accent Colors */
+  --neon-cyan: #2563eb;
+  --neon-cyan-dim: #1d4ed8;
+
+  --neon-purple: #7c3aed;
+  --neon-purple-dim: #6d28d9;
+
+  --neon-green: #059669;
+  --neon-yellow: #d97706;
+  --neon-red: #dc2626;
+  --neon-orange: #ea580c;
+
+  /* Glass */
+  --glass-bg: rgba(255,255,255,0.75);
+
+  --glass-border:
+    rgba(255,255,255,0.45);
+
+  --glass-shadow:
+    0 8px 30px rgba(15,23,42,0.08);
+
+  --glass-blur: 18px;
+
+  /* Text */
+  --text-primary: #0f172a;
+
+  --text-secondary: #334155;
+
+  --text-dim: #64748b;
 }
 
 [data-theme-style="retro"] {
@@ -191,7 +206,7 @@ input {
   width: calc(33.33% - 5.33px);
   border-radius: 999px;
   background: var(--neon-cyan);
-  opacity: 0.15;
+  opacity: 0.85;
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.35s ease;
   pointer-events: none;
   z-index: 0;
@@ -275,17 +290,27 @@ body {
   background: var(--bg-primary) !important;
 }
 
-.camera-viewport {
-  background: radial-gradient(circle at center, #111a3d 0%, #0a0a1a 100%) !important;
-}
+[data-theme="light"] .camera-viewport,
+[data-theme-style="light"] .camera-viewport {
 
-[data-theme="light"] .camera-viewport {
-  background: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%) !important;
-}
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(37,99,235,0.10),
+      transparent 30%
+    ),
 
-[data-theme="light"] body::before,
-[data-theme="light"] body::after {
-  background: none !important;
+    radial-gradient(
+      circle at bottom right,
+      rgba(124,58,237,0.08),
+      transparent 30%
+    ),
+
+    linear-gradient(
+      135deg,
+      #f8fbff 0%,
+      #eef4ff 100%
+    ) !important;
 }
 
 /* ── UI Framework ─────────────────────────────────────────────── */
@@ -309,7 +334,7 @@ body {
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: var(--bg-primary);
+  color: white;
   background: var(--neon-cyan);
   border: none;
   border-radius: 18px;
@@ -660,7 +685,7 @@ body {
   border-radius: 50%;
   pointer-events: none;
   filter: blur(100px);
-  opacity: 0.14;
+  opacity: 0.6;
 }
 
 .welcome-orb--cyan {
@@ -1021,4 +1046,239 @@ body {
     padding: 13px 24px;
     font-size: 0.82rem;
   }
+}
+/* =========================================
+   REAL LIGHT MODE FIX
+========================================= */
+
+[data-theme-style="light"] .welcome-screen,
+[data-theme-style="light"] .screen-container,
+[data-theme-style="light"] .spectrax-app,
+[data-theme-style="light"] .camera-viewport {
+  opacity: 1 !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Background */
+[data-theme-style="light"] .camera-viewport {
+  background:
+    radial-gradient(circle at top left,
+      rgba(37,99,235,0.10),
+      transparent 30%),
+
+    radial-gradient(circle at bottom right,
+      rgba(124,58,237,0.08),
+      transparent 30%),
+
+    linear-gradient(
+      135deg,
+      #f8fbff 0%,
+      #eef4ff 100%
+    ) !important;
+}
+
+/* Text */
+[data-theme-style="light"] h1,
+[data-theme-style="light"] h2,
+[data-theme-style="light"] h3,
+[data-theme-style="light"] p,
+[data-theme-style="light"] span {
+  opacity: 1 !important;
+  color: #0f172a !important;
+}
+
+/* Main Title */
+[data-theme-style="light"] .text-glow {
+  color: #2563eb !important;
+
+  text-shadow:
+    0 0 18px rgba(37,99,235,0.18) !important;
+}
+
+/* Glass Cards */
+[data-theme-style="light"] .glass {
+  background:
+    rgba(255,255,255,0.82) !important;
+
+  border:
+    1px solid rgba(255,255,255,0.5) !important;
+
+  backdrop-filter:
+    blur(18px);
+
+  opacity: 1 !important;
+
+  box-shadow:
+    0 8px 30px rgba(15,23,42,0.08) !important;
+}
+
+/* Buttons */
+[data-theme-style="light"] .btn-neon {
+  background:
+    linear-gradient(
+      135deg,
+      #2563eb,
+      #4f46e5
+    ) !important;
+
+  color: white !important;
+}
+/* =========================================
+   LIGHT MODE FIXES
+========================================= */
+
+[data-theme="light"] .glass,
+[data-theme-style="light"] .glass {
+
+  background:
+    rgba(255,255,255,0.78);
+
+  border:
+    1px solid rgba(255,255,255,0.45);
+
+  box-shadow:
+    0 8px 30px rgba(15,23,42,0.08);
+
+  backdrop-filter:
+    blur(18px);
+}
+
+/* Text visibility */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] p,
+[data-theme="light"] span,
+
+[data-theme-style="light"] h1,
+[data-theme-style="light"] h2,
+[data-theme-style="light"] h3,
+[data-theme-style="light"] p,
+[data-theme-style="light"] span {
+
+  opacity: 1 !important;
+}
+
+/* Better heading glow */
+.text-glow {
+  text-shadow:
+    0 0 18px rgba(37,99,235,0.18);
+}
+/* =========================================
+   LIGHT MODE TEXT VISIBILITY FIX
+========================================= */
+
+[data-theme="light"],
+[data-theme-style="light"] {
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-dim: #64748b;
+}
+
+/* Subtitle */
+[data-theme="light"] .hero-subtitle,
+[data-theme-style="light"] .hero-subtitle,
+
+[data-theme="light"] .welcome-subtitle,
+[data-theme-style="light"] .welcome-subtitle {
+
+  color: var(--text-secondary) !important;
+
+  opacity: 1 !important;
+}
+
+/* XP + Level Text */
+[data-theme="light"] .xp-text,
+[data-theme-style="light"] .xp-text,
+
+[data-theme="light"] .level-text,
+[data-theme-style="light"] .level-text,
+
+[data-theme="light"] .progress-text,
+[data-theme-style="light"] .progress-text {
+
+  color: var(--text-primary) !important;
+
+  opacity: 1 !important;
+}
+
+/* Stats Labels */
+[data-theme="light"] .stats-label,
+[data-theme-style="light"] .stats-label,
+
+[data-theme="light"] .stats-value,
+[data-theme-style="light"] .stats-value {
+
+  color: var(--text-primary) !important;
+
+  opacity: 1 !important;
+}
+
+/* Generic invisible text fix */
+[data-theme="light"] p,
+[data-theme="light"] span,
+[data-theme-style="light"] p,
+[data-theme-style="light"] span {
+
+  opacity: 1 !important;
+}
+
+/* Level Card */
+[data-theme="light"] .glass,
+[data-theme-style="light"] .glass {
+
+  color: var(--text-primary);
+}
+/* =========================================
+   FORCE ALL LIGHT MODE TEXT VISIBLE
+========================================= */
+
+[data-theme="light"] *,
+[data-theme-style="light"] * {
+
+  color: inherit;
+}
+
+/* Main text */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] p,
+[data-theme="light"] span,
+[data-theme-style="light"] h1,
+[data-theme-style="light"] h2,
+[data-theme-style="light"] h3,
+[data-theme-style="light"] h4,
+[data-theme-style="light"] p,
+[data-theme-style="light"] span {
+
+  opacity: 1 !important;
+}
+
+/* Dark readable text */
+[data-theme="light"] p,
+[data-theme="light"] span,
+[data-theme-style="light"] p,
+[data-theme-style="light"] span {
+
+  color: #334155 !important;
+}
+
+/* Headings */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme-style="light"] h1,
+[data-theme-style="light"] h2 {
+
+  color: #0f172a !important;
+}
+
+/* Buttons */
+[data-theme="light"] button,
+[data-theme-style="light"] button {
+
+  opacity: 1 !important;
 }
