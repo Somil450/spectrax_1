@@ -71,8 +71,8 @@ interface JointDefinition {
 }
 
 const JOINT_DEFINITIONS: JointDefinition[] = [
-  { name: "LEFT_HIP", proximal: 23, vertex: 23, distal: 25 },
-  { name: "RIGHT_HIP", proximal: 24, vertex: 24, distal: 26 },
+  { name: "LEFT_HIP", proximal: 11, vertex: 23, distal: 25 },
+  { name: "RIGHT_HIP", proximal: 12, vertex: 24, distal: 26 },
   { name: "LEFT_KNEE", proximal: 23, vertex: 25, distal: 27 },
   { name: "RIGHT_KNEE", proximal: 24, vertex: 26, distal: 28 },
   { name: "LEFT_ANKLE", proximal: 25, vertex: 27, distal: 31 },
