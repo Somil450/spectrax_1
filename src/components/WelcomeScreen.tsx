@@ -236,7 +236,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
               </div>
             </div>
-          </div>
 
           {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">
