@@ -561,10 +561,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const ssaoPassRef  = useRef<SSAOPass | null>(null);
   const cameraRef   = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-
-  // Fallback skeleton refs
-  const jointsRef = useRef<THREE.Mesh[]>([]);
-  const bonesRef  = useRef<{ line: THREE.Line; startIdx: number; endIdx: number }[]>([]);
+  // Fallback refs
+  // ── XYZ Axis visualizers — one per joint hub ──────────────────────────────
+  const axesRef = useRef<THREE.AxesHelper[]>([]);
+  const [showAxes, setShowAxes] = useState(false);
+  const bonesRef = useRef<
+    { line: THREE.Line; startIdx: number; endIdx: number }[]
+  >([]);
 
   // GLTF refs
   const modelGroupRef     = useRef<THREE.Group | null>(null);
@@ -759,6 +762,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       createdJoints.push(sphere);
     }
     jointsRef.current = createdJoints;
+    // ── Create XYZ axis helpers for each joint hub ────────────────────────
+    // Each AxesHelper shows X=red, Y=green, Z=blue rotational planes in 3D
+    const createdAxes: THREE.AxesHelper[] = [];
+    for (let i = 0; i < 33; i++) {
+      const axesHelper = new THREE.AxesHelper(0.08);
+      axesHelper.visible = false; // hidden by default
+      scene.add(axesHelper);
+      createdAxes.push(axesHelper);
+    }
+    axesRef.current = createdAxes;
 
     const createdBones: { line: THREE.Line; startIdx: number; endIdx: number }[] = [];
     BONES_CONNECTIONS.forEach(([startIdx, endIdx]) => {
@@ -980,16 +993,17 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       rendererPipelineCleanupRef.current = () => {
         resizeObserver.disconnect();
 
-        renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
-        renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
-
         controls.dispose();
-        composer.dispose();
-        composerRef.current  = null;
-        bloomPassRef.current = null;
-        smaaPassRef.current  = null;
-        ssaoPassRef.current  = null;
-        if (mountRef.current?.contains(renderer.domElement)) mountRef.current.removeChild(renderer.domElement);
+
+        if (mountRef.current?.contains(renderer.domElement)) {
+          mountRef.current.removeChild(renderer.domElement);
+        }
+// Dispose axis helpers
+      axesRef.current.forEach((a) => {
+        scene.remove(a);
+        a.dispose();
+      });
+      axesRef.current = [];
         renderer.dispose();
         renderer.forceContextLoss();
         if (rendererRef.current  === renderer) rendererRef.current  = null;
@@ -1287,7 +1301,19 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const landmark = frame.landmarks[i];
           if (!landmark || !jointsRef.current[i]) continue;
           const mesh = jointsRef.current[i];
-          mesh.position.lerp(new THREE.Vector3(-(landmark.x - 0.5) * 2, -(landmark.y - 0.5) * 2, -landmark.z * 2), 0.1);
+          if (!mesh) continue;
+          // Invert X for mirroring anatomical alignment
+          const targetX = -(landmark.x - 0.5) * 2;
+          const targetY = -(landmark.y - 0.5) * 2;
+          const targetZ = -landmark.z * 2;
+
+          mesh.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.1);
+          // ── Sync axis helper position and visibility with joint ───────────
+          const axisHelper = axesRef.current[i];
+          if (axisHelper) {
+            axisHelper.position.copy(mesh.position);
+            axisHelper.visible = showAxes;
+          }
           const jMat = mesh.material as THREE.MeshStandardMaterial;
           if (jMat?.color) {
             jMat.color.lerp(jointTargetColors[i], 0.2);
@@ -1334,6 +1360,27 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         ref={mountRef}
         style={{ flex: 1, minHeight: "400px", width: "100%", height: "100%", borderRadius: "8px", overflow: "hidden" }}
       />
+      {/* XYZ Axis Toggle */}
+      <button
+        onClick={() => setShowAxes((v) => !v)}
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          zIndex: 50,
+          background: showAxes ? 'rgba(0,255,136,0.15)' : 'rgba(0,0,0,0.5)',
+          border: `1px solid ${showAxes ? '#00ff88' : '#555'}`,
+          borderRadius: 6,
+          color: showAxes ? '#00ff88' : '#aaa',
+          fontFamily: 'monospace',
+          fontSize: 11,
+          fontWeight: 700,
+          padding: '4px 10px',
+          cursor: 'pointer',
+        }}
+      >
+        {showAxes ? 'AXES ✓' : 'AXES'}
+      </button>
 
       {/* Loading Spinner Overlay */}
       {modelLoading && (
