@@ -36,6 +36,7 @@ import {
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
+import { getSupinationScore } from './wristRotationDetector';
 import type { NormalizedLandmark } from "@mediapipe/pose";
 
 export interface JumpingJackSyncSample {
@@ -184,10 +185,25 @@ export interface EngineState {
    * null until the first rep is counted.
    */
   lastDepthResult: SquatDepthResult | null;
-  depthStats?: SquatDepthStats;
+  depthStats: SquatDepthStats;
+  liveDepthFeedback: string;
 
-  // 🔥 Static hold time tracking
+  // VBT Metrics
+  vbtMetrics?: VBTMetrics;
+
+  // ── Pushup depth classification ──────────────────────────────
+  lastPushupDepthResult?: PushupDepthResult | null;
+  pushupDepthStats?: PushupDepthStats;
+  livePushupDepthFeedback?: string;
+  downZReached?: number;
+
+  // Tracking & recovery buffers
+  visibilityBuffer?: number[];
+  trackingLostFrames?: number;
+  lastValidAngles?: Record<string, number>;
   holdTime?: number;
+  jumpingJackSyncSamples?: JumpingJackSyncSample[];
+  jumpingJackSync?: JumpingJackSyncMetrics;
 
   wristSupinationScore?: number;
 
@@ -473,6 +489,10 @@ export class ExerciseEngine {
       ? getSupinationScore(landmarks)
       : NaN;
 
+    const PLANK_DEVIATION_THRESHOLD = 0.05;
+    const hipSplineDeviation = 0;
+    const nextPlankSpline = { isCalibrated: false };
+
     const context: any = {
       ...angles,
       stage: nextStage,
@@ -480,6 +500,10 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
+      hipSplineDeviation,
+      plankSplineCalibrated: nextPlankSpline.isCalibrated,
+      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
+      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
       wristSupinationScore,
     };
 
@@ -729,14 +753,19 @@ export class ExerciseEngine {
       repDeviations: nextRepDeviations,
       accuracy,
 
-      // Depth classification (NEW)
       lastDepthResult: nextLastDepthResult,
       depthStats: nextDepthStats,
       liveDepthFeedback,
-
+      lastPushupDepthResult: nextLastPushupDepthResult,
+      pushupDepthStats: nextPushupDepthStats,
+      livePushupDepthFeedback,
+      downZReached,
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles,
+      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
+      jumpingJackSync: nextJumpingJackSync,
       vbtMetrics: updatedVbtMetrics,
-
-      // 🔥 Static hold time tracking
       holdTime: nextHoldTime,
 
       wristSupinationScore,

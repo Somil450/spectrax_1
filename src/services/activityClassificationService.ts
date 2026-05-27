@@ -82,7 +82,7 @@ export class ActivityClassificationService {
             { 
               type: 'analyze', 
               image: bitmap, 
-              labels: ['squat', 'pushup', 'plank', 'bicep curl', 'jumping jack'], 
+              labels: ['squat', 'pushup', 'plank', 'bicep curl', 'jumping jack', 'shoulder press'], 
               frameId: Date.now() 
             },
             [bitmap] // Transferable objects
