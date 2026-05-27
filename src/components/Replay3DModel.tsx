@@ -48,7 +48,6 @@ export interface Replay3DModelProps {
   onPlayToggle?: () => void;
   hideControls?: boolean;
   skin?: string;
-  cameraView?: string;
 }
 
 type HudLabel = {
@@ -733,61 +732,11 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Fallback skeleton with dynamic strain shader
-    const jointGeometry = new THREE.SphereGeometry(0.04, 32, 32);
-    const jointShaderMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uStrain: { value: 0.0 },
-        uColorCold: { value: new THREE.Color(0x00ffff) },
-        uColorHot: { value: new THREE.Color(0xff0033) },
-      },
-      vertexShader: `
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          vViewPosition = -mvPosition.xyz;
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform float uStrain;
-        uniform vec3 uColorCold;
-        uniform vec3 uColorHot;
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          vec3 baseColor = mix(uColorCold, uColorHot, uStrain);
-          
-          vec3 normal = normalize(vNormal);
-          vec3 viewDir = normalize(vViewPosition);
-          
-          // Basic directional lighting
-          vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
-          float diff = max(dot(normal, lightDir), 0.0);
-          vec3 ambient = vec3(0.2) * baseColor;
-          
-          // Rim lighting (fluorescent glow effect at edges)
-          float rim = 1.0 - max(dot(viewDir, normal), 0.0);
-          rim = smoothstep(0.5, 1.0, rim);
-          vec3 rimColor = mix(uColorCold, uColorHot, uStrain) * 2.0;
-          
-          // Emissive glow based on strain
-          vec3 emissive = baseColor * uStrain * 1.5;
-          
-          vec3 finalColor = (baseColor * diff) + ambient + (rimColor * rim) + emissive;
-          
-          gl_FragColor = vec4(finalColor, 1.0);
-          
-          // Approximate tone mapping
-          #include <tonemapping_fragment>
-          #include <colorspace_fragment>
-        }
-      `
+    // Fallback skeleton
+    const jointGeometry = new THREE.SphereGeometry(0.04, 16, 16);
+    const jointMaterial  = new THREE.MeshStandardMaterial({
+      color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.5,
     });
-
     const createdJoints: THREE.Mesh[] = [];
     for (let i = 0; i < 33; i++) {
       const sphere = new THREE.Mesh(jointGeometry, jointShaderMaterial.clone());
@@ -1319,46 +1268,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         activeMuscleGroups.forEach((j) => { jointTargetColors[j] = strainColor; });
         badJoints.forEach((j)         => { jointTargetColors[j] = mistakeColor || COLOR_RED; });
 
-        const JOINT_ANGLES: Record<number, [number, number, number]> = {
-          11: [13, 11, 23], // L Shoulder
-          12: [14, 12, 24], // R Shoulder
-          13: [11, 13, 15], // L Elbow
-          14: [12, 14, 16], // R Elbow
-          23: [11, 23, 25], // L Hip
-          24: [12, 24, 26], // R Hip
-          25: [23, 25, 27], // L Knee
-          26: [24, 26, 28], // R Knee
-        };
-
         for (let i = 0; i < 33; i++) {
           const landmark = frame.landmarks[i];
           if (!landmark || !jointsRef.current[i]) continue;
           const mesh = jointsRef.current[i];
           mesh.position.lerp(new THREE.Vector3(-(landmark.x - 0.5) * 2, -(landmark.y - 0.5) * 2, -landmark.z * 2), 0.1);
-          
-          let strain = 0;
-          if (JOINT_ANGLES[i]) {
-            const [p1, p2, p3] = JOINT_ANGLES[i];
-            const a = getLm(p1), b = getLm(p2), c = getLm(p3);
-            if (a && b && c) {
-              const v1 = new THREE.Vector3().subVectors(a, b);
-              const v2 = new THREE.Vector3().subVectors(c, b);
-              const angle = v1.angleTo(v2); // 0 to PI
-              // 0 strain at PI (180 deg), 1 strain at 0 (0 deg)
-              strain = 1.0 - (angle / Math.PI);
-              strain = Math.max(0, Math.min(1, strain));
-              
-              // Emphasize the strain curve so slight bends don't glow immediately
-              strain = Math.pow(strain, 1.5);
-            }
-          }
-          
-          const jMat = mesh.material as THREE.ShaderMaterial;
-          if (jMat.uniforms && jMat.uniforms.uStrain) {
-            // Give bad joints a maximum strain for red highlight, otherwise interpolate normal strain
-            const targetStrain = badJoints.has(i) ? 1.0 : strain;
-            const currentStrain = jMat.uniforms.uStrain.value;
-            jMat.uniforms.uStrain.value = currentStrain + (targetStrain - currentStrain) * 0.15;
+          const jMat = mesh.material as THREE.MeshStandardMaterial;
+          if (jMat?.color) {
+            jMat.color.lerp(jointTargetColors[i], 0.2);
+            jMat.emissive.lerp(jointTargetColors[i], 0.2);
+            jMat.emissiveIntensity = badJoints.has(i) ? 1.5 : 0.5;
           }
         }
 
