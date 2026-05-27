@@ -375,7 +375,6 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
   if (knee < 140 && hipDepth < 60) return { label: "squat", confidence: 0.9 };
   if (elbow < 80 && shoulder < 30)
     return { label: "bicepCurl", confidence: 0.85 };
-
   const lShoulder = landmarks[11];
   const lHip = landmarks[23];
   const lAnkle = landmarks[27];
@@ -383,6 +382,9 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
     const hStretch = Math.abs(lAnkle.x - lShoulder.x);
     const vCompact = Math.abs(lAnkle.y - lShoulder.y);
     if (hStretch > vCompact * 0.8) {
+      if (Math.abs(lShoulder.y - lHip.y) < 0.12) {
+        return { label: "flutterKicks", confidence: 0.85 };
+      }
       if (elbow < 120) return { label: "pushup", confidence: 0.85 };
       return { label: "plank", confidence: 0.8 };
     }

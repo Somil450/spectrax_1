@@ -163,6 +163,11 @@ export class SkeletalSense {
       return { label: "JUMPING JACK", confidence: 0.88 };
     }
 
+    // FLUTTER KICKS: lying flat on back with legs kicking
+    if (Math.abs(lShoulder.y - lHip.y) < 0.12 && Math.abs(lShoulder.y - lWrist.y) < 0.15) {
+      return { label: "FLUTTER KICKS", confidence: 0.88 };
+    }
+
     // PLANK: Steady horizontal posture
     if (Math.abs(lShoulder.y - lHip.y) < 0.1 && Math.abs(lHip.y - lAnkle.y) < 0.1) {
       return { label: "PLANK", confidence: 0.82 };
