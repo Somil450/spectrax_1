@@ -241,11 +241,142 @@ const clamp = (value: number, min: number, max: number) => {
   return Math.min(Math.max(value, min), max);
 };
 
-const getCoordinateKey = (
-  stream: LandmarkStream,
-  landmarkIndex: number,
-  coordinate: LandmarkCoordinate,
-) => `${stream}:${landmarkIndex}:${coordinate}`;
+// ─── Dynamic Joint Confidence Hashing ──────────────────────────────────────────
+
+/**
+ * Rolling entry for a single landmark coordinate's confidence history.
+ */
+interface ConfidenceEntry {
+  /** Rolling window of recent confidence values */
+  history: number[];
+  /** Dynamic safety threshold — adapts to recent confidence levels */
+  dynamicThreshold: number;
+  /** Last known good value (when confidence was above threshold) */
+  lastGoodValue: number;
+  /** Consecutive frames below threshold */
+  lowConfidenceFrames: number;
+  /** Whether this entry has seen a valid value at least once */
+  initialized: boolean;
+}
+
+/**
+ * Hash-table system that maps each (landmark, coordinate) pair to a rolling
+ * confidence tracker. On every frame, each coordinate is checked against its
+ * own dynamically adjusted threshold. Unstable coordinates (confidence below
+ * the adaptive threshold) are replaced with an interpolated estimate derived
+ * from the last known good value, bypassing jittery or lost landmarks.
+ *
+ * The threshold adapts per-entry using an exponential moving average of recent
+ * confidence values scaled by a safety factor, with a static floor so that
+ * extremely low confidence never becomes "normal".
+ */
+class JointConfidenceHash {
+  private readonly entries = new Map<string, ConfidenceEntry>();
+  private readonly confidenceWindow: number;
+  private readonly thresholdFloor: number;
+  private readonly safetyFactor: number;
+  private readonly blendFactor: number;
+
+  constructor(
+    confidenceWindow = 10,
+    thresholdFloor = 0.45,
+    safetyFactor = 0.8,
+    blendFactor = 0.3,
+  ) {
+    this.confidenceWindow = confidenceWindow;
+    this.thresholdFloor = thresholdFloor;
+    this.safetyFactor = safetyFactor;
+    this.blendFactor = blendFactor;
+  }
+
+  /**
+   * Hash a (landmark, coordinate) pair to a stable string key.
+   */
+  private hash(landmarkIndex: number, coordinate: LandmarkCoordinate): string {
+    return `${landmarkIndex}:${coordinate}`;
+  }
+
+  /**
+   * Get or create a confidence entry for the given key.
+   */
+  private getOrCreateEntry(key: string): ConfidenceEntry {
+    let entry = this.entries.get(key);
+    if (!entry) {
+      entry = {
+        history: [],
+        dynamicThreshold: this.thresholdFloor,
+        lastGoodValue: 0,
+        lowConfidenceFrames: 0,
+        initialized: false,
+      };
+      this.entries.set(key, entry);
+    }
+    return entry;
+  }
+
+  /**
+   * Update the rolling confidence history and recompute the dynamic threshold.
+   */
+  private updateThreshold(entry: ConfidenceEntry, currentConfidence: number): void {
+    entry.history.push(currentConfidence);
+    if (entry.history.length > this.confidenceWindow) {
+      entry.history.shift();
+    }
+
+    const avgConfidence =
+      entry.history.reduce((sum, v) => sum + v, 0) / entry.history.length;
+    entry.dynamicThreshold = Math.max(
+      avgConfidence * this.safetyFactor,
+      this.thresholdFloor,
+    );
+  }
+
+  /**
+   * Process all 33 landmarks, checking each (x, y, z) coordinate against its
+   * dynamic confidence threshold. Low-confidence coordinates are replaced with
+   * an interpolated estimate (blend of last-good and current).
+   */
+  process(landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>): void {
+    const limit = Math.min(landmarks.length, 33);
+    const coords: LandmarkCoordinate[] = ["x", "y", "z"];
+
+    for (let i = 0; i < limit; i++) {
+      const lm = landmarks[i];
+      const visibility = lm.visibility ?? 1;
+
+      for (const coord of coords) {
+        const key = this.hash(i, coord);
+        const entry = this.getOrCreateEntry(key);
+        const currentValue = lm[coord] ?? 0;
+
+        this.updateThreshold(entry, visibility);
+
+        if (visibility < entry.dynamicThreshold) {
+          entry.lowConfidenceFrames++;
+
+          if (entry.initialized) {
+            // Blend toward the last known good value to avoid hard snaps
+            lm[coord] =
+              entry.lastGoodValue * this.blendFactor +
+              currentValue * (1 - this.blendFactor);
+          }
+          // If not initialized, leave the current value as-is
+        } else {
+          entry.lastGoodValue = currentValue;
+          entry.lowConfidenceFrames = 0;
+          entry.initialized = true;
+        }
+      }
+    }
+  }
+
+  reset(): void {
+    this.entries.clear();
+  }
+}
+
+/** Singleton hash instance used by the pose service */
+const jointConfidenceHash = new JointConfidenceHash();
 
 // ─── Optimized EMA Filter (In-Place Mutation) ─────────────────────────────────
 
@@ -718,6 +849,7 @@ export class PoseService {
   private preprocessResults(results: Results): Results {
     if (this.smoothingFilters.length === 0) {
       if (results.poseLandmarks) {
+        jointConfidenceHash.process(results.poseLandmarks);
         this.writeToPoseBuffer(results.poseLandmarks);
         this.publishSharedLandmarks(results.poseLandmarks);
       }
@@ -726,6 +858,7 @@ export class PoseService {
 
     if (!results.poseLandmarks && !results.poseWorldLandmarks) {
       this.resetSmoothingFilters();
+      jointConfidenceHash.reset();
       this.clearSharedLandmarks();
       return results;
     }
@@ -733,6 +866,7 @@ export class PoseService {
     // Apply filters in-place (no spread, no new object creation)
     if (results.poseLandmarks) {
       this.applyFilters(results.poseLandmarks, "poseLandmarks");
+      jointConfidenceHash.process(results.poseLandmarks);
       this.writeToPoseBuffer(results.poseLandmarks);
       this.publishSharedLandmarks(results.poseLandmarks);
     } else {
@@ -741,6 +875,7 @@ export class PoseService {
 
     if (results.poseWorldLandmarks) {
       this.applyFilters(results.poseWorldLandmarks, "poseWorldLandmarks");
+      jointConfidenceHash.process(results.poseWorldLandmarks);
     }
 
     return results;

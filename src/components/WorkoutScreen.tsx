@@ -274,25 +274,20 @@ useEffect(() => {
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Start throttle monitor once when component mounts
-  useEffect(() => {
-    throttleMonitor.start();
-    return () => {
-      // Note: we don't stop it globally because other components may need it
-    };
-  }, []);
+  // Gesture HUD state
+  const [gestureConfidences, setGestureConfidences] = useState({} as Record<string, number>);
+  const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
+  const [gestureHudVisible, setGestureHudVisible] = useState(false);
+  const gestureHudTimerRef = useRef<any>(null);
 
-  // Get current throttle level and optionally show performance toast
-  const throttleLevel = useThrottleLevel();
+  // Workout control state
+  const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
+  const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
 
-  useEffect(() => {
-    if (throttleLevel === 1) {
-      console.warn("[Performance] Reduced visuals due to CPU load");
-      // Optional: show a non-intrusive toast/notification
-    } else if (throttleLevel === 2) {
-      console.warn("[Performance] Minimal visuals – 3D view disabled");
-    }
-  }, [throttleLevel]);
+  // Ghost data state
+  const ghostFramesRef = useRef<FrameData[]>([]);
+  const ghostStatsRef = useRef<any>(null);
+  const [hasGhost, setHasGhost] = useState(false);
 
   const clampPanelPositions = (positions: PanelPositions) => {
     const { width, height } = getViewportSize();
