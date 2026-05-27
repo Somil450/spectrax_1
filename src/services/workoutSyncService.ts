@@ -355,7 +355,6 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
       }
     }
 
-    console.log(`Successfully synced ${syncedCount} workouts to Firestore`);
     return syncedCount;
   } catch (error) {
     console.error("Error syncing workouts to Firestore:", error);
@@ -429,13 +428,11 @@ let syncInProgress = false;
 export function initializeAutoSync(userId: string): void {
   // Listen for online event
   window.addEventListener("online", async () => {
-    console.log("Network connection restored. Starting workout sync...");
     try {
       if (!syncInProgress) {
         syncInProgress = true;
         await fullSyncWorkouts(userId);
         syncInProgress = false;
-        console.log("Workout sync completed");
       }
     } catch (error) {
       syncInProgress = false;
