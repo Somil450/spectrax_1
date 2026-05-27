@@ -258,12 +258,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
         const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
         const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-        nextPositions[panelId] = {
-          x: Math.min(Math.max(positions[panelId].x, 0), maxX),
-          y: Math.min(Math.max(positions[panelId].y, 0), maxY),
-        };
-        return nextPositions;
-      },
+      return nextPositions;
+    },
       {} as PanelPositions,
     );
   }, [panelRefsById]);
@@ -337,14 +333,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
     if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
       // Announce the number for screen readers
       setRepAnnouncement(engineState.reps.toString());
-      
+
       // Voice Coach feature: Physically speak the rep count out loud
       if ('speechSynthesis' in window) {
         // Cancel any ongoing speech to prioritize the current rep count
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(engineState.reps.toString());
         // Optional: you can tune rate and pitch here
-        utterance.rate = 1.1; 
+        utterance.rate = 1.1;
         window.speechSynthesis.speak(utterance);
       }
     }
@@ -606,8 +602,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
       wsSocketRef.current = null;
     }
 
-    
-  
+
+
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
@@ -710,10 +706,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
     const accuracy =
       mutableState.current.totalReps > 0
         ? Math.round(
-            (mutableState.current.correctReps /
-              mutableState.current.totalReps) *
-              100,
-          )
+          (mutableState.current.correctReps /
+            mutableState.current.totalReps) *
+          100,
+        )
         : 100;
 
     const archive = sessionRecorder.getArchive();

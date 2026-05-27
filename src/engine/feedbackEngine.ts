@@ -12,10 +12,10 @@ export class GaussianMixtureModel {
 
   fit(data: number[], iterations: number = 20) {
     if (data.length === 0) return;
-    
+
     const min = Math.min(...data);
     const max = Math.max(...data);
-    
+
     // Initialize
     this.means = Array.from({ length: this.k }, (_, i) => min + ((i + 1) / (this.k + 1)) * (max - min));
     this.variances = Array(this.k).fill(Math.max(0.001, Math.pow(max - min, 2) / (this.k * this.k)));
@@ -366,7 +366,7 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
       jointDeviationProfiler.update(supScore * 100);
     }
   }
-  
+
   if (postureMetric !== undefined && postureMetric !== null && !isNaN(postureMetric)) {
     jointDeviationProfiler.update(postureMetric);
   }
@@ -420,9 +420,9 @@ export function getPostureErrorCategories(): Record<string, number> {
   gmm.fit(data);
 
   const clusters = gmm.getClusters().map((c, index) => ({ ...c, index })).sort((a, b) => a.mean - b.mean);
-  
+
   const categories: Record<string, number> = {};
-  
+
   // Create dynamic category names based on severity (mean deviation from ideal)
   // The lower mean might be "Minor", higher might be "Severe"
   const categoryNames = ["Minor Form Deviation", "Moderate Form Deviation", "Severe Form Deviation"];

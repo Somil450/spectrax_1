@@ -74,8 +74,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
 
-
-
   const handleResults = useCallback((results: any) => {
     const evaluation = calibrationLogic.evaluate(results);
     setResult(evaluation);
@@ -93,9 +91,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  }, [calibrationLogic, selectedExercise, onBodyTypeDetected]);
+  }, [selectedExercise, onBodyTypeDetected]);
 
-  const handleCameraError = (err: any) => {
+  const handleCameraError = useCallback((err: any) => {
     const name = (err instanceof Error) ? err.name : '';
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
       setError('CAMERA_PERMISSION_DENIED');
@@ -109,7 +107,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       setError(msg);
     }
     setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-  };
+  }, []);
 
   const {
     videoRef,
