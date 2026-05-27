@@ -18,6 +18,10 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { throttleMonitor } from './services/performanceThrottleService';
+
+// Start monitoring throttling immediately
+throttleMonitor.start();
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
@@ -36,8 +40,8 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password"
-  | "trophy"
-  | "profile";
+  | "trophy";
+
 interface WorkoutStats {
   reps: number;
   totalReps: number;
