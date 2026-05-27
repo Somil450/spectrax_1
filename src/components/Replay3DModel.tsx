@@ -563,13 +563,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const ssaoPassRef  = useRef<SSAOPass | null>(null);
   const cameraRef   = useRef<THREE.PerspectiveCamera | THREE.OrthographicCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-  // Fallback refs
-  // ── XYZ Axis visualizers — one per joint hub ──────────────────────────────
-  const axesRef = useRef<THREE.AxesHelper[]>([]);
-  const [showAxes, setShowAxes] = useState(false);
-  const bonesRef = useRef<
-    { line: THREE.Line; startIdx: number; endIdx: number }[]
-  >([]);
+
+  // Fallback skeleton refs
+  const jointsRef = useRef<THREE.Mesh[]>([]);
+  const bonesRef  = useRef<{ mesh: THREE.Mesh; startIdx: number; endIdx: number }[]>([]);
 
   // GLTF refs
   const modelGroupRef     = useRef<THREE.Group | null>(null);
@@ -794,15 +791,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     }
     axesRef.current = createdAxes;
 
-    const createdBones: { line: THREE.Line; startIdx: number; endIdx: number }[] = [];
+    const createdBones: { mesh: THREE.Mesh; startIdx: number; endIdx: number }[] = [];
+    const boneRadius = 0.015;
+    const boneGeometry = new THREE.CylinderGeometry(boneRadius, boneRadius, 1, 8);
+    boneGeometry.rotateX(Math.PI / 2);
+    boneGeometry.translate(0, 0, 0.5);
+
     BONES_CONNECTIONS.forEach(([startIdx, endIdx]) => {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
-      lineMaterial.onBeforeCompile = depthOcclusionShader;
-      const line = new THREE.Line(geometry, lineMaterial);
-      scene.add(line);
-      createdBones.push({ line, startIdx, endIdx });
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00,
+        emissiveIntensity: 0.5,
+      });
+      const mesh = new THREE.Mesh(boneGeometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      createdBones.push({ mesh, startIdx, endIdx });
     });
     bonesRef.current = createdBones;
 
@@ -887,7 +892,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       setModelLoaded(true);
       setModelLoading(false);
       jointsRef.current.forEach((j) => (j.visible = false));
-      bonesRef.current.forEach((b) => (b.line.visible = false));
+      bonesRef.current.forEach((b) => (b.mesh.visible = false));
     };
 
     // Check cache first
@@ -1066,9 +1071,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         (mesh.material as THREE.MeshStandardMaterial).dispose();
       });
       jointsRef.current = [];
-      bonesRef.current.forEach(({ line }) => {
-        line.geometry.dispose();
-        (line.material as THREE.LineBasicMaterial).dispose();
+      bonesRef.current.forEach(({ mesh }) => {
+        mesh.geometry.dispose();
+        (mesh.material as THREE.MeshStandardMaterial).dispose();
       });
       bonesRef.current = [];
 
@@ -1361,14 +1366,18 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const startMesh = jointsRef.current[bone.startIdx];
           const endMesh   = jointsRef.current[bone.endIdx];
           if (!startMesh || !endMesh) return;
-          const positions = bone.line.geometry.attributes.position.array as Float32Array;
-          positions[0] = startMesh.position.x; positions[1] = startMesh.position.y; positions[2] = startMesh.position.z;
-          positions[3] = endMesh.position.x;   positions[4] = endMesh.position.y;   positions[5] = endMesh.position.z;
-          bone.line.geometry.attributes.position.needsUpdate = true;
+
+          bone.mesh.position.copy(startMesh.position);
+          bone.mesh.lookAt(endMesh.position);
+          const distance = startMesh.position.distanceTo(endMesh.position);
+          bone.mesh.scale.set(1, 1, distance);
+
           const isBadBone = badJoints.has(bone.startIdx) || badJoints.has(bone.endIdx);
-          (bone.line.material as THREE.LineBasicMaterial).color.lerp(
-            isBadBone ? mistakeColor || COLOR_RED : strainColor, 0.2,
-          );
+          const bMat = bone.mesh.material as THREE.MeshStandardMaterial;
+          const targetColor = isBadBone ? mistakeColor || COLOR_RED : strainColor;
+          bMat.color.lerp(targetColor, 0.2);
+          bMat.emissive.lerp(targetColor, 0.2);
+          bMat.emissiveIntensity = isBadBone ? 1.5 : 0.5;
         });
       }
 
