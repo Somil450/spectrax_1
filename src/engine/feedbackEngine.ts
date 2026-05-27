@@ -1,41 +1,101 @@
-// --- Types & Interfaces ---
-// Minimal in-file SkeletalSense fallback to avoid external module errors.
-// Provides update(value), getStandardDeviation(), and reset() used by the engine.
-class SkeletalSense {
-  private samples: number[] = [];
 
-  update(value: number) {
-    if (typeof value === "number" && !isNaN(value)) {
-      this.samples.push(value);
-      // keep a reasonable window to limit memory growth
-      if (this.samples.length > 100) {
-        this.samples.shift();
+// --- Types & Interfaces ---
+
+export class GaussianMixtureModel {
+  private k: number;
+  private means: number[] = [];
+  private variances: number[] = [];
+  private weights: number[] = [];
+
+  constructor(k: number) {
+    this.k = k;
+  }
+
+  fit(data: number[], iterations: number = 20) {
+    if (data.length === 0) return;
+
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+
+    // Initialize
+    this.means = Array.from({ length: this.k }, (_, i) => min + ((i + 1) / (this.k + 1)) * (max - min));
+    this.variances = Array(this.k).fill(Math.max(0.001, Math.pow(max - min, 2) / (this.k * this.k)));
+    this.weights = Array(this.k).fill(1 / this.k);
+
+    for (let iter = 0; iter < iterations; iter++) {
+      // E-step
+      const responsibilities = data.map(x => {
+        const probs = this.means.map((mean, j) => this.weights[j] * this.pdf(x, mean, this.variances[j]));
+        const sum = probs.reduce((a, b) => a + b, 0);
+        return sum === 0 ? Array(this.k).fill(1 / this.k) : probs.map(p => p / sum);
+      });
+
+      // M-step
+      for (let j = 0; j < this.k; j++) {
+        const sumR = responsibilities.reduce((acc, r) => acc + r[j], 0);
+        if (sumR > 0) {
+          this.weights[j] = sumR / data.length;
+          this.means[j] = responsibilities.reduce((acc, r, i) => acc + r[j] * data[i], 0) / sumR;
+          this.variances[j] = Math.max(0.001, responsibilities.reduce((acc, r, i) => acc + r[j] * Math.pow(data[i] - this.means[j], 2), 0) / sumR);
+        }
       }
     }
   }
 
-  getStandardDeviation(): number {
-    if (this.samples.length === 0) return 0;
-    const mean = this.samples.reduce((a, b) => a + b, 0) / this.samples.length;
-    const variance =
-      this.samples.reduce((sum, v) => sum + (v - mean) * (v - mean), 0) /
-      this.samples.length;
-    return Math.sqrt(variance);
+  predict(x: number): number {
+    if (this.means.length === 0) return 0;
+    let maxP = -1;
+    let bestK = 0;
+    for (let j = 0; j < this.k; j++) {
+      const p = this.weights[j] * this.pdf(x, this.means[j], this.variances[j]);
+      if (p > maxP) {
+        maxP = p;
+        bestK = j;
+      }
+    }
+    return bestK;
   }
 
-  reset() {
-    this.samples = [];
+  getClusters() {
+    return this.means.map((mean, i) => ({
+      mean,
+      variance: this.variances[i],
+      weight: this.weights[i]
+    }));
+  }
+
+  private pdf(x: number, mean: number, variance: number): number {
+    return (1 / Math.sqrt(2 * Math.PI * variance)) * Math.exp(-Math.pow(x - mean, 2) / (2 * variance));
+  }
   }
 class JointDeviationProfiler {
   private values: number[] = [];
-  update(value: number) { this.values.push(value); if (this.values.length > 30) this.values.shift(); }
+  private allValues: number[] = [];
+  private readonly maxSamples = 30;
+
+  update(value: number) {
+    this.values.push(value);
+    this.allValues.push(value);
+    if (this.values.length > this.maxSamples) {
+      this.values.shift();
+    }
+  }
+
   getStandardDeviation(): number {
     if (this.values.length < 2) return 0;
     const mean = this.values.reduce((a, b) => a + b, 0) / this.values.length;
-    const variance = this.values.reduce((s, v) => s + (v - mean) ** 2, 0) / this.values.length;
+    const variance = this.values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / this.values.length;
     return Math.sqrt(variance);
   }
-  reset() { this.values = []; }
+
+  getAllValues(): number[] {
+    return this.allValues;
+  }
+
+  reset() {
+    this.values = [];
+    this.allValues = [];
+  }
 }
 
 export interface DetectionIssue {
@@ -118,6 +178,8 @@ const rules: Record<string, ExerciseRule> = {
 
   bicepCurl: (ctx: any) => {
     const issues: DetectionIssue[] = [];
+
+    // ── Existing form checks ──────────────────────────────────────────────
     if (ctx.stage === "down" && ctx.downAngleReached > 75) {
       issues.push({
         type: "squeeze",
@@ -134,6 +196,36 @@ const rules: Record<string, ExerciseRule> = {
         penalty: 35,
       });
     }
+
+    // ── Pronation / Supination check ─────────────────────────────────────
+    // At the top of the curl ("down" stage) the palm should be fully
+    // supinated (facing upward).  A score below the threshold means the
+    // user is curling without twisting the wrist correctly.
+    const supScore: number | undefined = ctx.wristSupinationScore;
+
+    if (typeof supScore === 'number' && !isNaN(supScore)) {
+      if (ctx.stage === 'down' && supScore < 0.2) {
+        // Palm is pronated or neutral at peak of curl
+        issues.push({
+          type: 'wrist_pronation',
+          severity: 'high',
+          message: supScore < -0.2
+            ? 'Flip your wrist! Palm should face UP 🔄'
+            : 'Rotate wrist – supinate at the top 🔄',
+          penalty: 40,
+        });
+      } else if (ctx.stage === 'up' && supScore > 0.2) {
+        // Wrist should return to neutral / slight pronation at the bottom
+        // This is optional coaching – use a lower penalty
+        issues.push({
+          type: 'wrist_return',
+          severity: 'low',
+          message: 'Return wrist to neutral at the bottom ↩️',
+          penalty: 10,
+        });
+      }
+    }
+
     return issues;
   },
 
@@ -215,6 +307,48 @@ const rules: Record<string, ExerciseRule> = {
     }
     return issues;
   },
+
+  flutterKicks: (ctx: any) => {
+    const issues: DetectionIssue[] = [];
+    if (ctx.knee < 155) {
+      issues.push({
+        type: "knee_bend",
+        severity: "medium",
+        message: "Keep your legs straight ⚠️",
+        penalty: 30,
+      });
+    }
+    if (ctx.bodyLine < 120) {
+      issues.push({
+        type: "leg_height",
+        severity: "medium",
+        message: "Keep legs lower for core engagement ⚠️",
+        penalty: 25,
+      });
+    }
+    return issues;
+  },
+
+  shoulderPress: (ctx: any) => {
+    const issues: DetectionIssue[] = [];
+    if (ctx.elbow < 70) {
+      issues.push({
+        type: "elbows",
+        severity: "medium",
+        message: "Don't drop elbows too low ⚠️",
+        penalty: 35,
+      });
+    }
+    if (ctx.shoulder < 60) {
+      issues.push({
+        type: "posture",
+        severity: "medium",
+        message: "Keep elbows up ⚠️",
+        penalty: 35,
+      });
+    }
+    return issues;
+  },
 };
 
 // --- Scoring & Smoothing Logic ---
@@ -239,7 +373,7 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
-const jointDeviationProfiler = new SkeletalSense();
+const jointDeviationProfiler = new JointDeviationProfiler();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
@@ -261,14 +395,20 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
 
   // Update the deviation profiler with a posture metric specific to the exercise
   let postureMetric = 0;
-  if (exerciseKey === 'pushup' || exerciseKey === 'plank') {
+  if (exerciseKey === 'pushup' || exerciseKey === 'plank' || exerciseKey === 'flutterKicks') {
     postureMetric = ctx.bodyLine;
   } else if (exerciseKey === 'squat' || exerciseKey === 'lunge') {
     postureMetric = ctx.lateralScore;
-  } else if (exerciseKey === 'bicepCurl') {
+  } else if (exerciseKey === 'bicepCurl' || exerciseKey === 'shoulderPress') {
+    // Use shoulder angle for primary posture tracking, plus supination as secondary
     postureMetric = ctx.shoulder;
+    // Also track wrist rotation deviation when available
+    const supScore = ctx.wristSupinationScore;
+    if (typeof supScore === 'number' && !isNaN(supScore)) {
+      jointDeviationProfiler.update(supScore * 100);
+    }
   }
-  
+
   if (postureMetric !== undefined && postureMetric !== null && !isNaN(postureMetric)) {
     jointDeviationProfiler.update(postureMetric);
   }
@@ -308,6 +448,37 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
     issues: detectedIssues,
     deviation: jointDeviationProfiler.getStandardDeviation(),
   };
+}
+
+/**
+ * Categorizes all collected posture deviation data points from the current session
+ * into distinct error classes using a Gaussian Mixture Model.
+ */
+export function getPostureErrorCategories(): Record<string, number> {
+  const data = jointDeviationProfiler.getAllValues();
+  if (data.length < 3) return {};
+
+  const gmm = new GaussianMixtureModel(3);
+  gmm.fit(data);
+
+  const clusters = gmm.getClusters().map((c, index) => ({ ...c, index })).sort((a, b) => a.mean - b.mean);
+
+  const categories: Record<string, number> = {};
+
+  // Create dynamic category names based on severity (mean deviation from ideal)
+  // The lower mean might be "Minor", higher might be "Severe"
+  const categoryNames = ["Minor Form Deviation", "Moderate Form Deviation", "Severe Form Deviation"];
+
+  data.forEach(val => {
+    const k = gmm.predict(val);
+    const rank = clusters.findIndex(c => c.index === k);
+    if (rank >= 0 && rank < 3) {
+      const catName = categoryNames[rank];
+      categories[catName] = (categories[catName] || 0) + 1;
+    }
+  });
+
+  return categories;
 }
 
 /**
