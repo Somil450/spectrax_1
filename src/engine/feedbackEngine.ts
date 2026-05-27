@@ -26,6 +26,7 @@ class SkeletalSense {
   reset() {
     this.samples = [];
   }
+  }
 class JointDeviationProfiler {
   private values: number[] = [];
   update(value: number) { this.values.push(value); if (this.values.length > 30) this.values.shift(); }

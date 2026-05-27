@@ -181,10 +181,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
-  
-
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [showExitModal, setShowExitModal] = useState(false);
 
   // ── Gesture workout controls ──────────────────────────────────────────────
   /** 'idle' = not yet started, 'running' = active, 'paused' = gesture-paused */
