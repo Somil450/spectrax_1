@@ -164,6 +164,28 @@ export const exercises: Record<string, ExerciseConfig> = {
     ]
   },
 
+  flutterKicks: {
+    key: "flutterKicks",
+    name: "Flutter Kicks",
+    demoUrl: '/assets/demos/flutter_kicks.mp4',
+    primaryJoint: "bodyLine",
+    joints: [[11, 23], [12, 24], [23, 27], [24, 28]],
+    downThreshold: 145,
+    upThreshold: 165,
+    feedbackRules: [
+      {
+        condition: (ctx: any) => ctx.knee < 155,
+        message: "Keep your legs straight ⚠️",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.bodyLine < 120,
+        message: "Keep legs lower for core engagement ⚠️",
+        type: 'warning'
+      }
+    ]
+  },
+
   shoulderPress: {
     key: "shoulderPress",
     name: "Shoulder Press",
