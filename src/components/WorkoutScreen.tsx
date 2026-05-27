@@ -5,7 +5,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
-import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -18,11 +18,13 @@ import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { ghostService } from '../services/ghostService';
+import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
+import { useThrottleLevel } from '../services/performanceThrottleService';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
