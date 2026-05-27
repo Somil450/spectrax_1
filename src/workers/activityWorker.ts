@@ -45,19 +45,15 @@ async function loadModel(quantized: boolean) {
   }
 
   try {
-    console.log(`[ActivityWorker] Loading ${PIPELINE_TYPE} model (${MODEL_ID}) with INT8 quantized=${quantized}...`);
     classifier = await createClassifier(quantized);
     currentQuantizedState = quantized;
-    console.log('[ActivityWorker] Model loaded successfully.');
     self.postMessage({ type: 'model-loaded', quantized, fallback: false });
   } catch (error) {
     console.error(`[ActivityWorker] Failed to load model with quantized=${quantized}:`, getErrorMessage(error));
     if (quantized) {
-      console.log('[ActivityWorker] Falling back to FP32 model...');
       try {
         classifier = await createClassifier(false);
         currentQuantizedState = false;
-        console.log('[ActivityWorker] Fallback FP32 model loaded successfully.');
         self.postMessage({ type: 'model-loaded', quantized: false, fallback: true });
       } catch (fallbackError) {
         throw new Error(`Fallback failed: ${getErrorMessage(fallbackError)}`);

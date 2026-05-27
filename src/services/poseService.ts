@@ -511,10 +511,8 @@ export class PoseService {
 
       this.isLoaded = true;
 
-      console.log("PoseService: initialized.");
 
       if (this.sharedLandmarkFrame) {
-        console.log("PoseService: SharedArrayBuffer synchronization enabled.");
       }
     } catch (e) {
       console.error("PoseService init failed:", e);

@@ -10,7 +10,7 @@ import {
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
-import { createBaseMaterialForSkin } from "../utils/avatarSkins";
+import { createBaseMaterialForSkin, AVATAR_SKINS } from "../utils/avatarSkins";
 
 // ─── Module-Level GLTF Cache ──────────────────────────────────────────────────
 
@@ -51,6 +51,7 @@ export interface Replay3DModelProps {
   onPlayToggle?: () => void;
   hideControls?: boolean;
   skin?: string;
+  cameraView?: 'frontal' | 'sagittal' | 'orthographic';
 }
 
 type HudLabel = {
@@ -59,6 +60,13 @@ type HudLabel = {
   angle: number;
   label: string;
   id: number;
+};
+
+type RippleEvent = {
+  origin: THREE.Vector2;
+  startTime: number;
+  speed: number;
+  strength: number;
 };
 
 // ─── Graphic Quality Presets ───────────────────────────────────────────────────
@@ -302,6 +310,7 @@ const MUSCLE_JOINT_GROUPS: Record<string, number[]> = {
   legs: [23, 24, 25, 26, 27, 28],
 };
 
+
 type BoneProportionKey =
   | "leftShoulder"
   | "leftElbow"
@@ -370,6 +379,11 @@ const buildSegmentScaleState = (ratio: number): SegmentScaleState => {
     scale,
   };
 };
+
+const GRID_RIPPLE_MAX = 6;
+const GRID_RIPPLE_LIFETIME = 2.8;
+const GRID_SIZE = 10;
+
 
 const parseFeedback = (feedback: string) => {
   if (
@@ -658,7 +672,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   onFrameChange,
   onPlayToggle,
   hideControls = false,
-  skin = "Standard Human",
+  skin = AVATAR_SKINS.STANDARD_HUMAN,
+  cameraView = 'frontal',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying] = useState(false);
@@ -682,6 +697,36 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => {
     autoAdaptRef.current = autoAdapt;
   }, [autoAdapt]);
+
+
+  syncRippleUniforms(timeSeconds);
+
+  if (lastRepCountRef.current === null) {
+    lastRepCountRef.current = repCount;
+  } else if (repCount !== lastRepCountRef.current) {
+    if (repCount > lastRepCountRef.current && footCenter) {
+      const lastCompletion = lastRippleCompletionTimeRef.current;
+      const intervalSeconds = lastCompletion
+        ? timeSeconds - lastCompletion
+        : 1.0;
+      const tempo = THREE.MathUtils.clamp(
+        1.8 / Math.max(intervalSeconds, 0.25),
+        0.7,
+        1.6,
+      );
+      const rippleOrigin = new THREE.Vector2(
+        THREE.MathUtils.clamp(footCenter.x / GRID_SIZE + 0.5, 0.05, 0.95),
+        THREE.MathUtils.clamp(footCenter.y / GRID_SIZE + 0.5, 0.05, 0.95),
+      );
+      emitRipple(
+        rippleOrigin,
+        0.5 + tempo * 0.55,
+        0.65 + tempo * 0.35,
+        timeSeconds,
+      );
+    }
+    lastRepCountRef.current = repCount;
+  }
 
   const isPlaying =
     externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
@@ -723,6 +768,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     >
   >({});
   const rootOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+
   const restSegmentLengthsRef = useRef<
     Partial<Record<BoneProportionKey, number>>
   >({});
@@ -730,11 +776,158 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     Partial<Record<BoneProportionKey, THREE.Vector3>>
   >({});
 
+  const ripplePlaneRef = useRef<THREE.Mesh | null>(null);
+  const rippleMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+  const rippleEventsRef = useRef<RippleEvent[]>([]);
+  const lastRepCountRef = useRef<number | null>(null);
+  const lastRippleCompletionTimeRef = useRef<number | null>(null);
+
+
   const [hudLabels, setHudLabels] = useState<HudLabel[]>([]);
   const reqIdRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const recoveryTimeoutRef = useRef<number | null>(null);
   const rendererPipelineCleanupRef = useRef<(() => void) | null>(null);
+
+  const createRippleGridMaterial = useCallback(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uGridColor: { value: new THREE.Color(0x00ffff) },
+        uRippleColor: { value: new THREE.Color(0x85fff4) },
+        uGridScale: { value: 7.5 },
+        uLineWidth: { value: 0.06 },
+        uRippleCount: { value: 0 },
+        uRippleOrigins: {
+          value: Array.from(
+            { length: GRID_RIPPLE_MAX },
+            () => new THREE.Vector2(-10, -10),
+          ),
+        },
+        uRippleStarts: {
+          value: Array.from({ length: GRID_RIPPLE_MAX }, () => 0),
+        },
+        uRippleSpeeds: {
+          value: Array.from({ length: GRID_RIPPLE_MAX }, () => 0),
+        },
+        uRippleStrengths: {
+          value: Array.from({ length: GRID_RIPPLE_MAX }, () => 0),
+        },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        #define MAX_RIPPLES ${GRID_RIPPLE_MAX}
+
+        uniform float uTime;
+        uniform vec3 uGridColor;
+        uniform vec3 uRippleColor;
+        uniform float uGridScale;
+        uniform float uLineWidth;
+        uniform int uRippleCount;
+        uniform vec2 uRippleOrigins[MAX_RIPPLES];
+        uniform float uRippleStarts[MAX_RIPPLES];
+        uniform float uRippleSpeeds[MAX_RIPPLES];
+        uniform float uRippleStrengths[MAX_RIPPLES];
+        varying vec2 vUv;
+
+        float gridMask(vec2 uv) {
+          vec2 cell = abs(fract(uv * uGridScale) - 0.5);
+          float lineX = smoothstep(0.5, 0.5 - uLineWidth, cell.x);
+          float lineY = smoothstep(0.5, 0.5 - uLineWidth, cell.y);
+          return max(lineX, lineY);
+        }
+
+        void main() {
+          vec3 base = vec3(0.01, 0.03, 0.05);
+          float grid = gridMask(vUv);
+          float rippleGlow = 0.0;
+          float rippleCore = 0.0;
+
+          for (int i = 0; i < MAX_RIPPLES; i++) {
+            if (i >= uRippleCount) break;
+            float age = max(uTime - uRippleStarts[i], 0.0);
+            float radius = age * uRippleSpeeds[i];
+            float dist = distance(vUv, uRippleOrigins[i]);
+            float ring = 1.0 - smoothstep(0.0, 0.035, abs(dist - radius));
+            float pulse = 0.5 + 0.5 * sin((dist - radius) * 65.0);
+            float fade = exp(-age * 1.25) * exp(-dist * 0.8);
+            float strength = uRippleStrengths[i] * ring * pulse * fade;
+            rippleGlow += strength;
+            rippleCore = max(rippleCore, strength);
+          }
+
+          vec3 gridColor = mix(base, uGridColor, grid * 0.55);
+          vec3 rippleColor = mix(gridColor, uRippleColor, clamp(rippleGlow, 0.0, 1.0));
+          rippleColor += uRippleColor * rippleCore * 0.75;
+
+          float alpha = clamp(0.08 + grid * 0.6 + rippleGlow * 0.85, 0.0, 0.95);
+          gl_FragColor = vec4(rippleColor, alpha);
+        }
+      `,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, []);
+
+  const syncRippleUniforms = useCallback((timeSeconds: number) => {
+    const material = rippleMaterialRef.current;
+    if (!material) return;
+
+    const activeEvents = rippleEventsRef.current.filter(
+      (event) => timeSeconds - event.startTime <= GRID_RIPPLE_LIFETIME,
+    );
+    rippleEventsRef.current = activeEvents;
+
+    const origins = material.uniforms.uRippleOrigins.value as THREE.Vector2[];
+    const starts = material.uniforms.uRippleStarts.value as number[];
+    const speeds = material.uniforms.uRippleSpeeds.value as number[];
+    const strengths = material.uniforms.uRippleStrengths.value as number[];
+
+    material.uniforms.uTime.value = timeSeconds;
+    material.uniforms.uRippleCount.value = activeEvents.length;
+
+    for (let i = 0; i < GRID_RIPPLE_MAX; i++) {
+      const event = activeEvents[i];
+      if (event) {
+        origins[i].copy(event.origin);
+        starts[i] = event.startTime;
+        speeds[i] = event.speed;
+        strengths[i] = event.strength;
+      } else {
+        origins[i].set(-10, -10);
+        starts[i] = 0;
+        speeds[i] = 0;
+        strengths[i] = 0;
+      }
+    }
+  }, []);
+
+  const emitRipple = useCallback(
+    (
+      origin: THREE.Vector2,
+      speed: number,
+      strength: number,
+      timeSeconds: number,
+    ) => {
+      rippleEventsRef.current = [
+        { origin: origin.clone(), startTime: timeSeconds, speed, strength },
+        ...rippleEventsRef.current,
+      ].slice(0, GRID_RIPPLE_MAX);
+      lastRippleCompletionTimeRef.current = timeSeconds;
+      syncRippleUniforms(timeSeconds);
+    },
+    [syncRippleUniforms],
+  );
 
   // ─── Rebuild post-processing passes when preset changes ───────────────────
   const rebuildPasses = useCallback(
@@ -921,8 +1114,27 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     scene.background = new THREE.Color(0x111111);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-    camera.position.set(0, 0, 3.2);
+    let camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+    if (cameraView === 'orthographic') {
+      const frustumSize = 3;
+      const aspect = width / height;
+      camera = new THREE.OrthographicCamera(
+        -frustumSize * aspect / 2,
+        frustumSize * aspect / 2,
+        frustumSize / 2,
+        -frustumSize / 2,
+        0.1,
+        100
+      );
+      camera.position.set(2.5, 2, 2.5);
+    } else {
+      camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
+      if (cameraView === 'sagittal') {
+        camera.position.set(3.2, 0, 0);
+      } else {
+        camera.position.set(0, 0, 3.2);
+      }
+    }
     cameraRef.current = camera;
 
     // Lighting
@@ -954,12 +1166,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     rimLight.castShadow = true;
     scene.add(rimLight);
 
+
     // Grid
     const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x222222);
     grid.position.y = -1.01;
     (grid.material as THREE.LineBasicMaterial).transparent = true;
     (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
     scene.add(grid);
+
 
     // Floor
     const floorGeo = new THREE.PlaneGeometry(10, 10);
@@ -976,13 +1190,39 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     floor.receiveShadow = true;
     scene.add(floor);
 
+    const rippleGridGeo = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE, 1, 1);
+    const rippleGrid = new THREE.Mesh(
+      rippleGridGeo,
+      createRippleGridMaterial(),
+    );
+    rippleGrid.rotation.x = -Math.PI / 2;
+    rippleGrid.position.y = -1.009;
+    rippleGrid.renderOrder = 1;
+    rippleGrid.userData.isOverlay = true;
+    scene.add(rippleGrid);
+    ripplePlaneRef.current = rippleGrid;
+    rippleMaterialRef.current = rippleGrid.material as THREE.ShaderMaterial;
+
     // Fallback skeleton
+    const depthOcclusionShader = (shader: any) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `
+        #include <project_vertex>
+        // Push overlay forward in depth buffer to avoid z-fighting with the segment it's inside,
+        // but allow occlusion if another body segment is fully in front.
+        gl_Position.z -= 0.02 * gl_Position.w;
+        `
+      );
+    };
+
     const jointGeometry = new THREE.SphereGeometry(0.04, 16, 16);
     const jointMaterial = new THREE.MeshStandardMaterial({
       color: 0x00ff00,
       emissive: 0x00ff00,
       emissiveIntensity: 0.5,
     });
+    jointMaterial.onBeforeCompile = depthOcclusionShader;
     const createdJoints: THREE.Mesh[] = [];
     for (let i = 0; i < 33; i++) {
       const sphere = new THREE.Mesh(jointGeometry, jointMaterial.clone());
@@ -992,6 +1232,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       createdJoints.push(sphere);
     }
     jointsRef.current = createdJoints;
+
+    // ── Create XYZ axis helpers for each joint hub ────────────────────────
+    // Each AxesHelper shows X=red, Y=green, Z=blue rotational planes in 3D
+    const createdAxes: THREE.AxesHelper[] = [];
+    for (let i = 0; i < 33; i++) {
+      const axesHelper = new THREE.AxesHelper(0.08);
+      axesHelper.visible = false; // hidden by default
+      scene.add(axesHelper);
+      createdAxes.push(axesHelper);
+    }
+    axesRef.current = createdAxes;
+
+    const createdBones: { mesh: THREE.Mesh; startIdx: number; endIdx: number }[] = [];
+    const boneRadius = 0.015;
+    const boneGeometry = new THREE.CylinderGeometry(boneRadius, boneRadius, 1, 8);
+    boneGeometry.rotateX(Math.PI / 2);
+    boneGeometry.translate(0, 0, 0.5);
 
     const createdBones: {
       line: THREE.Line;
@@ -1118,7 +1375,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       setModelLoaded(true);
       setModelLoading(false);
       jointsRef.current.forEach((j) => (j.visible = false));
-      bonesRef.current.forEach((b) => (b.line.visible = false));
+      bonesRef.current.forEach((b) => (b.mesh.visible = false));
     };
 
     // Check cache first
@@ -1202,6 +1459,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         renderer.domElement,
       );
       controls.enableDamping = true;
+      if (cameraView === 'frontal' || cameraView === 'sagittal') {
+        controls.enableRotate = false; // Lock perspective for true 2D views
+      }
       controls.dampingFactor = 0.05;
       controls.maxPolarAngle = Math.PI / 2 + 0.1;
       controls.minDistance = 1.0;
@@ -1242,8 +1502,19 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
           rendererRef.current.setSize(w, h);
           rendererRef.current.setPixelRatio(window.devicePixelRatio);
-          cameraRef.current.aspect = w / h;
+          
+          if (cameraRef.current instanceof THREE.PerspectiveCamera) {
+            cameraRef.current.aspect = w / h;
+          } else if (cameraRef.current instanceof THREE.OrthographicCamera) {
+            const frustumSize = 3;
+            const aspect = w / h;
+            cameraRef.current.left = -frustumSize * aspect / 2;
+            cameraRef.current.right = frustumSize * aspect / 2;
+            cameraRef.current.top = frustumSize / 2;
+            cameraRef.current.bottom = -frustumSize / 2;
+          }
           cameraRef.current.updateProjectionMatrix();
+
           composerRef.current?.setSize(w, h);
           bloomPassRef.current?.setSize(w, h);
           if (smaaPassRef.current) {
@@ -1318,9 +1589,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         (mesh.material as THREE.MeshStandardMaterial).dispose();
       });
       jointsRef.current = [];
-      bonesRef.current.forEach(({ line }) => {
-        line.geometry.dispose();
-        (line.material as THREE.LineBasicMaterial).dispose();
+      bonesRef.current.forEach(({ mesh }) => {
+        mesh.geometry.dispose();
+        (mesh.material as THREE.MeshStandardMaterial).dispose();
       });
       bonesRef.current = [];
 
@@ -1350,8 +1621,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       skinnedMeshesRef.current = [];
       boneMapRef.current = {};
       restDataRef.current = {};
+
       restSegmentLengthsRef.current = {};
       smoothedSegmentScalesRef.current = {};
+
 
       if (sceneRef.current) {
         sceneRef.current.traverse((obj) => {
@@ -1433,6 +1706,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         frame.feedback,
       );
 
+      const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
+      const timeSeconds = time * 0.001;
+
+
       // Helper
       let depthScale = 2.0;
       const rawLS = frame.landmarks[11],
@@ -1463,9 +1740,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       const lAnkle = getLm(27),
         rAnkle = getLm(28);
 
+
       if (modelLoaded) {
         updateSegmentScaleAdaptor(frame.landmarks, getLm);
       }
+
+      const footCenter =
+        lAnkle && rAnkle
+          ? new THREE.Vector2(
+              (lAnkle.x + rAnkle.x) * 0.5,
+              (lAnkle.z + rAnkle.z) * 0.5,
+            )
+          : lAnkle
+            ? new THREE.Vector2(lAnkle.x, lAnkle.z)
+            : rAnkle
+              ? new THREE.Vector2(rAnkle.x, rAnkle.z)
+              : null;
+
 
       if (modelLoaded) {
         if (!modelGroupRef.current) return;
@@ -1775,6 +2066,27 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           overflow: "hidden",
         }}
       />
+      {/* XYZ Axis Toggle */}
+      <button
+        onClick={() => setShowAxes((v) => !v)}
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          zIndex: 50,
+          background: showAxes ? 'rgba(0,255,136,0.15)' : 'rgba(0,0,0,0.5)',
+          border: `1px solid ${showAxes ? '#00ff88' : '#555'}`,
+          borderRadius: 6,
+          color: showAxes ? '#00ff88' : '#aaa',
+          fontFamily: 'monospace',
+          fontSize: 11,
+          fontWeight: 700,
+          padding: '4px 10px',
+          cursor: 'pointer',
+        }}
+      >
+        {showAxes ? 'AXES ✓' : 'AXES'}
+      </button>
 
       {/* Loading Spinner Overlay */}
       {modelLoading && (
