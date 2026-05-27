@@ -733,10 +733,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     scene.add(floor);
 
     // Fallback skeleton
+    const depthOcclusionShader = (shader: THREE.Shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `
+        #include <project_vertex>
+        // Push overlay forward in depth buffer to avoid z-fighting with the segment it's inside,
+        // but allow occlusion if another body segment is fully in front.
+        gl_Position.z -= 0.02 * gl_Position.w;
+        `
+      );
+    };
+
     const jointGeometry = new THREE.SphereGeometry(0.04, 16, 16);
     const jointMaterial  = new THREE.MeshStandardMaterial({
       color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.5,
     });
+    jointMaterial.onBeforeCompile = depthOcclusionShader;
     const createdJoints: THREE.Mesh[] = [];
     for (let i = 0; i < 33; i++) {
       const sphere = new THREE.Mesh(jointGeometry, jointMaterial.clone());
@@ -751,7 +764,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     BONES_CONNECTIONS.forEach(([startIdx, endIdx]) => {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
-      const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 }));
+      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
+      lineMaterial.onBeforeCompile = depthOcclusionShader;
+      const line = new THREE.Line(geometry, lineMaterial);
       scene.add(line);
       createdBones.push({ line, startIdx, endIdx });
     });
