@@ -1,11 +1,5 @@
-import { ExerciseConfig } from "../config/exercises";
-import {
-  getFeedback,
-  resetFeedbackEngine,
-  FeedbackResult,
-} from "../engine/feedbackEngine";
-import { BodyType } from "./bodyTypeEngine";
 import { getSupinationScore } from "./wristRotationDetector";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plank Spline Types & Constants
@@ -195,7 +189,7 @@ export interface EngineState {
    * null until the first rep is counted.
    */
   lastDepthResult: SquatDepthResult | null;
-
+  depthStats?: SquatDepthStats;
   // 🔥 Static hold time tracking
   holdTime?: number;
 
@@ -304,7 +298,7 @@ export class ExerciseEngine {
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
-    if (landmarks && timestamp !== undefined) {
+    if (landmarks) {
       const jointMap: Record<string, number> = {
         squat: 24, // Right Hip
         pushup: 11, // Left Shoulder
@@ -316,7 +310,7 @@ export class ExerciseEngine {
       const primaryJointIndex = jointMap[config.key] ?? 24;
       updatedVbtMetrics = this.kinematicEngine.update(
         landmarks,
-        timestamp,
+        now,
         primaryJointIndex
       );
     }
