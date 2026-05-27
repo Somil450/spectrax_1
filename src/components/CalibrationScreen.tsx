@@ -70,9 +70,25 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
   
   const frameId = useRef<number>(0);
-  const lastProcessTime = useRef<number>(0);
-  const FPS_LIMIT = 15;
-  const countdownIntervalRef = useRef<any>(null);
+const lastProcessTime = useRef<number>(0);
+const FPS_LIMIT = 15;
+const countdownIntervalRef = useRef<any>(null);
+
+// ── Debounce: skip canvas redraws when pose is stationary ─────────────────
+const lastLandmarksRef = useRef<any[] | null>(null);
+const MOVEMENT_THRESHOLD = 0.004; // normalised units (~0.4% of frame)
+
+function isStationary(prev: any[], curr: any[]): boolean {
+  if (!prev || !curr || prev.length !== curr.length) return false;
+  for (let i = 0; i < curr.length; i++) {
+    const dx = (curr[i]?.x || 0) - (prev[i]?.x || 0);
+    const dy = (curr[i]?.y || 0) - (prev[i]?.y || 0);
+    if (Math.abs(dx) > MOVEMENT_THRESHOLD || Math.abs(dy) > MOVEMENT_THRESHOLD) {
+      return false;
+    }
+  }
+  return true;
+}
 
 
 
@@ -175,7 +191,78 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
 
   useEffect(() => {
-    setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
+    let isMounted = true;
+
+    const startSystem = async () => {
+      if (!videoRef.current || !canvasRef.current) return;
+
+      try {
+        setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
+        
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) overlayRenderer.setContext(ctx);
+
+        await cameraService.startCamera(videoRef.current);
+        
+        poseService.onResults((results) => {
+  if (!isMounted) return;
+  const evaluation = calibrationLogic.evaluate(results);
+  setResult(evaluation);
+
+  if (results.poseLandmarks) {
+    const bt = bodyTypeEngine.analyze(results.poseLandmarks);
+    setBodyTypeRes(bt);
+    if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
+      onBodyTypeDetected(bt.bodyType);
+    }
+
+    const gesture = gestureService.analyze(results.poseLandmarks);
+    setGestureResult(gesture);
+
+    // ── Debounce canvas redraw when stationary ──────────────────────────
+    // If landmarks haven't moved beyond threshold, skip the draw call
+    // entirely — freezing the canvas and saving a full processor draw loop.
+    if (
+      lastLandmarksRef.current &&
+      isStationary(lastLandmarksRef.current, results.poseLandmarks)
+    ) {
+      return; // pose unchanged — skip redraw
+    }
+    lastLandmarksRef.current = results.poseLandmarks;
+  }
+
+  const primaryJoints = selectedExercise.joints?.flat() || [];
+  overlayRenderer.draw(results, evaluation.status, primaryJoints);
+});
+        const processLoop = (timestamp: number) => {
+          if (!isMounted) return;
+          const elapsed = timestamp - lastProcessTime.current;
+          if (elapsed > (1000 / FPS_LIMIT)) {
+            if (videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused) {
+              poseService.send(videoRef.current);
+            }
+            lastProcessTime.current = timestamp;
+          }
+          frameId.current = requestAnimationFrame(processLoop);
+        };
+        frameId.current = requestAnimationFrame(processLoop);
+      } catch (err: unknown) {
+        if (isMounted) {
+          const name = (err instanceof Error) ? err.name : '';
+          let msg = "Something went wrong starting the camera. Try refreshing the page.";
+          if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+            msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
+          } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+            msg = "No camera found on this device. Plug in a webcam and try again.";
+          } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+            msg = "Your camera is being used by another app. Close it and try again.";
+          }
+          setError(msg);
+          setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+        }
+      }
+    };
+
     startSystem();
 
     return () => {
