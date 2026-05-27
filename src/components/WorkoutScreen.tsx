@@ -584,7 +584,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         const canvasEl = canvasRef.current as any;
         if (canvasEl.__offscreenTransferred) {
           offscreenEnabledRef.current = true;
-          console.log("[WorkoutScreen] Canvas already has Offscreen control transferred.");
         } else {
           const isOffscreenSupported = !!canvasEl.transferControlToOffscreen;
           offscreenEnabledRef.current = false;
@@ -597,7 +596,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               ]);
               offscreenEnabledRef.current = true;
               canvasEl.__offscreenTransferred = true;
-              console.log("[WorkoutScreen] OffscreenCanvas enabled.");
             } catch (e) {
               console.warn(
                 "[WorkoutScreen] Failed to transfer canvas control:",

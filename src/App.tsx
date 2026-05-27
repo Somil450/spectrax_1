@@ -110,7 +110,6 @@ function App() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log("SW Registered: " + r);
     },
     onRegisterError(error) {
       console.error("SW registration error", error);
@@ -201,7 +200,6 @@ function App() {
     if (now - lastSwitchTime.current < 5000) return;
 
     if (exercises[exerciseKey] && selectedExercise.key !== exerciseKey) {
-      console.log(`CLIP: Auto-switching to ${exerciseKey.toUpperCase()}`);
       lastSwitchTime.current = now;
       setSelectedExercise(exercises[exerciseKey]);
     }
