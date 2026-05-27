@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
@@ -11,20 +11,23 @@ import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
-import { useLeveling } from './hooks/useLeveling';
+import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { throttleMonitor } from './services/performanceThrottleService';
+
+// Start monitoring throttling immediately
+throttleMonitor.start();
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
+import { FitnessCalculator } from "./components/FitnessCalculator";
 import React from "react";
-
-
 
 type Screen =
   | "welcome"
@@ -38,6 +41,27 @@ type Screen =
   | "forgot-password"
   | "trophy"
   | "profile";
+
+type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
+
+const SCREEN_TRANSITIONS: ScreenTransitionMap = {
+  welcome: ["calibration", "history", "trophy", "profile", "login"],
+  calibration: ["workout", "welcome", "login"],
+  workout: ["summary", "welcome"],
+  summary: ["replay", "welcome"],
+  replay: ["summary", "welcome"],
+  history: ["welcome", "login"],
+  login: ["signup", "forgot-password", "welcome"],
+  signup: ["login", "welcome"],
+  "forgot-password": ["login", "welcome"],
+  trophy: ["welcome", "login"],
+  profile: ["welcome", "login"],
+};
+
+const canTransitionTo = (from: Screen, to: Screen) => {
+  return SCREEN_TRANSITIONS[from].includes(to);
+};
+
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -73,7 +97,7 @@ function App() {
   useEffect(() => {
     if (currentScreen !== "workout") {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
     }
@@ -110,7 +134,6 @@ function App() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log("SW Registered: " + r);
     },
     onRegisterError(error) {
       console.error("SW registration error", error);
@@ -122,30 +145,33 @@ function App() {
     setNeedRefresh(false);
   };
 
+  const navigateTo = useCallback((screen: Screen, force = false) => {
+    setCurrentScreen((prevScreen) => {
+      if (force || canTransitionTo(prevScreen, screen)) {
+        return screen;
+      }
+
+      console.warn(
+        `[App] Blocked illegal screen transition from ${prevScreen} to ${screen}`,
+      );
+      return prevScreen;
+    });
+  }, []);
+
   useEffect(() => {
     if (!firebaseConfigured) return; // no-op in demo/offline mode
     if (!authLoading) {
       if (!user) {
-        setCurrentScreen((prev) => {
-          if (prev !== "login" && prev !== "signup" && prev !== "forgot-password") {
-            return "login";
-          }
-          return prev;
-        });
-      } else {
-        setCurrentScreen((prev) => {
-          if (prev === "login" || prev === "signup" || prev === "forgot-password") {
-            return "welcome";
-          }
-          return prev;
-        });
+        navigateTo("login", true);
+      } else if (
+        currentScreen === "login" ||
+        currentScreen === "signup" ||
+        currentScreen === "forgot-password"
+      ) {
+        navigateTo("welcome", true);
       }
     }
-  }, [user, authLoading]);
-
-  const navigateTo = (screen: Screen) => {
-    setCurrentScreen(screen);
-  };
+  }, [user, authLoading, currentScreen, navigateTo]);
 
   const handleWorkoutEnd = (
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
@@ -160,11 +186,11 @@ function App() {
       userWeightKg: getSavedUserWeight() ?? 70,
     });
 
-    const fullStats = { 
-      ...finalStats, 
-      exerciseName: selectedExercise.name, 
+    const fullStats = {
+      ...finalStats,
+      exerciseName: selectedExercise.name,
       gainedXp,
-      calories: calorieResult.calories,  // ADD THIS
+      calories: calorieResult.calories, // ADD THIS
     };
     setStats(fullStats);
     navigateTo("summary");
@@ -201,7 +227,6 @@ function App() {
     if (now - lastSwitchTime.current < 5000) return;
 
     if (exercises[exerciseKey] && selectedExercise.key !== exerciseKey) {
-      console.log(`CLIP: Auto-switching to ${exerciseKey.toUpperCase()}`);
       lastSwitchTime.current = now;
       setSelectedExercise(exercises[exerciseKey]);
     }
@@ -225,12 +250,16 @@ function App() {
 
   // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
-    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(currentScreen)
+    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(
+      currentScreen,
+    )
       ? currentScreen
       : "login";
     return (
       <main className="spectrax-app">
-        {(currentScreen === "login" || (currentScreen !== "signup" && currentScreen !== "forgot-password")) && (
+        {(currentScreen === "login" ||
+          (currentScreen !== "signup" &&
+            currentScreen !== "forgot-password")) && (
           <LoginScreen
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
@@ -249,7 +278,6 @@ function App() {
       </main>
     );
   }
-    
 
   // If authenticated, show main app with theme toggle and workout screens
   return (
@@ -263,7 +291,7 @@ function App() {
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
         } ${
-          ["summary", "replay", "history", "trophy"].includes(currentScreen)
+          ["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
             ? "is-hidden"
             : ""
         }`}
@@ -292,19 +320,24 @@ function App() {
         </button>
       </div>
 
-
-      
       {currentScreen === "welcome" && (
         <WelcomeScreen
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
           onViewProfile={user ? () => navigateTo("profile") : undefined}
+          onViewFitnessCalculator={() => navigateTo("fitness")}
           leveling={leveling}
         />
       )}
 
-      <Suspense fallback={<div className="loading-container"><div className="spinner" /></div>}>
+      <Suspense
+        fallback={
+          <div className="loading-container">
+            <div className="spinner" />
+          </div>
+        }
+      >
         {currentScreen === "calibration" && (
           <CalibrationScreen
             selectedExercise={selectedExercise}
@@ -351,6 +384,10 @@ function App() {
         {currentScreen === "profile" && (
           <UserProfileScreen onLogout={() => navigateTo("welcome")} />
         )}
+
+        {currentScreen === "fitness" && (
+          <FitnessCalculator onBack={() => navigateTo("welcome")} />
+        )}
       </Suspense>
 
       {/* Global badge unlock notification — rendered at the app root so it's
@@ -363,7 +400,9 @@ function App() {
             {offlineReady ? (
               <span>App is ready to work offline!</span>
             ) : (
-              <span>New content available, click on reload button to update.</span>
+              <span>
+                New content available, click on reload button to update.
+              </span>
             )}
           </div>
           <div className="pwa-toast-buttons">
@@ -375,84 +414,87 @@ function App() {
                 Reload
               </button>
             )}
-            <button className="pwa-toast-btn secondary" onClick={closeOfflineNotification}>
+            <button
+              className="pwa-toast-btn secondary"
+              onClick={closeOfflineNotification}
+            >
               Close
             </button>
           </div>
         </div>
       )}
       {showExitModal && (
-  <div
-    style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 999,
-      backdropFilter: 'blur(8px)'
-    }}
-  >
-    <div
-      style={{
-        background: 'rgba(255,255,255,0.1)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '20px',
-        padding: '30px',
-        width: '320px',
-        textAlign: 'center',
-        color: 'white',
-        backdropFilter: 'blur(15px)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-      }}
-    >
-      <h2>Confirm Exit</h2>
-
-      <p>Are you sure you want to end your session?</p>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginTop: '20px'
-        }}
-      >
-        <button
-          onClick={() => setShowExitModal(false)}
+        <div
           style={{
-            padding: '10px 20px',
-            borderRadius: '10px',
-            border: 'none',
-            cursor: 'pointer'
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 999,
+            backdropFilter: "blur(8px)",
           }}
         >
-          Stay
-        </button>
+          <div
+            style={{
+              background: "rgba(255,255,255,0.1)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: "20px",
+              padding: "30px",
+              width: "320px",
+              textAlign: "center",
+              color: "white",
+              backdropFilter: "blur(15px)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h2>Confirm Exit</h2>
 
-        <button
-          onClick={() => {
-            setShowExitModal(false);
-            navigateTo('welcome');
-          }}
-          style={{
-            padding: '10px 20px',
-            borderRadius: '10px',
-            border: 'none',
-            cursor: 'pointer',
-            background: '#ff4d4f',
-            color: 'white'
-          }}
-        >
-          Exit
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+            <p>Are you sure you want to end your session?</p>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "20px",
+              }}
+            >
+              <button
+                onClick={() => setShowExitModal(false)}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Stay
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowExitModal(false);
+                  navigateTo("welcome");
+                }}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  cursor: "pointer",
+                  background: "#ff4d4f",
+                  color: "white",
+                }}
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
