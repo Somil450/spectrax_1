@@ -1,3 +1,8 @@
+import { getSupinationScore } from "./wristRotationDetector";
+
+/**
+ * exerciseEngine.ts  (updated — squat depth classification integrated)
+ */
 
 import { ExerciseConfig } from '../config/exercises';
 import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
@@ -171,23 +176,20 @@ export interface EngineState {
    * null until the first rep is counted.
    */
   lastDepthResult: SquatDepthResult | null;
-  depthStats?: SquatDepthStats;
+  depthStats: SquatDepthStats;
 
   // 🔥 Static hold time tracking
   holdTime?: number;
 
   wristSupinationScore?: number;
 
-  /**
-   * Real-time depth coaching string emitted during the DOWN phase.
-   * Empty string when no depth cue is active.
-   */
-  liveDepthFeedback?: string;
+  /** Real-time depth coaching string emitted during the DOWN phase. */
+  liveDepthFeedback: string;
 
   // VBT Metrics
   vbtMetrics?: VBTMetrics;
 
-  // ── Pushup depth classification (NEW) ──────────────────────────
+  // Pushup depth classification
   lastPushupDepthResult?: PushupDepthResult | null;
   pushupDepthStats?: PushupDepthStats;
   livePushupDepthFeedback?: string;
@@ -197,7 +199,6 @@ export interface EngineState {
   visibilityBuffer?: number[];
   trackingLostFrames?: number;
   lastValidAngles?: Record<string, number>;
-
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
 
@@ -259,6 +260,19 @@ export function clearRepParams(key: string): void {
   layoutOverrides.delete(key);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout Parser & Defaults
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
+
 // ─────────────────────────────────────────────
 // ExerciseEngine
 // ─────────────────────────────────────────────
@@ -282,6 +296,16 @@ export class ExerciseEngine {
   private kinematicEngine = new KinematicEngine();
 
 
+  private repParams(key: string): RepParams {
+    return {
+      repCooldown: this.BASE_REP_COOLDOWN,
+      hysteresis: this.BASE_HYSTERESIS,
+      smoothingWindow: this.SMOOTHING_WINDOW,
+      minDownDuration: this.MIN_DOWN_DURATION,
+      correctRepMinScore: 70,
+      streakMinScore: 80,
+    };
+  }
 
   private isValidExercisePosture(
     history: number[],
@@ -319,7 +343,7 @@ export class ExerciseEngine {
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
-    if (landmarks) {
+    if (landmarks && now !== undefined) {
       const jointMap: Record<string, number> = {
         squat: 24, // Right Hip
         pushup: 11, // Left Shoulder
@@ -513,7 +537,6 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      // 🔥 Plank-specific spline deviation omitted due to merge issue
       wristSupinationScore,
     };
 
@@ -767,6 +790,9 @@ export class ExerciseEngine {
       lastDepthResult: nextLastDepthResult,
       depthStats: nextDepthStats,
       liveDepthFeedback,
+
+      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
+      jumpingJackSync: nextJumpingJackSync,
 
       vbtMetrics: updatedVbtMetrics,
 

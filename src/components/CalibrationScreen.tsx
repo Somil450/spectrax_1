@@ -70,27 +70,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
   
   const frameId = useRef<number>(0);
-const lastProcessTime = useRef<number>(0);
-const FPS_LIMIT = 15;
-const countdownIntervalRef = useRef<any>(null);
-
-// ── Debounce: skip canvas redraws when pose is stationary ─────────────────
-const lastLandmarksRef = useRef<any[] | null>(null);
-const MOVEMENT_THRESHOLD = 0.004; // normalised units (~0.4% of frame)
-
-function isStationary(prev: any[], curr: any[]): boolean {
-  if (!prev || !curr || prev.length !== curr.length) return false;
-  for (let i = 0; i < curr.length; i++) {
-    const dx = (curr[i]?.x || 0) - (prev[i]?.x || 0);
-    const dy = (curr[i]?.y || 0) - (prev[i]?.y || 0);
-    if (Math.abs(dx) > MOVEMENT_THRESHOLD || Math.abs(dy) > MOVEMENT_THRESHOLD) {
-      return false;
-    }
-  }
-  return true;
-}
-
-
+  const lastProcessTime = useRef<number>(0);
+  const FPS_LIMIT = 15;
+  const countdownIntervalRef = useRef<any>(null);
 
   const handleResults = useCallback((results: any) => {
     const evaluation = calibrationLogic.evaluate(results);
@@ -109,7 +91,7 @@ function isStationary(prev: any[], curr: any[]): boolean {
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  }, [calibrationLogic, selectedExercise, bodyTypeEngine, gestureService, onBodyTypeDetected, overlayRenderer]);
+  }, []);
 
   const handleCameraError = (err: any) => {
     const name = (err instanceof Error) ? err.name : '';
