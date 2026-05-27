@@ -48,6 +48,7 @@ export interface Replay3DModelProps {
   onPlayToggle?: () => void;
   hideControls?: boolean;
   skin?: string;
+  cameraView?: string;
 }
 
 type HudLabel = {

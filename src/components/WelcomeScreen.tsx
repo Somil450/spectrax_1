@@ -15,6 +15,7 @@ interface WelcomeScreenProps {
   onViewHistory: () => void;
   onViewTrophies: () => void;
   onViewProfile?: () => void;
+  onViewFitnessCalculator?: () => void;
   leveling?: {
     xp: number;
     level: number;
