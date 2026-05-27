@@ -1,4 +1,5 @@
 import type { NormalizedLandmark } from '@mediapipe/pose';
+import { POSE_LANDMARKS } from '../config/poseLandmarks';
 
 /**
  * angleUtils.ts — Inline Math Vector Operations Performance Tuner
