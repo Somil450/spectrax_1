@@ -195,25 +195,7 @@ export interface EngineState {
    * null until the first rep is counted.
    */
   lastDepthResult: SquatDepthResult | null;
-
-  // 🔥 Static hold time tracking
-  holdTime?: number;
-
-  wristSupinationScore?: number;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
+  depthStats: SquatDepthStats;
 
   /**
    * Real-time depth coaching string emitted during the DOWN phase.
@@ -237,7 +219,33 @@ interface RepParams {
   holdTime?: number;
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
+
+  wristSupinationScore?: number;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout Parser & Defaults
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
+
+const ENGINE_DEFAULTS: RepParams = {
+  repCooldown: 600,
+  hysteresis: 10,
+  smoothingWindow: 5,
+  minDownDuration: 150,
+  correctRepMinScore: 70,
+  streakMinScore: 85,
+};
+
+const layoutOverrides = new Map<string, Partial<RepParams>>();
 
 // ─────────────────────────────────────────────
 // ExerciseEngine
@@ -245,18 +253,10 @@ interface RepParams {
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
-
-  private repParams(key: string): RepParams {
-    return {
-      ...ENGINE_DEFAULTS,
-      ...(layoutOverrides.get(key) || {}),
-    };
-  }
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
-
-  private kinematicEngine = new KinematicEngine();
   private readonly MIN_DOWN_DURATION = 150;
+  private kinematicEngine = new KinematicEngine();
 
   private repParams(key: string): RepParams {
     return {
@@ -301,7 +301,7 @@ export class ExerciseEngine {
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
-    if (landmarks && timestamp !== undefined) {
+    if (landmarks) {
       const jointMap: Record<string, number> = {
         squat: 24, // Right Hip
         pushup: 11, // Left Shoulder
@@ -313,7 +313,7 @@ export class ExerciseEngine {
       const primaryJointIndex = jointMap[config.key] ?? 24;
       updatedVbtMetrics = this.kinematicEngine.update(
         landmarks,
-        timestamp,
+        now,
         primaryJointIndex
       );
     }
@@ -322,7 +322,7 @@ export class ExerciseEngine {
     // Adaptive Difficulty Tuning
     let currentCooldown = this.BASE_REP_COOLDOWN;
     let currentHysteresis = this.BASE_HYSTERESIS;
-    
+
     if (bodyType === 'ecto') {
       currentCooldown = 750; // Longer limbs take more time to complete full ROM
       currentHysteresis = 12; // Ectos need slightly larger movement bands
@@ -470,7 +470,20 @@ export class ExerciseEngine {
       // Usually we want total hold time. We'll keep accumulating.
     }
 
-    // ───────── WRIST ROTATION DETECTION ─────────
+    let hipSplineDeviation = 0;
+    const nextPlankSpline = { isCalibrated: true };
+    const PLANK_DEVIATION_THRESHOLD = 0.08;
+
+    if (landmarks && landmarks.length >= 33) {
+      const s = landmarks[11];
+      const h = landmarks[23];
+      const a = landmarks[27];
+      if (s && h && a && Math.abs(a.x - s.x) > 0.1) {
+        const expectedY = s.y + (a.y - s.y) * ((h.x - s.x) / (a.x - s.x));
+        hipSplineDeviation = h.y - expectedY;
+      }
+    }
+
     const wristSupinationScore = config.key === 'bicepCurl'
       ? getSupinationScore(landmarks)
       : NaN;
@@ -746,7 +759,20 @@ export class ExerciseEngine {
       // 🔥 Static hold time tracking
       holdTime: nextHoldTime,
 
-      wristSupinationScore
+      wristSupinationScore,
+
+      // Pushup depth classification (NEW)
+      lastPushupDepthResult: nextLastPushupDepthResult,
+      pushupDepthStats: nextPushupDepthStats,
+      livePushupDepthFeedback,
+      downZReached,
+
+      // Tracking & recovery buffers
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles,
+      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
+      jumpingJackSync: nextJumpingJackSync,
     };
   }
 }

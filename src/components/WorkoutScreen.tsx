@@ -5,7 +5,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
-import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -231,8 +231,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
       const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-        return nextPositions;
-      },
+      return nextPositions;
+    },
       {} as PanelPositions,
     );
   }, [panelRefsById]);
@@ -306,14 +306,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
       // Announce the number for screen readers
       setRepAnnouncement(engineState.reps.toString());
-      
+
       // Voice Coach feature: Physically speak the rep count out loud
       if ('speechSynthesis' in window) {
         // Cancel any ongoing speech to prioritize the current rep count
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(engineState.reps.toString());
         // Optional: you can tune rate and pitch here
-        utterance.rate = 1.1; 
+        utterance.rate = 1.1;
         window.speechSynthesis.speak(utterance);
       }
     }
@@ -575,8 +575,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       wsSocketRef.current = null;
     }
 
-    
-  
+
+
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
@@ -644,7 +644,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           console.warn("WS close failed:", err);
         }
       }
-      clearInterval(timer);
+      clearInterval(timerRef);
       gestureService.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
@@ -672,10 +672,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     const accuracy =
       mutableState.current.totalReps > 0
         ? Math.round(
-            (mutableState.current.correctReps /
-              mutableState.current.totalReps) *
-              100,
-          )
+          (mutableState.current.correctReps /
+            mutableState.current.totalReps) *
+          100,
+        )
         : 100;
 
     const archive = sessionRecorder.getArchive();
