@@ -331,7 +331,7 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
-const jointDeviationProfiler = new SkeletalSense();
+const jointDeviationProfiler = new JointDeviationProfiler();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
