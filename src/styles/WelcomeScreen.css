@@ -972,3 +972,34 @@
     color: black;
   }
 }
+
+/* =============================================
+   BMI Calculator button — purple variant
+   Matches the hover animation of --cyan / --gold
+   ============================================= */
+.welcome-btn-secondary--purple {
+  background: rgba(168, 85, 247, 0.07);
+  border: 1.5px solid rgba(168, 85, 247, 0.28);
+  color: #a855f7; /* neon-purple fallback for WelcomeScreen scope */
+}
+
+.welcome-btn-secondary--purple:hover {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.7);
+  box-shadow: 0 4px 18px rgba(168, 85, 247, 0.22);
+  transform: translateY(-2px);
+}
+
+/* Light-mode scoped override */
+.welcome-container[data-theme="light"] .welcome-btn-secondary--purple {
+  background: rgba(124, 58, 237, 0.06);
+  border-color: rgba(124, 58, 237, 0.28);
+  color: #7c3aed;
+}
+
+.welcome-container[data-theme="light"] .welcome-btn-secondary--purple:hover {
+  background: rgba(124, 58, 237, 0.13);
+  border-color: rgba(124, 58, 237, 0.65);
+  box-shadow: 0 4px 18px rgba(124, 58, 237, 0.18);
+  transform: translateY(-2px);
+}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star, Calculator } from "lucide-react";
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -15,6 +15,7 @@ interface WelcomeScreenProps {
   onViewHistory: () => void;
   onViewTrophies: () => void;
   onViewProfile?: () => void;
+  onViewFitnessCalculator?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -28,6 +29,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewHistory,
   onViewTrophies,
   onViewProfile,
+  onViewFitnessCalculator,
   leveling,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -146,11 +148,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
 
-      {/* Scrolling wrapper (From maintainer's branch) */}
+      {/* Scrolling wrapper */}
       <div className="welcome-scroll-area">
         <div className="welcome-scroll-inner">
-          
-          {/* ── Hero Section (Maintainer's updated structure) ── */}
+
+          {/* Hero Section */}
           <div
             className="welcome-hero animate-in"
             style={{
@@ -196,59 +198,71 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </button>
 
               <div className="welcome-btn-row">
-  <button
-    onClick={onViewHistory}
-    className="welcome-btn-secondary welcome-btn-secondary--cyan"
-    aria-label="View Workout History"
-    tabIndex={0}
-  >
-    <History size={15} />
-    History
-  </button>
+                <button
+                  onClick={onViewHistory}
+                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                  aria-label="View Workout History"
+                  tabIndex={0}
+                >
+                  <History size={15} />
+                  History
+                </button>
 
-  <button
-    onClick={onViewTrophies}
-    className="welcome-btn-secondary welcome-btn-secondary--gold"
-    aria-label="View Trophy Room"
-    tabIndex={0}
-  >
-    <Trophy size={15} />
-    Trophies
-  </button>
-</div>
+                <button
+                  onClick={onViewTrophies}
+                  className="welcome-btn-secondary welcome-btn-secondary--gold"
+                  aria-label="View Trophy Room"
+                  tabIndex={0}
+                >
+                  <Trophy size={15} />
+                  Trophies
+                </button>
 
-{/* Weight input for calorie estimation */}
-<div
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    marginTop: "12px",
-    background: "rgba(0,255,100,0.04)",
-    border: "1px solid rgba(0,255,100,0.2)",
-    borderRadius: "10px",
-    padding: "10px 14px",
-  }}
->
-                  <span>⚖️</span>
-                  <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
-                  <input
-                    type="number" min="30" max="200" placeholder="70"
-                    value={userWeight}
-                    onChange={(e) => {
-                      setUserWeight(e.target.value);
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
-                    }}
-                    style={{ background:'transparent', border:'none', outline:'none', color:'#fff', fontSize:'1rem', fontWeight:700, width:'50px' }}
-                  />
-                  <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
-                </div>
-
+                {onViewFitnessCalculator && (
+                  <button
+                    onClick={onViewFitnessCalculator}
+                    className="welcome-btn-secondary welcome-btn-secondary--purple"
+                    aria-label="Open BMI Calculator"
+                    tabIndex={0}
+                  >
+                    <Calculator size={15} />
+                    BMI Calculator
+                  </button>
+                )}
               </div>
-            </div>
 
-          {/* ── Stat strip (From maintainer's branch) ── */}
+              {/* Weight input for calorie estimation */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginTop: "12px",
+                  background: "rgba(0,255,100,0.04)",
+                  border: "1px solid rgba(0,255,100,0.2)",
+                  borderRadius: "10px",
+                  padding: "10px 14px",
+                }}
+              >
+                <span>⚖️</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--neon-green)', letterSpacing: '1px', textTransform: 'uppercase' }}>Weight:</span>
+                <input
+                  type="number" min="30" max="200" placeholder="70"
+                  value={userWeight}
+                  onChange={(e) => {
+                    setUserWeight(e.target.value);
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+                  }}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '1rem', fontWeight: 700, width: '50px' }}
+                />
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>kg</span>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Stat strip */}
           <div className="welcome-stats">
             {STATS.map(({ value, label }, i) => (
               <React.Fragment key={label}>
@@ -263,7 +277,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             ))}
           </div>
 
-          {/* ── How it Works Section (From your branch) ── */}
+          {/* How it Works Section */}
           <div className="how-it-works-section" style={{ marginTop: '60px' }}>
             <div className="section-container">
               <div className="section-header">
@@ -301,7 +315,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
           </div>
 
-          {/* ── Footer Section (From your branch) ── */}
+          {/* Footer Section */}
           <footer className="footer" style={{ marginTop: '60px' }}>
             <div className="footer-container">
               <div className="footer-grid">
