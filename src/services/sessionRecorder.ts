@@ -1,4 +1,11 @@
-import { encode } from "@msgpack/msgpack";
+// =============================================================================
+// Centralized Logging and Telemetry Broker
+// Tracks application states, errors, and events — downloadable as JSON
+// =============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface FrameData {
   timestamp: number;
@@ -8,34 +15,16 @@ export interface FrameData {
   exercise: string;
 }
 
-type LandmarkCoordinate = "x" | "y" | "z" | "visibility";
-
-export interface CompressedLandmarkDelta {
-  index: number;
-  values: Partial<Record<LandmarkCoordinate, number>>;
-}
-
-export interface CompressedFrameChunk {
-  kind: "base" | "delta";
+export interface TelemetryEvent {
   timestamp: number;
-  timestampDelta: number;
-  runLength: number;
-  exercise?: string;
-  feedback?: string;
-  angles?: Record<string, number>;
-  landmarks?: Array<any> | CompressedLandmarkDelta[];
+  type: 'info' | 'error' | 'state_change';
+  message: string;
+  data?: any;
 }
 
-export interface SessionArchive {
-  codec: "rld-delta-v1";
-  frameCount: number;
-  generatedAt: number;
-  frames: CompressedFrameChunk[];
-}
-
-const ANGLE_THRESHOLD = 2.0;
-const LANDMARK_THRESHOLD = 0.002;
-const FLOAT_PRECISION = 4;
+// ─────────────────────────────────────────────────────────────────────────────
+// RLD Compression Driver
+// ─────────────────────────────────────────────────────────────────────────────
 
 export class RLDCompressionDriver {
   static compress(frames: FrameData[]): CompressedFrameChunk[] {
@@ -52,7 +41,12 @@ export class RLDCompressionDriver {
         compressed[compressed.length - 1].timestampDelta =
           currFrame.timestamp - previousFrame.timestamp;
       } else {
-        compressed.push(this.createChunk(previousFrame, currFrame));
+        compressed.push({
+          ...currFrame,
+          timestampDelta: currFrame.timestamp - prevFrame.timestamp,
+          runLength: 1,
+        });
+        prevFrame = currFrame;
       }
       previousFrame = currFrame;
     }
@@ -64,24 +58,12 @@ export class RLDCompressionDriver {
     let previousFrame: FrameData | null = null;
 
     for (const item of compressedData) {
-      const runLength = Math.max(item.runLength || 1, 1);
-      let currentFrame =
-        item.kind === "base"
-          ? this.deserializeBaseChunk(item)
-          : this.applyDelta(previousFrame, item);
-
-      frames.push(currentFrame);
-      previousFrame = currentFrame;
-
+      const { runLength, timestampDelta, ...frameBase } = item;
+      let currentTimestamp = frameBase.timestamp;
+      frames.push({ ...frameBase } as FrameData);
       for (let i = 1; i < runLength; i++) {
-        currentFrame = {
-          ...currentFrame,
-          timestamp: currentFrame.timestamp + (item.timestampDelta || 33),
-          landmarks: this.cloneLandmarks(currentFrame.landmarks),
-          angles: { ...currentFrame.angles },
-        };
-        frames.push(currentFrame);
-        previousFrame = currentFrame;
+        currentTimestamp += timestampDelta || 33;
+        frames.push({ ...frameBase, timestamp: currentTimestamp } as FrameData);
       }
     }
     return frames;
@@ -89,23 +71,10 @@ export class RLDCompressionDriver {
 
   static isStationary(prev: FrameData, curr: FrameData): boolean {
     if (!prev || !curr) return false;
-    if (prev.exercise !== curr.exercise || prev.feedback !== curr.feedback) {
-      return false;
-    }
-
-    if (Math.abs(curr.timestamp - prev.timestamp) < 1) {
-      return false;
-    }
-
-    const landmarkDelta = this.getLandmarkDelta(prev.landmarks, curr.landmarks);
-    if (landmarkDelta.length > 0) {
-      return false;
-    }
-
+    if (prev.exercise !== curr.exercise || prev.feedback !== curr.feedback) return false;
+    const angleThreshold = 2.0;
     for (const key in curr.angles) {
-      const prevAngle = prev.angles[key] || 0;
-      const currAngle = curr.angles[key] || 0;
-      if (Math.abs(currAngle - prevAngle) > ANGLE_THRESHOLD) {
+      if (Math.abs((curr.angles[key] || 0) - (prev.angles[key] || 0)) > angleThreshold) {
         return false;
       }
     }
@@ -317,7 +286,100 @@ export class RLDCompressionDriver {
   }
 }
 
-const MAX_FRAMES = 300; // Rolling buffer — ~20s at 15 FPS
+// ─────────────────────────────────────────────────────────────────────────────
+// Telemetry Broker — defined FIRST so SessionRecorder can reference it
+// ─────────────────────────────────────────────────────────────────────────────
+
+class TelemetryBroker {
+  private logs: TelemetryEvent[] = [];
+  private static MAX_LOGS = 1000;
+
+  constructor() {
+    if (typeof window === 'undefined') return;
+
+    window.addEventListener('error', (event) => {
+      this.logError(`Uncaught Error: ${event.message}`, {
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: event.error?.stack,
+      });
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      this.logError(`Unhandled Promise Rejection: ${String(event.reason)}`);
+    });
+  }
+
+  logState(stateName: string, data?: any) {
+    this._addLog({
+      timestamp: Date.now(),
+      type: 'state_change',
+      message: `State changed to ${stateName}`,
+      data,
+    });
+  }
+
+  logEvent(message: string, data?: any) {
+    this._addLog({
+      timestamp: Date.now(),
+      type: 'info',
+      message,
+      data,
+    });
+  }
+
+  logError(error: Error | string, context?: any) {
+    const message = error instanceof Error ? error.message : error;
+    const stack = error instanceof Error ? error.stack : undefined;
+    this._addLog({
+      timestamp: Date.now(),
+      type: 'error',
+      message,
+      data: { ...context, stack },
+    });
+  }
+
+  private _addLog(event: TelemetryEvent) {
+    if (this.logs.length >= TelemetryBroker.MAX_LOGS) {
+      this.logs.shift();
+    }
+    this.logs.push(event);
+  }
+
+  getLogs(): TelemetryEvent[] {
+    return [...this.logs];
+  }
+
+  clearLogs() {
+    this.logs = [];
+  }
+
+  downloadLogs() {
+    if (this.logs.length === 0) return;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `spectrax_telemetry_${timestamp}.json`;
+    const blob = new Blob([JSON.stringify(this.logs, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+}
+
+export const telemetryBroker = new TelemetryBroker();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session Recorder — uses telemetryBroker (safe: defined above)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_FRAMES = 300;
 
 class SessionRecorder {
   private compressedFrames: CompressedFrameChunk[] = [];
@@ -331,18 +393,19 @@ class SessionRecorder {
     this.compressedFrames = [];
     this._frameCount = 0;
     this.lastRawFrame = null;
-    this.lastCentroid = null;
-    this.displacements = [];
-    telemetryBroker.logState("SessionRecorder_Start");
+    telemetryBroker.logState('SessionRecorder_Start');
   }
-recordFrame(frame: FrameData) {
-  if (this._frameCount >= MAX_FRAMES) {
-    const first = this.compressedFrames[0];
-    if (first && first.runLength > 1) {
-      first.runLength--;
-      first.timestamp += first.timestampDelta || 33;
-    } else {
-      this.compressedFrames.shift();
+
+  recordFrame(frame: FrameData) {
+    if (this._frameCount >= MAX_FRAMES) {
+      const first = this.compressedFrames[0];
+      if (first && first.runLength > 1) {
+        first.runLength--;
+        first.timestamp += first.timestampDelta || 33;
+      } else {
+        this.compressedFrames.shift();
+      }
+      this._frameCount--;
     }
     this._frameCount--;
 
@@ -363,17 +426,15 @@ recordFrame(frame: FrameData) {
   const lastCompressed =
       this.compressedFrames[this.compressedFrames.length - 1];
 
-    if (
-      this.lastRawFrame &&
-      RLDCompressionDriver.isStationary(this.lastRawFrame, frame)
-    ) {
-      lastCompressed.runLength++;
-      lastCompressed.timestampDelta =
-        frame.timestamp - this.lastRawFrame.timestamp;
+    const last = this.compressedFrames[this.compressedFrames.length - 1];
+    if (this.lastRawFrame && RLDCompressionDriver.isStationary(this.lastRawFrame, frame)) {
+      last.runLength++;
     } else {
-      this.compressedFrames.push(
-        RLDCompressionDriver.createChunk(this.lastRawFrame, frame),
-      );
+      this.compressedFrames.push({
+        ...frame,
+        timestampDelta: this.lastRawFrame ? frame.timestamp - this.lastRawFrame.timestamp : 33,
+        runLength: 1,
+      });
     }
 
     this.lastRawFrame = frame;
@@ -382,13 +443,6 @@ recordFrame(frame: FrameData) {
 
   get frames(): FrameData[] {
     return RLDCompressionDriver.decompress(this.compressedFrames);
-  }
-
-  set frames(newFrames: FrameData[]) {
-    this.start();
-    for (const f of newFrames) {
-      this.recordFrame(f);
-    }
   }
 
   get frameCount(): number {
@@ -470,33 +524,31 @@ recordFrame(frame: FrameData) {
   }
 
   download() {
-    if (this.frames.length === 0) {
-      telemetryBroker.logEvent("SessionRecorder_Download_Empty");
+    const frames = this.frames;
+    if (frames.length === 0) {
+      telemetryBroker.logEvent('SessionRecorder_Download_Empty');
       return;
     }
 
-    telemetryBroker.logEvent("SessionRecorder_Download_Started", {
-      frameCount: this.frames.length,
+    telemetryBroker.logEvent('SessionRecorder_Download_Started', {
+      frameCount: frames.length,
     });
-    const exercise = this.frames[0]?.exercise || "workout";
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `spectrax_session_${exercise}_${timestamp}.msgpack`;
 
-    // Persist the compressed archive using MessagePack instead of the expanded frame list.
+    const exercise = frames[0]?.exercise || 'workout';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `spectrax_session_${exercise}_${timestamp}.json`;
+
     try {
-      const buffer = encode(this.getArchive());
-      const blob = new Blob([buffer], {
-        type: "application/x-msgpack",
+      const blob = new Blob([JSON.stringify(frames)], {
+        type: 'application/json',
       });
       const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.href = url;
       link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
       URL.revokeObjectURL(url);
       telemetryBroker.logEvent("SessionRecorder_Download_Completed");
     } catch (e: any) {
@@ -506,106 +558,3 @@ recordFrame(frame: FrameData) {
 }
 
 export const sessionRecorder = new SessionRecorder();
-
-// -----------------------------------------------------------------------------
-// Centralized Logging and Telemetry Broker
-// -----------------------------------------------------------------------------
-
-export interface TelemetryEvent {
-  timestamp: number;
-  type: "info" | "error" | "state_change";
-  message: string;
-  data?: any;
-}
-
-class TelemetryBroker {
-  private logs: TelemetryEvent[] = [];
-  private static MAX_LOGS = 1000;
-
-  constructor() {
-    if (typeof window !== "undefined") {
-      // Global unhandled error tracking
-      window.addEventListener("error", (event) => {
-        this.logError(`Uncaught Error: ${event.message}`, {
-          filename: event.filename,
-          lineno: event.lineno,
-          colno: event.colno,
-          error: event.error ? event.error.stack : undefined,
-        });
-      });
-
-      // Global unhandled promise rejection tracking
-      window.addEventListener("unhandledrejection", (event) => {
-        this.logError(`Unhandled Promise Rejection: ${event.reason}`);
-      });
-    }
-  }
-
-  logState(stateName: string, data?: any) {
-    this._addLog({
-      timestamp: Date.now(),
-      type: "state_change",
-      message: `State changed to ${stateName}`,
-      data,
-    });
-  }
-
-  logEvent(message: string, data?: any) {
-    this._addLog({
-      timestamp: Date.now(),
-      type: "info",
-      message,
-      data,
-    });
-  }
-
-  logError(error: Error | string, context?: any) {
-    const message = error instanceof Error ? error.message : error;
-    const stack = error instanceof Error ? error.stack : undefined;
-
-    this._addLog({
-      timestamp: Date.now(),
-      type: "error",
-      message,
-      data: { ...context, stack },
-    });
-  }
-
-  private _addLog(event: TelemetryEvent) {
-    if (this.logs.length >= TelemetryBroker.MAX_LOGS) {
-      this.logs.shift(); // Evict oldest telemetry data
-    }
-    this.logs.push(event);
-  }
-
-  getLogs() {
-    return [...this.logs];
-  }
-
-  downloadLogs() {
-    if (this.logs.length === 0) return;
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `spectrax_telemetry_${timestamp}.json`;
-
-    // Formatting with 2 spaces for readability in error tracking and diagnostics
-    const blob = new Blob([JSON.stringify(this.logs, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
-  }
-}
-export const telemetryBroker = new TelemetryBroker();
-
-if (typeof window !== "undefined") {
-  (window as any).sessionRecorder = sessionRecorder;
-}
