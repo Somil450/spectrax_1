@@ -388,6 +388,7 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
     }
   }
 
+  if (shoulder > 120 && elbow > 120) return { label: "shoulderPress", confidence: 0.8 };
   if (shoulder > 60) return { label: "jumpingJack", confidence: 0.75 };
   return { label: "unknown", confidence: 0.4 };
 }
