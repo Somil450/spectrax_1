@@ -729,7 +729,9 @@ export class ExerciseEngine {
       // 🔥 Static hold time tracking
       holdTime: nextHoldTime,
 
-      wristSupinationScore
+      wristSupinationScore,
+      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
+      jumpingJackSync: nextJumpingJackSync
     };
   }
 }
