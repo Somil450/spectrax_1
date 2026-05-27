@@ -20,6 +20,7 @@ import { ghostService } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 import { gestureService, GestureCommand } from '../services/gestureService';
+import { debounce } from '../utils/debounce';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
