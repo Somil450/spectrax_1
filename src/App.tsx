@@ -28,6 +28,7 @@ import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { FitnessCalculator } from "./components/FitnessCalculator";
 import React from "react";
+import { PageErrorBoundary } from "./components/PageErrorBoundary";
 
 type Screen =
   | "welcome"
@@ -376,11 +377,15 @@ function App() {
         )}
 
         {currentScreen === "history" && (
-          <HistoryPage onBack={() => navigateTo("welcome")} />
+          <PageErrorBoundary fallbackMessage="Failed to load workout history. Please try again.">
+            <HistoryPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "trophy" && (
-          <TrophyRoom onBack={() => navigateTo("welcome")} />
+          <PageErrorBoundary fallbackMessage="Failed to load Trophy Room. Please try again.">
+            <TrophyRoom onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "profile" && (
