@@ -23,6 +23,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import React from "react";
+import { PageErrorBoundary } from "./components/PageErrorBoundary";
 
 
 
@@ -341,11 +342,15 @@ function App() {
         )}
 
         {currentScreen === "history" && (
-          <HistoryPage onBack={() => navigateTo("welcome")} />
+          <PageErrorBoundary fallbackMessage="Failed to load workout history. Please try again.">
+            <HistoryPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "trophy" && (
-          <TrophyRoom onBack={() => navigateTo("welcome")} />
+          <PageErrorBoundary fallbackMessage="Failed to load Trophy Room. Please try again.">
+            <TrophyRoom onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "profile" && (
