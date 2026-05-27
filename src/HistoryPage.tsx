@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { History, Trash2, ArrowLeft, TrendingUp, Filter, Loader2, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
+import { EmptyState } from "./components/EmptyState";
 
 // ── Debounce Hook ─────────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -490,14 +491,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
         {/* Empty */}
         {!loading && !error && sessions.length === 0 && (
-          <div className="state-center empty-state">
-            <div className="empty-icon">🏋️</div>
-            <h2>No sessions yet</h2>
-            <p>Complete a workout and your session will appear here.</p>
-            <button className="start-btn" onClick={onBack}>
-              Start a Workout
-            </button>
-          </div>
+          <EmptyState 
+            title="No sessions yet"
+            description="Complete a workout and your session will appear here."
+            actionText="Start a Workout"
+            onAction={onBack}
+          />
         )}
 
         {/* Sessions empty after filter */}

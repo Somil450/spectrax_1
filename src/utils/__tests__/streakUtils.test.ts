@@ -44,7 +44,7 @@ describe('streakUtils', () => {
       expect(data).toEqual({
         currentStreak: 1,
         longestStreak: 1,
-        lastWorkoutDate: new Date('2024-01-01T12:00:00Z').toDateString(),
+        lastWorkoutDate: new Date('2024-01-01T12:00:00Z').toISOString().split('T')[0],
       });
       expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual(data);
     });
@@ -59,7 +59,7 @@ describe('streakUtils', () => {
       const data = updateWorkoutStreak();
 
       expect(data.currentStreak).toBe(1);
-      expect(data.lastWorkoutDate).toBe(initialDate.toDateString());
+      expect(data.lastWorkoutDate).toBe(initialDate.toISOString().split('T')[0]);
     });
 
     it('should increment streak if working out on the next consecutive day', () => {
@@ -73,7 +73,7 @@ describe('streakUtils', () => {
 
       expect(data.currentStreak).toBe(2);
       expect(data.longestStreak).toBe(2);
-      expect(data.lastWorkoutDate).toBe(new Date('2024-01-02T12:00:00Z').toDateString());
+      expect(data.lastWorkoutDate).toBe(new Date('2024-01-02T12:00:00Z').toISOString().split('T')[0]);
     });
 
     it('should reset streak if a day is skipped', () => {
@@ -91,7 +91,7 @@ describe('streakUtils', () => {
 
       expect(data.currentStreak).toBe(1);
       expect(data.longestStreak).toBe(2); // Retains longest streak
-      expect(data.lastWorkoutDate).toBe(new Date('2024-01-04T12:00:00Z').toDateString());
+      expect(data.lastWorkoutDate).toBe(new Date('2024-01-04T12:00:00Z').toISOString().split('T')[0]);
     });
   });
 });
