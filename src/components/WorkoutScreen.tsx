@@ -1,51 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Draggable, {
-  type DraggableData,
-  type DraggableEvent,
-} from "react-draggable";
-import {
-  Activity,
-  StopCircle,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Lock,
-  Unlock,
-} from "lucide-react";
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
-import { overlayRenderer } from "../services/overlayRenderer";
-import { getJointAngles, getJointVisibility } from "../services/angleUtils";
-import { getPostureErrorCategories } from "../engine/feedbackEngine";
-import { exerciseEngine, EngineState } from "../services/exerciseEngine";
-import { ExerciseConfig } from "../config/exercises";
-import { sessionRecorder } from "../services/sessionRecorder";
-import type { FrameData } from "../services/sessionRecorder";
-import { skeletalSense } from "../services/skeletalSense";
-import { poseLockService } from "../services/poseLockService";
-import { clipEngine } from "../services/clipEngine";
-import { BodyType } from "../services/bodyTypeEngine";
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
-import { useDisplayConfig } from "../hooks/useDisplayConfig";
-import { useCameraPose } from "../hooks/useCameraPose";
-import {
-  useThrottleLevel,
-  throttleMonitor,
-} from "../services/performanceThrottleService";
-import {
-  FocusPanel,
-  TimerPanel,
-  RepsPanel,
-  EnginePanel,
-  SensePanel,
-} from "./WorkoutPanels";
-import { CameraErrorBoundary } from "./CameraErrorBoundary";
-import FpsOverlay from "./FpsOverlay";
-import { useFpsCounter } from "../hooks/useFpsCounter";
-import { Replay3DModel } from "./Replay3DModel";
-import { ghostService, GhostStats } from "../services/ghostService";
-import { gestureService, GestureCommand } from "../services/gestureService";
-import { initialSquatDepthStats } from "../services/Squat_depth_classifier";
-import { FpsMonitor } from "./FpsMonitor";
+import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
+import { useCameraPose } from '../hooks/useCameraPose';
+import { overlayRenderer } from '../services/overlayRenderer';
+import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { getPostureErrorCategories } from '../engine/feedbackEngine';
+import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { ExerciseConfig } from '../config/exercises';
+import { sessionRecorder } from '../services/sessionRecorder';
+import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
+import { poseLockService } from '../services/poseLockService';
+import { clipEngine } from '../services/clipEngine';
+import { BodyType } from '../services/bodyTypeEngine';
+import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
+import { useDisplayConfig } from '../hooks/useDisplayConfig';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { ghostService } from '../services/ghostService';
+import type { FrameData } from '../services/sessionRecorder';
+import { FpsMonitor } from './FpsMonitor';
+import { gestureService, GestureCommand } from '../services/gestureService';
+import { debounce } from '../utils/debounce';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
