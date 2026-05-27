@@ -1,0 +1,836 @@
+/* ═══════════════════════════════════════════════════════════════
+   FitnessCalculator.css
+   Glassmorphism fitness dashboard — theme-aware, mobile-first.
+   Follows the SpectraX design system (index.css variables).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Page wrapper ─────────────────────────────────────────────── */
+.fitness-page {
+  /* Own scroll container — sits on top of the root which has overflow:hidden */
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: clamp(20px, 4vw, 48px) clamp(16px, 4vw, 32px) 80px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.2) transparent;
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.fitness-page::-webkit-scrollbar { width: 6px; }
+.fitness-page::-webkit-scrollbar-track { background: transparent; }
+.fitness-page::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.2);
+  border-radius: 3px;
+}
+
+/* Ambient orbs (decorative, pointer-events: none) */
+.fitness-orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(110px);
+  opacity: 0.35;
+  z-index: 0;
+}
+.fitness-orb--cyan {
+  width: clamp(300px, 50vw, 600px);
+  height: clamp(300px, 50vw, 600px);
+  background: radial-gradient(circle, var(--neon-cyan) 0%, transparent 70%);
+  top: -10%;
+  left: -10%;
+}
+.fitness-orb--purple {
+  width: clamp(250px, 45vw, 550px);
+  height: clamp(250px, 45vw, 550px);
+  background: radial-gradient(circle, var(--neon-purple) 0%, transparent 70%);
+  bottom: -10%;
+  right: -8%;
+}
+
+/* ── Inner content column ─────────────────────────────────────── */
+.fitness-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(24px, 3.5vh, 40px);
+  /* Let content grow naturally — no height constraint */
+  flex-shrink: 0;
+}
+
+/* ── Back button ──────────────────────────────────────────────── */
+.fitness-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1.5px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out);
+  align-self: flex-start;
+}
+.fitness-back-btn:hover {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  transform: translateX(-3px);
+}
+
+/* ── Page header ──────────────────────────────────────────────── */
+.fitness-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.fitness-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 50px;
+  padding: 5px 14px;
+}
+
+.fitness-eyebrow__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 6px var(--neon-cyan);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.fitness-title {
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 5vw, 2.8rem);
+  font-weight: 900;
+  letter-spacing: clamp(2px, 1vw, 8px);
+  background: linear-gradient(135deg, #ffffff 0%, var(--neon-cyan) 55%, var(--neon-purple) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-transform: uppercase;
+  line-height: 1.1;
+  margin: 0;
+  filter: drop-shadow(0 0 20px rgba(0, 240, 255, 0.3));
+}
+
+.fitness-subtitle {
+  color: var(--text-dim);
+  font-size: clamp(0.82rem, 2vw, 0.95rem);
+  font-weight: 400;
+  line-height: 1.5;
+  max-width: 480px;
+}
+
+/* ── Tab bar ──────────────────────────────────────────────────── */
+.fitness-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 6px;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
+  flex-wrap: wrap;
+}
+
+.fitness-tab-btn {
+  flex: 1;
+  min-width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 16px;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out);
+  white-space: nowrap;
+}
+
+.fitness-tab-btn:hover:not(.active) {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.fitness-tab-btn.active {
+  background: var(--neon-cyan);
+  color: var(--bg-primary);
+  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.35);
+}
+
+/* ── Calculator card ──────────────────────────────────────────── */
+.fitness-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  padding: clamp(24px, 4vw, 40px);
+  animation: fadeInUp 0.45s var(--ease-out) both;
+}
+
+/* ── Section title inside card ────────────────────────────────── */
+.fitness-card-title {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+  margin: 0 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fitness-card-title svg {
+  flex-shrink: 0;
+}
+
+/* ── Form grid ────────────────────────────────────────────────── */
+.fitness-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+/* ── Input group ──────────────────────────────────────────────── */
+.fitness-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fitness-label {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.fitness-input,
+.fitness-select {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.fitness-input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+.fitness-input:focus,
+.fitness-select:focus {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.12);
+}
+
+/* Select arrow */
+.fitness-select-wrapper {
+  position: relative;
+}
+
+.fitness-select-wrapper::after {
+  content: '▾';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  pointer-events: none;
+  font-size: 0.85rem;
+}
+
+.fitness-select {
+  padding-right: 36px;
+  cursor: pointer;
+  background-color: var(--bg-secondary);
+}
+
+/* Gender toggle */
+.fitness-gender-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.fitness-gender-btn {
+  flex: 1;
+  padding: 11px 12px;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.22s var(--ease-out);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.fitness-gender-btn:hover:not(.active) {
+  border-color: var(--neon-cyan);
+  color: var(--text-secondary);
+}
+
+.fitness-gender-btn.active {
+  background: rgba(0, 240, 255, 0.12);
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
+}
+
+/* ── Calculate button ─────────────────────────────────────────── */
+.fitness-calc-btn {
+  width: 100%;
+  padding: 14px 32px;
+  font-family: var(--font-heading);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--bg-primary);
+  background: var(--neon-cyan);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out);
+  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.fitness-calc-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 240, 255, 0.5);
+}
+
+.fitness-calc-btn:active {
+  transform: translateY(0);
+}
+
+/* ── Results section ──────────────────────────────────────────── */
+.fitness-results {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fadeInUp 0.4s var(--ease-out) both;
+}
+
+.fitness-results-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--glass-border);
+  margin-bottom: 4px;
+}
+
+/* ── BMI result ───────────────────────────────────────────────── */
+.bmi-result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.bmi-value-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bmi-value {
+  font-family: var(--font-heading);
+  font-size: clamp(2.8rem, 8vw, 4rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 2px;
+}
+
+.bmi-category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border: 1.5px solid currentColor;
+  width: fit-content;
+  opacity: 0.9;
+}
+
+/* BMI gauge */
+.bmi-gauge-wrapper {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bmi-gauge-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--neon-cyan) 0%,
+    var(--neon-green) 30%,
+    var(--neon-yellow) 60%,
+    var(--neon-red) 100%
+  );
+  position: relative;
+  overflow: visible;
+}
+
+.bmi-gauge-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid var(--bg-primary);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+  transition: left 0.6s var(--ease-out);
+}
+
+.bmi-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* BMI reference table */
+.bmi-reference {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.bmi-ref-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  text-align: center;
+}
+
+.bmi-ref-item.active-category {
+  border-color: currentColor;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.bmi-ref-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.bmi-ref-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+.bmi-ref-range {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+}
+
+/* ── TDEE result ──────────────────────────────────────────────── */
+.tdee-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.tdee-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  text-align: center;
+  transition: border-color 0.2s ease;
+}
+
+.tdee-stat-card.highlight {
+  border-color: var(--neon-cyan);
+  background: rgba(0, 240, 255, 0.05);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.08);
+}
+
+.tdee-stat-value {
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 900;
+  color: var(--neon-cyan);
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+.tdee-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.tdee-stat-sub {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  opacity: 0.7;
+  line-height: 1.4;
+  max-width: 140px;
+}
+
+/* ── Calorie recommendation cards ─────────────────────────────── */
+.calorie-section-label {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calorie-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--glass-border);
+}
+
+.calorie-cards-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.calorie-rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.22s var(--ease-out);
+}
+
+.calorie-rec-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.calorie-rec-card.deficit-mild {
+  border-color: rgba(0, 240, 255, 0.3);
+}
+.calorie-rec-card.deficit-mild:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 6px 20px rgba(0, 240, 255, 0.12);
+}
+
+.calorie-rec-card.deficit-aggressive {
+  border-color: rgba(0, 255, 136, 0.3);
+}
+.calorie-rec-card.deficit-aggressive:hover {
+  border-color: var(--neon-green);
+  box-shadow: 0 6px 20px rgba(0, 255, 136, 0.12);
+}
+
+.calorie-rec-card.surplus-mild {
+  border-color: rgba(168, 85, 247, 0.3);
+}
+.calorie-rec-card.surplus-mild:hover {
+  border-color: var(--neon-purple);
+  box-shadow: 0 6px 20px rgba(168, 85, 247, 0.12);
+}
+
+.calorie-rec-card.surplus-aggressive {
+  border-color: rgba(168, 85, 247, 0.2);
+}
+.calorie-rec-card.surplus-aggressive:hover {
+  border-color: var(--neon-purple-dim);
+  box-shadow: 0 6px 20px rgba(168, 85, 247, 0.1);
+}
+
+.calorie-rec-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.calorie-rec-value {
+  font-family: var(--font-heading);
+  font-size: clamp(1.4rem, 3.5vw, 1.9rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+.calorie-rec-unit {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.calorie-rec-delta {
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+/* Maintenance reference row */
+.calorie-maintenance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  margin-bottom: 20px;
+}
+
+.calorie-maintenance-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calorie-maintenance-value {
+  font-family: var(--font-heading);
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--neon-cyan);
+  letter-spacing: 1px;
+}
+
+/* ── Info note ────────────────────────────────────────────────── */
+.fitness-info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(168, 85, 247, 0.06);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+.fitness-info-note svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--neon-purple);
+}
+
+/* ── Error message ────────────────────────────────────────────── */
+.fitness-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 59, 92, 0.08);
+  border: 1px solid rgba(255, 59, 92, 0.3);
+  color: var(--neon-red);
+  font-size: 0.8rem;
+  font-weight: 600;
+  animation: fadeInUp 0.3s var(--ease-out) both;
+}
+
+/* ── Light theme overrides ────────────────────────────────────── */
+[data-theme="light"] .fitness-input,
+[data-theme-style="light"] .fitness-input {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .fitness-input:focus,
+[data-theme-style="light"] .fitness-input:focus {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+[data-theme="light"] .fitness-select,
+[data-theme-style="light"] .fitness-select {
+  background-color: #ffffff;
+  border-color: rgba(37, 99, 235, 0.2);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .fitness-tab-btn.active,
+[data-theme-style="light"] .fitness-tab-btn.active {
+  background: var(--neon-cyan);
+  color: #ffffff;
+}
+
+[data-theme="light"] .fitness-calc-btn,
+[data-theme-style="light"] .fitness-calc-btn {
+  color: #ffffff;
+}
+
+[data-theme="light"] .tdee-stat-card.highlight,
+[data-theme-style="light"] .tdee-stat-card.highlight {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+[data-theme="light"] .calorie-maintenance-row,
+[data-theme-style="light"] .calorie-maintenance-row {
+  background: rgba(37, 99, 235, 0.05);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+/* ── Retro theme overrides ────────────────────────────────────── */
+[data-theme-style="retro"] .fitness-title {
+  background: linear-gradient(135deg, #ffffff 0%, #33ff33 55%, #aaff55 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme-style="retro"] .fitness-tab-btn.active {
+  background: var(--neon-cyan);
+  color: var(--bg-primary);
+}
+
+[data-theme-style="retro"] .fitness-calc-btn {
+  background: var(--neon-cyan);
+  color: var(--bg-primary);
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .fitness-tabs {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .fitness-tab-btn {
+    min-width: 0;
+    padding: 9px 10px;
+    font-size: 0.7rem;
+    gap: 4px;
+  }
+
+  .bmi-reference {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .calorie-cards-row {
+    grid-template-columns: 1fr;
+  }
+
+  .bmi-result-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bmi-gauge-wrapper {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .fitness-tab-btn span {
+    display: none;
+  }
+}

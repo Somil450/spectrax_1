@@ -1,4 +1,5 @@
 import type { NormalizedLandmark } from '@mediapipe/pose';
+import { POSE_LANDMARKS } from '../config/poseLandmarks';
 
 /**
  * angleUtils.ts (Lateral Optimization version)
@@ -22,8 +23,22 @@ export function calculateAngle(
 }
 
 function getBestSide(landmarks: any): 'left' | 'right' {
-  const leftIndices = [11, 13, 15, 23, 25, 27];
-  const rightIndices = [12, 14, 16, 24, 26, 28];
+  const leftIndices = [
+    POSE_LANDMARKS.LEFT_SHOULDER,
+    POSE_LANDMARKS.LEFT_ELBOW,
+    POSE_LANDMARKS.LEFT_WRIST,
+    POSE_LANDMARKS.LEFT_HIP,
+    POSE_LANDMARKS.LEFT_KNEE,
+    POSE_LANDMARKS.LEFT_ANKLE
+  ];
+  const rightIndices = [
+    POSE_LANDMARKS.RIGHT_SHOULDER,
+    POSE_LANDMARKS.RIGHT_ELBOW,
+    POSE_LANDMARKS.RIGHT_WRIST,
+    POSE_LANDMARKS.RIGHT_HIP,
+    POSE_LANDMARKS.RIGHT_KNEE,
+    POSE_LANDMARKS.RIGHT_ANKLE
+  ];
 
   const leftVis = leftIndices.reduce((sum, i) => sum + (landmarks[i]?.visibility || 0), 0) / leftIndices.length;
   const rightVis = rightIndices.reduce((sum, i) => sum + (landmarks[i]?.visibility || 0), 0) / rightIndices.length;
@@ -36,20 +51,20 @@ export function getJointAngles(landmarks: any): Record<string, number> {
   const side = getBestSide(landmarks);
   
   const ids = side === 'left' 
-    ? { s: 11, e: 13, w: 15, h: 23, k: 25, a: 27 }
-    : { s: 12, e: 14, w: 16, h: 24, k: 26, a: 28 };
+    ? { s: POSE_LANDMARKS.LEFT_SHOULDER, e: POSE_LANDMARKS.LEFT_ELBOW, w: POSE_LANDMARKS.LEFT_WRIST, h: POSE_LANDMARKS.LEFT_HIP, k: POSE_LANDMARKS.LEFT_KNEE, a: POSE_LANDMARKS.LEFT_ANKLE }
+    : { s: POSE_LANDMARKS.RIGHT_SHOULDER, e: POSE_LANDMARKS.RIGHT_ELBOW, w: POSE_LANDMARKS.RIGHT_WRIST, h: POSE_LANDMARKS.RIGHT_HIP, k: POSE_LANDMARKS.RIGHT_KNEE, a: POSE_LANDMARKS.RIGHT_ANKLE };
 
   const shoulder = landmarks[ids.s];
   const hip = landmarks[ids.h];
   const ankle = landmarks[ids.a];
-  const leftShoulder = landmarks[11];
-  const rightShoulder = landmarks[12];
-  const leftElbow = landmarks[13];
-  const rightElbow = landmarks[14];
-  const leftHip = landmarks[23];
-  const rightHip = landmarks[24];
-  const leftAnkle = landmarks[27];
-  const rightAnkle = landmarks[28];
+  const leftShoulder = landmarks[POSE_LANDMARKS.LEFT_SHOULDER];
+  const rightShoulder = landmarks[POSE_LANDMARKS.RIGHT_SHOULDER];
+  const leftElbow = landmarks[POSE_LANDMARKS.LEFT_ELBOW];
+  const rightElbow = landmarks[POSE_LANDMARKS.RIGHT_ELBOW];
+  const leftHip = landmarks[POSE_LANDMARKS.LEFT_HIP];
+  const rightHip = landmarks[POSE_LANDMARKS.RIGHT_HIP];
+  const leftAnkle = landmarks[POSE_LANDMARKS.LEFT_ANKLE];
+  const rightAnkle = landmarks[POSE_LANDMARKS.RIGHT_ANKLE];
 
   // 1. Vertical Depth (Squats)
   const totalVerticalHeight = Math.abs(ankle.y - shoulder.y) || 1;
@@ -57,7 +72,7 @@ export function getJointAngles(landmarks: any): Record<string, number> {
 
   // 2. Lateral Score (Orientation)
   // Horizontal gap between shoulders. 1.0 = Sideways, 0.0 = Facing Camera
-  const shoulderGap = Math.abs(landmarks[11].x - landmarks[12].x);
+  const shoulderGap = Math.abs(landmarks[POSE_LANDMARKS.LEFT_SHOULDER].x - landmarks[POSE_LANDMARKS.RIGHT_SHOULDER].x);
   const lateralScore = Math.max(0, 1 - (shoulderGap * 5));
 
   // 3. Horizontal Stretch (Pushups)
@@ -90,10 +105,10 @@ export function getJointVisibility(landmarks: any): Record<string, number> {
     Math.max(landmarks[leftId]?.visibility || 0, landmarks[rightId]?.visibility || 0);
 
   return {
-    knee: vis(25, 26),
-    elbow: vis(13, 14),
-    shoulder: vis(11, 12),
-    bodyLine: (vis(11, 12) + vis(23, 24) + vis(27, 28)) / 3 || 0,
-    hipDepth: (vis(23, 24) + vis(27, 28)) / 2 || 0
+    knee: vis(POSE_LANDMARKS.LEFT_KNEE, POSE_LANDMARKS.RIGHT_KNEE),
+    elbow: vis(POSE_LANDMARKS.LEFT_ELBOW, POSE_LANDMARKS.RIGHT_ELBOW),
+    shoulder: vis(POSE_LANDMARKS.LEFT_SHOULDER, POSE_LANDMARKS.RIGHT_SHOULDER),
+    bodyLine: (vis(POSE_LANDMARKS.LEFT_SHOULDER, POSE_LANDMARKS.RIGHT_SHOULDER) + vis(POSE_LANDMARKS.LEFT_HIP, POSE_LANDMARKS.RIGHT_HIP) + vis(POSE_LANDMARKS.LEFT_ANKLE, POSE_LANDMARKS.RIGHT_ANKLE)) / 3 || 0,
+    hipDepth: (vis(POSE_LANDMARKS.LEFT_HIP, POSE_LANDMARKS.RIGHT_HIP) + vis(POSE_LANDMARKS.LEFT_ANKLE, POSE_LANDMARKS.RIGHT_ANKLE)) / 2 || 0
   };
 }
