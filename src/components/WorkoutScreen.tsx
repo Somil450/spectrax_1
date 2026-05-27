@@ -219,6 +219,20 @@ useEffect(() => {
   const ghostStatsRef = useRef<any>(null);
   const [hasGhost, setHasGhost] = useState(false);
 
+  // ── Gestures & Controls (lost in merge) ──
+  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
+  const [gestureHudVisible, setGestureHudVisible] = useState(false);
+  const gestureHudTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const workoutControlRef = useRef<any>(null);
+  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
+
+  // ── Ghost Mode (lost in merge) ──
+  const ghostFramesRef = useRef<any[]>([]);
+  const ghostStatsRef = useRef<any>(null);
+  const [hasGhost, setHasGhost] = useState(false);
+
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",

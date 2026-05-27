@@ -1,25 +1,7 @@
-import { getSupinationScore } from "./wristRotationDetector";
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Plank Spline Types & Constants
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * exerciseEngine.ts  (updated — squat depth classification integrated)
- *
- * Changes vs. original:
- *  1. EngineState gains `lastDepthResult`, `depthStats`, and `liveDepthFeedback`.
- *  2. After a rep is counted, `classifySquatDepth()` runs on `downAngleReached`
- *     and the result is stored + merged into session stats.
- *  3. During the DOWN phase, `getLiveDepthFeedback()` overlays a depth cue
- *     when no higher-priority form issue is active.
- *  4. The depth `scoreModifier` adjusts `minScoreInRep` so half-squats can
- *     fall below the 70-point threshold and be rejected by the accuracy system.
- */
 
 import { ExerciseConfig } from '../config/exercises';
 import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
+import { getSupinationScore } from "./wristRotationDetector";
 // Note: feedbackEngine.ts lives in src/engine/ — path is correct relative to src/services/
 import {
   classifySquatDepth,
@@ -190,6 +172,7 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
   depthStats?: SquatDepthStats;
+
   // 🔥 Static hold time tracking
   holdTime?: number;
 
@@ -214,6 +197,7 @@ export interface EngineState {
   visibilityBuffer?: number[];
   trackingLostFrames?: number;
   lastValidAngles?: Record<string, number>;
+
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
 
@@ -246,6 +230,35 @@ interface RepParams {
   streakMinScore: number;
 }
 
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
+
+const ENGINE_DEFAULTS: RepParams = {
+  repCooldown: 600,
+  hysteresis: 10,
+  smoothingWindow: 8,
+  minDownDuration: 150,
+  correctRepMinScore: 70,
+  streakMinScore: 80,
+};
+
+// Per-exercise overrides (runtime register-able)
+const layoutOverrides = new Map<string, Partial<RepParams>>();
+
+export function setRepParams(key: string, params: Partial<RepParams>): void {
+  layoutOverrides.set(key, params);
+}
+
+export function clearRepParams(key: string): void {
+  layoutOverrides.delete(key);
+}
+
 // ─────────────────────────────────────────────
 // ExerciseEngine
 // ─────────────────────────────────────────────
@@ -267,6 +280,7 @@ export class ExerciseEngine {
   private readonly SMOOTHING_WINDOW = 5;
   private readonly MIN_DOWN_DURATION = 150;
   private kinematicEngine = new KinematicEngine();
+
 
 
   private isValidExercisePosture(
@@ -499,6 +513,7 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
+      // 🔥 Plank-specific spline deviation omitted due to merge issue
       wristSupinationScore,
     };
 
@@ -758,20 +773,9 @@ export class ExerciseEngine {
       // 🔥 Static hold time tracking
       holdTime: nextHoldTime,
 
-      // Tracking & recovery buffers
-      visibilityBuffer: newVisibilityBuffer,
-      trackingLostFrames: nextTrackingLostFrames,
-      lastValidAngles: nextLastValidAngles,
+      wristSupinationScore,
       jumpingJackSyncSamples: nextJumpingJackSyncSamples,
-      jumpingJackSync: nextJumpingJackSync,
-
-      // Pushup depth classification
-      lastPushupDepthResult: nextLastPushupDepthResult,
-      pushupDepthStats: nextPushupDepthStats,
-      livePushupDepthFeedback,
-      downZReached,
-
-      wristSupinationScore
+      jumpingJackSync: nextJumpingJackSync
     };
   }
 }
