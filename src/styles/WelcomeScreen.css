@@ -12,7 +12,7 @@
   --text-muted: rgba(255, 255, 255, 0.3);
   --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-  
+
   /* Background colors for smooth transitions */
   --bg-hero: radial-gradient(ellipse at 50% 30%, rgba(0, 20, 40, 0.95), rgba(0, 0, 0, 0.98));
   --bg-how-it-works: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 15, 25, 0.95) 50%, rgba(0, 0, 0, 0.95) 100%);
@@ -56,12 +56,11 @@
   width: 80%;
   height: 1px;
   background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(0, 240, 255, 0.15) 20%,
-    rgba(0, 240, 255, 0.4) 50%,
-    rgba(0, 240, 255, 0.15) 80%,
-    transparent 100%
-  );
+      transparent 0%,
+      rgba(0, 240, 255, 0.15) 20%,
+      rgba(0, 240, 255, 0.4) 50%,
+      rgba(0, 240, 255, 0.15) 80%,
+      transparent 100%);
 }
 
 .particle-canvas {
@@ -146,7 +145,7 @@
   font-weight: 900;
   letter-spacing: 14px;
   color: var(--neon-cyan);
-  text-shadow: 
+  text-shadow:
     0 0 20px rgba(0, 240, 255, 0.8),
     0 0 40px rgba(0, 240, 255, 0.6),
     0 0 60px rgba(0, 240, 255, 0.4),
@@ -207,7 +206,7 @@
 
 .btn-primary:hover {
   background: rgba(0, 240, 255, 0.1);
-  box-shadow: 
+  box-shadow:
     0 0 20px rgba(0, 240, 255, 0.4),
     0 0 40px rgba(0, 240, 255, 0.2),
     inset 0 0 20px rgba(0, 240, 255, 0.1);
@@ -278,6 +277,8 @@
    How It Works Section - SMOOTH TRANSITION
    ============================================= */
 .how-it-works-section {
+  width: 100%;
+  box-sizing: border-box;
   background: var(--bg-how-it-works);
   padding: 100px 40px 120px;
   position: relative;
@@ -388,7 +389,7 @@
 .step-card:hover {
   transform: translateY(-8px);
   border-color: rgba(0, 240, 255, 0.4);
-  box-shadow: 
+  box-shadow:
     0 20px 40px rgba(0, 0, 0, 0.4),
     0 0 30px rgba(0, 240, 255, 0.1);
   background: rgba(10, 20, 30, 0.6);
@@ -443,6 +444,8 @@
    Footer Section - SMOOTH TRANSITION
    ============================================= */
 .footer {
+  width: 100%;
+  box-sizing: border-box;
   background: var(--bg-footer);
   backdrop-filter: blur(10px);
   padding: 60px 20px 30px;
@@ -468,19 +471,22 @@
 
 .footer-container {
   max-width: 1200px;
+  border-radius: 24px;
   margin: 0 auto;
   position: relative;
   z-index: 2;
 }
 
 .footer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 40px;
   margin-bottom: 50px;
 }
 
 .footer-column {
+  flex: 1 1 200px;
   display: flex;
   flex-direction: column;
 }
@@ -570,6 +576,7 @@
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -577,15 +584,18 @@
 }
 
 @keyframes glow {
-  0%, 100% {
-    text-shadow: 
+
+  0%,
+  100% {
+    text-shadow:
       0 0 20px rgba(0, 240, 255, 0.8),
       0 0 40px rgba(0, 240, 255, 0.6),
       0 0 60px rgba(0, 240, 255, 0.4),
       0 0 80px rgba(0, 240, 255, 0.2);
   }
+
   50% {
-    text-shadow: 
+    text-shadow:
       0 0 30px rgba(0, 240, 255, 0.9),
       0 0 50px rgba(0, 240, 255, 0.7),
       0 0 70px rgba(0, 240, 255, 0.5),
@@ -881,24 +891,27 @@
   }
 
   .footer-grid {
-    grid-template-columns: 1fr 1fr;
     gap: 30px;
   }
-  
+
+  .footer-column {
+    flex: 1 1 calc(50% - 15px);
+  }
+
   .how-it-works-section {
     padding: 70px 24px 80px;
   }
 }
 
 @media (max-width: 480px) {
-  .footer-grid {
-    grid-template-columns: 1fr;
+  .footer-column {
+    flex: 1 1 100%;
   }
 
   .how-it-works-section {
     padding: 50px 16px 60px;
   }
-  
+
   .footer {
     padding: 40px 15px 20px;
   }
@@ -948,11 +961,11 @@
     background: white;
     color: black;
   }
-  
+
   .particle-canvas {
     display: none;
   }
-  
+
   .btn-primary,
   .btn-secondary {
     border: 2px solid black;

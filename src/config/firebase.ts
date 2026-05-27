@@ -45,7 +45,6 @@ try {
     console.warn("Failed to set Firebase persistence:", error);
   });
 
-  console.log("✅ Firebase initialized");
 } catch (e) {
   console.warn("⚠️ Firebase not configured — running in offline/demo mode", e);
   // Create a minimal app stub so imports don't crash
