@@ -165,7 +165,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(currentUser);
           const profile = await syncUserProfile(currentUser);
           setUserProfile(profile);
-          console.log("✅ User loaded:", currentUser.uid);
         } else {
           setUser(null);
           setUserProfile(null);
@@ -213,7 +212,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profile = await syncUserProfile(result.user, true);
       setUserProfile(profile);
 
-      console.log("✅ Sign up successful:", result.user.uid);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -235,7 +233,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const result = await signInWithEmailAndPassword(auth, email, password);
-      console.log("✅ Sign in successful:", result.user.uid);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -258,7 +255,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profile = await syncUserProfile(result.user, true);
       setUserProfile(profile);
 
-      console.log("✅ Google sign-in successful:", result.user.uid);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -276,7 +272,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signOut(auth);
       setUser(null);
       setUserProfile(null);
-      console.log("✅ Logged out successfully");
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -297,7 +292,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       await sendPasswordResetEmail(auth, email);
-      console.log("✅ Password reset email sent to:", email);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -341,7 +335,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Update local state
       setUserProfile((prev) => (prev ? { ...prev, ...updates } : null));
 
-      console.log("✅ Profile updated");
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -372,7 +365,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: Date.now(),
         lastLogin: Date.now(),
       });
-      console.log("✅ Guest sign-in successful");
     } catch (err) {
       console.error(err);
     } finally {
