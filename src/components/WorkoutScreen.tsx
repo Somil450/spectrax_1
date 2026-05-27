@@ -173,10 +173,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-  const [panelsLocked, setPanelsLocked] = useState(true);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() =>
-    getStoredPanelPositions(),
-  );
+ fix-workout-screen-memory-leaks
+  
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showExitModal, setShowExitModal] = useState(false);
 
   const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
   const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
