@@ -1,10 +1,5 @@
 import type { Results } from "@mediapipe/pose";
-
-/**
- * overlayRenderer.ts
- * High-performance canvas drawing with dynamic joint color-coding.
- */
-
+import {drawConnectors,drawLandmarks,POSE_CONNECTIONS }from "@mediapipe/drawing_utils";
 export class OverlayRenderer {
   private ctx: CanvasRenderingContext2D | null = null;
   private scanY: number = 0;
@@ -50,22 +45,11 @@ export class OverlayRenderer {
 
     this.clear();
 
-    const color = this.getStatusColor(status);
-
-    for (const landmark of results.poseLandmarks) {
-      this.ctx.beginPath();
-
-      this.ctx.arc(
-        landmark.x * this.ctx.canvas.width,
-        landmark.y * this.ctx.canvas.height,
-        5,
-        0,
-        2 * Math.PI
-      );
+    
 
     // 1. Draw standard connectors with status color
     drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-      color: 'rgba(255, 255, 255, 0.2)',
+      color: "rgba(255, 255, 255, 0.2)",
       lineWidth: 2,
     });
 
@@ -78,7 +62,7 @@ export class OverlayRenderer {
 
     // 3. Draw Landmarks with dynamic size/glow
     drawLandmarks(this.ctx, results.poseLandmarks, {
-      color: '#ffffff',
+      color: "#ffffff",
       fillColor: (data: any) => {
           // Highlight primary joints with stronger color
           if (primaryJoints.includes(data.index!)) return color;
@@ -87,7 +71,7 @@ export class OverlayRenderer {
             if (data.index! % 2 !== 0) return 'rgba(0, 240, 255, 0.8)'; // Neon Blue (Left)
             if (data.index! % 2 === 0) return 'rgba(157, 78, 221, 0.8)'; // Neon Purple (Right)
           }
-          return 'rgba(255,255,255,0.5)';
+          return "rgba(255,255,255,0.5)";
       },
       lineWidth: 1,
       radius: (data: any) => {
@@ -96,8 +80,7 @@ export class OverlayRenderer {
     });
 
     // Global glow
-    this.ctx.shadowBlur = 15;
-    this.ctx.shadowColor = glow;
+    this.drawScanningLine();
   }
 
   private drawScanningLine() {

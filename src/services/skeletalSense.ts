@@ -262,7 +262,38 @@ class SkeletalSense {
   }
 
 }
+export class JointDeviationProfiler {
+  private values: number[] = [];
 
+  update(value: number) {
+    if (!isNaN(value)) {
+      this.values.push(value);
+
+      // Keep only recent values
+      if (this.values.length > 100) {
+        this.values.shift();
+      }
+    }
+  }
+
+  getStandardDeviation(): number {
+    if (this.values.length < 2) return 0;
+
+    const mean =
+      this.values.reduce((a, b) => a + b, 0) / this.values.length;
+
+    const variance =
+      this.values.reduce((sum, val) => {
+        return sum + Math.pow(val - mean, 2);
+      }, 0) / this.values.length;
+
+    return Math.sqrt(variance);
+  }
+
+  reset() {
+    this.values = [];
+  }
+}
 export const skeletalSense = new SkeletalSense();
 
 

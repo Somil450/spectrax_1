@@ -5,9 +5,6 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
@@ -861,7 +858,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       // Build effect passes for initial preset
       rebuildPasses(graphicsPresetRef.current, width, height);
 
-      const controls = new OrbitControls(cameraRef.current, renderer.domElement);
+      const orbitControls = new OrbitControls(cameraRef.current, renderer.domElement);
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(width, height),
         0.5,
@@ -871,16 +868,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       composer.addPass(bloomPass);
       bloomPassRef.current = bloomPass;
 
-      const controls = new OrbitControls(
+      const sceneControls= new OrbitControls(
         cameraRef.current,
         renderer.domElement,
       );
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.maxPolarAngle = Math.PI / 2 + 0.1;
-      controls.minDistance   = 1.0;
-      controls.maxDistance   = 10.0;
-      controlsRef.current    = controls;
+      sceneControls.enableDamping = true;
+    sceneControls.dampingFactor = 0.05;
+      sceneControls.maxPolarAngle = Math.PI / 2 + 0.1;
+      sceneControls.minDistance   = 1.0;
+      sceneControls.maxDistance   = 10.0;
+      controlsRef.current    = sceneControls;
 
       const handleContextLost = (event: Event) => {
         event.preventDefault();
