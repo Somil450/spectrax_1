@@ -738,7 +738,17 @@ export class ExerciseEngine {
       // 🔥 Static hold time tracking
       holdTime: nextHoldTime,
 
-      wristSupinationScore
+      wristSupinationScore,
+      
+      lastPushupDepthResult: nextLastPushupDepthResult,
+      pushupDepthStats: nextPushupDepthStats,
+      livePushupDepthFeedback,
+      downZReached,
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles,
+      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
+      jumpingJackSync: nextJumpingJackSync,
     };
   }
 }
