@@ -136,7 +136,6 @@ export class GpuAngleCalculator {
       });
 
       this.ready = true;
-      console.log('GpuAngleCalculator: WebGPU initialized.');
       return true;
     } catch (e) {
       console.warn('GpuAngleCalculator: WebGPU init failed, will use CPU.', e);
