@@ -733,7 +733,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     scene.add(floor);
 
     // Fallback skeleton
-    const depthOcclusionShader = (shader: THREE.Shader) => {
+    const depthOcclusionShader = (shader: any) => {
       shader.vertexShader = shader.vertexShader.replace(
         '#include <project_vertex>',
         `
