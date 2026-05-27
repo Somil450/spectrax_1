@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
+import { updateWorkoutStreak } from "../utils/streakUtils";
+import { useAuth } from '../context/AuthContext';
+import { getLocalWorkouts, WorkoutRecord } from '../services/workoutSyncService';
 
 interface SummaryScreenProps {
   stats: { 
@@ -8,56 +11,80 @@ interface SummaryScreenProps {
     totalReps: number;
     correctReps: number;
     repScores: number[];
+    repDeviations?: number[];
     duration: number; 
     accuracy: number; 
     mistakes: Record<string, number>; 
     bestStreak: number; 
     tags?: string[];
+    gainedXp?: number;
     exerciseName?: string;
+    calories?: number; 
+    jumpingJackSync?: {
+      score: number | null;
+      lagMs: number | null;
+      confidence: number;
+      samples: number;
+    };
+  };
+  leveling?: {
+    xp: number;
+    level: number;
+    progress: number;
+    nextLevelXp: number;
   };
   onRestart: () => void;
   onViewReplay: () => void;
 }
 
-export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, onViewReplay }) => {
+export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, onRestart, onViewReplay }) => {
   const [accuracy, setAccuracy] = useState(0);
-  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
-  const { addWorkout } = useWorkoutSync();
+  const { user } = useAuth();
+  const [workouts, setWorkouts] = useState<WorkoutRecord[]>([]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let active = true;
+    getLocalWorkouts(user.uid)
+      .then((records) => {
+        if (active) setWorkouts(records);
+      })
+      .catch((error) => {
+        console.error("Failed to load weekly activity:", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
+  const weeklyData = useMemo(() => {
+    const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const dayStart = today.getTime() - (6 - i) * dayMs;
+      const dayWorkouts = workouts.filter(
+        (w) => w.timestamp >= dayStart && w.timestamp < dayStart + dayMs,
+      );
+      const score = dayWorkouts.length
+        ? Math.round(
+            dayWorkouts.reduce((sum, w) => sum + (w.accuracyScore || 0), 0) /
+              dayWorkouts.length,
+          )
+        : 0;
+      return { day: dayLabels[new Date(dayStart).getDay()], score };
+    });
+  }, [workouts]);
+
+  const hasWeeklyActivity = weeklyData.some((d) => d.score > 0);
 
   useEffect(() => {
     // Animate accuracy ring on mount
     const timer = setTimeout(() => setAccuracy(stats.accuracy), 300);
     return () => clearTimeout(timer);
   }, [stats.accuracy]);
-
-  // Auto-save workout to Firestore
-  useEffect(() => {
-    const saveWorkout = async () => {
-      if (stats.totalReps === 0) return; // Skip empty sessions
-
-      try {
-        setIsSavingWorkout(true);
-        const exerciseName = stats.exerciseName || "unknown_exercise";
-        console.log("💾 Saving workout to Firestore...", stats);
-
-        await addWorkout({
-          exerciseType: exerciseName.toLowerCase().replace(/\s+/g, "_"),
-          totalReps: stats.totalReps,
-          accuracyScore: stats.accuracy,
-          duration: stats.duration,
-          timestamp: Date.now(),
-        });
-
-        console.log("✅ Workout saved successfully!");
-      } catch (error) {
-        console.error("❌ Failed to save workout:", error);
-      } finally {
-        setIsSavingWorkout(false);
-      }
-    };
-
-    saveWorkout();
-  }, [stats, addWorkout]);
 
   const offset = 440 - (440 * accuracy) / 100;
 
@@ -96,6 +123,7 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
           stats.repScores.reduce((a, b) => a + b, 0) / stats.repScores.length,
         )
       : 0;
+  const streakData = updateWorkoutStreak();
 
   if (stats.totalReps === 0) {
     return (
@@ -189,21 +217,6 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
         >
           Session complete. AI analysis synchronized.
         </p>
-        {isSavingWorkout && (
-          <p
-            style={{
-              color: "var(--neon-cyan)",
-              fontSize: "0.8rem",
-              marginTop: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            💾 Saving to cloud...
-          </p>
-        )}
       </div>
 
       {/* Accuracy Ring */}
@@ -480,6 +493,183 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
         </div>
       </div>
 
+      {/* Form Fatigue Insights */}
+      {stats.repDeviations && stats.repDeviations.length > 0 && (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px', fontWeight: 700, textAlign: 'left' }}>
+            FORM FATIGUE (POSTURE DEVIATION)
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '100px', padding: '0 10px', paddingTop: '10px' }}>
+             {stats.repDeviations.map((dev, index) => {
+               // Normalise deviation to a max of 30 for visualization
+               const maxDev = 30;
+               const heightPct = Math.min(100, Math.max(5, (dev / maxDev) * 100));
+               // Color logic: low deviation is green, high is red
+               const color = dev < 10 ? 'var(--neon-green)' : dev < 20 ? 'var(--neon-yellow)' : 'var(--neon-red)';
+               return (
+                 <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end', gap: '4px' }}>
+                   <span style={{ fontSize: '0.55rem', color: '#fff', opacity: 0.8 }}>{Math.round(dev)}</span>
+                   <div style={{
+                     width: '60%',
+                     maxWidth: '20px',
+                     height: `${heightPct}%`,
+                     background: color,
+                     borderRadius: '2px 2px 0 0',
+                     boxShadow: `0 0 8px ${color}44`,
+                     transition: 'height 1s ease-in-out',
+                     minHeight: '4px'
+                   }}></div>
+                   <span style={{ fontSize: '0.55rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>R{index + 1}</span>
+                 </div>
+               );
+             })}
+          </div>
+        </div>
+      )}
+
+      {stats.jumpingJackSync?.score !== null && stats.jumpingJackSync?.score !== undefined && (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px', borderTop: '2px solid var(--neon-cyan)' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 700, textAlign: 'left' }}>
+            JUMPING JACK COORDINATION
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', textAlign: 'center' }}>
+            <div>
+              <div style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 900 }}>{stats.jumpingJackSync.score}%</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase' }}>Sync Score</div>
+            </div>
+            <div>
+              <div style={{ color: stats.jumpingJackSync.lagMs && stats.jumpingJackSync.lagMs > 0 ? 'var(--neon-yellow)' : 'var(--neon-green)', fontSize: '1.6rem', fontWeight: 900 }}>
+                {stats.jumpingJackSync.lagMs ? `${Math.abs(stats.jumpingJackSync.lagMs)}ms` : '0ms'}
+              </div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                {stats.jumpingJackSync.lagMs && stats.jumpingJackSync.lagMs < 0 ? 'Arms Lead' : 'Arm Lag'}
+              </div>
+            </div>
+            <div>
+              <div style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 900 }}>{Math.round(stats.jumpingJackSync.confidence * 100)}%</div>
+              <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase' }}>Confidence</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stats.gainedXp ? (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderColor: 'var(--neon-yellow)', background: 'rgba(255, 235, 59, 0.05)' }}>
+           <div style={{ fontSize: '0.8rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px', fontWeight: 700 }}>XP Gained</div>
+           <div style={{ color: '#fff', fontSize: '2rem', fontWeight: 900, marginBottom: '8px' }}>+{stats.gainedXp} XP</div>
+           {leveling && (
+             <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', fontWeight: 'bold' }}>LVL {leveling.level}</span>
+                <div style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${leveling.progress}%`, height: '100%', background: 'var(--neon-yellow)' }}></div>
+                </div>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{leveling.nextLevelXp} XP</span>
+             </div>
+           )}
+        </div>
+      ) : null}
+
+      {/* Calorie Estimate Card */}
+      {stats.calories !== undefined && stats.calories > 0 && (
+        <div
+          className="glass animate-in"
+          style={{
+            width: '100%',
+            maxWidth: '600px',
+            padding: '20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderColor: 'var(--neon-green)',
+            background: 'rgba(0, 255, 100, 0.04)',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          {/* Left: icon + label */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '2rem' }}>🔥</span>
+            <div>
+              <div
+                style={{
+                  fontSize: '0.65rem',
+                  color: 'var(--neon-green)',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  marginBottom: '4px',
+                }}
+              >
+                Est. Calories Burned
+              </div>
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '2rem',
+                  fontWeight: 900,
+                  fontFamily: 'var(--font-heading)',
+                  lineHeight: 1,
+                }}
+              >
+                {stats.calories}
+                <span
+                  style={{
+                    fontSize: '1rem',
+                    color: 'var(--text-dim)',
+                    marginLeft: '4px',
+                  }}
+                >
+                  kcal
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: accuracy impact note */}
+          <div
+            style={{
+              textAlign: 'right',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '0.65rem',
+                color: 'var(--text-dim)',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Accuracy Impact
+            </div>
+            <div
+              style={{
+                fontSize: '0.85rem',
+                color: stats.accuracy > 75 ? 'var(--neon-green)' : 'var(--neon-yellow)',
+                fontWeight: 700,
+              }}
+            >
+              {stats.accuracy > 75
+                ? '✅ Full credit'
+                : stats.accuracy > 50
+                ? '⚠️ Reduced (form)'
+                : '⬇️ Low (poor form)'}
+            </div>
+            <div
+              style={{
+                fontSize: '0.7rem',
+                color: 'var(--text-dim)',
+              }}
+            >
+              MET-based estimate
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mistake & Streak Insights */}
       <div
         className="animate-in"
@@ -543,18 +733,11 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
 {/* Weekly Activity Bar Chart - Added for GSSoC Issue #49 */}
       <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px' }}>
          <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '20px', fontWeight: 700, textAlign: 'left' }}>
-            WEEKLY ACTIVITY (REP SCORE TREND)
+            WEEKLY ACTIVITY (AVG ACCURACY)
          </div>
+         {hasWeeklyActivity ? (
          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '140px', padding: '0 10px', paddingTop: '10px' }}>
-            {[
-              { day: 'Mon', score: Math.max(40, averageRepScore - 15) || 45 },
-              { day: 'Tue', score: Math.max(50, averageRepScore - 5) || 70 },
-              { day: 'Wed', score: Math.max(45, averageRepScore - 10) || 60 },
-              { day: 'Thu', score: Math.max(60, averageRepScore + 5 > 100 ? 100 : averageRepScore + 5) || 85 },
-              { day: 'Fri', score: Math.max(55, averageRepScore - 8) || 50 },
-              { day: 'Sat', score: stats.accuracy || 75 },
-              { day: 'Sun', score: averageRepScore || 80 }
-            ].map((item, index) => (
+            {weeklyData.map((item, index) => (
               <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end' }}>
                 <span style={{ fontSize: '0.65rem', color: '#fff', marginBottom: '4px', opacity: 0.8 }}>
                   {item.score}%
@@ -580,6 +763,11 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
               </div>
             ))}
          </div>
+         ) : (
+         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '140px', color: 'var(--text-dim)', fontSize: '0.85rem', textAlign: 'center', padding: '0 20px' }}>
+            No activity yet. Complete a workout to start your weekly trend.
+         </div>
+         )}
       </div>
       <div className="animate-in glass" style={{ width: '100%', maxWidth: '600px', padding: '15px', textAlign: 'center', marginBottom: '40px', borderColor: accuracyColor }}>
          <div style={{ color: accuracyColor, fontWeight: 700, fontSize: '0.8rem', letterSpacing: '2px' }}>SESSION RATING: {getPerformanceHighlight()}</div>
@@ -640,6 +828,49 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, onRestart, 
         </div>
       )}
 
+      <div
+        className="animate-in"
+        style={{
+          width: "100%",
+          maxWidth: "600px",
+          marginBottom: "24px",
+          padding: "20px",
+          borderRadius: "16px",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          textAlign: "center",
+        }}
+      >
+        <h3
+          style={{
+            color: "#00e0ff",
+            marginBottom: "12px",
+            fontSize: "1.3rem",
+          }}
+        >
+          🔥 Workout Streak
+        </h3>
+
+        <p
+          style={{
+            color: "#ffffff",
+            fontSize: "1.1rem",
+            marginBottom: "8px",
+          }}
+        >
+          Current Streak: {streakData.currentStreak} days
+        </p>
+
+        <p
+          style={{
+            color: "#bbbbbb",
+            fontSize: "0.95rem",
+          }}
+        >
+          Longest Streak: {streakData.longestStreak} days
+        </p>
+      </div>
+      
       {/* Action Buttons */}
       <div
         className="animate-in"

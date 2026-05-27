@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { cameraService } from '../services/cameraService';
-import { poseService } from '../services/poseService';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
 import { Camera, AlertCircle, Dumbbell, Hand } from 'lucide-react';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
+import { useWorkoutHistory } from '../useWorkoutHistory';
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
@@ -16,13 +16,33 @@ interface CalibrationScreenProps {
   onBodyTypeDetected: (type: BodyType) => void;
 }
 
+// ── Visually-hidden style (sr-only) ──────────────────────────────────────────
+// This CSS pattern hides an element from sighted users while keeping it fully
+// available to screen readers. clip-path: inset(50%) is the modern replacement
+// for the deprecated `clip: rect(...)` property.
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
+
 export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({ 
   selectedExercise, onSelectExercise, onNext, onBack, onBodyTypeDetected
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // -- State variables --
+  const { sessions, fetchHistory } = useWorkoutHistory();
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   const [result, setResult] = useState<CalibrationResult>({
     status: 'red',
     message: 'Initializing system...',
@@ -40,6 +60,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isPoseLost: false,
     isThumbsUp: false,
     isCrossedArms: false,
+    isSingleHandRaised: false,
+    command: null,
+    gestureConfidences: { START: 0, PAUSE: 0, STOP: 0 },
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
@@ -51,73 +74,131 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    let msg = "Something went wrong starting the camera. Try refreshing the page.";
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
+    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      msg = "No camera found on this device. Plug in a webcam and try again.";
+    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+      msg = "Your camera is being used by another app. Close it and try again.";
+    }
+    setError(msg);
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
 
-    const startSystem = async () => {
-      if (!videoRef.current || !canvasRef.current) return;
-
-      try {
-        setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
-        
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) overlayRenderer.setContext(ctx);
-
-        await cameraService.startCamera(videoRef.current);
-        
-        poseService.onResults((results) => {
-          if (!isMounted) return;
-          const evaluation = calibrationLogic.evaluate(results);
-          setResult(evaluation);
-          
-          if (results.poseLandmarks) {
-            const bt = bodyTypeEngine.analyze(results.poseLandmarks);
-            setBodyTypeRes(bt);
-            if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-              onBodyTypeDetected(bt.bodyType);
-            }
-
-            const gesture = gestureService.analyze(results.poseLandmarks);
-            setGestureResult(gesture);
-          }
-
-          const primaryJoints = selectedExercise.joints?.flat() || [];
-          overlayRenderer.draw(results, evaluation.status, primaryJoints);
-        });
-
-        const processLoop = (timestamp: number) => {
-          if (!isMounted) return;
-          const elapsed = timestamp - lastProcessTime.current;
-          if (elapsed > (1000 / FPS_LIMIT)) {
-            if (videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused) {
-              poseService.send(videoRef.current);
-            }
-            lastProcessTime.current = timestamp;
-          }
-          frameId.current = requestAnimationFrame(processLoop);
-        };
-        frameId.current = requestAnimationFrame(processLoop);
-      } catch (err) {
-        if (isMounted) {
-          setError("Hardware synchronization error. Verify camera and refresh.");
-          setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-        }
+  const handleResults = useCallback((results: any) => {
+    const evaluation = calibrationLogic.evaluate(results);
+    setResult(evaluation);
+    
+    if (results.poseLandmarks) {
+      const bt = bodyTypeEngine.analyze(results.poseLandmarks);
+      setBodyTypeRes(bt);
+      if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
+        onBodyTypeDetected(bt.bodyType);
       }
-    };
 
+      const gesture = gestureService.analyze(results.poseLandmarks);
+      setGestureResult(gesture);
+    }
+
+    const primaryJoints = selectedExercise.joints?.flat() || [];
+    overlayRenderer.draw(results, evaluation.status, primaryJoints);
+  };
+
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
+      setError('CAMERA_PERMISSION_DENIED');
+    } else {
+      let msg = "Something went wrong starting the camera. Try refreshing the page.";
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = "No camera found on this device. Plug in a webcam and try again.";
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = "Your camera is being used by another app. Close it and try again.";
+      }
+      setError(msg);
+    }
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
+
+  const {
+    videoRef,
+    canvasRef,
+    startSystem,
+    stopSystem,
+  } = useCameraPose({
+    initialFpsLimit: 15,
+    minFpsLimit: 8,
+    fpsDecrementStep: 3,
+    setupContext: true,
+    onResults: handleResults,
+    onCameraError: handleCameraError,
+  });
+
+  // ── ARIA Live Region State ────────────────────────────────────────────────────
+  // One string that the hidden live region will announce to screen readers.
+  // We update it from useEffect hooks below, each watching a specific thing.
+  const [announcement, setAnnouncement] = useState('');
+
+  // Refs to remember the previous values so we only announce when something
+  // actually transitions (e.g., isReady going false → true), not on every frame.
+  const prevIsReadyRef = useRef(false);
+  const prevPoseLostRef = useRef(false);
+  useEffect(() => {
+    if (result.isReady && !prevIsReadyRef.current) {
+      // Only announce "ready" once when we first become ready
+      setAnnouncement('Calibration complete. Raise both hands above your shoulders to begin.');
+      prevIsReadyRef.current = true;
+    } else if (!result.isReady) {
+      // Announce each new positioning instruction
+      setAnnouncement(result.message);
+      prevIsReadyRef.current = false;
+    }
+  }, [result.message, result.isReady]);
+
+  // ── Announce pose lost / regained ─────────────────────────────────────────────
+  // We track the previous isPoseLost value in a ref so we only announce on the
+  // transition (lost → not lost, or not lost → lost), not repeatedly.
+  useEffect(() => {
+    if (gestureResult.isPoseLost && !prevPoseLostRef.current) {
+      setAnnouncement('Pose lost. Please step back into the camera frame.');
+    } else if (!gestureResult.isPoseLost && prevPoseLostRef.current) {
+      setAnnouncement('Pose detected. Hold your position.');
+    }
+    prevPoseLostRef.current = gestureResult.isPoseLost;
+  }, [gestureResult.isPoseLost]);
+
+  // ── Announce countdown seconds ─────────────────────────────────────────────────
+  // countdownSeconds changes once per second during the countdown, so this
+  // effect naturally throttles itself — it won't flood the screen reader.
+  useEffect(() => {
+    if (countdownActive && countdownSeconds > 0) {
+      setAnnouncement(`Starting in ${countdownSeconds}`);
+    }
+  }, [countdownSeconds, countdownActive]);
+  // ── Announce camera errors ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (error) {
+      setAnnouncement('Camera error. Please verify camera access and refresh the page.');
+    }
+  }, [error]);
+
+
+  useEffect(() => {
+    setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
     startSystem();
 
     return () => {
-      isMounted = false;
-      cancelAnimationFrame(frameId.current);
-      cameraService.stopCamera();
+      stopSystem();
       bodyTypeEngine.reset();
       gestureService.reset();
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, [selectedExercise, onBodyTypeDetected]);
+  }, [selectedExercise, onBodyTypeDetected, startSystem, stopSystem]);
 
   useEffect(() => {
     const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
@@ -197,14 +278,32 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }} 
         />
         
-        {/* Silhouette Guide Overlay */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: result.isReady ? 0 : 0.4, transition: 'opacity 0.5s ease' }}>
-          <svg viewBox="0 0 200 400" style={{ height: '85%', maxHeight: '650px', filter: 'drop-shadow(0 0 10px var(--neon-cyan))' }}>
-            <circle cx="100" cy="50" r="25" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" />
-            <path d="M 60 95 C 100 80, 100 80, 140 95 L 130 200 L 140 370 L 115 370 L 100 230 L 85 370 L 60 370 L 70 200 Z" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" strokeLinejoin="round" />
-            <path d="M 60 95 L 35 180 M 140 95 L 165 180" fill="none" stroke="var(--neon-cyan)" strokeWidth="2.5" strokeDasharray="6,6" strokeLinecap="round" />
-          </svg>
-        </div>
+        {/* Silhouette Guide Overlay Removed as per user request */}
+      </div>
+
+      {/*
+        ══════════════════════════════════════════════════════════
+        ARIA LIVE REGION — Screen Reader Announcements
+        ══════════════════════════════════════════════════════════
+
+        IMPORTANT: This div must ALWAYS be in the DOM — never put it inside an
+        `{condition && ...}` block. Screen readers register live regions when
+        they first appear in the DOM. If this element is removed and re-added
+        (because it was inside a conditional branch), the screen reader loses
+        its reference to it and stops announcing updates.
+
+        The `announcement` state is updated by the useEffect hooks above,
+        each of which watches a specific meaningful event (calibration message,
+        pose lost, countdown, error). They use prev-value refs to fire only
+        on actual transitions — not on every pose frame.
+      */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={srOnly}
+      >
+        {announcement}
       </div>
 
       <div className="ui-layer" style={{ position: 'relative', zIndex: 10, height: '100%', padding: '40px', pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -216,8 +315,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
               <Camera color="var(--neon-cyan)" size={24} />
             </div>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>SYSTEM CALIBRATION</h2>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '1px' }}>VERSION 2.5.0 — MULTI-ENGINE ACTIVE</p>
+              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>Camera Calibration</h2>
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '0.5px' }}>Step into frame and hold still</p>
             </div>
           </div>
 
@@ -251,10 +350,22 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         transition: 'all 0.3s ease',
                         width: '100%',
                         position: 'relative',
-                        zIndex: 2
+                        zIndex: 2,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
                       }}
                     >
-                      {ex.name.toUpperCase()}
+                      <span>{ex.name.toUpperCase()}</span>
+                      <span style={{ 
+                        fontSize: '0.65rem', 
+                        opacity: 0.8,
+                        background: selectedExercise.key === ex.key ? 'rgba(0,0,0,0.2)' : 'rgba(168, 85, 247, 0.1)',
+                        padding: '2px 6px',
+                        borderRadius: '4px'
+                      }}>
+                        {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
+                      </span>
                     </button>
 
                     {/* Video Overlay */}
@@ -289,12 +400,35 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                   </div>
                 ))}
              </div>
+
+             {/* Total Reps Lifetime Stats - Small Section */}
+             <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+               <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {Object.values(exercises).map(ex => {
+                    const reps = sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0);
+                    return (
+                      <div key={`stat-${ex.key}`} style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                        <span>{ex.name}</span>
+                        <span style={{ color: reps > 0 ? 'var(--neon-purple)' : 'var(--text-dim)', fontWeight: 'bold' }}>{reps}</span>
+                      </div>
+                    );
+                  })}
+               </div>
+             </div>
           </div>
         </div>
 
         {/* Center Feedback Area */}
         <div style={{ alignSelf: 'center', textAlign: 'center' }}>
-          {error ? (
+          {error === 'CAMERA_PERMISSION_DENIED' ? (
+            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>CAMERA ACCESS DENIED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>RELOAD</button>
+            </div>
+          ) : error ? (
             <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
               <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
               <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
@@ -363,7 +497,15 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{selectedExercise.name} mode</div>
-                  <div style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem' }}>{result.message}</div>
+                  {/*
+                    NOTE: aria-live / role / aria-atomic have been removed from this
+                    visible element. Announcements are now handled by the dedicated
+                    hidden live region at the top of the JSX, which covers ALL states
+                    (calibrating, ready, pose lost, countdown, error) — not just this one.
+                  */}
+                  <div style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem' }}>
+                    {result.message}
+                  </div>
               </div>
             </div>
           )}

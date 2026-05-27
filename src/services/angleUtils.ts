@@ -42,6 +42,14 @@ export function getJointAngles(landmarks: any): Record<string, number> {
   const shoulder = landmarks[ids.s];
   const hip = landmarks[ids.h];
   const ankle = landmarks[ids.a];
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftElbow = landmarks[13];
+  const rightElbow = landmarks[14];
+  const leftHip = landmarks[23];
+  const rightHip = landmarks[24];
+  const leftAnkle = landmarks[27];
+  const rightAnkle = landmarks[28];
 
   // 1. Vertical Depth (Squats)
   const totalVerticalHeight = Math.abs(ankle.y - shoulder.y) || 1;
@@ -56,6 +64,11 @@ export function getJointAngles(landmarks: any): Record<string, number> {
   // Body length in X-space. Should be large for plank/pushup.
   const horizontalStretch = Math.abs(ankle.x - shoulder.x);
 
+  const leftArmOpen = calculateAngle(leftElbow, leftShoulder, leftHip);
+  const rightArmOpen = calculateAngle(rightElbow, rightShoulder, rightHip);
+  const hipWidth = Math.abs((leftHip?.x ?? 0) - (rightHip?.x ?? 0)) || 0.1;
+  const ankleGap = Math.abs((leftAnkle?.x ?? 0) - (rightAnkle?.x ?? 0));
+
   return {
     knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
     elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
@@ -63,23 +76,24 @@ export function getJointAngles(landmarks: any): Record<string, number> {
     bodyLine: calculateAngle(landmarks[ids.s], landmarks[ids.h], landmarks[ids.a]),
     hipDepth: hipDepth * 100,
     lateralScore: lateralScore * 100,
-    horizontalStretch: horizontalStretch * 100
+    horizontalStretch: horizontalStretch * 100,
+    jumpingJackArmOpen: (leftArmOpen + rightArmOpen) / 2,
+    jumpingJackLegSpread: Math.min(300, (ankleGap / hipWidth) * 100),
   };
 }
 
 export function getJointVisibility(landmarks: any): Record<string, number> {
   if (!landmarks) return {};
-  const side = getBestSide(landmarks);
   
-  const ids = side === 'left' 
-    ? { s: 11, e: 13, w: 15, h: 23, k: 25, a: 27 }
-    : { s: 12, e: 14, w: 16, h: 24, k: 26, a: 28 };
+  // Use the maximum visibility between left and right pairs to recover from partial-body occlusion
+  const vis = (leftId: number, rightId: number) => 
+    Math.max(landmarks[leftId]?.visibility || 0, landmarks[rightId]?.visibility || 0);
 
   return {
-    knee: landmarks[ids.k]?.visibility || 0,
-    elbow: landmarks[ids.e]?.visibility || 0,
-    shoulder: landmarks[ids.s]?.visibility || 0,
-    bodyLine: ((landmarks[ids.s]?.visibility || 0) + (landmarks[ids.h]?.visibility || 0) + (landmarks[ids.a]?.visibility || 0)) / 3 || 0,
-    hipDepth: (landmarks[ids.h]?.visibility + landmarks[ids.a]?.visibility) / 2 || 0
+    knee: vis(25, 26),
+    elbow: vis(13, 14),
+    shoulder: vis(11, 12),
+    bodyLine: (vis(11, 12) + vis(23, 24) + vis(27, 28)) / 3 || 0,
+    hipDepth: (vis(23, 24) + vis(27, 28)) / 2 || 0
   };
 }
