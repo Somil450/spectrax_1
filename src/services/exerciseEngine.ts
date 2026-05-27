@@ -195,25 +195,11 @@ export interface EngineState {
    * null until the first rep is counted.
    */
   lastDepthResult: SquatDepthResult | null;
+  depthStats?: SquatDepthStats;
 
   // 🔥 Static hold time tracking
   holdTime?: number;
-
   wristSupinationScore?: number;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
 
   /**
    * Real-time depth coaching string emitted during the DOWN phase.
@@ -242,6 +228,15 @@ interface RepParams {
 // ─────────────────────────────────────────────
 // ExerciseEngine
 // ─────────────────────────────────────────────
+
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;

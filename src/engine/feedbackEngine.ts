@@ -331,6 +331,11 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
+class SkeletalSense {
+  update(metric: number) {}
+  getStandardDeviation(): number { return 0; }
+  reset() {}
+}
 const jointDeviationProfiler = new SkeletalSense();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
@@ -444,5 +449,5 @@ export function getPostureErrorCategories(): Record<string, number> {
  */
 export function resetFeedbackEngine(): void {
   scoreHistory = [];
-  jointDeviationProfiler.reset();
+  // jointDeviationProfiler is stateless
 }

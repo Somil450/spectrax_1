@@ -105,7 +105,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  };
+  }, [calibrationLogic, selectedExercise, onBodyTypeDetected]);
 
   const handleCameraError = (err: any) => {
     const name = (err instanceof Error) ? err.name : '';
