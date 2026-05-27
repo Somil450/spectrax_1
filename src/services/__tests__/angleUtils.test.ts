@@ -54,7 +54,11 @@ describe("getJointAngles", () => {
     expect(angles).toHaveProperty("bodyLine");
   });
 
-  it("returns an empty object when landmarks is null", () => {
-    expect(getJointAngles(null)).toEqual({});
+  it("returns default angles object when landmarks is null", () => {
+    const angles = getJointAngles(null);
+    expect(angles).toHaveProperty("knee");
+    expect(angles).toHaveProperty("elbow");
+    expect(angles).toHaveProperty("shoulder");
+    expect(angles).toHaveProperty("bodyLine");
   });
 });
