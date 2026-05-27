@@ -553,52 +553,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   }, [autoAdapt]);
 
 
-  syncRippleUniforms(timeSeconds);
-
-  if (lastRepCountRef.current === null) {
-    lastRepCountRef.current = repCount;
-  } else if (repCount !== lastRepCountRef.current) {
-    if (repCount > lastRepCountRef.current && footCenter) {
-      const lastCompletion = lastRippleCompletionTimeRef.current;
-      const intervalSeconds = lastCompletion
-        ? timeSeconds - lastCompletion
-        : 1.0;
-      const tempo = THREE.MathUtils.clamp(
-        1.8 / Math.max(intervalSeconds, 0.25),
-        0.7,
-        1.6,
-      );
-      const rippleOrigin = new THREE.Vector2(
-        THREE.MathUtils.clamp(footCenter.x / GRID_SIZE + 0.5, 0.05, 0.95),
-        THREE.MathUtils.clamp(footCenter.y / GRID_SIZE + 0.5, 0.05, 0.95),
-      );
-      emitRipple(
-        rippleOrigin,
-        0.5 + tempo * 0.55,
-        0.65 + tempo * 0.35,
-        timeSeconds,
-      );
-    }
-    lastRepCountRef.current = repCount;
-  }
-
-  const isPlaying =
-    externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
-  const currentFrameIdx =
-    externalFrameIdx !== undefined ? externalFrameIdx : _currentFrameIdx;
-  const setIsPlaying = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
-  const setCurrentFrameIdx = onFrameChange
-    ? onFrameChange
-    : _setCurrentFrameIdx;
-
-  useEffect(() => { graphicsPresetRef.current = graphicsPreset; }, [graphicsPreset]);
-  useEffect(() => { autoAdaptRef.current = autoAdapt; }, [autoAdapt]);
-
   const isPlaying       = externalIsPlaying    !== undefined ? externalIsPlaying    : _isPlaying;
   const currentFrameIdx = externalFrameIdx     !== undefined ? externalFrameIdx     : _currentFrameIdx;
   const setIsPlaying    = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
   const setCurrentFrameIdx = onFrameChange ? onFrameChange : _setCurrentFrameIdx;
 
+  useEffect(() => { graphicsPresetRef.current = graphicsPreset; }, [graphicsPreset]);
+  useEffect(() => { autoAdaptRef.current = autoAdapt; }, [autoAdapt]);
 
   // Three.js refs
   const sceneRef    = useRef<THREE.Scene | null>(null);
@@ -613,35 +574,15 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   // Fallback skeleton refs
   const jointsRef = useRef<THREE.Mesh[]>([]);
   const bonesRef  = useRef<{ line: THREE.Line; startIdx: number; endIdx: number }[]>([]);
+  const axesRef   = useRef<THREE.AxesHelper[]>([]);
 
   // GLTF refs
 
   const modelGroupRef = useRef<THREE.Group | null>(null);
   const boneMapRef = useRef<Record<string, THREE.Bone>>({});
   const skinnedMeshesRef = useRef<THREE.SkinnedMesh[]>([]);
-  const restDataRef = useRef<
-    Record<
-      string,
-      {
-        worldQuat: THREE.Quaternion;
-        localQuat: THREE.Quaternion;
-        dir: THREE.Vector3;
-      }
-    >
-  >({});
+  const restDataRef = useRef<Record<string, { worldQuat: THREE.Quaternion; localQuat: THREE.Quaternion; dir: THREE.Vector3 }>>({});
   const rootOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3());
-
-  const ripplePlaneRef = useRef<THREE.Mesh | null>(null);
-  const rippleMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
-  const rippleEventsRef = useRef<RippleEvent[]>([]);
-  const lastRepCountRef = useRef<number | null>(null);
-  const lastRippleCompletionTimeRef = useRef<number | null>(null);
-  const modelGroupRef     = useRef<THREE.Group | null>(null);
-  const boneMapRef        = useRef<Record<string, THREE.Bone>>({});
-  const skinnedMeshesRef  = useRef<THREE.SkinnedMesh[]>([]);
-  const restDataRef       = useRef<Record<string, { worldQuat: THREE.Quaternion; localQuat: THREE.Quaternion; dir: THREE.Vector3 }>>({});
-  const rootOffsetRef     = useRef<THREE.Vector3>(new THREE.Vector3());
-
 
 
   const [hudLabels, setHudLabels] = useState<HudLabel[]>([]);
@@ -816,7 +757,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     });
     const createdJoints: THREE.Mesh[] = [];
     for (let i = 0; i < 33; i++) {
-      const sphere = new THREE.Mesh(jointGeometry, jointShaderMaterial.clone());
+      const sphere = new THREE.Mesh(jointGeometry, jointMaterial.clone());
       sphere.castShadow = true;
       sphere.receiveShadow = true;
       scene.add(sphere);
@@ -835,19 +776,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       createdAxes.push(axesHelper);
     }
     axesRef.current = createdAxes;
-
-    const createdBones: { mesh: THREE.Mesh; startIdx: number; endIdx: number }[] = [];
-    const boneRadius = 0.015;
-    const boneGeometry = new THREE.CylinderGeometry(boneRadius, boneRadius, 1, 8);
-    boneGeometry.rotateX(Math.PI / 2);
-    boneGeometry.translate(0, 0, 0.5);
-
-
-    const createdBones: {
-      line: THREE.Line;
-      startIdx: number;
-      endIdx: number;
-    }[] = [];
 
     const createdBones: { line: THREE.Line; startIdx: number; endIdx: number }[] = [];
 
@@ -1211,10 +1139,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
 
-      const { baseColor, badJoints, mistakeColor } = parseFeedback(
-        frame.feedback,
-      );
-
       const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
       const timeSeconds = time * 0.001;
       const { baseColor, badJoints, mistakeColor } = parseFeedback(frame.feedback);
@@ -1257,9 +1181,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
               ? new THREE.Vector2(rAnkle.x, rAnkle.z)
               : null;
 
-      const lShoulder = getLm(11), rShoulder = getLm(12);
-      const lHip = getLm(23), rHip = getLm(24);
-      const lAnkle = getLm(27), rAnkle = getLm(28);
+
 
 
 
@@ -1306,18 +1228,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           else if (cameraRef.current)
             cameraRef.current.lookAt(orbitPelvisTargetRef.current);
 
-          const lookTarget = new THREE.Vector3().lerpVectors(
-            hipCenter,
-            shoulderCenter,
-            0.5,
-          );
-          if (controlsRef.current)
-            controlsRef.current.target.lerp(lookTarget, 0.05);
-
           const lookTarget = new THREE.Vector3().lerpVectors(hipCenter, shoulderCenter, 0.5);
-          if (controlsRef.current) controlsRef.current.target.lerp(lookTarget, 0.05);
-
-          else if (cameraRef.current) cameraRef.current.lookAt(lookTarget);
+          if (controlsRef.current) {
+            controlsRef.current.target.lerp(lookTarget, 0.05);
+          } else if (cameraRef.current) {
+            cameraRef.current.lookAt(lookTarget);
+          }
 
         }
 
