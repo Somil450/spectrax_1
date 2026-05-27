@@ -173,7 +173,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
 
   useEffect(() => {
-    let isMounted = true;
+    const isMounted = true;
 
     const startSystem = async () => {
       if (!videoRef.current || !canvasRef.current) return;

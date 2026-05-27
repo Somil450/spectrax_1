@@ -55,7 +55,7 @@ export class RLDCompressionDriver {
 
   static decompress(compressedData: CompressedFrameChunk[]): FrameData[] {
     const frames: FrameData[] = [];
-    let previousFrame: FrameData | null = null;
+    const previousFrame: FrameData | null = null;
 
     for (const item of compressedData) {
       const { runLength, timestampDelta, ...frameBase } = item;
@@ -412,19 +412,15 @@ class SessionRecorder {
     if (this.displacements.length >= MAX_FRAMES - 1) {
       this.displacements.shift();
     }
-  }
 
-  const centroid = this.getCentroid(frame.landmarks);
-  if (centroid && this.lastCentroid) {
-    const dx = centroid.x - this.lastCentroid.x;
-    const dy = centroid.y - this.lastCentroid.y;
-    const distance = Math.hypot(dx, dy);
-    this.displacements.push(distance);
-  }
-  this.lastCentroid = centroid;
-
-  const lastCompressed =
-      this.compressedFrames[this.compressedFrames.length - 1];
+    const centroid = this.getCentroid(frame.landmarks);
+    if (centroid && this.lastCentroid) {
+      const dx = centroid.x - this.lastCentroid.x;
+      const dy = centroid.y - this.lastCentroid.y;
+      const distance = Math.hypot(dx, dy);
+      this.displacements.push(distance);
+    }
+    this.lastCentroid = centroid;
 
     const last = this.compressedFrames[this.compressedFrames.length - 1];
     if (this.lastRawFrame && RLDCompressionDriver.isStationary(this.lastRawFrame, frame)) {
