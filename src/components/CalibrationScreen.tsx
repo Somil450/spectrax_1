@@ -232,9 +232,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
-      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack'],
-      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank'],
-      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl']
+      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress'],
+      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress'],
+      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress']
     };
     
     const order = orderMap[type] || [];
