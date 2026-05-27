@@ -1,11 +1,5 @@
-import { ExerciseConfig } from "../config/exercises";
-import {
-  getFeedback,
-  resetFeedbackEngine,
-  FeedbackResult,
-} from "../engine/feedbackEngine";
-import { BodyType } from "./bodyTypeEngine";
 import { getSupinationScore } from "./wristRotationDetector";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plank Spline Types & Constants
@@ -201,7 +195,7 @@ export interface EngineState {
    * Real-time depth coaching string emitted during the DOWN phase.
    * Empty string when no depth cue is active.
    */
-  liveDepthFeedback: string;
+  liveDepthFeedback?: string;
 
   // VBT Metrics
   vbtMetrics?: VBTMetrics;
@@ -216,7 +210,6 @@ export interface EngineState {
   visibilityBuffer?: number[];
   trackingLostFrames?: number;
   lastValidAngles?: Record<string, number>;
-  holdTime?: number;
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
 
@@ -251,6 +244,17 @@ const layoutOverrides = new Map<string, Partial<RepParams>>();
 // ExerciseEngine
 // ─────────────────────────────────────────────
 
+const ENGINE_DEFAULTS: RepParams = {
+  repCooldown: 600,
+  hysteresis: 10,
+  smoothingWindow: 5,
+  minDownDuration: 150,
+  correctRepMinScore: 70,
+  streakMinScore: 80,
+};
+
+const layoutOverrides = new Map<string, Partial<RepParams>>();
+
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
   private readonly BASE_HYSTERESIS = 10;
@@ -258,12 +262,6 @@ export class ExerciseEngine {
   private readonly MIN_DOWN_DURATION = 150;
   private kinematicEngine = new KinematicEngine();
 
-  private repParams(key: string): RepParams {
-    return {
-      ...ENGINE_DEFAULTS,
-      ...(layoutOverrides.get(key) || {}),
-    };
-  }
 
   private isValidExercisePosture(
     history: number[],
@@ -495,11 +493,6 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      // 🔥 Plank-specific spline deviation injected into feedback context
-      hipSplineDeviation,
-      plankSplineCalibrated: nextPlankSpline.isCalibrated,
-      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
       wristSupinationScore,
     };
 
