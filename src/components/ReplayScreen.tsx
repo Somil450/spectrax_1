@@ -462,17 +462,74 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
         )}
       </div>
 
-      {/* ── 3D MODEL (fills full screen) ── */}
-      <div style={{ position: 'absolute', inset: 0 }}>
-        <Replay3DModel
-          frames={frames}
-          currentFrameIdx={currentFrameIdx}
-          isPlaying={isPlaying}
-          onFrameChange={setCurrentFrameIdx}
-          onPlayToggle={() => setIsPlaying((p) => !p)}
-          hideControls
-          skin={selectedSkin}
-        />
+      {/* ── 3D MODELS (Multi-Angle Split-Screen) ── */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'grid',
+          gridTemplateColumns: '2fr 1fr',
+          gridTemplateRows: '1fr 1fr',
+          gap: '2px',
+          background: '#000', // acts as border between viewports
+        }}
+      >
+        {/* Main View: Frontal */}
+        <div style={{ gridRow: '1 / span 2', gridColumn: '1', position: 'relative' }}>
+          <Replay3DModel
+            frames={frames}
+            currentFrameIdx={currentFrameIdx}
+            isPlaying={isPlaying}
+            onFrameChange={setCurrentFrameIdx}
+            onPlayToggle={() => setIsPlaying((p) => !p)}
+            hideControls
+            skin={selectedSkin}
+            cameraView="frontal"
+          />
+          <div style={{
+            position: 'absolute', top: 90, left: '50%', transform: 'translateX(-50%)',
+            color: 'rgba(0,255,255,0.8)', fontSize: '0.9rem', fontWeight: 800, letterSpacing: '4px',
+            textShadow: '0 0 15px rgba(0,255,255,0.4)', pointerEvents: 'none'
+          }}>FRONTAL PERSPECTIVE</div>
+        </div>
+
+        {/* Top-Right View: Sagittal */}
+        <div style={{ gridRow: '1', gridColumn: '2', position: 'relative' }}>
+          <Replay3DModel
+            frames={frames}
+            currentFrameIdx={currentFrameIdx}
+            isPlaying={isPlaying}
+            onFrameChange={setCurrentFrameIdx}
+            onPlayToggle={() => setIsPlaying((p) => !p)}
+            hideControls
+            skin={selectedSkin}
+            cameraView="sagittal"
+          />
+          <div style={{
+            position: 'absolute', top: 90, left: '50%', transform: 'translateX(-50%)',
+            color: 'rgba(0,255,255,0.8)', fontSize: '0.8rem', fontWeight: 800, letterSpacing: '3px',
+            textShadow: '0 0 15px rgba(0,255,255,0.4)', pointerEvents: 'none'
+          }}>SAGITTAL PERSPECTIVE</div>
+        </div>
+
+        {/* Bottom-Right View: Orthographic */}
+        <div style={{ gridRow: '2', gridColumn: '2', position: 'relative' }}>
+          <Replay3DModel
+            frames={frames}
+            currentFrameIdx={currentFrameIdx}
+            isPlaying={isPlaying}
+            onFrameChange={setCurrentFrameIdx}
+            onPlayToggle={() => setIsPlaying((p) => !p)}
+            hideControls
+            skin={selectedSkin}
+            cameraView="orthographic"
+          />
+          <div style={{
+            position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)',
+            color: 'rgba(0,255,255,0.8)', fontSize: '0.8rem', fontWeight: 800, letterSpacing: '3px',
+            textShadow: '0 0 15px rgba(0,255,255,0.4)', pointerEvents: 'none'
+          }}>ORTHOGRAPHIC PERSPECTIVE</div>
+        </div>
       </div>
 
       {/* ── BOTTOM CONTROLS ── */}
