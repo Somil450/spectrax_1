@@ -74,19 +74,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
 
-  const handleCameraError = (err: any) => {
-    const name = (err instanceof Error) ? err.name : '';
-    let msg = "Something went wrong starting the camera. Try refreshing the page.";
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      msg = "No camera found on this device. Plug in a webcam and try again.";
-    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-      msg = "Your camera is being used by another app. Close it and try again.";
-    }
-    setError(msg);
-    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-  };
+
 
   const handleResults = useCallback((results: any) => {
     const evaluation = calibrationLogic.evaluate(results);
@@ -105,7 +93,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  };
+  }, [calibrationLogic, selectedExercise, onBodyTypeDetected]);
 
   const handleCameraError = (err: any) => {
     const name = (err instanceof Error) ? err.name : '';

@@ -5,7 +5,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
-import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -180,6 +180,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+
+  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
+  const [gestureHudVisible, setGestureHudVisible] = useState(false);
+  const gestureHudTimerRef = useRef<number | NodeJS.Timeout | null>(null);
+  const workoutControlRef = useRef<any>(null);
+  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
+  const ghostFramesRef = useRef<any[]>([]);
+  const ghostStatsRef = useRef<any>(null);
+  const [hasGhost, setHasGhost] = useState(false);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -584,6 +594,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         const canvasEl = canvasRef.current as any;
         if (canvasEl.__offscreenTransferred) {
           offscreenEnabledRef.current = true;
+          console.log("[WorkoutScreen] Canvas already has Offscreen control transferred.");
         } else {
           const isOffscreenSupported = !!canvasEl.transferControlToOffscreen;
           offscreenEnabledRef.current = false;
@@ -596,6 +607,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               ]);
               offscreenEnabledRef.current = true;
               canvasEl.__offscreenTransferred = true;
+              console.log("[WorkoutScreen] OffscreenCanvas enabled.");
             } catch (e) {
               console.warn(
                 "[WorkoutScreen] Failed to transfer canvas control:",
@@ -642,7 +654,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           console.warn("WS close failed:", err);
         }
       }
-      clearInterval(timer);
+      clearInterval(timerRef);
       gestureService.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
