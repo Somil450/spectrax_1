@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star, Calculator } from "lucide-react";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -29,7 +29,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewHistory,
   onViewTrophies,
   onViewProfile,
-  onViewFitnessCalculator,
   leveling,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -148,12 +147,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
 
-      {/* Scrolling wrapper */}
+      {/* Scrolling wrapper (From maintainer's branch) */}
       <div className="welcome-scroll-area">
         <div className="welcome-scroll-inner">
           
           {/* ── Hero Section (Maintainer's updated structure) ── */}
-          <button
+          <div
             className="welcome-hero animate-in"
             style={{
               transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
@@ -164,7 +163,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
-          </button>
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
 
@@ -247,9 +245,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   />
                   <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
                 </div>
-              </div>
 
-          {/* Stat strip */}
+              </div>
+            </div>
+
+          {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">
             {STATS.map(({ value, label }, i) => (
               <React.Fragment key={label}>
@@ -264,7 +264,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             ))}
           </div>
 
-          {/* How it Works Section */}
+          {/* ── How it Works Section (From your branch) ── */}
           <div className="how-it-works-section" style={{ marginTop: '60px' }}>
             <div className="section-container">
               <div className="section-header">
@@ -302,7 +302,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
           </div>
 
-          {/* Footer Section */}
+          {/* ── Footer Section (From your branch) ── */}
           <footer className="footer" style={{ marginTop: '60px' }}>
             <div className="footer-container">
               <div className="footer-grid">
