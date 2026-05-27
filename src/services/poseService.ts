@@ -1,7 +1,5 @@
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import { gpuAngleCalculator } from './gpuAngleUtils';
-// MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
-const Pose = (window as any).Pose as typeof PoseType;
 
 // ─── Pose Buffer Configuration ────────────────────────────────────────────────
 
@@ -608,7 +606,8 @@ const createSharedLandmarkFrame = (): SharedLandmarkFrame | null => {
 // ─── PoseService Class ────────────────────────────────────────────────────────
 
 export class PoseService {
-  private pose: PoseType | null = null;
+  private worker: Worker | null = null;
+  private resultsCallback: ((results: Results) => void) | null = null;
   private isLoaded: boolean = false;
   private inProgress: boolean = false;
   private errorCount: number = 0;
@@ -624,27 +623,38 @@ export class PoseService {
   }
 
   private init() {
-    if (this.pose) return;
+    if (this.worker) return;
 
     try {
-      this.pose = new Pose({
-        locateFile: (file) =>
-          `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`,
-      });
+      this.worker = new Worker(
+        new URL('../workers/pose.worker.ts', import.meta.url),
+        { type: 'classic' }
+      );
 
-      this.pose.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: false,
-        enableSegmentation: false,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      });
+      this.worker.onmessage = (event: MessageEvent) => {
+        const { type, poseLandmarks, poseWorldLandmarks, error } = event.data;
 
-      this.isLoaded = true;
+        if (type === 'results') {
+          this.inProgress = false;
+          this.errorCount = 0;
 
+          if (this.resultsCallback) {
+            const results = {
+              poseLandmarks,
+              poseWorldLandmarks,
+              image: null as any,
+            } as Results;
+            this.resultsCallback(this.preprocessResults(results));
+          }
+        } else if (type === 'error') {
+          this.inProgress = false;
+          this.errorCount++;
+          console.error("PoseService worker error:", error);
+        } else if (type === 'ready') {
+          this.isLoaded = true;
+        }
+      };
 
-      if (this.sharedLandmarkFrame) {
-      }
     } catch (e) {
       console.error("PoseService init failed:", e);
     }
@@ -801,27 +811,19 @@ export class PoseService {
   }
 
   onResults(callback: (results: Results) => void) {
-    if (!this.pose) return;
-
-    this.pose.onResults((results: Results) => {
-      this.inProgress = false;
-      this.errorCount = 0;
-
-      if (results) {
-        callback(this.preprocessResults(results));
-      }
-    });
+    this.resultsCallback = callback;
   }
 
   async send(
     image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement,
   ) {
-    if (!this.pose || !this.isLoaded || this.inProgress) return;
+    if (!this.worker || !this.isLoaded || this.inProgress) return;
 
     this.inProgress = true;
 
     try {
-      await this.pose.send({ image });
+      const imageBitmap = await createImageBitmap(image);
+      this.worker.postMessage({ type: 'process', image: imageBitmap }, [imageBitmap]);
     } catch (e) {
       this.inProgress = false;
       this.errorCount++;
@@ -836,11 +838,12 @@ export class PoseService {
   }
 
   async close() {
-    if (this.pose) {
+    if (this.worker) {
       try {
-        await this.pose.close();
+        this.worker.postMessage({ type: "close" });
+        this.worker.terminate();
       } catch {}
-      this.pose = null;
+      this.worker = null;
       this.isLoaded = false;
     }
     gpuAngleCalculator.destroy();
