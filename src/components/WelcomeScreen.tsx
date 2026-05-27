@@ -3,6 +3,7 @@ import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Git
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { debounce } from "../utils/debounce";
 
 const STATS = [
   { value: "30+", label: "FPS tracking" },
@@ -15,6 +16,7 @@ interface WelcomeScreenProps {
   onViewHistory: () => void;
   onViewTrophies: () => void;
   onViewProfile?: () => void;
+  onViewFitnessCalculator?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -30,16 +32,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewProfile,
   leveling,
 }) => {
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [userWeight, setUserWeight] = useState<string>(
     String(getSavedUserWeight() ?? "")
   );
   const prefersReducedMotion = usePrefersReducedMotion();
-
-  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isMobile || prefersReducedMotion) return;
@@ -126,21 +126,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   return (
     <div
       className="welcome-container"
-      data-theme={isDarkMode ? "dark" : "light"}
+      data-theme={theme === "light" ? "light" : "dark"}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Dark Mode Toggle */}
-      <button
-        className="dark-mode-toggle"
-        onClick={toggleDarkMode}
-        aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 50 }}
-      >
-        {isDarkMode ? "☀️" : "🌙"}
-      </button>
-
       {/* Particle canvas & Orbs */}
       <canvas ref={canvasRef} className="welcome-canvas particle-canvas" />
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
@@ -162,8 +151,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
-          </button>
-        </div>
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
 

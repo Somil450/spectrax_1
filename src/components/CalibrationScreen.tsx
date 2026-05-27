@@ -74,19 +74,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
 
-  const handleCameraError = (err: any) => {
-    const name = (err instanceof Error) ? err.name : '';
-    let msg = "Something went wrong starting the camera. Try refreshing the page.";
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      msg = "No camera found on this device. Plug in a webcam and try again.";
-    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-      msg = "Your camera is being used by another app. Close it and try again.";
-    }
-    setError(msg);
-    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-  };
 
   const handleResults = useCallback((results: any) => {
     const evaluation = calibrationLogic.evaluate(results);
@@ -105,7 +92,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  };
+  }, [onBodyTypeDetected, selectedExercise]);
 
   const handleCameraError = (err: any) => {
     const name = (err instanceof Error) ? err.name : '';
@@ -245,9 +232,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
-      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack'],
-      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank'],
-      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl']
+      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress'],
+      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress'],
+      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress']
     };
     
     const order = orderMap[type] || [];
@@ -310,17 +297,17 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         
         {/* Header & Exercise Selector */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'all' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="calib-header">
             <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
               <Camera color="var(--neon-cyan)" size={24} />
             </div>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>Camera Calibration</h2>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '0.5px' }}>Step into frame and hold still</p>
+              <h2 className="calib-title">Camera Calibration</h2>
+              <p className="calib-subtitle">Step into frame and hold still</p>
             </div>
           </div>
 
-          <div className="glass" style={{ padding: '16px', minWidth: '240px' }}>
+          <div className="glass calib-panel">
              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Dumbbell size={14} color="var(--neon-purple)" />
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>

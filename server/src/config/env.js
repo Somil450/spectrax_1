@@ -9,6 +9,8 @@ function getConfig(overrides = {}) {
     overrides.maxSessionFrames ?? Number(process.env.MAX_SESSION_FRAMES || 300);
   const socketPath =
     overrides.socketPath ?? process.env.SOCKET_PATH ?? "/socket.io";
+  const maxConnectionsPerIp =
+    overrides.maxConnectionsPerIp ?? Number(process.env.MAX_CONNECTIONS_PER_IP || 10);
 
   return {
     port,
@@ -16,6 +18,7 @@ function getConfig(overrides = {}) {
     sessionPath,
     maxSessionFrames,
     socketPath,
+    maxConnectionsPerIp,
   };
 }
 

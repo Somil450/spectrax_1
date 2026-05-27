@@ -162,5 +162,27 @@ export const exercises: Record<string, ExerciseConfig> = {
         type: 'warning'
       }
     ]
+  },
+
+  shoulderPress: {
+    key: "shoulderPress",
+    name: "Shoulder Press",
+    demoUrl: '/assets/demos/jumping_jack.mp4',
+    primaryJoint: "elbow",
+    joints: [[11, 13], [13, 15], [12, 14], [14, 16], [11, 12]],
+    downThreshold: 100,
+    upThreshold: 150,
+    feedbackRules: [
+      {
+        condition: (ctx: any) => ctx.elbow < 70,
+        message: "Don't drop elbows too low ⚠️",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.shoulder < 60,
+        message: "Keep elbows up ⚠️",
+        type: 'warning'
+      }
+    ]
   }
 };

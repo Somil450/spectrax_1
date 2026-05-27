@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { History, Trash2, ArrowLeft, TrendingUp, Filter, Loader2, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
+import { EmptyState } from "./components/EmptyState";
 
 // ── Debounce Hook ─────────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -18,6 +19,7 @@ import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { getQueue } from "./utils/offlineQueue";
 import { syncOfflineQueue } from "./services/syncQueue";
+import { HistoryPageSkeleton } from "./components/HistoryPageSkeleton";
 import SessionCard from "./SessionCard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -413,6 +415,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* ── Body ── */}
       <main className="history-body">
+        {/* Loading */}
+        {loading && <HistoryPageSkeleton />}
+
         {/* ── Filter Panel ── */}
         {!loading && !error && sessions.length > 0 && (
           <div className="filter-panel" style={{ marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", background: "var(--glass-bg)", padding: "16px", borderRadius: "12px", border: "1px solid var(--glass-border)", backdropFilter: "blur(12px)" }}>
@@ -490,14 +495,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
         {/* Empty */}
         {!loading && !error && sessions.length === 0 && (
-          <div className="state-center empty-state">
-            <div className="empty-icon">🏋️</div>
-            <h2>No sessions yet</h2>
-            <p>Complete a workout and your session will appear here.</p>
-            <button className="start-btn" onClick={onBack}>
-              Start a Workout
-            </button>
-          </div>
+          <EmptyState 
+            title="No sessions yet"
+            description="Complete a workout and your session will appear here."
+            actionText="Start a Workout"
+            onAction={onBack}
+          />
         )}
 
         {/* Sessions empty after filter */}
