@@ -182,7 +182,7 @@ export interface EngineState {
    * Real-time depth coaching string emitted during the DOWN phase.
    * Empty string when no depth cue is active.
    */
-  liveDepthFeedback: string;
+  liveDepthFeedback?: string;
 
   // VBT Metrics
   vbtMetrics?: VBTMetrics;
@@ -200,6 +200,34 @@ export interface EngineState {
 
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
+
+  wristSupinationScore?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout Parser & Defaults
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout Parser & Defaults
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
 }
 
 interface RepParams {
@@ -235,20 +263,23 @@ export function clearRepParams(key: string): void {
 // ExerciseEngine
 // ─────────────────────────────────────────────
 
+const ENGINE_DEFAULTS: RepParams = {
+  repCooldown: 600,
+  hysteresis: 10,
+  smoothingWindow: 5,
+  minDownDuration: 150,
+  correctRepMinScore: 70,
+  streakMinScore: 80,
+};
+
+const layoutOverrides = new Map<string, Partial<RepParams>>();
+
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
-
-  private repParams(key: string): RepParams {
-    return {
-      ...ENGINE_DEFAULTS,
-      ...(layoutOverrides.get(key) || {}),
-    };
-  }
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
-
-  private kinematicEngine = new KinematicEngine();
   private readonly MIN_DOWN_DURATION = 150;
+  private kinematicEngine = new KinematicEngine();
 
 
 
@@ -309,7 +340,7 @@ export class ExerciseEngine {
     // Adaptive Difficulty Tuning
     let currentCooldown = this.BASE_REP_COOLDOWN;
     let currentHysteresis = this.BASE_HYSTERESIS;
-    
+
     if (bodyType === 'ecto') {
       currentCooldown = 750; // Longer limbs take more time to complete full ROM
       currentHysteresis = 12; // Ectos need slightly larger movement bands
@@ -457,7 +488,20 @@ export class ExerciseEngine {
       // Usually we want total hold time. We'll keep accumulating.
     }
 
-    // ───────── WRIST ROTATION DETECTION ─────────
+    let hipSplineDeviation = 0;
+    const nextPlankSpline = { isCalibrated: true };
+    const PLANK_DEVIATION_THRESHOLD = 0.08;
+
+    if (landmarks && landmarks.length >= 33) {
+      const s = landmarks[11];
+      const h = landmarks[23];
+      const a = landmarks[27];
+      if (s && h && a && Math.abs(a.x - s.x) > 0.1) {
+        const expectedY = s.y + (a.y - s.y) * ((h.x - s.x) / (a.x - s.x));
+        hipSplineDeviation = h.y - expectedY;
+      }
+    }
+
     const wristSupinationScore = config.key === 'bicepCurl'
       ? getSupinationScore(landmarks)
       : NaN;
