@@ -26,6 +26,7 @@ import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
+import { FitnessCalculator } from "./components/FitnessCalculator";
 import React from "react";
 
 
@@ -40,7 +41,9 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password"
-  | "trophy";
+  | "trophy"
+  | "profile"
+  | "fitness";
 
 interface WorkoutStats {
   reps: number;
@@ -167,7 +170,7 @@ function App() {
       ...finalStats, 
       exerciseName: selectedExercise.name, 
       gainedXp,
-      calories: calorieResult.calories,  // ADD THIS
+      calories: calorieResult.calories,
     };
     setStats(fullStats);
     navigateTo("summary");
@@ -251,7 +254,6 @@ function App() {
       </main>
     );
   }
-    
 
   // If authenticated, show main app with theme toggle and workout screens
   return (
@@ -265,7 +267,7 @@ function App() {
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
         } ${
-          ["summary", "replay", "history", "trophy"].includes(currentScreen)
+          ["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
             ? "is-hidden"
             : ""
         }`}
@@ -294,14 +296,13 @@ function App() {
         </button>
       </div>
 
-
-      
       {currentScreen === "welcome" && (
         <WelcomeScreen
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
           onViewProfile={user ? () => navigateTo("profile") : undefined}
+          onViewFitnessCalculator={() => navigateTo("fitness")}
           leveling={leveling}
         />
       )}
@@ -353,6 +354,10 @@ function App() {
         {currentScreen === "profile" && (
           <UserProfileScreen onLogout={() => navigateTo("welcome")} />
         )}
+
+        {currentScreen === "fitness" && (
+          <FitnessCalculator onBack={() => navigateTo("welcome")} />
+        )}
       </Suspense>
 
       {/* Global badge unlock notification — rendered at the app root so it's
@@ -384,77 +389,74 @@ function App() {
         </div>
       )}
       {showExitModal && (
-  <div
-    style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 999,
-      backdropFilter: 'blur(8px)'
-    }}
-  >
-    <div
-      style={{
-        background: 'rgba(255,255,255,0.1)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '20px',
-        padding: '30px',
-        width: '320px',
-        textAlign: 'center',
-        color: 'white',
-        backdropFilter: 'blur(15px)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
-      }}
-    >
-      <h2>Confirm Exit</h2>
-
-      <p>Are you sure you want to end your session?</p>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginTop: '20px'
-        }}
-      >
-        <button
-          onClick={() => setShowExitModal(false)}
+        <div
           style={{
-            padding: '10px 20px',
-            borderRadius: '10px',
-            border: 'none',
-            cursor: 'pointer'
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 999,
+            backdropFilter: 'blur(8px)'
           }}
         >
-          Stay
-        </button>
-
-        <button
-          onClick={() => {
-            setShowExitModal(false);
-            navigateTo('welcome');
-          }}
-          style={{
-            padding: '10px 20px',
-            borderRadius: '10px',
-            border: 'none',
-            cursor: 'pointer',
-            background: '#ff4d4f',
-            color: 'white'
-          }}
-        >
-          Exit
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '20px',
+              padding: '30px',
+              width: '320px',
+              textAlign: 'center',
+              color: 'white',
+              backdropFilter: 'blur(15px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+            }}
+          >
+            <h2>Confirm Exit</h2>
+            <p>Are you sure you want to end your session?</p>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginTop: '20px'
+              }}
+            >
+              <button
+                onClick={() => setShowExitModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Stay
+              </button>
+              <button
+                onClick={() => {
+                  setShowExitModal(false);
+                  navigateTo('welcome');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#ff4d4f',
+                  color: 'white'
+                }}
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
