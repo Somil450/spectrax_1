@@ -17,6 +17,7 @@ import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
+import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
 
@@ -400,6 +401,7 @@ function App() {
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
+      <ScrollToTopButton />
 
       {(offlineReady || needRefresh) && (
         <div className="pwa-toast glass animate-in" role="alert">
