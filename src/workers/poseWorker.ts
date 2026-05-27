@@ -319,11 +319,32 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   const aKnee = landmarks[activeKneeIdx];
   const aToe = landmarks[activeToeIdx];
   const aHeel = landmarks[activeHeelIdx];
+  let lungeKnee = 180;
+  let kneePastToes = 0;
+  let backKnee = 180;
   if (aKnee && aToe && aHeel) {
-    // knee past toes calculation omitted since it is unused
+    lungeKnee = calculateAngle(
+      landmarks[activeSideLunge === "left" ? 23 : 24],
+      aKnee,
+      landmarks[activeSideLunge === "left" ? 27 : 28],
+    );
+    const hip = landmarks[activeSideLunge === "left" ? 23 : 24];
+    const forwardDir = Math.sign((aToe?.x || 0) - (hip?.x || 0));
+    kneePastToes = forwardDir * ((aKnee?.x || 0) - (aToe?.x || 0)) > 0.02 ? 1 : 0;
+    const backKneeIdx = activeSideLunge === "left" ? 26 : 25;
+    const backHipIdx = activeSideLunge === "left" ? 24 : 23;
+    const backAnkleIdx = activeSideLunge === "left" ? 28 : 27;
+    backKnee = calculateAngle(
+      landmarks[backHipIdx],
+      landmarks[backKneeIdx],
+      landmarks[backAnkleIdx],
+    );
   }
 
   return {
+    lungeKnee,
+    kneePastToes,
+    backKnee,
     knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
     elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
     shoulder: calculateAngle(

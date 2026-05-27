@@ -24,7 +24,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
   const streakData = getWorkoutStreak();
 
   const today = new Date();
-  const todayString = today.toISOString().split('T')[0];
+  const todayString = today.toDateString();
 
   // First workout ever
   if (!streakData.lastWorkoutDate) {
@@ -45,7 +45,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
   const lastDate = new Date(lastWorkoutDate);
   let parsedLastString = lastWorkoutDate;
   if (!lastWorkoutDate.match(/^\d{4}-\d{2}-\d{2}$/) && !isNaN(lastDate.getTime())) {
-      parsedLastString = lastDate.toISOString().split('T')[0];
+      parsedLastString = lastDate.toDateString();
   } else if (isNaN(lastDate.getTime())) {
       // Fallback if parsing fails entirely
       parsedLastString = todayString; 
