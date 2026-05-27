@@ -18,9 +18,14 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { throttleMonitor } from './services/performanceThrottleService';
+
+// Start monitoring throttling immediately
+throttleMonitor.start();
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
+import { CursorGlow } from "./components/CursorGlow";
 import React from "react";
 
 
@@ -35,8 +40,8 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password"
-  | "trophy"
-  | "profile";
+  | "trophy";
+
 interface WorkoutStats {
   reps: number;
   totalReps: number;
@@ -109,7 +114,6 @@ function App() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log("SW Registered: " + r);
     },
     onRegisterError(error) {
       console.error("SW registration error", error);
@@ -200,7 +204,6 @@ function App() {
     if (now - lastSwitchTime.current < 5000) return;
 
     if (exercises[exerciseKey] && selectedExercise.key !== exerciseKey) {
-      console.log(`CLIP: Auto-switching to ${exerciseKey.toUpperCase()}`);
       lastSwitchTime.current = now;
       setSelectedExercise(exercises[exerciseKey]);
     }
@@ -256,6 +259,8 @@ function App() {
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
+      {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
+      <CursorGlow />
       <div
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
