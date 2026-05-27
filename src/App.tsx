@@ -16,6 +16,10 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { throttleMonitor } from './services/performanceThrottleService';
+
+// Start monitoring throttling immediately
+throttleMonitor.start();
 
 type Screen =
   | "welcome"
@@ -26,7 +30,7 @@ type Screen =
   | "history"
   | "login"
   | "signup"
-  | "forgot-password";
+  | "forgot-password"
   | "trophy";
 
 interface WorkoutStats {
