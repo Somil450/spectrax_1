@@ -184,10 +184,11 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
       const workout = getReq.result as WorkoutRecord;
       if (workout) {
         // Delete the record with numeric ID to prevent duplication
-        store.delete(localId);
+        
         // Save the record with the new Firestore string ID
         store.put({
           ...workout,
+          localId,
           id: firestoreId,
           synced: true,
         });
@@ -278,7 +279,7 @@ export async function uploadWorkoutToFirestore(
 /**
  * Get all workouts from Firestore for current user
  */
-export async function getFirestoreWorkouts(): Promise<WorkoutRecord[]> {
+export async function getFirestoreWorkouts(userId: string): Promise<WorkoutRecord[]> {
   try {
     const auth = getAuth();
     const userId = auth.currentUser?.uid;
@@ -429,29 +430,61 @@ let syncInProgress = false;
 /**
  * Start auto-sync when connection is restored
  */
+let onlineHandler: (() => void) | null = null;
+let offlineHandler: (() => void) | null = null;
+
 export function initializeAutoSync(userId: string): void {
-  // Listen for online event
-  window.addEventListener("online", async () => {
+
+  // Remove previous listeners first
+  if (onlineHandler) {
+    window.removeEventListener("online", onlineHandler);
+  }
+
+  if (offlineHandler) {
+    window.removeEventListener("offline", offlineHandler);
+  }
+
+  // Create fresh handlers
+  onlineHandler = async () => {
     console.log("Network connection restored. Starting workout sync...");
+
     try {
       if (!syncInProgress) {
         syncInProgress = true;
-        await fullSyncWorkouts(userId);
-        syncInProgress = false;
+try{
+        await fullSyncWorkouts(userId);}
+        finally{
+
+        syncInProgress = false;}
+
         console.log("Workout sync completed");
       }
     } catch (error) {
       syncInProgress = false;
       console.error("Auto-sync failed:", error);
     }
-  });
+  };
 
-  // Listen for offline event
-  window.addEventListener("offline", () => {
+  offlineHandler = () => {
     console.log(
       "Network connection lost. Workouts will sync when back online.",
     );
-  });
+  };
+
+  // Add listeners
+  window.addEventListener("online", onlineHandler);
+  window.addEventListener("offline", offlineHandler);
+}
+export function cleanupAutoSync(): void {
+  if (onlineHandler) {
+    window.removeEventListener("online", onlineHandler);
+    onlineHandler = null;
+  }
+
+  if (offlineHandler) {
+    window.removeEventListener("offline", offlineHandler);
+    offlineHandler = null;
+  }
 }
 
 /**
@@ -613,6 +646,7 @@ export default {
   syncWorkoutsToFirestore,
   syncWorkoutsFromFirestore,
   fullSyncWorkouts,
+  cleanupAutoSync,
   initializeAutoSync,
   isOnline,
   getSyncStatus,

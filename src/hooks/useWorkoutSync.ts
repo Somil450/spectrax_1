@@ -10,6 +10,8 @@ import {
   getLocalWorkouts,
   fullSyncWorkouts,
   initializeAutoSync,
+  
+   cleanupAutoSync,
   isOnline,
   getSyncStatus,
   SyncStatus,
@@ -78,7 +80,11 @@ export function useWorkoutSync() {
 
     // Set up auto-sync listener for when connection is restored
     initializeAutoSync(user.uid);
-  }, [user?.uid]);
+  
+  return () => {
+    cleanupAutoSync();
+  };
+  },[user?.uid]);
 
   // Add new workout
   const addWorkout = useCallback(
