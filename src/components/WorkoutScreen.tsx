@@ -5,7 +5,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
-import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -180,6 +180,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+
+  const [workoutControlState, setWorkoutControlState] = useState<'running' | 'paused' | 'idle'>('idle');
+  const [gestureHudVisible, setGestureHudVisible] = useState(false);
+  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
+  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+  const [hasGhost, setHasGhost] = useState(false);
+  const workoutControlRef = useRef<'running' | 'paused' | 'idle'>('idle');
+  const gestureHudTimerRef = useRef<any>(null);
+  const ghostFramesRef = useRef<any[]>([]);
+  const ghostStatsRef = useRef<any>(null);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -644,7 +654,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           console.warn("WS close failed:", err);
         }
       }
-      clearInterval(timer);
+      clearInterval(timerRef);
       gestureService.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };

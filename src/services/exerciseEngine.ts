@@ -1,15 +1,4 @@
-import { ExerciseConfig } from "../config/exercises";
-import {
-  getFeedback,
-  resetFeedbackEngine,
-  FeedbackResult,
-} from "../engine/feedbackEngine";
-import { BodyType } from "./bodyTypeEngine";
 import { getSupinationScore } from "./wristRotationDetector";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Plank Spline Types & Constants
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * exerciseEngine.ts  (updated — squat depth classification integrated)
@@ -195,6 +184,7 @@ export interface EngineState {
    * null until the first rep is counted.
    */
   lastDepthResult: SquatDepthResult | null;
+  depthStats?: SquatDepthStats;
 
   // 🔥 Static hold time tracking
   holdTime?: number;
@@ -220,7 +210,6 @@ export interface EngineState {
   visibilityBuffer?: number[];
   trackingLostFrames?: number;
   lastValidAngles?: Record<string, number>;
-  holdTime?: number;
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
 }
@@ -242,15 +231,19 @@ interface RepParams {
 // ExerciseEngine
 // ─────────────────────────────────────────────
 
+const ENGINE_DEFAULTS: RepParams = {
+  repCooldown: 600,
+  hysteresis: 10,
+  smoothingWindow: 5,
+  minDownDuration: 150,
+  correctRepMinScore: 70,
+  streakMinScore: 85,
+};
+
+const layoutOverrides = new Map<string, Partial<RepParams>>();
+
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
-
-  private repParams(key: string): RepParams {
-    return {
-      ...ENGINE_DEFAULTS,
-      ...(layoutOverrides.get(key) || {}),
-    };
-  }
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
 
@@ -300,7 +293,7 @@ export class ExerciseEngine {
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
-    if (landmarks && timestamp !== undefined) {
+    if (landmarks) {
       const jointMap: Record<string, number> = {
         squat: 24, // Right Hip
         pushup: 11, // Left Shoulder
@@ -312,7 +305,7 @@ export class ExerciseEngine {
       const primaryJointIndex = jointMap[config.key] ?? 24;
       updatedVbtMetrics = this.kinematicEngine.update(
         landmarks,
-        timestamp,
+        Date.now(),
         primaryJointIndex
       );
     }
@@ -482,10 +475,10 @@ export class ExerciseEngine {
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
       // 🔥 Plank-specific spline deviation injected into feedback context
-      hipSplineDeviation,
-      plankSplineCalibrated: nextPlankSpline.isCalibrated,
-      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+      hipSplineDeviation: 0,
+      plankSplineCalibrated: false,
+      hipSagging: false,
+      hipHyperextension: false,
       wristSupinationScore,
     };
 
