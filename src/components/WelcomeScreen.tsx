@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star, Calculator } from "lucide-react";
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -16,6 +16,7 @@ interface WelcomeScreenProps {
   onViewHistory: () => void;
   onViewTrophies: () => void;
   onViewProfile?: () => void;
+  onViewFitnessCalculator?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -28,7 +29,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
-  onViewProfile: _onViewProfile,
+  onViewProfile,
+  onViewFitnessCalculator,
   leveling,
 }) => {
   const { theme } = useTheme();
@@ -137,9 +139,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       {/* Scrolling wrapper */}
       <div className="welcome-scroll-area">
         <div className="welcome-scroll-inner">
-
-          {/* Hero Section */}
-          <div
+          
+          {/* ── Hero Section (Maintainer's updated structure) ── */}
+          <button
             className="welcome-hero animate-in"
             style={{
               transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
@@ -150,6 +152,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
+          </button>
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
 
@@ -184,59 +187,55 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </button>
 
               <div className="welcome-btn-row">
-                <button
-                  onClick={onViewHistory}
-                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
-                  aria-label="View Workout History"
-                  tabIndex={0}
-                >
-                  <History size={15} />
-                  History
-                </button>
+  <button
+    onClick={onViewHistory}
+    className="welcome-btn-secondary welcome-btn-secondary--cyan"
+    aria-label="View Workout History"
+    tabIndex={0}
+  >
+    <History size={15} />
+    History
+  </button>
 
-                <button
-                  onClick={onViewTrophies}
-                  className="welcome-btn-secondary welcome-btn-secondary--gold"
-                  aria-label="View Trophy Room"
-                  tabIndex={0}
-                >
-                  <Trophy size={15} />
-                  Trophies
-                </button>
-              </div>
+  <button
+    onClick={onViewTrophies}
+    className="welcome-btn-secondary welcome-btn-secondary--gold"
+    aria-label="View Trophy Room"
+    tabIndex={0}
+  >
+    <Trophy size={15} />
+    Trophies
+  </button>
+</div>
 
-              {/* Weight input for calorie estimation */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  marginTop: "12px",
-                  background: "rgba(0,255,100,0.04)",
-                  border: "1px solid rgba(0,255,100,0.2)",
-                  borderRadius: "10px",
-                  padding: "10px 14px",
-                }}
-              >
-                <span>⚖️</span>
-                <span style={{ fontSize: "0.7rem", color: "var(--neon-green)", letterSpacing: "1px", textTransform: "uppercase" }}>Weight:</span>
-                <input
-                  type="number"
-                  min="30"
-                  max="200"
-                  placeholder="70"
-                  value={userWeight}
-                  onChange={(e) => {
-                    setUserWeight(e.target.value);
-                    const val = parseFloat(e.target.value);
-                    if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
-                  }}
-                  style={{ background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: "1rem", fontWeight: 700, width: "50px" }}
-                />
-                <span style={{ color: "var(--text-dim)", fontSize: "0.8rem" }}>kg</span>
+{/* Weight input for calorie estimation */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginTop: "12px",
+    background: "rgba(0,255,100,0.04)",
+    border: "1px solid rgba(0,255,100,0.2)",
+    borderRadius: "10px",
+    padding: "10px 14px",
+  }}
+>
+                  <span>⚖️</span>
+                  <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
+                  <input
+                    type="number" min="30" max="200" placeholder="70"
+                    value={userWeight}
+                    onChange={(e) => {
+                      setUserWeight(e.target.value);
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+                    }}
+                    style={{ background:'transparent', border:'none', outline:'none', color:'#fff', fontSize:'1rem', fontWeight:700, width:'50px' }}
+                  />
+                  <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
+                </div>
               </div>
-            </div>
-          </div>
 
           {/* Stat strip */}
           <div className="welcome-stats">
@@ -254,7 +253,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
 
           {/* How it Works Section */}
-          <div className="how-it-works-section" style={{ marginTop: "60px" }}>
+          <div className="how-it-works-section" style={{ marginTop: '60px' }}>
             <div className="section-container">
               <div className="section-header">
                 <div className="section-badge">
@@ -292,7 +291,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
 
           {/* Footer Section */}
-          <footer className="footer" style={{ marginTop: "60px" }}>
+          <footer className="footer" style={{ marginTop: '60px' }}>
             <div className="footer-container">
               <div className="footer-grid">
                 <div className="footer-column">
