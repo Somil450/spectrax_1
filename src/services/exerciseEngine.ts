@@ -189,7 +189,11 @@ export interface EngineState {
    * null until the first rep is counted.
    */
   lastDepthResult: SquatDepthResult | null;
-  depthStats: SquatDepthStats;
+  depthStats?: SquatDepthStats;
+  // 🔥 Static hold time tracking
+  holdTime?: number;
+
+  wristSupinationScore?: number;
 
   /**
    * Real-time depth coaching string emitted during the DOWN phase.
@@ -229,16 +233,18 @@ interface RepParams {
   streakMinScore: number;
 }
 
-const ENGINE_DEFAULTS: RepParams = {
-  repCooldown: 600,
-  hysteresis: 10,
-  smoothingWindow: 5,
-  minDownDuration: 150,
-  correctRepMinScore: 70,
-  streakMinScore: 85,
-};
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout Parser & Defaults
+// ─────────────────────────────────────────────────────────────────────────────
 
-const layoutOverrides = new Map<string, Partial<RepParams>>();
+interface RepParams {
+  repCooldown: number;
+  hysteresis: number;
+  smoothingWindow: number;
+  minDownDuration: number;
+  correctRepMinScore: number;
+  streakMinScore: number;
+}
 
 // ─────────────────────────────────────────────
 // ExerciseEngine
@@ -752,20 +758,20 @@ export class ExerciseEngine {
       // 🔥 Static hold time tracking
       holdTime: nextHoldTime,
 
-      wristSupinationScore,
-
-      // Pushup depth classification (NEW)
-      lastPushupDepthResult: nextLastPushupDepthResult,
-      pushupDepthStats: nextPushupDepthStats,
-      livePushupDepthFeedback,
-      downZReached,
-
       // Tracking & recovery buffers
       visibilityBuffer: newVisibilityBuffer,
       trackingLostFrames: nextTrackingLostFrames,
       lastValidAngles: nextLastValidAngles,
       jumpingJackSyncSamples: nextJumpingJackSyncSamples,
       jumpingJackSync: nextJumpingJackSync,
+
+      // Pushup depth classification
+      lastPushupDepthResult: nextLastPushupDepthResult,
+      pushupDepthStats: nextPushupDepthStats,
+      livePushupDepthFeedback,
+      downZReached,
+
+      wristSupinationScore
     };
   }
 }

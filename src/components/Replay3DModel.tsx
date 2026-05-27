@@ -7,7 +7,7 @@ import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
-import { createBaseMaterialForSkin } from "../utils/avatarSkins";
+import { createBaseMaterialForSkin, AVATAR_SKINS } from "../utils/avatarSkins";
 
 // ─── Module-Level GLTF Cache ──────────────────────────────────────────────────
 
@@ -48,6 +48,7 @@ export interface Replay3DModelProps {
   onPlayToggle?: () => void;
   hideControls?: boolean;
   skin?: string;
+  cameraView?: 'frontal' | 'sagittal' | 'orthographic';
 }
 
 type HudLabel = {
@@ -526,7 +527,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   onFrameChange,
   onPlayToggle,
   hideControls = false,
-  skin = "Standard Human",
+  skin = AVATAR_SKINS.STANDARD_HUMAN,
+  cameraView = 'frontal',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying] = useState(false);
@@ -559,7 +561,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const bloomPassRef = useRef<UnrealBloomPass | null>(null);
   const smaaPassRef  = useRef<SMAAPass | null>(null);
   const ssaoPassRef  = useRef<SSAOPass | null>(null);
-  const cameraRef   = useRef<THREE.PerspectiveCamera | null>(null);
+  const cameraRef   = useRef<THREE.PerspectiveCamera | THREE.OrthographicCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   // Fallback refs
   // ── XYZ Axis visualizers — one per joint hub ──────────────────────────────
@@ -680,8 +682,27 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     scene.background = new THREE.Color(0x111111);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-    camera.position.set(0, 0, 3.2);
+    let camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+    if (cameraView === 'orthographic') {
+      const frustumSize = 3;
+      const aspect = width / height;
+      camera = new THREE.OrthographicCamera(
+        -frustumSize * aspect / 2,
+        frustumSize * aspect / 2,
+        frustumSize / 2,
+        -frustumSize / 2,
+        0.1,
+        100
+      );
+      camera.position.set(2.5, 2, 2.5);
+    } else {
+      camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
+      if (cameraView === 'sagittal') {
+        camera.position.set(3.2, 0, 0);
+      } else {
+        camera.position.set(0, 0, 3.2);
+      }
+    }
     cameraRef.current = camera;
 
     // Lighting
@@ -939,6 +960,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         renderer.domElement,
       );
       controls.enableDamping = true;
+      if (cameraView === 'frontal' || cameraView === 'sagittal') {
+        controls.enableRotate = false; // Lock perspective for true 2D views
+      }
       controls.dampingFactor = 0.05;
       controls.maxPolarAngle = Math.PI / 2 + 0.1;
       controls.minDistance   = 1.0;
@@ -973,8 +997,19 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
           rendererRef.current.setSize(w, h);
           rendererRef.current.setPixelRatio(window.devicePixelRatio);
-          cameraRef.current.aspect = w / h;
+          
+          if (cameraRef.current instanceof THREE.PerspectiveCamera) {
+            cameraRef.current.aspect = w / h;
+          } else if (cameraRef.current instanceof THREE.OrthographicCamera) {
+            const frustumSize = 3;
+            const aspect = w / h;
+            cameraRef.current.left = -frustumSize * aspect / 2;
+            cameraRef.current.right = frustumSize * aspect / 2;
+            cameraRef.current.top = frustumSize / 2;
+            cameraRef.current.bottom = -frustumSize / 2;
+          }
           cameraRef.current.updateProjectionMatrix();
+
           composerRef.current?.setSize(w, h);
           bloomPassRef.current?.setSize(w, h);
           if (smaaPassRef.current) {
