@@ -227,6 +227,7 @@ interface RepParams {
   streakMinScore: number;
 }
 
+
 // ─────────────────────────────────────────────
 // ExerciseEngine
 // ─────────────────────────────────────────────
@@ -244,6 +245,7 @@ const layoutOverrides = new Map<string, Partial<RepParams>>();
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
+
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
 
@@ -252,8 +254,12 @@ export class ExerciseEngine {
 
   private repParams(key: string): RepParams {
     return {
-      ...ENGINE_DEFAULTS,
-      ...(layoutOverrides.get(key) || {}),
+      repCooldown: this.BASE_REP_COOLDOWN,
+      hysteresis: this.BASE_HYSTERESIS,
+      smoothingWindow: this.SMOOTHING_WINDOW,
+      minDownDuration: this.MIN_DOWN_DURATION,
+      correctRepMinScore: 70,
+      streakMinScore: 60,
     };
   }
 
@@ -474,11 +480,10 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      // 🔥 Plank-specific spline deviation injected into feedback context
-      hipSplineDeviation: 0,
-      plankSplineCalibrated: false,
-      hipSagging: false,
-      hipHyperextension: false,
+      hipSplineDeviation,
+      plankSplineCalibrated: nextPlankSpline.isCalibrated,
+      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
+      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
       wristSupinationScore,
     };
 
@@ -739,16 +744,15 @@ export class ExerciseEngine {
       holdTime: nextHoldTime,
 
       wristSupinationScore,
-      
+
       lastPushupDepthResult: nextLastPushupDepthResult,
       pushupDepthStats: nextPushupDepthStats,
       livePushupDepthFeedback,
       downZReached,
+
       visibilityBuffer: newVisibilityBuffer,
       trackingLostFrames: nextTrackingLostFrames,
       lastValidAngles: nextLastValidAngles,
-      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
-      jumpingJackSync: nextJumpingJackSync,
     };
   }
 }
