@@ -181,6 +181,18 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+  const throttleLevel = useThrottleLevel();
+  const srOnly: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  };
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -217,12 +229,21 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const frameSkipRef = useRef<number>(0); // frame-skip counter
   const workerRef = useRef<Worker | null>(null); // pose worker
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
-  const lastObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
-  const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
+  const lastObservedLandmarksRef = useRef<any[] | null>(null);
+  const previousObservedLandmarksRef = useRef<any[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
+  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+  const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
+  const [gestureHudVisible, setGestureHudVisible] = useState(false);
+  const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
+  const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
+  const ghostFramesRef = useRef<FrameData[]>([]);
+  const ghostStatsRef = useRef<GhostStats | null>(null);
+  const [hasGhost, setHasGhost] = useState(false);
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
@@ -232,11 +253,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
       const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-        return nextPositions;
-      },
-      {} as PanelPositions,
-    );
-  }, [panelRefsById]);
+      nextPositions[panelId] = {
+        x: Math.min(Math.max(positions[panelId].x, 0), maxX),
+        y: Math.min(Math.max(positions[panelId].y, 0), maxY),
+      };
+      return nextPositions;
+    }, {} as PanelPositions);
+  }, []);
 
 
   useEffect(() => {
@@ -645,7 +668,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           console.warn("WS close failed:", err);
         }
       }
-      clearInterval(timer);
+      clearInterval(timerRef);
       gestureService.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
@@ -787,6 +810,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </p>
         </div>
       )}
+      <CameraErrorBoundary>
       {/* Background Video Layer */}
       <div
         className="camera-viewport"
@@ -1465,6 +1489,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </button>
         </div>
       </div>
+      <div className="workout-finish-action">
+        <button
+          onClick={handleEnd}
+          className="btn-neon"
+          style={{ background: "var(--neon-red)", color: "#fff" }}
+        >
+          FINISH SESSION <StopCircle size={18} />
+        </button>
+      </div>
 
       {/*
         ══════════════════════════════════════════════════════════
@@ -1600,6 +1633,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       )}
+      </CameraErrorBoundary>
     </div>
   );
 };
