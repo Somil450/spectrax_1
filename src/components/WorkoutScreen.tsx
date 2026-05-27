@@ -207,9 +207,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
   const throttleLevel = useThrottleLevel();
-  const bodyTypeRef = useRef(bodyType);
-  const onAutoDetectRef = useRef(onAutoDetect);
-  const isMountedRef = useRef(true);
   const srOnly: React.CSSProperties = {
     position: 'absolute',
     width: '1px',
@@ -281,11 +278,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
       const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-        return nextPositions;
-      },
-      {} as PanelPositions,
-    );
-  };
+      nextPositions[panelId] = {
+        x: Math.min(Math.max(positions[panelId].x, 0), maxX),
+        y: Math.min(Math.max(positions[panelId].y, 0), maxY),
+      };
+      return nextPositions;
+    }, {} as PanelPositions);
+  }, []);
 
 
   useEffect(() => {
@@ -1659,6 +1658,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       )}
+      </CameraErrorBoundary>
     </div>
   );
 };
