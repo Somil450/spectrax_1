@@ -18,10 +18,15 @@ import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { useBadges } from "./hooks/useBadges";
+import { throttleMonitor } from './services/performanceThrottleService';
+
+// Start monitoring throttling immediately
+throttleMonitor.start();
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
+import { FitnessCalculator } from "./components/FitnessCalculator";
 import React from "react";
 
 type Screen =
@@ -129,7 +134,6 @@ function App() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log("SW Registered: " + r);
     },
     onRegisterError(error) {
       console.error("SW registration error", error);
@@ -223,7 +227,6 @@ function App() {
     if (now - lastSwitchTime.current < 5000) return;
 
     if (exercises[exerciseKey] && selectedExercise.key !== exerciseKey) {
-      console.log(`CLIP: Auto-switching to ${exerciseKey.toUpperCase()}`);
       lastSwitchTime.current = now;
       setSelectedExercise(exercises[exerciseKey]);
     }
@@ -288,7 +291,7 @@ function App() {
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
         } ${
-          ["summary", "replay", "history", "trophy"].includes(currentScreen)
+          ["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
             ? "is-hidden"
             : ""
         }`}
@@ -323,6 +326,7 @@ function App() {
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
           onViewProfile={user ? () => navigateTo("profile") : undefined}
+          onViewFitnessCalculator={() => navigateTo("fitness")}
           leveling={leveling}
         />
       )}
@@ -379,6 +383,10 @@ function App() {
 
         {currentScreen === "profile" && (
           <UserProfileScreen onLogout={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "fitness" && (
+          <FitnessCalculator onBack={() => navigateTo("welcome")} />
         )}
       </Suspense>
 
