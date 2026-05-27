@@ -105,23 +105,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  };
-
-  const handleCameraError = (err: any) => {
-    const name = (err instanceof Error) ? err.name : '';
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
-      setError('CAMERA_PERMISSION_DENIED');
-    } else {
-      let msg = "Something went wrong starting the camera. Try refreshing the page.";
-      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        msg = "No camera found on this device. Plug in a webcam and try again.";
-      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-        msg = "Your camera is being used by another app. Close it and try again.";
-      }
-      setError(msg);
-    }
-    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-  };
+  }, [selectedExercise, onBodyTypeDetected]);
 
   const {
     videoRef,

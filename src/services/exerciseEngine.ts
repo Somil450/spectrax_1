@@ -200,6 +200,28 @@ export interface EngineState {
   holdTime?: number;
 
   wristSupinationScore?: number;
+
+  /**
+   * Real-time depth coaching string emitted during the DOWN phase.
+   * Empty string when no depth cue is active.
+   */
+  liveDepthFeedback?: string;
+
+  // VBT Metrics
+  vbtMetrics?: VBTMetrics;
+
+  // ── Pushup depth classification (NEW) ──────────────────────────
+  lastPushupDepthResult?: PushupDepthResult | null;
+  pushupDepthStats?: PushupDepthStats;
+  livePushupDepthFeedback?: string;
+  downZReached?: number;
+
+  // Tracking & recovery buffers
+  visibilityBuffer?: number[];
+  trackingLostFrames?: number;
+  lastValidAngles?: Record<string, number>;
+  jumpingJackSyncSamples?: JumpingJackSyncSample[];
+  jumpingJackSync?: JumpingJackSyncMetrics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -215,33 +237,20 @@ interface RepParams {
   streakMinScore: number;
 }
 
-  /**
-   * Real-time depth coaching string emitted during the DOWN phase.
-   * Empty string when no depth cue is active.
-   */
-  liveDepthFeedback: string;
-
-  // VBT Metrics
-  vbtMetrics?: VBTMetrics;
-
-  // ── Pushup depth classification (NEW) ──────────────────────────
-  lastPushupDepthResult?: PushupDepthResult | null;
-  pushupDepthStats?: PushupDepthStats;
-  livePushupDepthFeedback?: string;
-  downZReached?: number;
-
-  // Tracking & recovery buffers
-  visibilityBuffer?: number[];
-  trackingLostFrames?: number;
-  lastValidAngles?: Record<string, number>;
-  holdTime?: number;
-  jumpingJackSyncSamples?: JumpingJackSyncSample[];
-  jumpingJackSync?: JumpingJackSyncMetrics;
-}
-
 // ─────────────────────────────────────────────
 // ExerciseEngine
 // ─────────────────────────────────────────────
+
+const ENGINE_DEFAULTS: RepParams = {
+  repCooldown: 600,
+  hysteresis: 10,
+  smoothingWindow: 5,
+  minDownDuration: 150,
+  correctRepMinScore: 70,
+  streakMinScore: 80,
+};
+
+const layoutOverrides = new Map<string, Partial<RepParams>>();
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
@@ -258,12 +267,6 @@ export class ExerciseEngine {
   private kinematicEngine = new KinematicEngine();
   private readonly MIN_DOWN_DURATION = 150;
 
-  private repParams(key: string): RepParams {
-    return {
-      ...ENGINE_DEFAULTS,
-      ...(layoutOverrides.get(key) || {}),
-    };
-  }
 
   private isValidExercisePosture(
     history: number[],
@@ -482,11 +485,6 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      // 🔥 Plank-specific spline deviation injected into feedback context
-      hipSplineDeviation,
-      plankSplineCalibrated: nextPlankSpline.isCalibrated,
-      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
       wristSupinationScore,
     };
 
@@ -745,6 +743,19 @@ export class ExerciseEngine {
 
       // 🔥 Static hold time tracking
       holdTime: nextHoldTime,
+
+      // Tracking & recovery buffers
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles,
+      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
+      jumpingJackSync: nextJumpingJackSync,
+
+      // Pushup depth classification
+      lastPushupDepthResult: nextLastPushupDepthResult,
+      pushupDepthStats: nextPushupDepthStats,
+      livePushupDepthFeedback,
+      downZReached,
 
       wristSupinationScore
     };
