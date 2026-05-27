@@ -480,10 +480,6 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      hipSplineDeviation,
-      plankSplineCalibrated: nextPlankSpline.isCalibrated,
-      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
       wristSupinationScore,
     };
 

@@ -33,30 +33,6 @@ export interface SessionArchive {
   frames: CompressedFrameChunk[];
 }
 
-type LandmarkCoordinate = "x" | "y" | "z" | "visibility";
-
-export interface CompressedLandmarkDelta {
-  index: number;
-  values: Partial<Record<LandmarkCoordinate, number>>;
-}
-
-export interface CompressedFrameChunk {
-  kind: "base" | "delta";
-  timestamp: number;
-  timestampDelta: number;
-  runLength: number;
-  exercise?: string;
-  feedback?: string;
-  angles?: Record<string, number>;
-  landmarks?: unknown[] | CompressedLandmarkDelta[];
-}
-
-export interface SessionArchive {
-  codec: "rld-delta-v1";
-  frameCount: number;
-  generatedAt: number;
-  frames: CompressedFrameChunk[];
-}
 
 const ANGLE_THRESHOLD = 2.0;
 const LANDMARK_THRESHOLD = 0.002;
@@ -90,7 +66,7 @@ export class RLDCompressionDriver {
 
   static decompress(compressedData: CompressedFrameChunk[]): FrameData[] {
     const frames: FrameData[] = [];
-    const previousFrame: FrameData | null = null;
+    let previousFrame: FrameData | null = null;
 
     for (const item of compressedData) {
       const runLength = Math.max(item.runLength || 1, 1);
@@ -364,16 +340,17 @@ class SessionRecorder {
     this.displacements = [];
     telemetryBroker.logState("SessionRecorder_Start");
   }
-recordFrame(frame: FrameData) {
-  if (this._frameCount >= MAX_FRAMES) {
-    const first = this.compressedFrames[0];
-    if (first && first.runLength > 1) {
-      first.runLength--;
-      first.timestamp += first.timestampDelta || 33;
-    } else {
-      this.compressedFrames.shift();
+  recordFrame(frame: FrameData) {
+    if (this._frameCount >= MAX_FRAMES) {
+      const first = this.compressedFrames[0];
+      if (first && first.runLength > 1) {
+        first.runLength--;
+        first.timestamp += first.timestampDelta || 33;
+      } else {
+        this.compressedFrames.shift();
+      }
+      this._frameCount--;
     }
-    this._frameCount--;
 
     if (this.displacements.length >= MAX_FRAMES - 1) {
       this.displacements.shift();
@@ -392,6 +369,7 @@ recordFrame(frame: FrameData) {
       this.lastRawFrame &&
       RLDCompressionDriver.isStationary(this.lastRawFrame, frame)
     ) {
+      const lastCompressed = this.compressedFrames[this.compressedFrames.length - 1];
       lastCompressed.runLength++;
       lastCompressed.timestampDelta =
         frame.timestamp - this.lastRawFrame.timestamp;
