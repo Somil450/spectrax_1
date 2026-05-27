@@ -18,6 +18,7 @@ import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { getQueue } from "./utils/offlineQueue";
 import { syncOfflineQueue } from "./services/syncQueue";
+import { HistoryPageSkeleton } from "./components/HistoryPageSkeleton";
 import SessionCard from "./SessionCard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -413,6 +414,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* ── Body ── */}
       <main className="history-body">
+        {/* Loading */}
+        {loading && <HistoryPageSkeleton />}
+
         {/* ── Filter Panel ── */}
         {!loading && !error && sessions.length > 0 && (
           <div className="filter-panel" style={{ marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", background: "var(--glass-bg)", padding: "16px", borderRadius: "12px", border: "1px solid var(--glass-border)", backdropFilter: "blur(12px)" }}>
