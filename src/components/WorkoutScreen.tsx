@@ -1,40 +1,3 @@
-import React, { useState, useEffect, useRef } from "react";
-import Draggable, {
-  type DraggableData,
-  type DraggableEvent,
-} from "react-draggable";
-import {
-  Activity,
-  StopCircle,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Lock,
-  Unlock,
-} from "lucide-react";
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
-import { overlayRenderer } from "../services/overlayRenderer";
-import { getJointAngles, getJointVisibility } from "../services/angleUtils";
-import { exerciseEngine, EngineState } from "../services/exerciseEngine";
-import { ExerciseConfig } from "../config/exercises";
-import { sessionRecorder } from "../services/sessionRecorder";
-import { skeletalSense } from "../services/skeletalSense"; // Kept on main thread for reliable auto-detect
-import { poseLockService } from "../services/poseLockService";
-import { clipEngine } from "../services/clipEngine";
-import { BodyType } from "../services/bodyTypeEngine";
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
-import {
-  FocusPanel,
-  TimerPanel,
-  RepsPanel,
-  EnginePanel,
-  SensePanel,
-} from "./WorkoutPanels";
-import {
-  useThrottleLevel,
-  throttleMonitor,
-} from "../services/performanceThrottleService";
-import { Replay3DModel } from "./Replay3DModel";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
@@ -53,10 +16,10 @@ import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { CameraErrorBoundary } from './CameraErrorBoundary';
-import FpsOverlay from './FpsOverlay';
-import { useFpsCounter } from '../hooks/useFpsCounter';
-
+import { ghostService } from '../services/ghostService';
+import type { FrameData } from '../services/sessionRecorder';
+import { FpsMonitor } from './FpsMonitor';
+import { gestureService, GestureCommand } from '../services/gestureService';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -131,48 +94,71 @@ const getStoredPanelPositions = (): PanelPositions => {
         y: typeof storedPosition?.y === "number" ? storedPosition.y : defaults[panelId].y,
       };
 
-        return positions;
-      },
-      {} as PanelPositions,
-    );
+      return positions;
+    }, {} as PanelPositions);
   } catch {
     return defaults;
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
-  exercise,
-  onEnd,
-  onAutoDetect,
-  bodyType,
-}) => {
+const srOnly: React.CSSProperties = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: 0,
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: "0",
+};
+
+const MAX_EXTRAPOLATED_FRAMES = 5;
+
+type PoseLandmark = {
+  x: number;
+  y: number;
+  z: number;
+  visibility: number;
+};
+
+const cloneLandmarks = (landmarks: PoseLandmark[]) =>
+  landmarks.map((landmark) => ({ ...landmark }));
+
+const extrapolateLandmarks = (
+  latest: PoseLandmark[] | null,
+  previous: PoseLandmark[] | null,
+  dropoutFrames: number,
+): PoseLandmark[] | null => {
+  if (!latest || !previous) return null;
+
+  const step = dropoutFrames + 1;
+  if (step > MAX_EXTRAPOLATED_FRAMES) return null;
+
+  return latest.map((landmark, index) => {
+    const prior = previous[index] ?? landmark;
+    const dx = landmark.x - prior.x;
+    const dy = landmark.y - prior.y;
+    const dz = landmark.z - prior.z;
+
+    return {
+      x: Math.min(Math.max(landmark.x + dx * step, 0), 1),
+      y: Math.min(Math.max(landmark.y + dy * step, 0), 1),
+      z: landmark.z + dz * step,
+      visibility: Math.max(0.5, Math.min(landmark.visibility, 1)),
+    };
+  });
+};
+
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+  const bodyTypeRef = useRef(bodyType);
+  bodyTypeRef.current = bodyType;
+  const onAutoDetectRef = useRef(onAutoDetect);
+  onAutoDetectRef.current = onAutoDetect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // ── FPS overlay state ─────────────────────────────────────────────────────
-const [showFps, setShowFps] = useState(false);
-const fps = useFpsCounter(showFps);
-const viewportRef = useRef<HTMLDivElement>(null);
-
-// ── Canvas ResizeObserver ─────────────────────────────────────────────────
-useEffect(() => {
-  const el = viewportRef.current;
-  if (!el) return;
-  const ro = new ResizeObserver((entries) => {
-    for (const entry of entries) {
-      const { width, height } = entry.contentRect;
-      if (canvasRef.current) {
-        canvasRef.current.width = Math.round(width);
-        canvasRef.current.height = Math.round(height);
-      }
-    }
-  });
-  ro.observe(el);
-  return () => ro.disconnect();
-}, []);
-  const panelRefs = useRef<Record<
-    WorkoutPanelId,
-    React.RefObject<HTMLDivElement>
-  > | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+  const panelRefs = useRef<Record<WorkoutPanelId, React.RefObject<HTMLDivElement>> | null>(null);
 
   if (!panelRefs.current) {
     panelRefs.current = {
@@ -180,7 +166,7 @@ useEffect(() => {
       timer: React.createRef<HTMLDivElement>(),
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
-      sense: React.createRef<HTMLDivElement>(),
+      sense: React.createRef<HTMLDivElement>()
     };
   }
 
@@ -194,44 +180,16 @@ useEffect(() => {
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
- fix-workout-screen-memory-leaks
-  
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [showExitModal, setShowExitModal] = useState(false);
 
-  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
-  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
+  const [workoutControlState, setWorkoutControlState] = useState<'running' | 'paused' | 'idle'>('idle');
   const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<number | NodeJS.Timeout | null>(null);
-  const workoutControlRef = useRef<any>(null);
-  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
+  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
+  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+  const [hasGhost, setHasGhost] = useState(false);
+  const workoutControlRef = useRef<'running' | 'paused' | 'idle'>('idle');
+  const gestureHudTimerRef = useRef<any>(null);
   const ghostFramesRef = useRef<any[]>([]);
   const ghostStatsRef = useRef<any>(null);
-  const [hasGhost, setHasGhost] = useState(false);
-
-  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
-  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<number | NodeJS.Timeout | null>(null);
-  const workoutControlRef = useRef<any>(null);
-  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
-  const ghostFramesRef = useRef<any[]>([]);
-  const ghostStatsRef = useRef<any>(null);
-  const [hasGhost, setHasGhost] = useState(false);
-
-  // ── Gestures & Controls (lost in merge) ──
-  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
-  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const workoutControlRef = useRef<any>(null);
-  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
-
-  // ── Ghost Mode (lost in merge) ──
-  const ghostFramesRef = useRef<any[]>([]);
-  const ghostStatsRef = useRef<any>(null);
-  const [hasGhost, setHasGhost] = useState(false);
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -274,32 +232,17 @@ useEffect(() => {
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Gesture HUD state
-  const [gestureConfidences, setGestureConfidences] = useState({} as Record<string, number>);
-  const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<any>(null);
 
-  // Workout control state
-  const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
-  const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
-
-  // Ghost data state
-  const ghostFramesRef = useRef<FrameData[]>([]);
-  const ghostStatsRef = useRef<any>(null);
-  const [hasGhost, setHasGhost] = useState(false);
-
-  const clampPanelPositions = (positions: PanelPositions) => {
+  const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
 
-    return (Object.keys(positions) as WorkoutPanelId[]).reduce(
-      (nextPositions, panelId) => {
-        const panel = panelRefsById[panelId].current;
-        const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
-        const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
+    return (Object.keys(positions) as WorkoutPanelId[]).reduce((nextPositions, panelId) => {
+      const panel = panelRefsById[panelId].current;
+      const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
+      const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-      return nextPositions;
-    },
+        return nextPositions;
+      },
       {} as PanelPositions,
     );
   }, [panelRefsById]);
@@ -373,14 +316,14 @@ useEffect(() => {
     if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
       // Announce the number for screen readers
       setRepAnnouncement(engineState.reps.toString());
-
+      
       // Voice Coach feature: Physically speak the rep count out loud
       if ('speechSynthesis' in window) {
         // Cancel any ongoing speech to prioritize the current rep count
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(engineState.reps.toString());
         // Optional: you can tune rate and pitch here
-        utterance.rate = 1.1;
+        utterance.rate = 1.1; 
         window.speechSynthesis.speak(utterance);
       }
     }
@@ -642,8 +585,8 @@ useEffect(() => {
       wsSocketRef.current = null;
     }
 
-
-
+    
+  
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
@@ -718,38 +661,31 @@ useEffect(() => {
   }, [exercise, startSystem, stopSystem]);
 
   useEffect(() => {
-    setPanelPositions((currentPositions) =>
-      clampPanelPositions(currentPositions),
-    );
+    setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
 
     const handleResize = () => {
-      setPanelPositions((currentPositions) =>
-        clampPanelPositions(currentPositions),
-      );
+      setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
     };
 
-    window.addEventListener("resize", handleResize);
+    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener('resize', handleResize);
     };
   }, [clampPanelPositions]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      PANEL_POSITION_STORAGE_KEY,
-      JSON.stringify(panelPositions),
-    );
+    window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));
   }, [panelPositions]);
 
   const handleEnd = () => {
     const accuracy =
       mutableState.current.totalReps > 0
         ? Math.round(
-          (mutableState.current.correctReps /
-            mutableState.current.totalReps) *
-          100,
-        )
+            (mutableState.current.correctReps /
+              mutableState.current.totalReps) *
+              100,
+          )
         : 100;
 
     const archive = sessionRecorder.getArchive();
@@ -809,27 +745,25 @@ useEffect(() => {
       ...currentPositions,
       [panelId]: {
         x: data.x,
-        y: data.y,
-      },
+        y: data.y
+      }
     }));
   };
 
   const handlePanelStop = (panelId: WorkoutPanelId, data: DraggableData) => {
-    setPanelPositions((currentPositions) =>
-      clampPanelPositions({
-        ...currentPositions,
-        [panelId]: {
-          x: data.x,
-          y: data.y,
-        },
-      }),
-    );
+    setPanelPositions((currentPositions) => clampPanelPositions({
+      ...currentPositions,
+      [panelId]: {
+        x: data.x,
+        y: data.y
+      }
+    }));
   };
 
   const renderDraggablePanel = (
     panelId: WorkoutPanelId,
     className: string,
-    content: React.ReactNode,
+    content: React.ReactNode
   ) => (
     <Draggable
       nodeRef={panelRefsById[panelId]}
@@ -841,7 +775,7 @@ useEffect(() => {
     >
       <div
         ref={panelRefsById[panelId]}
-        className={`workout-draggable-panel ${className} ${panelsLocked ? "is-locked" : "is-unlocked"}`}
+        className={`workout-draggable-panel ${className} ${panelsLocked ? 'is-locked' : 'is-unlocked'}`}
       >
         {content}
       </div>
@@ -864,10 +798,9 @@ useEffect(() => {
       )}
       {/* Background Video Layer */}
       <div
-  ref={viewportRef}
-  className="camera-viewport"
-  style={{ position: "absolute", inset: 0 }}
->
+        className="camera-viewport"
+        style={{ position: "absolute", inset: 0 }}
+      >
         <video
           ref={videoRef}
           playsInline
@@ -893,29 +826,7 @@ useEffect(() => {
             transform: "scaleX(-1)",
           }}
         />
-        {showFps && <FpsOverlay fps={fps} />}
       </div>
-    </CameraErrorBoundary>
-    <button
-      onClick={() => setShowFps((v) => !v)}
-      style={{
-        position: "absolute",
-        top: 12,
-        right: 12,
-        zIndex: 200,
-        background: showFps ? "rgba(0,255,136,0.15)" : "rgba(0,0,0,0.5)",
-        border: `1px solid ${showFps ? "#00ff88" : "#555"}`,
-        borderRadius: 6,
-        color: showFps ? "#00ff88" : "#aaa",
-        fontFamily: "monospace",
-        fontSize: 11,
-        fontWeight: 700,
-        padding: "4px 10px",
-        cursor: "pointer",
-      }}
-    >
-      {showFps ? "FPS ✓" : "FPS"}
-    </button>
 
       {/* Target Overlays for IndexedDB State logic */}
       {displayConfig.fpsDisplay && (
@@ -981,34 +892,6 @@ useEffect(() => {
         >
           <span style={{ fontSize: "1.2em" }}>⚠️</span>
           <span>Offline - Data will sync</span>
-        </div>
-      )}
-
-      {/* Performance Mode Indicator (throttle level ≥ 1) */}
-      {throttleLevel >= 1 && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "100px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(0,0,0,0.75)",
-            backdropFilter: "blur(8px)",
-            padding: "8px 20px",
-            borderRadius: "40px",
-            zIndex: 100,
-            border: `1px solid ${throttleLevel === 1 ? "var(--neon-yellow)" : "var(--neon-red)"}`,
-            color:
-              throttleLevel === 1 ? "var(--neon-yellow)" : "var(--neon-red)",
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            letterSpacing: "1px",
-            pointerEvents: "none",
-          }}
-        >
-          {throttleLevel === 1
-            ? "⚡ PERFORMANCE MODE: REDUCED VISUALS"
-            : "⚠️ PERFORMANCE MODE: 3D VIEW OFF"}
         </div>
       )}
 
@@ -1100,11 +983,11 @@ useEffect(() => {
       <div className="workout-layout-controls" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button
           type="button"
-          className={`workout-lock-toggle ${panelsLocked ? "is-locked" : "is-unlocked"}`}
+          className={`workout-lock-toggle ${panelsLocked ? 'is-locked' : 'is-unlocked'}`}
           onClick={() => setPanelsLocked((isLocked) => !isLocked)}
         >
           {panelsLocked ? <Lock size={16} /> : <Unlock size={16} />}
-          {panelsLocked ? "Unlock Layout" : "Lock Layout"}
+          {panelsLocked ? 'Unlock Layout' : 'Lock Layout'}
         </button>
         <button
           type="button"
@@ -1130,27 +1013,11 @@ useEffect(() => {
       </div>
 
       <div className="workout-panel-layer">
-        {renderDraggablePanel(
-          "focus",
-          "",
-          <FocusPanel exerciseName={exercise.name} />,
-        )}
-        {renderDraggablePanel("timer", "", <TimerPanel seconds={seconds} />)}
-        {renderDraggablePanel(
-          "reps",
-          "",
-          <RepsPanel reps={engineState.reps} statusColor={statusColor} />,
-        )}
-        {renderDraggablePanel(
-          "engine",
-          "",
-          <EnginePanel status={engineState.status} statusColor={statusColor} />,
-        )}
-        {renderDraggablePanel(
-          "sense",
-          "",
-          <SensePanel clipEngine={clipEngine} clipResult={clipResult} />,
-        )}
+        {renderDraggablePanel('focus', '', <FocusPanel exerciseName={exercise.name} />)}
+        {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
+        {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
+        {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
+        {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
@@ -1191,41 +1058,6 @@ useEffect(() => {
           </div>
         </div>
       )}
-
-      {/* 3D VIEW – only visible when throttleLevel === 0 */}
-      {throttleLevel === 0 &&
-        pendingLandmarksRef.current &&
-        pendingLandmarksRef.current.length > 0 && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "120px",
-              right: "20px",
-              width: "280px",
-              height: "280px",
-              borderRadius: "16px",
-              overflow: "hidden",
-              border: "2px solid rgba(0, 255, 204, 0.5)",
-              boxShadow: "0 0 20px rgba(0, 255, 204, 0.3)",
-              zIndex: 15,
-              background: "rgba(0,0,0,0.6)",
-              backdropFilter: "blur(4px)",
-              pointerEvents: "auto",
-            }}
-          >
-            <Replay3DModel
-              hideControls
-              frames={[
-                {
-                  timestamp: Date.now(),
-                  landmarks: pendingLandmarksRef.current,
-                  feedback: "READY 🟢",
-                  exercise:"exercise",
-                },
-              ]}
-            />
-          </div>
-        )}
 
       {/* Center Focus Area */}
       <div
@@ -1642,14 +1474,6 @@ useEffect(() => {
           </button>
         </div>
       </div>
-      <div className="workout-finish-action">
-        <button
-          onClick={handleEnd}
-          className="btn-neon"
-          style={{ background: "var(--neon-red)", color: "#fff" }}
-        >
-          FINISH SESSION <StopCircle size={18} />
-        </button>
 
       {/*
         ══════════════════════════════════════════════════════════
