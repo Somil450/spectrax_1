@@ -19,7 +19,7 @@ struct Landmark {
 }
 
 @group(0) @binding(0) var<storage, read>       landmarks : array<Landmark, 33>;
-@group(0) @binding(1) var<storage, read_write>  angles    : array<f32, 7>;
+@group(0) @binding(1) var<storage, read_write>  angles    : array<f32, 9>;
 
 fn angle3(a: Landmark, b: Landmark, c: Landmark) -> f32 {
   let radians = atan2(c.y - b.y, c.x - b.x) - atan2(a.y - b.y, a.x - b.x);
@@ -63,6 +63,16 @@ fn main() {
 
   // angles[6] = horizontalStretch * 100
   angles[6]  = abs(landmarks[a].x - landmarks[s].x) * 100.0;
+
+  // angles[7] = average bilateral arm-opening angle for jumping jacks
+  let leftArmOpen = angle3(landmarks[13], landmarks[11], landmarks[23]);
+  let rightArmOpen = angle3(landmarks[14], landmarks[12], landmarks[24]);
+  angles[7] = (leftArmOpen + rightArmOpen) / 2.0;
+
+  // angles[8] = ankle spread normalized by hip width for jumping jacks
+  let hipWidth = abs(landmarks[23].x - landmarks[24].x);
+  let safeHipWidth = select(0.1, hipWidth, hipWidth > 0.0001);
+  angles[8] = min(300.0, (abs(landmarks[27].x - landmarks[28].x) / safeHipWidth) * 100.0);
 }
 `;
 
@@ -70,12 +80,13 @@ fn main() {
 const ANGLE_KEYS = [
   'knee', 'elbow', 'shoulder', 'bodyLine',
   'hipDepth', 'lateralScore', 'horizontalStretch',
+  'jumpingJackArmOpen', 'jumpingJackLegSpread',
 ] as const;
 
 const LM_COUNT  = 33;
 const FLOATS_PER_LM = 4; // x, y, z, visibility
 const LM_BUF_BYTES  = LM_COUNT * FLOATS_PER_LM * 4;
-const ANGLE_COUNT   = 7;
+const ANGLE_COUNT   = 9;
 const ANGLE_BUF_BYTES = ANGLE_COUNT * 4;
 
 export class GpuAngleCalculator {

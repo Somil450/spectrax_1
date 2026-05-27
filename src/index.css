@@ -1282,3 +1282,75 @@ body {
 
   opacity: 1 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   CURSOR GLOW — Subtle Neon Orb + Sparkle Trail
+   Three layers: core orb · soft halo · sparkle dots.
+   Sizes are intentionally small — this is a micro-interaction,
+   not a spotlight. Colors set per-frame in JS (theme-aware).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Shared base for core + halo */
+.cursor-core,
+.cursor-halo {
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.35s ease;
+  opacity: 0;
+}
+
+/* Tight neon core — small, sharp, close to cursor */
+.cursor-core {
+  width: 28px;
+  height: 28px;
+  filter: blur(4px);
+  z-index: 9993;
+}
+
+/* Soft outer bloom — larger, blurrier, lags slightly */
+.cursor-halo {
+  width: 80px;
+  height: 80px;
+  filter: blur(18px);
+  z-index: 9992;
+}
+
+/* Sparkle dot container — JS injects .cursor-spark children */
+.cursor-sparks {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 9991;
+  overflow: visible;
+}
+
+/* Individual sparkle dot — sized + colored by JS */
+.cursor-spark {
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform, opacity;
+  opacity: 0;
+}
+
+/* ── Disable on touch & reduced-motion ───────────────────────── */
+@media (pointer: coarse) {
+  .cursor-core,
+  .cursor-halo,
+  .cursor-sparks { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-core,
+  .cursor-halo,
+  .cursor-sparks { display: none; }
+}

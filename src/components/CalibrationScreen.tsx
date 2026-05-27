@@ -60,6 +60,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isPoseLost: false,
     isThumbsUp: false,
     isCrossedArms: false,
+    isSingleHandRaised: false,
+    command: null,
+    gestureConfidences: { START: 0, PAUSE: 0, STOP: 0 },
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
@@ -71,19 +74,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
 
-  const handleCameraError = (err: any) => {
-    const name = (err instanceof Error) ? err.name : '';
-    let msg = "Something went wrong starting the camera. Try refreshing the page.";
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      msg = "No camera found on this device. Plug in a webcam and try again.";
-    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-      msg = "Your camera is being used by another app. Close it and try again.";
-    }
-    setError(msg);
-    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-  };
+
 
   const handleResults = useCallback((results: any) => {
     const evaluation = calibrationLogic.evaluate(results);
@@ -102,7 +93,23 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  }, [selectedExercise, onBodyTypeDetected]);
+  }, [calibrationLogic, selectedExercise, bodyTypeEngine, gestureService, onBodyTypeDetected, overlayRenderer]);
+
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
+      setError('CAMERA_PERMISSION_DENIED');
+    } else {
+      let msg = "Something went wrong starting the camera. Try refreshing the page.";
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = "No camera found on this device. Plug in a webcam and try again.";
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = "Your camera is being used by another app. Close it and try again.";
+      }
+      setError(msg);
+    }
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
 
   const {
     videoRef,
@@ -159,6 +166,12 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       setAnnouncement(`Starting in ${countdownSeconds}`);
     }
   }, [countdownSeconds, countdownActive]);
+  // ── Announce camera errors ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (error) {
+      setAnnouncement('Camera error. Please verify camera access and refresh the page.');
+    }
+  }, [error]);
 
 
   useEffect(() => {
