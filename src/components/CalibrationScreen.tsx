@@ -297,17 +297,17 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         
         {/* Header & Exercise Selector */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'all' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="calib-header">
             <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
               <Camera color="var(--neon-cyan)" size={24} />
             </div>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>Camera Calibration</h2>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '0.5px' }}>Step into frame and hold still</p>
+              <h2 className="calib-title">Camera Calibration</h2>
+              <p className="calib-subtitle">Step into frame and hold still</p>
             </div>
           </div>
 
-          <div className="glass" style={{ padding: '16px', minWidth: '240px' }}>
+          <div className="glass calib-panel">
              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Dumbbell size={14} color="var(--neon-purple)" />
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>
