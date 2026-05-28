@@ -88,6 +88,7 @@ type StressVectorRig = {
   jointIdx: number;
   parentIdx: number;
   muscleGroup: keyof typeof MUSCLE_JOINT_GROUPS;
+};
 
 type RippleEvent = {
   origin: THREE.Vector2;
@@ -710,16 +711,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => { autoAdaptRef.current = autoAdapt; }, [autoAdapt]);
 
 
-  const isPlaying       = externalIsPlaying    !== undefined ? externalIsPlaying    : _isPlaying;
-  const currentFrameIdx = externalFrameIdx     !== undefined ? externalFrameIdx     : _currentFrameIdx;
-  const setIsPlaying    = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
-  const setCurrentFrameIdx = onFrameChange ? onFrameChange : _setCurrentFrameIdx;
-
-
-  useEffect(() => { graphicsPresetRef.current = graphicsPreset; }, [graphicsPreset]);
-  useEffect(() => { autoAdaptRef.current = autoAdapt; }, [autoAdapt]);
-
-
   // Three.js refs
   const sceneRef    = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -765,15 +756,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const rippleEventsRef = useRef<RippleEvent[]>([]);
   const lastRepCountRef = useRef<number | null>(null);
   const lastRippleCompletionTimeRef = useRef<number | null>(null);
-
-  const modelGroupRef     = useRef<THREE.Group | null>(null);
-  const boneMapRef        = useRef<Record<string, THREE.Bone>>({});
-  const skinnedMeshesRef  = useRef<THREE.SkinnedMesh[]>([]);
-  const restDataRef       = useRef<Record<string, { worldQuat: THREE.Quaternion; localQuat: THREE.Quaternion; dir: THREE.Vector3 }>>({});
-  const rootOffsetRef     = useRef<THREE.Vector3>(new THREE.Vector3());
-
-  const restDataRef = useRef<Record<string, { worldQuat: THREE.Quaternion; localQuat: THREE.Quaternion; dir: THREE.Vector3 }>>({});
-  const rootOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
 
 
@@ -833,7 +815,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           float glow = mix(0.35, 0.95, vStress);
           float alpha = mix(0.24, 0.92, shaft) * glow;
           gl_FragColor = vec4(color, alpha);
-
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
   const createRippleGridMaterial = useCallback(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -1015,7 +1003,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       });
     },
     [],
-
+  );
   const syncRippleUniforms = useCallback((timeSeconds: number) => {
     const material = rippleMaterialRef.current;
     if (!material) return;
