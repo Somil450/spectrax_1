@@ -4,7 +4,7 @@ const { generateFeedback } = require('./feedback.service');
 
 function processPose(data) {
   const { landmarks, timestamp, exercise = DEFAULT_EXERCISE } = data;
-  const angles = computeAngles(landmarks);
+  const angles = computeAngles(landmarks, exercise);
   const { status, message, corrections } = generateFeedback(angles, exercise);
 
   return {
