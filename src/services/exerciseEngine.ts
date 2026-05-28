@@ -336,6 +336,7 @@ export class ExerciseEngine {
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
       downZReached,
+      vbtMetrics: updatedVbtMetrics,
     };
 
     let feedbackResult: FeedbackResult;

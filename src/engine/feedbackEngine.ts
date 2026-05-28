@@ -257,6 +257,16 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
 
   const detectedIssues = ruleFn(ctx);
 
+  // Fatigue Warning Integration (VBT)
+  if (ctx.vbtMetrics && ctx.vbtMetrics.fatigueDropoff > 20) {
+    detectedIssues.push({
+      type: "fatigue",
+      severity: "medium",
+      message: "POWER DROPPING! FATIGUE DETECTED ⚠️",
+      penalty: 15,
+    });
+  }
+
   // 1. Calculate Raw Score
   let rawScore = 100;
   detectedIssues.forEach((issue) => {
