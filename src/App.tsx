@@ -20,6 +20,7 @@ import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
+import { ComingSoon } from "./components/ComingSoon";
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
@@ -43,12 +44,13 @@ type Screen =
   | "forgot-password"
   | "trophy"
   | "profile"
-  | "fitness";
+  | "fitness"
+  | "coming-soon";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness","coming-soon"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -60,6 +62,7 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   trophy: ["welcome", "login"],
   profile: ["welcome", "login"],
   fitness: ["welcome"],
+  "coming-soon": ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -128,6 +131,7 @@ function App() {
   const { addWorkout } = useWorkoutSync();
 
   const [statsLoading, setStatsLoading] = useState(false);
+  const [comingSoonSection, setComingSoonSection] = useState("");
 
   const lastSwitchTime = useRef<number>(0);
   const leveling = useLeveling();
@@ -331,6 +335,7 @@ function App() {
           onViewTrophies={() => navigateTo("trophy")}
           onViewProfile={user ? () => navigateTo("profile") : undefined}
           onViewFitnessCalculator={() => navigateTo("fitness")}
+          onViewComingSoon={(section) => { setComingSoonSection(section); navigateTo("coming-soon"); }}
           leveling={leveling}
         />
       )}
@@ -396,6 +401,12 @@ function App() {
         {currentScreen === "fitness" && (
           <FitnessCalculator onBack={() => navigateTo("welcome")} />
         )}
+        {currentScreen === "coming-soon" && (
+          <ComingSoon
+          section={comingSoonSection}
+          onGoHome={() => navigateTo("welcome")}
+          />
+          )}
       </Suspense>
 
       {/* Global badge unlock notification — rendered at the app root so it's

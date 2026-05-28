@@ -3,6 +3,7 @@ import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Git
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { useTheme } from "../context/ThemeContext";
 import { debounce } from "../utils/debounce";
 
 const STATS = [
@@ -17,6 +18,7 @@ interface WelcomeScreenProps {
   onViewTrophies: () => void;
   onViewProfile?: () => void;
   onViewFitnessCalculator?: () => void;
+  onViewComingSoon?: (section: string) => void;
   leveling?: {
     xp: number;
     level: number;
@@ -30,6 +32,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewHistory,
   onViewTrophies,
   onViewProfile,
+  onViewFitnessCalculator,
+  onViewComingSoon,
   leveling,
 }) => {
   const { theme } = useTheme();
@@ -310,7 +314,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <ul className="footer-links">
                     {["Features", "Usage", "API"].map((item) => (
                       <li key={item}>
-                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
+                        <button className="footer-link" onClick={() => onViewComingSoon && onViewComingSoon(item)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit", font: "inherit" }}>{item}</button>
                       </li>
                     ))}
                   </ul>

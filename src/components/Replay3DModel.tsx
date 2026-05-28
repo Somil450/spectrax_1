@@ -88,6 +88,7 @@ type StressVectorRig = {
   jointIdx: number;
   parentIdx: number;
   muscleGroup: keyof typeof MUSCLE_JOINT_GROUPS;
+};
 
 type RippleEvent = {
   origin: THREE.Vector2;
