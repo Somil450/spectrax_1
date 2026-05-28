@@ -13,7 +13,7 @@ import { getSupinationScore } from "./wristRotationDetector";
  *     fall below the 70-point threshold and be rejected by the accuracy system.
  */
 
-import { ExerciseConfig } from '../config/exercises';
+import { ExerciseConfig, exercises } from '../config/exercises';
 import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
 // Note: feedbackEngine.ts lives in src/engine/ — path is correct relative to src/services/
 import {
@@ -36,7 +36,7 @@ import {
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
-import { getSupinationScore } from './wristRotationDetector';
+
 import type { NormalizedLandmark } from "@mediapipe/pose";
 
 export interface JumpingJackSyncSample {
@@ -206,28 +206,6 @@ export interface EngineState {
   jumpingJackSync?: JumpingJackSyncMetrics;
 
   wristSupinationScore?: number;
-
-  /**
-   * Real-time depth coaching string emitted during the DOWN phase.
-   * Empty string when no depth cue is active.
-   */
-  liveDepthFeedback: string;
-
-  // VBT Metrics
-  vbtMetrics?: VBTMetrics;
-
-  // ── Pushup depth classification (NEW) ──────────────────────────
-  lastPushupDepthResult?: PushupDepthResult | null;
-  pushupDepthStats?: PushupDepthStats;
-  livePushupDepthFeedback?: string;
-  downZReached?: number;
-
-  // Tracking & recovery buffers
-  visibilityBuffer?: number[];
-  trackingLostFrames?: number;
-  lastValidAngles?: Record<string, number>;
-  jumpingJackSyncSamples?: JumpingJackSyncSample[];
-  jumpingJackSync?: JumpingJackSyncMetrics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -268,14 +246,86 @@ export class ExerciseEngine {
   private kinematicEngine = new KinematicEngine();
   private readonly MIN_DOWN_DURATION = 150;
 
+  public loadPluginLayout(jsonString: string): boolean {
+    try {
+      const data = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+      const key = data.exerciseKey || data.key;
+      if (!key || typeof key !== 'string') {
+        console.error("Invalid or missing exerciseKey/key in JSON layout");
+        return false;
+      }
+
+      const repParamsOverride: Partial<RepParams> = {};
+      const rp = data.repParams || data;
+      if (typeof rp.repCooldown === 'number') repParamsOverride.repCooldown = rp.repCooldown;
+      if (typeof rp.hysteresis === 'number') repParamsOverride.hysteresis = rp.hysteresis;
+      if (typeof rp.smoothingWindow === 'number') repParamsOverride.smoothingWindow = rp.smoothingWindow;
+      if (typeof rp.minDownDuration === 'number') repParamsOverride.minDownDuration = rp.minDownDuration;
+      if (typeof rp.correctRepMinScore === 'number') repParamsOverride.correctRepMinScore = rp.correctRepMinScore;
+      if (typeof rp.streakMinScore === 'number') repParamsOverride.streakMinScore = rp.streakMinScore;
+
+      if (Object.keys(repParamsOverride).length > 0) {
+        layoutOverrides.set(key, repParamsOverride);
+      }
+
+      const ec = data.exerciseConfig || data;
+      if (ec.downThreshold !== undefined || ec.upThreshold !== undefined || ec.primaryJoint !== undefined) {
+        const existing = exercises[key] || {
+          key,
+          name: ec.name || key,
+          primaryJoint: ec.primaryJoint || 'elbow',
+          joints: ec.joints || [],
+          downThreshold: ec.downThreshold ?? 140,
+          upThreshold: ec.upThreshold ?? 155,
+          feedbackRules: [],
+          isStatic: !!ec.isStatic
+        };
+
+        if (ec.name) existing.name = ec.name;
+        if (ec.primaryJoint) existing.primaryJoint = ec.primaryJoint;
+        if (ec.joints) existing.joints = ec.joints;
+        if (typeof ec.downThreshold === 'number') existing.downThreshold = ec.downThreshold;
+        if (typeof ec.upThreshold === 'number') existing.upThreshold = ec.upThreshold;
+        if (ec.isStatic !== undefined) existing.isStatic = !!ec.isStatic;
+
+        if (Array.isArray(ec.feedbackRules)) {
+          existing.feedbackRules = ec.feedbackRules.map((rule: any) => {
+            let conditionFn = rule.condition;
+            if (typeof rule.condition === 'string') {
+              try {
+                conditionFn = new Function('ctx', `return ${rule.condition}`);
+              } catch (fnErr) {
+                console.error("Error compiling feedback rule condition:", fnErr);
+                conditionFn = () => false;
+              }
+            }
+            return {
+              condition: conditionFn,
+              message: rule.message || "Form Warning",
+              type: rule.type || "warning"
+            };
+          });
+        }
+
+        exercises[key] = existing;
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Error parsing exercise plugin layout JSON:", err);
+      return false;
+    }
+  }
+
   private repParams(key: string): RepParams {
+    const override = layoutOverrides.get(key) || {};
     return {
-      repCooldown: this.BASE_REP_COOLDOWN,
-      hysteresis: this.BASE_HYSTERESIS,
-      smoothingWindow: this.SMOOTHING_WINDOW,
-      minDownDuration: this.MIN_DOWN_DURATION,
-      correctRepMinScore: 70,
-      streakMinScore: 60,
+      repCooldown: override.repCooldown ?? ENGINE_DEFAULTS.repCooldown,
+      hysteresis: override.hysteresis ?? ENGINE_DEFAULTS.hysteresis,
+      smoothingWindow: override.smoothingWindow ?? ENGINE_DEFAULTS.smoothingWindow,
+      minDownDuration: override.minDownDuration ?? ENGINE_DEFAULTS.minDownDuration,
+      correctRepMinScore: override.correctRepMinScore ?? ENGINE_DEFAULTS.correctRepMinScore,
+      streakMinScore: override.streakMinScore ?? ENGINE_DEFAULTS.streakMinScore,
     };
   }
 
@@ -334,18 +384,18 @@ export class ExerciseEngine {
 
 
     // Adaptive Difficulty Tuning
-    let currentCooldown = this.BASE_REP_COOLDOWN;
-    let currentHysteresis = this.BASE_HYSTERESIS;
-    
+    let currentCooldown = p.repCooldown;
+    let currentHysteresis = p.hysteresis;
+
     if (bodyType === 'ecto') {
-      currentCooldown = 750; // Longer limbs take more time to complete full ROM
-      currentHysteresis = 12; // Ectos need slightly larger movement bands
+      currentCooldown = Math.round(p.repCooldown * 1.25); // Longer limbs take more time to complete full ROM
+      currentHysteresis = Math.round(p.hysteresis * 1.2); // Ectos need slightly larger movement bands
     } else if (bodyType === 'meso') {
-      currentCooldown = 500; // Mesomorphs can achieve faster athletic cadence
-      currentHysteresis = 8;  // Stricter form requirements
+      currentCooldown = Math.round(p.repCooldown * 0.83); // Mesomorphs can achieve faster athletic cadence
+      currentHysteresis = Math.round(p.hysteresis * 0.8);  // Stricter form requirements
     } else if (bodyType === 'endo') {
-      currentCooldown = 650;
-      currentHysteresis = 10;
+      currentCooldown = Math.round(p.repCooldown * 1.08);
+      currentHysteresis = p.hysteresis;
     }
 
     const { reps, lastRepTime, history } = currentState;
@@ -769,17 +819,6 @@ export class ExerciseEngine {
       holdTime: nextHoldTime,
 
       wristSupinationScore,
-
-      lastPushupDepthResult: nextLastPushupDepthResult,
-      pushupDepthStats: nextPushupDepthStats,
-      livePushupDepthFeedback,
-      downZReached,
-
-      visibilityBuffer: newVisibilityBuffer,
-      trackingLostFrames: nextTrackingLostFrames,
-      lastValidAngles: nextLastValidAngles,
-      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
-      jumpingJackSync: nextJumpingJackSync,
     };
   }
 }
