@@ -138,12 +138,22 @@ export function getJointVisibility(landmarks: any): Record<string, number> {
   _visibility.hipDepth =
     (Math.max(landmarks[23]?.visibility || 0, landmarks[24]?.visibility || 0) +
      Math.max(landmarks[27]?.visibility || 0, landmarks[28]?.visibility || 0)) / 2;
-  // Lunge: both knees must be tracked to evaluate a lunge meaningfully, so
-  // we expose the max-of-pair (matches the existing knee/elbow/shoulder
-  // pattern). Without this the engine's visibility guard for lunge silently
-  // sees undefined and bypasses entirely.
-  _visibility.lungeKnee = Math.max(landmarks[25]?.visibility || 0, landmarks[26]?.visibility || 0);
-  _visibility.backKnee  = _visibility.lungeKnee;
+
+  _visibility.lungeKnee = 0;
+  _visibility.backKnee = 0;
+  const lH = landmarks[23];
+  const lK = landmarks[25];
+  const lA = landmarks[27];
+  const rH = landmarks[24];
+  const rK = landmarks[26];
+  const rA = landmarks[28];
+  if (lH && lK && lA && rH && rK && rA) {
+    const lkAngle = calculateAngle(lH, lK, lA);
+    const rkAngle = calculateAngle(rH, rK, rA);
+    const leftActive = lkAngle < rkAngle;
+    _visibility.lungeKnee = leftActive ? (lK.visibility || 0) : (rK.visibility || 0);
+    _visibility.backKnee  = leftActive ? (rK.visibility || 0) : (lK.visibility || 0);
+  }
 
   return _visibility;
 }
