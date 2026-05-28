@@ -306,21 +306,30 @@ function App() {
           onClick={() => setTheme("cyber-dark")}
           aria-label="Switch to Cyber theme"
         >
-          🌌 Cyber
+          <span className="selector-emoji" aria-hidden="true">
+            🌌
+          </span>
+          <span className="selector-label">Cyber</span>
         </button>
         <button
           className={`selector-btn ${theme === "retro" ? "active" : ""}`}
           onClick={() => setTheme("retro")}
           aria-label="Switch to Retro theme"
         >
-          📻 Retro
+          <span className="selector-emoji" aria-hidden="true">
+            📻
+          </span>
+          <span className="selector-label">Retro</span>
         </button>
         <button
           className={`selector-btn ${theme === "light" ? "active" : ""}`}
           onClick={() => setTheme("light")}
           aria-label="Switch to Light theme"
         >
-          ☀️ Light
+          <span className="selector-emoji" aria-hidden="true">
+            ☀️
+          </span>
+          <span className="selector-label">Light</span>
         </button>
       </div>
 

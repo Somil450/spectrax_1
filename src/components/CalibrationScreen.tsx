@@ -293,7 +293,18 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         {announcement}
       </div>
 
-      <div className="ui-layer" style={{ position: 'relative', zIndex: 10, height: '100%', padding: '40px', pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div
+        className="ui-layer"
+        style={{
+          position: "relative",
+          zIndex: 10,
+          height: "100%",
+          pointerEvents: "none",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+        }}
+      >
         
         {/* Header & Exercise Selector */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'all' }}>
