@@ -332,7 +332,7 @@ export function LoginScreen({
             Forgot password?
           </button>
           <div className="auth-link">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <button
               type="button"
               className="link-button"
