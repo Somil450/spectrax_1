@@ -69,13 +69,17 @@ describe("socket auth", () => {
     await runtime.shutdown();
   });
 
-  it("connects without auth when SOCKET_AUTH_TOKEN is not set", async () => {
+  it("allows connection with a warning when SOCKET_AUTH_TOKEN is not set in development", async () => {
     delete process.env.SOCKET_AUTH_TOKEN;
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "development";
+
+    const warnings = [];
     const { createServer } = require("../../src/app/createServer");
 
     const runtime = createServer({
       port: 0,
-      logger: { info() {}, error() {} },
+      logger: { info(msg) { warnings.push(msg); }, error() {} },
     });
 
     await runtime.start();
@@ -90,7 +94,42 @@ describe("socket auth", () => {
       client.on("connect_error", reject);
     });
 
+    expect(warnings.some((w) => w.includes("SOCKET_AUTH_TOKEN is not set"))).toBe(true);
+
     client.close();
     await runtime.shutdown();
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  it("rejects connection when SOCKET_AUTH_TOKEN is not set in production", async () => {
+    delete process.env.SOCKET_AUTH_TOKEN;
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
+    const { createServer } = require("../../src/app/createServer");
+
+    const runtime = createServer({
+      port: 0,
+      logger: { info() {}, error() {} },
+    });
+
+    await runtime.start();
+    const address = runtime.server.address();
+
+    const client = ioClient(`ws://127.0.0.1:${address.port}`, {
+      transports: ["websocket"],
+    });
+
+    const error = await new Promise((resolve) => {
+      client.on("connect_error", resolve);
+    });
+
+    expect(error.message).toBe(
+      "Server misconfiguration: SOCKET_AUTH_TOKEN is not set",
+    );
+
+    client.close();
+    await runtime.shutdown();
+    process.env.NODE_ENV = originalEnv;
   });
 });

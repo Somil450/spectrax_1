@@ -28,15 +28,31 @@ function createServer(overrides = {}) {
   const server = http.createServer(app);
   const io = new Server(server, createSocketOptions(config));
 
-  if (SOCKET_AUTH_TOKEN) {
-    io.use((socket, next) => {
-      const token = socket.handshake.auth && socket.handshake.auth.token;
-      if (token !== SOCKET_AUTH_TOKEN) {
-        return next(new Error("Authentication failed: invalid or missing token"));
+  io.use((socket, next) => {
+    if (SOCKET_AUTH_TOKEN === null) {
+      // Token not configured: block all connections in production to prevent
+      // a silent auth bypass; allow in development with a clear warning.
+      if (process.env.NODE_ENV === "production") {
+        return next(
+          new Error(
+            "Server misconfiguration: SOCKET_AUTH_TOKEN is not set",
+          ),
+        );
       }
-      next();
-    });
-  }
+      logger.info(
+        "[SpectraX] WARNING: SOCKET_AUTH_TOKEN is not set. " +
+          "All WebSocket connections are accepted without authentication. " +
+          "Set SOCKET_AUTH_TOKEN before deploying to production.",
+      );
+      return next();
+    }
+
+    const token = socket.handshake.auth && socket.handshake.auth.token;
+    if (token !== SOCKET_AUTH_TOKEN) {
+      return next(new Error("Authentication failed: invalid or missing token"));
+    }
+    next();
+  });
 
   io.use((socket, next) => {
     const ip = socket.handshake.address;
