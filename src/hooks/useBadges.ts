@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Badge, EarnedBadge } from '../types/badge';
 import { BADGES_CONFIG } from '../config/badges';
 
