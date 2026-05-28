@@ -5,9 +5,23 @@ const {
   hasValidTimestamp,
   isSupportedExercise,
 } = require("./pose.validator");
+const { MAX_FRAMES_PER_SEC } = require("../../config/constants");
+
+const frameTimestamps = new Map();
 
 function registerPoseSocketHandlers({ socket, sessionService }) {
+  frameTimestamps.set(socket.id, []);
+
   socket.on("frame", (data) => {
+    const now = Date.now();
+    const timestamps = frameTimestamps.get(socket.id) || [];
+    const recent = timestamps.filter((t) => now - t < 1000);
+    if (recent.length >= MAX_FRAMES_PER_SEC) {
+      return;
+    }
+    recent.push(now);
+    frameTimestamps.set(socket.id, recent);
+
     if (
       !hasPoseLandmarks(data && data.landmarks) ||
       !hasValidTimestamp(data && data.timestamp)
@@ -58,6 +72,10 @@ function registerPoseSocketHandlers({ socket, sessionService }) {
         timestamp: data.timestamp,
       });
     }
+  });
+
+  socket.on("disconnect", () => {
+    frameTimestamps.delete(socket.id);
   });
 }
 

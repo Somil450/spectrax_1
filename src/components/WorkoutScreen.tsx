@@ -4,7 +4,8 @@ import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } fr
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { getPostureErrorCategories } from '../engine/feedbackEngine';
+import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -14,10 +15,14 @@ import { BodyType } from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
+import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
+import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 import { ghostService } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
+import { gestureService, GestureCommand } from '../services/gestureService';
+import { debounce } from '../utils/debounce';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -37,6 +42,7 @@ interface WorkoutScreenProps {
     accuracy: number;
     mistakes: Record<string, number>;
     bestStreak: number;
+    jumpingJackSync?: EngineState["jumpingJackSync"];
     tags?: string[];
   }) => void;
   onAutoDetect?: (key: string) => void;
@@ -168,19 +174,27 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }
 
   const panelRefsById = panelRefs.current;
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
   const [panelsLocked, setPanelsLocked] = useState(true);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+  const [showExitModal, setShowExitModal] = useState(false);
   const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [showExitModal, setShowExitModal] = useState(false);
-
-  const ghostFramesRef = useRef<FrameData[]>([]);
-  const ghostStatsRef = useRef<{reps: number, accuracy: number, totalReps: number} | null>(null);
-  const [hasGhost, setHasGhost] = useState(false);
+  const throttleLevel = useThrottleLevel();
+  const srOnly: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  };
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -208,18 +222,30 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100,
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: ''
+    liveDepthFeedback: '',
+    jumpingJackSyncSamples: [],
+    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   const startTimeRef = useRef<number>(Date.now());
   const frameSkipRef = useRef<number>(0); // frame-skip counter
   const workerRef = useRef<Worker | null>(null); // pose worker
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
-  const lastObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
-  const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
+  const lastObservedLandmarksRef = useRef<any[] | null>(null);
+  const previousObservedLandmarksRef = useRef<any[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
+  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+  const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
+  const [gestureHudVisible, setGestureHudVisible] = useState(false);
+  const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
+  const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
+  const ghostFramesRef = useRef<FrameData[]>([]);
+  const ghostStatsRef = useRef<GhostStats | null>(null);
+  const [hasGhost, setHasGhost] = useState(false);
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
@@ -229,11 +255,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
       const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
-        return nextPositions;
-      },
-      {} as PanelPositions,
-    );
-  }, [panelRefsById]);
+      nextPositions[panelId] = {
+        x: Math.min(Math.max(positions[panelId].x, 0), maxX),
+        y: Math.min(Math.max(positions[panelId].y, 0), maxY),
+      };
+      return nextPositions;
+    }, {} as PanelPositions);
+  }, []);
 
 
   useEffect(() => {
@@ -271,7 +299,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     accuracy: 100,
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: ''
+    liveDepthFeedback: '',
+    jumpingJackSyncSamples: [],
+    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
@@ -329,11 +359,54 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const workerAnglesRef = useRef<Record<string, number>>({});
   const wsSocketRef = useRef<WebSocket | null>(null);
   const offscreenEnabledRef = useRef<boolean>(false);
+  const { initOffscreenCanvas } = useOffscreenCanvas();
 
   const handlePoseResults = useCallback(async (results: any) => {
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
     const filteredResults = poseLockService.filter(results);
     if (!filteredResults || !filteredResults.poseLandmarks) return;
+
+    // ── GESTURE COMMAND PARSING ─────────────────────────────────────────────
+    const gestureResult = gestureService.analyze(results.poseLandmarks);
+
+    // Keep HUD confidences updated every processed frame
+    setGestureConfidences({ ...gestureResult.gestureConfidences });
+
+    if (gestureResult.command) {
+      const cmd = gestureResult.command;
+      setLastGestureCommand(cmd);
+
+      // Show HUD flash for 3 seconds
+      setGestureHudVisible(true);
+      if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
+      gestureHudTimerRef.current = setTimeout(() => setGestureHudVisible(false), 3000);
+
+      if (cmd === 'STOP') {
+        // Trigger the existing end-session flow
+        handleEnd();
+        return;
+      } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
+        workoutControlRef.current = 'paused';
+        setWorkoutControlState('paused');
+      } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
+        workoutControlRef.current = 'running';
+        setWorkoutControlState('running');
+      }
+    }
+
+    // Skip exercise engine processing while paused
+    if (workoutControlRef.current === 'paused') {
+      if (!offscreenEnabledRef.current) {
+        overlayRenderer.draw(results, 'yellow', exercise.joints?.flat() || []);
+      }
+      return;
+    }
+
+    // Mark workout as running once the first valid frame is processed
+    if (workoutControlRef.current === 'idle') {
+      workoutControlRef.current = 'running';
+      setWorkoutControlState('running');
+    }
 
     // ── Frame skipping: process every other frame ─────────────────────
     frameSkipRef.current++;
@@ -421,10 +494,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       visibility,
       mutableState.current,
       bodyTypeRef.current,
-      filteredResults.poseLandmarks,
+      results.poseLandmarks,
       performance.now()
     );
-
     mutableState.current = nextState;
     setEngineState(nextState);
 
@@ -465,6 +537,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     setupContext: false, // We manually handle canvas context and worker setup
     onResults: handlePoseResults,
     onFrame: handleFrameTick,
+    onCameraError: (err: any) => {
+      console.error("Workout camera error callback:", err);
+      if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraError('CAMERA_PERMISSION_DENIED');
+      } else {
+        setCameraError('UNKNOWN_ERROR');
+      }
+    }
   });
 
   useEffect(() => {
@@ -483,60 +563,20 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       setHasGhost(false);
     }
 
+    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
+    const wsSocketRef = useWorkoutWebSocket();
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
 
-    // Worker posts back computed angles — exercise detection stays on main thread
-    worker.onmessage = (evt: MessageEvent) => {
-      const { angles } = evt.data;
-      workerAnglesRef.current = angles;
-    };
-
-    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
-    let wsSocket: WebSocket | null = null;
-    try {
-      const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001").replace(/\/+$/, "");
-      const wsUrl = backendUrl.replace(/^http/, "ws") + "/socket.io/?EIO=4&transport=websocket";
-      wsSocket = new WebSocket(wsUrl);
-      wsSocketRef.current = wsSocket;
-      wsSocket.onopen = () => console.log("[SpectraX WS] connected to backend");
-      wsSocket.onerror = () => {
-        wsSocketRef.current = null;
-      }; // Silently degrade if backend offline
-    } catch (_) {
-      wsSocketRef.current = null;
-    }
-
+    
+  
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
       try {
         const canvasEl = canvasRef.current as any;
-        if (canvasEl.__offscreenTransferred) {
-          offscreenEnabledRef.current = true;
-          console.log("[WorkoutScreen] Canvas already has Offscreen control transferred.");
-        } else {
-          const isOffscreenSupported = !!canvasEl.transferControlToOffscreen;
-          offscreenEnabledRef.current = false;
-
-          if (isOffscreenSupported) {
-            try {
-              const offscreen = canvasEl.transferControlToOffscreen();
-              worker.postMessage({ type: "initCanvas", canvas: offscreen }, [
-                offscreen,
-              ]);
-              offscreenEnabledRef.current = true;
-              canvasEl.__offscreenTransferred = true;
-              console.log("[WorkoutScreen] OffscreenCanvas enabled.");
-            } catch (e) {
-              console.warn(
-                "[WorkoutScreen] Failed to transfer canvas control:",
-                e,
-              );
-            }
-          }
-        }
+        initOffscreenCanvas(canvasEl, worker);
 
         const ctx = !offscreenEnabledRef.current
           ? canvasRef.current.getContext("2d")
@@ -548,7 +588,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         await startSystem();
       } catch (err: any) {
         console.error("Workout camera error:", err);
-        if (err.message === 'PERMISSION_DENIED') {
+        if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           setCameraError('CAMERA_PERMISSION_DENIED');
         } else {
           setCameraError('UNKNOWN_ERROR');
@@ -558,7 +598,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     startWorkout();
 
-    const timer = setInterval(() => {
+    const timerRef = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
       setSeconds(elapsed);
@@ -568,14 +608,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       isMountedRef.current = false;
       stopSystem();
       worker.terminate();
-      if (wsSocketRef.current) {
-        try {
-          wsSocketRef.current.close();
-        } catch (err) {
-          console.warn("WS close failed:", err);
-        }
-      }
-      clearInterval(timer);
+      clearInterval(timerRef);
+      gestureService.reset();
+      if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
   }, [exercise, startSystem, stopSystem]);
 
@@ -616,6 +651,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     sessionRecorder.download();
 
+    const gmmCategories = getPostureErrorCategories();
+    const finalMistakes = { ...mutableState.current.mistakes };
+    for (const [cat, count] of Object.entries(gmmCategories)) {
+      if (count > 0) {
+        finalMistakes[cat] = (finalMistakes[cat] || 0) + count;
+      }
+    }
+
     onEnd({
       reps: mutableState.current.reps,
       totalReps: mutableState.current.totalReps,
@@ -624,12 +667,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       repDeviations: mutableState.current.repDeviations,
       duration: seconds,
       accuracy: accuracy,
-      mistakes: mutableState.current.mistakes,
+      mistakes: finalMistakes,
       bestStreak: mutableState.current.bestStreak,
+      jumpingJackSync: mutableState.current.jumpingJackSync,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
-        mistakes: Object.keys(mutableState.current.mistakes),
+        mistakes: Object.keys(finalMistakes),
         duration: seconds,
       }),
     });
@@ -706,6 +750,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </p>
         </div>
       )}
+      <CameraErrorBoundary>
       {/* Background Video Layer */}
       <div
         className="camera-viewport"
@@ -1085,6 +1130,154 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       </div>
+
+      {/* ── GESTURE PAUSED OVERLAY ─────────────────────────────────────────── */}
+      {workoutControlState === 'paused' && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 200,
+            background: 'rgba(8,12,20,0.82)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '20px',
+            pointerEvents: 'none',
+          }}
+          role="status"
+          aria-live="polite"
+          aria-label="Workout paused"
+        >
+          <div style={{ fontSize: '4rem', lineHeight: 1 }}>⏸️</div>
+          <div style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '2.4rem',
+            fontWeight: 900,
+            color: 'var(--neon-yellow)',
+            letterSpacing: '4px',
+            textShadow: '0 0 30px rgba(255,200,0,0.5)',
+          }}>
+            PAUSED
+          </div>
+          <div style={{
+            fontSize: '0.85rem',
+            color: 'rgba(255,255,255,0.7)',
+            letterSpacing: '2px',
+            textAlign: 'center',
+            maxWidth: '300px',
+            lineHeight: 1.6,
+          }}>
+            Raise <strong>both palms</strong> above your shoulders<br />
+            or give a <strong>thumbs-up</strong> to resume
+          </div>
+        </div>
+      )}
+
+      {/* ── GESTURE COMMAND HUD ────────────────────────────────────────────── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: '24px',
+          transform: 'translateY(-50%)',
+          zIndex: 150,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          opacity: gestureHudVisible ? 1 : 0.35,
+          transition: 'opacity 0.4s ease',
+          pointerEvents: 'none',
+        }}
+        aria-label="Gesture command panel"
+      >
+        {/* Flashing command label */}
+        {gestureHudVisible && lastGestureCommand && (
+          <div style={{
+            background: lastGestureCommand === 'STOP'
+              ? 'rgba(239,68,68,0.9)'
+              : lastGestureCommand === 'PAUSE'
+                ? 'rgba(234,179,8,0.9)'
+                : 'rgba(34,197,94,0.9)',
+            color: '#fff',
+            fontFamily: 'var(--font-heading)',
+            fontWeight: 900,
+            fontSize: '0.75rem',
+            letterSpacing: '3px',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            textAlign: 'center',
+            boxShadow: '0 0 20px currentColor',
+            animation: 'gesture-flash 0.3s ease',
+          }}>
+            ✋ {lastGestureCommand}
+          </div>
+        )}
+
+        {/* Confidence bars for each gesture */}
+        {(['START', 'PAUSE', 'STOP'] as GestureCommand[]).map((cmd) => {
+          const pct = Math.round((gestureConfidences[cmd] ?? 0) * 100);
+          const barColor = cmd === 'STOP'
+            ? '#ef4444'
+            : cmd === 'PAUSE'
+              ? '#eab308'
+              : '#22c55e';
+          const icon = cmd === 'STOP' ? '🤞' : cmd === 'PAUSE' ? '✋' : '🙌';
+          return (
+            <div key={cmd} style={{
+              background: 'rgba(8,12,20,0.75)',
+              border: `1px solid ${barColor}44`,
+              borderRadius: '10px',
+              padding: '6px 10px',
+              minWidth: '100px',
+              backdropFilter: 'blur(8px)',
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '4px',
+              }}>
+                <span style={{ fontSize: '0.6rem', color: barColor, fontWeight: 700, letterSpacing: '1px' }}>
+                  {icon} {cmd}
+                </span>
+                <span style={{ fontSize: '0.6rem', color: barColor, fontWeight: 700 }}>{pct}%</span>
+              </div>
+              <div style={{ height: '3px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${pct}%`,
+                  height: '100%',
+                  background: barColor,
+                  transition: 'width 0.15s linear',
+                  borderRadius: '2px',
+                }} />
+              </div>
+            </div>
+          );
+        })}
+
+        <div style={{
+          fontSize: '0.55rem',
+          color: 'rgba(255,255,255,0.4)',
+          textAlign: 'center',
+          letterSpacing: '1px',
+          marginTop: '2px',
+        }}>
+          GESTURE CTRL
+        </div>
+      </div>
+
+      {/* Gesture animation keyframe */}
+      <style>{`
+        @keyframes gesture-flash {
+          0%   { transform: scale(0.85); opacity: 0; }
+          60%  { transform: scale(1.08); opacity: 1; }
+          100% { transform: scale(1);    opacity: 1; }
+        }
+      `}</style>
+
       {/* Bottom Metrics Bar */}
       <div
         style={{
@@ -1236,6 +1429,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </button>
         </div>
       </div>
+      <div className="workout-finish-action">
+        <button
+          onClick={handleEnd}
+          className="btn-neon"
+          style={{ background: "var(--neon-red)", color: "#fff" }}
+        >
+          FINISH SESSION <StopCircle size={18} />
+        </button>
+      </div>
 
       {/*
         ══════════════════════════════════════════════════════════
@@ -1371,6 +1573,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       )}
+      </CameraErrorBoundary>
     </div>
   );
 };

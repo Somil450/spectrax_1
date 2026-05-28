@@ -162,5 +162,49 @@ export const exercises: Record<string, ExerciseConfig> = {
         type: 'warning'
       }
     ]
+  },
+
+  flutterKicks: {
+    key: "flutterKicks",
+    name: "Flutter Kicks",
+    demoUrl: '/assets/demos/flutter_kicks.mp4',
+    primaryJoint: "bodyLine",
+    joints: [[11, 23], [12, 24], [23, 27], [24, 28]],
+    downThreshold: 145,
+    upThreshold: 165,
+    feedbackRules: [
+      {
+        condition: (ctx: any) => ctx.knee < 155,
+        message: "Keep your legs straight ⚠️",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.bodyLine < 120,
+        message: "Keep legs lower for core engagement ⚠️",
+        type: 'warning'
+      }
+    ]
+  },
+
+  shoulderPress: {
+    key: "shoulderPress",
+    name: "Shoulder Press",
+    demoUrl: '/assets/demos/jumping_jack.mp4',
+    primaryJoint: "elbow",
+    joints: [[11, 13], [13, 15], [12, 14], [14, 16], [11, 12]],
+    downThreshold: 100,
+    upThreshold: 150,
+    feedbackRules: [
+      {
+        condition: (ctx: any) => ctx.elbow < 70,
+        message: "Don't drop elbows too low ⚠️",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.shoulder < 60,
+        message: "Keep elbows up ⚠️",
+        type: 'warning'
+      }
+    ]
   }
 };
