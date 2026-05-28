@@ -30,7 +30,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
-  onViewProfile,
   leveling,
 }) => {
   const { theme } = useTheme();
