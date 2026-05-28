@@ -19,7 +19,7 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
       wsSocket = new WebSocket(wsUrl);
       wsSocketRef.current = wsSocket;
       
-      wsSocket.onopen = () => console.log("[SpectraX WS] connected to backend at", backendUrl);
+      wsSocket.onopen = () => {};
       wsSocket.onerror = () => {
         console.warn(
           "[SpectraX WS] Could not connect to backend at",

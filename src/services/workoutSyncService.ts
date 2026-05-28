@@ -369,9 +369,7 @@ export async function syncWorkoutsFromFirestore(userId: string): Promise<void> {
   try {
     const firestoreWorkouts = await getFirestoreWorkouts();
     await updateLocalWorkoutsFromFirestore(userId, firestoreWorkouts);
-    console.log(
-      `Downloaded ${firestoreWorkouts.length} workouts from Firestore`,
-    );
+    // Downloaded workouts from Firestore
   } catch (error) {
     console.error("Error syncing workouts from Firestore:", error);
     throw error;
@@ -442,9 +440,7 @@ export function initializeAutoSync(userId: string): void {
 
   // Listen for offline event
   window.addEventListener("offline", () => {
-    console.log(
-      "Network connection lost. Workouts will sync when back online.",
-    );
+    // Network connection lost, sync when online
   });
 }
 
