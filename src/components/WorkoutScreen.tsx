@@ -5,7 +5,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
-import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -18,11 +18,15 @@ import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { ghostService } from '../services/ghostService';
+import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
+import { useThrottleLevel } from '../services/performanceThrottleService';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { FpsMonitor } from './FpsMonitor';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
+import { useSettings } from '../context/SettingsContext';
+import { speechService } from '../services/speechService';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -154,6 +158,7 @@ const extrapolateLandmarks = (
 };
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+  const { settings, updateSetting } = useSettings();
   const bodyTypeRef = useRef(bodyType);
   bodyTypeRef.current = bodyType;
   const onAutoDetectRef = useRef(onAutoDetect);
@@ -246,6 +251,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const ghostFramesRef = useRef<FrameData[]>([]);
   const ghostStatsRef = useRef<GhostStats | null>(null);
   const [hasGhost, setHasGhost] = useState(false);
+  const [currentGesture, setCurrentGesture] = useState<string>("NONE");
+  const [lastLifecycleAction, setLastLifecycleAction] = useState<string>("NONE");
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
@@ -325,6 +332,56 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     setFeedbackAnnouncement(engineState.feedback);
   }, [engineState.feedback]);
 
+  // Sync voiceFeedback setting with speechService
+  useEffect(() => {
+    speechService.setEnabled(settings.voiceFeedback);
+    return () => {
+      speechService.cancel();
+    };
+  }, [settings.voiceFeedback]);
+
+  // ── Announce posture corrections via Audio Coach ─────────────────────────────
+  useEffect(() => {
+    if (engineState.feedback) {
+      const lowerFeedback = engineState.feedback.toLowerCase();
+      const isCorrection = engineState.feedback.includes('❌') || 
+                           engineState.feedback.includes('⚠️') ||
+                           engineState.feedback.includes('🔄') ||
+                           engineState.feedback.includes('↩️') ||
+                           engineState.feedback.includes('👇') ||
+                           engineState.feedback.includes('📏') ||
+                           lowerFeedback.includes('hips') ||
+                           lowerFeedback.includes('hip') ||
+                           lowerFeedback.includes('knees') ||
+                           lowerFeedback.includes('back') ||
+                           lowerFeedback.includes('elbows') ||
+                           lowerFeedback.includes('arms') ||
+                           lowerFeedback.includes('legs') ||
+                           lowerFeedback.includes('posture') ||
+                           lowerFeedback.includes('go lower') ||
+                           lowerFeedback.includes('squeeze') ||
+                           lowerFeedback.includes('straight') ||
+                           lowerFeedback.includes('wrist') ||
+                           lowerFeedback.includes('flip') ||
+                           lowerFeedback.includes('rotate') ||
+                           lowerFeedback.includes('palm') ||
+                           lowerFeedback.includes('sagging') ||
+                           lowerFeedback.includes('sideways') ||
+                           lowerFeedback.includes('stretch') ||
+                           lowerFeedback.includes('turn');
+      
+      const isCleanReady = engineState.feedback.includes('Good form') || 
+                            engineState.feedback.includes('READY') ||
+                            engineState.feedback.includes('🟢');
+
+      if (isCorrection) {
+        speechService.speak(engineState.feedback, 'high', 5000);
+      } else if (isCleanReady) {
+        speechService.speak(engineState.feedback, 'low', 12000);
+      }
+    }
+  }, [engineState.feedback]);
+
   // ── Announce rep count on each increment ─────────────────────────────────────
   // We check prevRepsRef so we only announce when reps actually go up.
   // This prevents announcing "Rep 0" on first render.
@@ -333,18 +390,32 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       // Announce the number for screen readers
       setRepAnnouncement(engineState.reps.toString());
       
-      // Voice Coach feature: Physically speak the rep count out loud
-      if ('speechSynthesis' in window) {
-        // Cancel any ongoing speech to prioritize the current rep count
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(engineState.reps.toString());
-        // Optional: you can tune rate and pitch here
-        utterance.rate = 1.1; 
-        window.speechSynthesis.speak(utterance);
+      // Voice Coach feature: Physically speak the rep count out loud via speechService
+      speechService.speak(engineState.reps.toString(), 'high', 0);
+      
+      // Add milestone motivation prompts
+      if (engineState.reps % 5 === 0) {
+        setTimeout(() => {
+          const milestonePrompts = [
+            "Keep pushing!",
+            "Great job, keep it up!",
+            "You are doing awesome!",
+            "Keep going, almost there!",
+            "Nice streak, stay focused!"
+          ];
+          const prompt = milestonePrompts[Math.floor(Math.random() * milestonePrompts.length)];
+          speechService.speak(prompt, 'medium', 10000);
+        }, 1000);
+      } else {
+        if (engineState.allowRep && Math.random() > 0.5) {
+          setTimeout(() => {
+            speechService.speak("Great rep!", "low", 8000);
+          }, 1000);
+        }
       }
     }
     prevRepsRef.current = engineState.reps;
-  }, [engineState.reps]);
+  }, [engineState.reps, engineState.allowRep]);
 
   // ── Announce exercise mismatch errors ─────────────────────────────────────────
   // role="alert" with aria-live="assertive" will interrupt the screen reader
@@ -357,9 +428,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
 
   const workerAnglesRef = useRef<Record<string, number>>({});
-  const wsSocketRef = useRef<WebSocket | null>(null);
-  const offscreenEnabledRef = useRef<boolean>(false);
-  const { initOffscreenCanvas } = useOffscreenCanvas();
+  const wsSocketRef = useWorkoutWebSocket();
+  const { offscreenEnabledRef, initOffscreenCanvas } = useOffscreenCanvas();
 
   const handlePoseResults = useCallback(async (results: any) => {
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
@@ -369,11 +439,25 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     // ── GESTURE COMMAND PARSING ─────────────────────────────────────────────
     const gestureResult = gestureService.analyze(results.poseLandmarks);
 
+    // Track current active gesture in real-time
+    let detectedGesture = "NONE";
+    if (gestureResult.isCrossedArms) {
+      detectedGesture = "CROSSED_ARMS (STOP)";
+    } else if (gestureResult.leftWristAboveShoulder && gestureResult.rightWristAboveShoulder) {
+      detectedGesture = "BOTH_HANDS_RAISED (START)";
+    } else if (gestureResult.isThumbsUp) {
+      detectedGesture = "THUMBS_UP (START)";
+    } else if (gestureResult.isSingleHandRaised) {
+      detectedGesture = "SINGLE_HAND_RAISED (PAUSE)";
+    }
+    setCurrentGesture(detectedGesture);
+
     // Keep HUD confidences updated every processed frame
     setGestureConfidences({ ...gestureResult.gestureConfidences });
 
     if (gestureResult.command) {
       const cmd = gestureResult.command;
+      console.log("[WorkoutScreen] Gesture command received:", cmd, "Current State:", workoutControlRef.current);
       setLastGestureCommand(cmd);
 
       // Show HUD flash for 3 seconds
@@ -382,13 +466,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       gestureHudTimerRef.current = setTimeout(() => setGestureHudVisible(false), 3000);
 
       if (cmd === 'STOP') {
+        setLastLifecycleAction("STOP_WORKOUT");
         // Trigger the existing end-session flow
         handleEnd();
         return;
       } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
+        setLastLifecycleAction("PAUSE_WORKOUT");
         workoutControlRef.current = 'paused';
         setWorkoutControlState('paused');
       } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
+        setLastLifecycleAction("RESUME_WORKOUT");
         workoutControlRef.current = 'running';
         setWorkoutControlState('running');
       }
@@ -404,6 +491,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     // Mark workout as running once the first valid frame is processed
     if (workoutControlRef.current === 'idle') {
+      console.log("[WorkoutScreen] First valid pose frame processed. Transitioning state from IDLE to RUNNING.");
+      setLastLifecycleAction("AUTO_START");
       workoutControlRef.current = 'running';
       setWorkoutControlState('running');
     }
@@ -562,14 +651,22 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       setHasGhost(false);
     }
 
+    // Reset user tracking lock for the new session
+    poseLockService.reset();
+
     // ── WebSocket connection to backend (optional, non-blocking) ─────────────
-    const wsSocketRef = useWorkoutWebSocket();
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
 
-    
-  
+    worker.onmessage = (event: MessageEvent) => {
+      if (!isMountedRef.current) return;
+      const { angles } = event.data;
+      if (angles) {
+        workerAnglesRef.current = angles;
+      }
+    };
+
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
@@ -789,6 +886,46 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       )}
 
+      {/* Runtime Debug Overlay */}
+      <div
+        style={{
+          position: "absolute",
+          top: 100,
+          left: 10,
+          color: "#fff",
+          background: "rgba(10, 15, 30, 0.85)",
+          border: "1px solid var(--neon-cyan)",
+          padding: "10px",
+          borderRadius: "8px",
+          fontFamily: "monospace",
+          fontSize: "11px",
+          zIndex: 1000,
+          lineHeight: "1.4",
+          boxShadow: "0 0 15px rgba(0, 240, 255, 0.2)",
+          pointerEvents: "none",
+        }}
+      >
+        <div style={{ fontWeight: "bold", borderBottom: "1px solid rgba(255,255,255,0.2)", marginBottom: "4px", paddingBottom: "2px", color: "var(--neon-cyan)" }}>
+          SPECTRAX TELEMETRY
+        </div>
+        <div>State: <span style={{ color: workoutControlState === 'running' ? '#00ff88' : '#ffd600' }}>{workoutControlState.toUpperCase()}</span></div>
+        <div>Detected Gesture: <span style={{ color: "var(--neon-yellow)" }}>{currentGesture}</span></div>
+        <div>Last Action: <span style={{ color: "var(--neon-cyan)" }}>{lastLifecycleAction}</span></div>
+        <div style={{ marginTop: "4px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "4px" }}>
+          <div>Confidence scores:</div>
+          <div>START: {Math.round((gestureConfidences.START ?? 0) * 100)}%</div>
+          <div>PAUSE: {Math.round((gestureConfidences.PAUSE ?? 0) * 100)}%</div>
+          <div>STOP: {Math.round((gestureConfidences.STOP ?? 0) * 100)}%</div>
+        </div>
+        <div style={{ marginTop: "4px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "4px", color: "rgba(255,255,255,0.5)" }}>
+          <div>Reps: {engineState.reps} / Total: {engineState.totalReps}</div>
+          <div>Offscreen Canvas: {offscreenEnabledRef.current ? "Worker" : "Main"}</div>
+          <div>Lock Status: {(poseLockService as any).isLocked ? "LOCKED" : "UNLOCKED"}</div>
+          <div>Camera Stream: {videoRef.current?.srcObject ? "CONNECTED" : "DISCONNECTED"}</div>
+          <div>Frames Processed: {frameSkipRef.current}</div>
+        </div>
+      </div>
+
       {displayConfig.graphFeeds && (
         <div style={{ position: "absolute", bottom: 10, right: 10, width: "150px", height: "80px", color: "var(--neon-green)", background: "rgba(0,0,0,0.5)", border: "1px solid var(--neon-green)", padding: "5px", borderRadius: "5px", fontFamily: "monospace", fontSize: "10px", zIndex: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
           <span>Telemetry Graph Feed</span>
@@ -848,6 +985,41 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           <span>Offline - Data will sync</span>
         </div>
       )}
+
+      {/* Floating Gesture Controls Guide Banner */}
+      <div
+        className="animate-in"
+        style={{
+          position: "absolute",
+          top: "15px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 100,
+          background: "rgba(10, 10, 26, 0.85)",
+          border: "1px solid rgba(0, 240, 255, 0.4)",
+          borderRadius: "20px",
+          padding: "6px 20px",
+          display: "flex",
+          alignItems: "center",
+          gap: "15px",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 4px 25px rgba(0, 240, 255, 0.15)",
+          pointerEvents: "auto",
+        }}
+      >
+        <span style={{ fontSize: "0.65rem", color: "var(--neon-cyan)", fontWeight: 800, letterSpacing: "1px" }}>
+          🤖 GESTURE GUIDE:
+        </span>
+        <span style={{ fontSize: "0.65rem", color: "#e2e8f0", letterSpacing: "0.5px" }}>
+          🙌 Both Hands Up / 👍 Thumbs Up = <strong>START/RESUME</strong>
+        </span>
+        <span style={{ fontSize: "0.65rem", color: "#e2e8f0", letterSpacing: "0.5px" }}>
+          🖐️ One Hand Up = <strong>PAUSE</strong>
+        </span>
+        <span style={{ fontSize: "0.65rem", color: "#e2e8f0", letterSpacing: "0.5px" }}>
+          🙅 Crossed Arms = <strong>STOP</strong>
+        </span>
+      </div>
 
       {/* Top Header Controls */}
       <div
@@ -963,6 +1135,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           onClick={() => updateDisplayConfig({ fpsDisplay: !displayConfig.fpsDisplay })}
         >
           {displayConfig.fpsDisplay ? 'Hide FPS' : 'Show FPS'}
+        </button>
+        <button
+          type="button"
+          className="workout-lock-toggle is-unlocked"
+          onClick={() => updateSetting('voiceFeedback', !settings.voiceFeedback)}
+        >
+          {settings.voiceFeedback ? '🔊 Coach ON' : '🔇 Coach OFF'}
         </button>
       </div>
 
@@ -1211,7 +1390,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             boxShadow: '0 0 20px currentColor',
             animation: 'gesture-flash 0.3s ease',
           }}>
-            ✋ {lastGestureCommand}
+            {lastGestureCommand === 'STOP' ? '🙅' : lastGestureCommand === 'PAUSE' ? '🖐️' : '🙌'} {lastGestureCommand}
           </div>
         )}
 
@@ -1223,7 +1402,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             : cmd === 'PAUSE'
               ? '#eab308'
               : '#22c55e';
-          const icon = cmd === 'STOP' ? '🤞' : cmd === 'PAUSE' ? '✋' : '🙌';
+          const icon = cmd === 'STOP' ? '🙅' : cmd === 'PAUSE' ? '🖐️' : '🙌';
           return (
             <div key={cmd} style={{
               background: 'rgba(8,12,20,0.75)',
