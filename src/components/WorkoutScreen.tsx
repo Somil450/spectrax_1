@@ -5,7 +5,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
-import { exerciseEngine, EngineState, createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -17,12 +17,15 @@ import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { ghostService } from '../services/ghostService';
+import { useThrottleLevel } from '../services/performanceThrottleService';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, VelocityMeterPanel } from './WorkoutPanels';
+import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
+import type { VBTMetrics } from '../services/kinematicEngine';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -32,24 +35,26 @@ const createPoseWorker = () =>
 
 interface WorkoutScreenProps {
   exercise: ExerciseConfig;
-  onEnd: (stats: {
-    reps: number;
-    totalReps: number;
-    correctReps: number;
-    repScores: number[];
-    repDeviations: number[];
-    duration: number;
-    accuracy: number;
-    mistakes: Record<string, number>;
-    bestStreak: number;
-    jumpingJackSync?: EngineState["jumpingJackSync"];
-    tags?: string[];
-  }) => void;
+onEnd: (stats: {
+     reps: number;
+     totalReps: number;
+     correctReps: number;
+     repScores: number[];
+     repDeviations: number[];
+     duration: number;
+     accuracy: number;
+     mistakes: Record<string, number>;
+     bestStreak: number;
+     jumpingJackSync?: EngineState["jumpingJackSync"];
+     tags?: string[];
+     vbtMetrics?: VBTMetrics;
+     velocitiesSession?: number[];
+   }) => void;
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "velocity";
 
 type PanelPosition = {
   x: number;
@@ -73,7 +78,7 @@ const getDefaultPanelPositions = (): PanelPositions => {
     timer: { x: Math.max(width - 230, 30), y: 30 },
     reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
     engine: { x: 40, y: Math.max(height - 110, 30) },
-    sense: { x: 280, y: Math.max(height - 110, 30) },
+    sense: { x: 280, y: Math.max(height - 110, 30) }, velocity: { x: 440, y: Math.max(height - 110, 30) },
   };
 };
 
@@ -169,7 +174,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       timer: React.createRef<HTMLDivElement>(),
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
-      sense: React.createRef<HTMLDivElement>()
+      sense: React.createRef<HTMLDivElement>(),
+      velocity: React.createRef<HTMLDivElement>()
     };
   }
 
@@ -223,8 +229,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
     liveDepthFeedback: '',
-    jumpingJackSyncSamples: [],
-    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   const startTimeRef = useRef<number>(Date.now());
@@ -300,8 +304,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     lastDepthResult: null,
     depthStats: initialSquatDepthStats(),
     liveDepthFeedback: '',
-    jumpingJackSyncSamples: [],
-    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
@@ -659,24 +661,26 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       }
     }
 
-    onEnd({
-      reps: mutableState.current.reps,
-      totalReps: mutableState.current.totalReps,
-      correctReps: mutableState.current.correctReps,
-      repScores: mutableState.current.repScores,
-      repDeviations: mutableState.current.repDeviations,
-      duration: seconds,
-      accuracy: accuracy,
-      mistakes: finalMistakes,
-      bestStreak: mutableState.current.bestStreak,
-      jumpingJackSync: mutableState.current.jumpingJackSync,
-      tags: clipEngine.generateSessionTags({
-        accuracy: accuracy,
-        avgConfidence: clipResult?.confidence || 0.8,
-        mistakes: Object.keys(finalMistakes),
-        duration: seconds,
-      }),
-    });
+onEnd({
+       reps: mutableState.current.reps,
+       totalReps: mutableState.current.totalReps,
+       correctReps: mutableState.current.correctReps,
+       repScores: mutableState.current.repScores,
+       repDeviations: mutableState.current.repDeviations,
+       duration: seconds,
+       accuracy: accuracy,
+       mistakes: finalMistakes,
+       bestStreak: mutableState.current.bestStreak,
+       jumpingJackSync: mutableState.current.jumpingJackSync,
+       tags: clipEngine.generateSessionTags({
+         accuracy: accuracy,
+         avgConfidence: clipResult?.confidence || 0.8,
+         mistakes: Object.keys(finalMistakes),
+         duration: seconds,
+       }),
+       vbtMetrics: mutableState.current.vbtMetrics,
+       velocitiesSession: mutableState.current.vbtMetrics?.velocitiesSession,
+     });
   };
 
   const formatTime = (s: number) => {
@@ -972,7 +976,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
         {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
-        {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
+        {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}\n         {renderDraggablePanel('velocity', '', <VelocityMeterPanel vbtMetrics={engineState.vbtMetrics} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
