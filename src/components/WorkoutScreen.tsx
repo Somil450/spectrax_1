@@ -609,7 +609,33 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       worker.terminate();
       clearInterval(timerRef);
       gestureService.reset();
-      if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
+      if (gestureHudTimerRef.current) {
+        clearTimeout(gestureHudTimerRef.current);
+        gestureHudTimerRef.current = null;
+      }
+
+      // Explicit cleanup for ref nullification on unmount to prevent memory leaks
+      workerRef.current = null;
+      pendingLandmarksRef.current = null;
+      lastObservedLandmarksRef.current = null;
+      previousObservedLandmarksRef.current = null;
+      ghostFramesRef.current = [];
+      ghostStatsRef.current = null;
+      mutableState.current = null as any;
+      prevRepsRef.current = 0;
+      workerAnglesRef.current = {};
+
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      if (wsSocketRef.current) {
+        try {
+          wsSocketRef.current.close();
+        } catch {}
+        wsSocketRef.current = null;
+      }
+      panelRefs.current = null;
     };
   }, [exercise, startSystem, stopSystem]);
 

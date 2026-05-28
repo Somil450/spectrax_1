@@ -88,6 +88,7 @@ export function useCameraPose({
   const stopSystem = useCallback(() => {
     isMountedRef.current = false;
     cameraService.stopCamera();
+    poseService.close(); // Cleanly close PoseService on unmount to free MediaPipe WASM and GPU resources
   }, []);
 
   useEffect(() => {

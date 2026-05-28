@@ -801,6 +801,9 @@ export class PoseService {
   }
 
   onResults(callback: (results: Results) => void) {
+    if (!this.pose) {
+      this.init();
+    }
     if (!this.pose) return;
 
     this.pose.onResults((results: Results) => {
@@ -816,6 +819,9 @@ export class PoseService {
   async send(
     image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement,
   ) {
+    if (!this.pose) {
+      this.init();
+    }
     if (!this.pose || !this.isLoaded || this.inProgress) return;
 
     this.inProgress = true;
