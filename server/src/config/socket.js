@@ -24,6 +24,7 @@ function createSocketOptions(config) {
     pingTimeout: 3000,
     transports: ["websocket"],
     path: config.socketPath,
+    maxHttpBufferSize: 100000,
   };
 }
 
