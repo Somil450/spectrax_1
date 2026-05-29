@@ -27,6 +27,8 @@ import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
 import { useSettings } from '../context/SettingsContext';
 import { speechService } from '../services/speechService';
+import { useThrottleLevel } from '../services/performanceThrottleService';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>

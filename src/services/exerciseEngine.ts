@@ -185,16 +185,11 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
   depthStats: SquatDepthStats;
-  liveDepthFeedback: string;
 
   // VBT Metrics
-  vbtMetrics?: VBTMetrics;
 
   // ── Pushup depth classification ──────────────────────────────
-  lastPushupDepthResult?: PushupDepthResult | null;
-  pushupDepthStats?: PushupDepthStats;
-  livePushupDepthFeedback?: string;
-  downZReached?: number;
+
 
   // Tracking & recovery buffers
   visibilityBuffer?: number[];
@@ -205,6 +200,23 @@ export interface EngineState {
   jumpingJackSync?: JumpingJackSyncMetrics;
 
   wristSupinationScore?: number;
+
+  /**
+   * Real-time depth coaching string emitted during the DOWN phase.
+   * Empty string when no depth cue is active.
+   */
+  liveDepthFeedback: string;
+
+  // VBT Metrics
+  vbtMetrics?: VBTMetrics;
+
+  // ── Pushup depth classification (NEW) ──────────────────────────
+  lastPushupDepthResult?: PushupDepthResult | null;
+  pushupDepthStats?: PushupDepthStats;
+  livePushupDepthFeedback?: string;
+  downZReached?: number;
+
+  // Tracking & recovery buffers
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

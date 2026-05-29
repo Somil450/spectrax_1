@@ -663,6 +663,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     autoAdaptRef.current = autoAdapt;
   }, [autoAdapt]);
 
+
+
   const isPlaying =
     externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
   const currentFrameIdx =
@@ -1015,7 +1017,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       syncRippleUniforms(timeSeconds);
     },
     [syncRippleUniforms],
-
   );
 
   const orbitPelvisTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -1300,6 +1301,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       createdAxes.push(axesHelper);
     }
     axesRef.current = createdAxes;
+
 
     const createdBones: { line: THREE.Line; startIdx: number; endIdx: number }[] = [];
 
@@ -1777,7 +1779,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
               ? new THREE.Vector2(rAnkle.x, rAnkle.z)
               : null;
 
-      // Ripple check
+      syncRippleUniforms(timeSeconds);
       if (lastRepCountRef.current === null) {
         lastRepCountRef.current = repCount;
       } else if (repCount !== lastRepCountRef.current) {
@@ -1813,6 +1815,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         if (!modelGroupRef.current) return;
 
         if (lShoulder && rShoulder && lHip && rHip && hipCenter && up && right && forward) {
+        if (lShoulder && rShoulder && lHip && rHip && shoulderCenter && hipCenter) {
+          const up      = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
+          const right   = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
+          const forward = new THREE.Vector3().crossVectors(right, up).normalize();
 
           right.crossVectors(up, forward).normalize();
           const mat       = new THREE.Matrix4();
