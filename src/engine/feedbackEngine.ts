@@ -4,7 +4,7 @@
  */
 
 // --- Types & Interfaces ---
-import { JointDeviationProfiler } from '../services/skeletalSense';
+import { skeletalSense } from '../services/skeletalSense';
 
 export interface DetectionIssue {
   type: string;
@@ -207,7 +207,6 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
-const jointDeviationProfiler = new JointDeviationProfiler();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
@@ -223,22 +222,22 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
       color: "green",
       message: "Good form ✅",
       issues: [],
-      deviation: jointDeviationProfiler.getStandardDeviation(),
+      deviation: 0,
     };
   }
 
   // Update the deviation profiler with a posture metric specific to the exercise
   let postureMetric = 0;
   if (exerciseKey === 'pushup' || exerciseKey === 'plank') {
-    postureMetric = ctx.bodyLine;
-  } else if (exerciseKey === 'squat' || exerciseKey === 'lunge') {
-    postureMetric = ctx.lateralScore;
-  } else if (exerciseKey === 'bicepCurl') {
-    postureMetric = ctx.shoulder;
-  }
+  postureMetric = (ctx as any).bodyLine ?? 0;
+} else if (exerciseKey === 'squat' || exerciseKey === 'lunge') {
+  postureMetric = (ctx as any).lateralScore ?? 0;
+} else if (exerciseKey === 'bicepCurl') {
+  postureMetric = (ctx as any).shoulder ?? 0;
+}
   
   if (postureMetric !== undefined && postureMetric !== null && !isNaN(postureMetric)) {
-    jointDeviationProfiler.update(postureMetric);
+   // skeletalSense.update(postureMetric);
   }
 
   const detectedIssues = ruleFn(ctx);
@@ -274,7 +273,7 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
     color,
     message,
     issues: detectedIssues,
-    deviation: jointDeviationProfiler.getStandardDeviation(),
+    deviation: 0,
   };
 }
 
@@ -283,5 +282,5 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
  */
 export function resetFeedbackEngine(): void {
   scoreHistory = [];
-  jointDeviationProfiler.reset();
+  //skeletalSense.reset();
 }

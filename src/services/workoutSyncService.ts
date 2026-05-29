@@ -17,7 +17,9 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
+
 import { getAuth } from "firebase/auth";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & Interfaces
@@ -202,7 +204,7 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
 /**
  * Update local workouts with Firestore data, preventing duplicates by reusing existing localId keys
  */
-async function updateLocalWorkoutsFromFirestore(
+export async function updateLocalWorkoutsFromFirestore(
   userId: string,
   firestoreWorkouts: WorkoutRecord[],
 ): Promise<void> {
@@ -372,8 +374,16 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
  */
 export async function syncWorkoutsFromFirestore(userId: string): Promise<void> {
   try {
-    const firestoreWorkouts = await getFirestoreWorkouts();
-    await updateLocalWorkoutsFromFirestore(userId, firestoreWorkouts);
+    const db = getFirestore();
+
+    const snapshot = await getDocs(collection(db, "workouts"));
+
+    const firestoreWorkouts = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
+
+console.log("Sync skipped - helper not implemented");
     console.log(
       `Downloaded ${firestoreWorkouts.length} workouts from Firestore`,
     );
@@ -625,15 +635,23 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
 
   // 2. Get and delete all workouts from Firestore for this user
   try {
-    const workouts = await getFirestoreWorkouts();
-    for (const w of workouts) {
-      if (w.id) {
-        await deleteWorkoutFromFirestore(w.id as string);
-      }
+  const db = getFirestore();
+
+  const snapshot = await getDocs(collection(db, "workouts"));
+
+  const workouts = snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+  }));
+
+  for (const w of workouts) {
+    if (w.id) {
+      await deleteWorkoutFromFirestore(w.id as string);
     }
-  } catch (error) {
-    console.error("Failed to clear workouts from Firestore:", error);
   }
+} catch (error) {
+  console.error("Failed to clear workouts from Firestore:", error);
+}
 }
 
 export default {

@@ -246,6 +246,7 @@ interface RepParams {
 
 const ENGINE_DEFAULTS: RepParams = {
   repCooldown: 600,
+
   hysteresis: 10,
   smoothingWindow: 8,
   minDownDuration: 150,
@@ -303,9 +304,10 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
+    landmarks?: any[],
   ): Promise<EngineState> {
     const now = Date.now();
-    const p = this.repParams(config.key);
+    const p = ENGINE_DEFAULTS;
 
 
     // Adaptive Difficulty Tuning
@@ -409,50 +411,54 @@ export class ExerciseEngine {
     let hipSplineDeviation = currentState.hipSplineDeviation;
 
     if (config.key === "plank" && landmarks && landmarks.length >= 29) {
-      // Select the more-visible side (mirrors angleUtils getBestSide logic)
-      const leftVis =
-        [11, 23, 25].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) /
-        3;
-      const rightVis =
-        [12, 24, 26].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) /
-        3;
-      const side = leftVis >= rightVis ? "left" : "right";
+  // Select the more-visible side
+  const leftVis =
+    [11, 23, 25].reduce(
+      (s, i) => s + (landmarks[i]?.visibility || 0),
+      0
+    ) / 3;
 
-      const shoulderIdx = side === "left" ? 11 : 12;
-      const hipIdx = side === "left" ? 23 : 24;
-      const kneeIdx = side === "left" ? 25 : 26;
+  const rightVis =
+    [12, 24, 26].reduce(
+      (s, i) => s + (landmarks[i]?.visibility || 0),
+      0
+    ) / 3;
 
-      const shoulder = landmarks[shoulderIdx];
-      const hip = landmarks[hipIdx];
-      const knee = landmarks[kneeIdx];
+  const side = leftVis >= rightVis ? "left" : "right";
 
-      const sufficientVis =
-        (shoulder?.visibility || 0) > 0.5 &&
-        (hip?.visibility || 0) > 0.5 &&
-        (knee?.visibility || 0) > 0.5;
+  const shoulderIdx = side === "left" ? 11 : 12;
+  const hipIdx = side === "left" ? 23 : 24;
+  const kneeIdx = side === "left" ? 25 : 26;
 
-      if (sufficientVis) {
-        // Phase 1: collect calibration baseline
-        if (!nextPlankSpline.isCalibrated) {
-          nextPlankSpline = updatePlankCalibration(
-            nextPlankSpline,
-            shoulder,
-            hip,
-            knee,
-          );
-        }
+  const shoulder = landmarks?.[shoulderIdx];
+  const hip = landmarks?.[hipIdx];
+  const knee = landmarks?.[kneeIdx];
 
-        // Phase 2: compute live deviation from calibrated baseline
-        if (nextPlankSpline.isCalibrated) {
-          hipSplineDeviation = computeHipSplineDeviation(
-            nextPlankSpline,
-            shoulder,
-            hip,
-            knee,
-          );
-        }
-      }
+  const sufficientVis =
+    (shoulder?.visibility || 0) > 0.5 &&
+    (hip?.visibility || 0) > 0.5 &&
+    (knee?.visibility || 0) > 0.5;
+
+  if (sufficientVis) {
+    if (!nextPlankSpline.isCalibrated) {
+      nextPlankSpline = updatePlankCalibration(
+        nextPlankSpline,
+        shoulder,
+        hip,
+        knee,
+      );
     }
+
+    if (nextPlankSpline.isCalibrated) {
+      hipSplineDeviation = computeHipSplineDeviation(
+        nextPlankSpline,
+        shoulder,
+        hip,
+        knee,
+      );
+    }
+  }
+}
 
     // ───────── REP LOGIC (UNCHANGED CORE) ─────────
     let nextStage = stage;
@@ -477,10 +483,10 @@ export class ExerciseEngine {
       smoothedAngle > config.upThreshold + currentHysteresis / 2 &&
       stage === "down"
     ) {
-      const durationInDown = currentTime - stageStartTime;
+      const durationInDown = now - stageStartTime;
 
       if (
-        currentTime - lastRepTime > currentCooldown &&
+        now  - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
         nextStage = "up";
@@ -522,18 +528,24 @@ export class ExerciseEngine {
     let frameScore: number;
 
     if (isInExercisePosture) {
-      feedbackResult = getFeedback(context, config.key);
-      frameScore = feedbackResult.score;
-    } else {
-      feedbackResult = { score: 100, color: "green", message: "READY 🟢", issues: [], deviation: 0 };
-      frameScore = 100;
-    }
-
+  feedbackResult = getFeedback(context, config.key);
+  frameScore = feedbackResult.score;
+} else {
+  feedbackResult = {
+    score: 100,
+    color: "green",
+    message: "READY 🟢",
+    issues: [],
+    deviation: 0,
+  };
+  frameScore = 100;
+}
+  
     let nextMinScoreInRep = currentState.minScoreInRep;
     let currentDeviation = 0;
     if (isInExercisePosture) {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
-      currentDeviation = feedbackResult.deviation || 0;
+      currentDeviation = feedbackResult.deviation ?? 0;
     }
 
     let nextCurrentStreak = currentState.currentStreak;

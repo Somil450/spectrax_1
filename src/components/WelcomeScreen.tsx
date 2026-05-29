@@ -199,6 +199,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
+            </button>
+            </div>
 
       <div
         style={{
@@ -215,7 +217,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       >
         Precision Performance Research Lab
       </div>
-    </div>
+      </div>
   );
 };
 

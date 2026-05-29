@@ -15,6 +15,8 @@ import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 import { FpsMonitor } from './FpsMonitor';
+import { cameraService } from "../services/cameraService";
+import { poseService } from "../services/poseService";
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -166,7 +168,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
   const panelRefsById = panelRefs.current;
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(getStoredPanelPositions());
-  const [panelsLocked, setPanelsLocked] = useState(false);
   const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
@@ -174,7 +175,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const { isOnline } = useWorkoutSync();
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions())
+  const FPS_LIMIT=30;
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -213,6 +214,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
+  const workerAnglesRef = useRef<Record<string, number>>({});
+  const lastProcessTime = useRef(0);
+const frameId = useRef<number | null>(null);
+const countRef = useRef(0);
+const [showExitModal, setShowExitModal] = useState(false);
 
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
@@ -319,7 +325,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }, [mismatchError]);
 
 
-  const workerAnglesRef = useRef<Record<string, number>>({});
   const wsSocketRef = useRef<WebSocket | null>(null);
   const offscreenEnabledRef = useRef<boolean>(false);
 
@@ -526,7 +531,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         await cameraService.startCamera(videoRef.current);
 
         poseService.onResults(async (results) => {
-          if (!isMounted) return;
+          if (!isMountedRef.current) return;
 
           // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
           const filteredResults = poseLockService.filter(results);
@@ -534,17 +539,17 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
           // ── Frame skipping: process every other frame ─────────────────────
           frameSkipRef.current++;
-          if (frameSkipRef.current % 2 !== 0) {
+
+          if(frameSkipRef.current % 2!==0){
             // Still render overlay on skipped frames for smooth display
-            if (!offscreenEnabled) {
-              const primaryJoints = exercise.joints?.flat() || [];
-              overlayRenderer.draw(
-                results,
-                mutableState.current.status,
-                primaryJoints,
-              );
-            }
-            return;
+            if (offscreenEnabledRef.current) {
+  overlayRenderer.draw(
+    results,
+    mutableState.current.status,
+exercise.joints?.flat()||  []
+  );
+}
+return;
           }
 
           // ── SKELETAL SENSE: auto-detect & mismatch (main thread, lightweight) ──
@@ -595,8 +600,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
           // Use last worker result for angles (may be 1 frame stale — acceptable)
           const angles =
-            Object.keys(workerAngles).length > 0
-              ? workerAngles
+            Object.keys(workerAnglesRef.current).length > 0
+              ? workerAnglesRef.current
               : getJointAngles(results.poseLandmarks); // Fallback if worker not ready yet
 
           const visibility = getJointVisibility(results.poseLandmarks);
@@ -632,13 +637,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           });
 
           // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
-          if (!offscreenEnabled) {
+          if (!offscreenEnabledRef.current) {
             overlayRenderer.draw(results, nextState.status, primaryJoints);
           }
         });
 
         const loop = (timestamp: number) => {
-          if (!isMounted) return;
+          if (!isMountedRef.current) return;
           const elapsed = timestamp - lastProcessTime.current;
           if (elapsed > 1000 / FPS_LIMIT) {
             if (
@@ -654,7 +659,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
               if (countRef.current % 15 === 0 && canvasRef.current) {
                 clipEngine.analyzeFrame(canvasRef.current).then((res) => {
-                  if (res && isMounted) {
+                  if (res && isMountedRef.current) {
                     setClipResult(res);
                   }
                 });
@@ -741,7 +746,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
-        mistakes: Object.keys(mutableState.current.mistakes),
+        mistakes: Object.keys(mutableState.current.mistakes||{}),
         duration: seconds,
       }),
     });

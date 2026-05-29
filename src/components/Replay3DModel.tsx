@@ -5,9 +5,6 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
@@ -861,7 +858,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       // Build effect passes for initial preset
       rebuildPasses(graphicsPresetRef.current, width, height);
 
-      const controls = new OrbitControls(cameraRef.current, renderer.domElement);
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(width, height),
         0.5,
@@ -871,16 +867,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       composer.addPass(bloomPass);
       bloomPassRef.current = bloomPass;
 
-      const controls = new OrbitControls(
-        cameraRef.current,
-        renderer.domElement,
-      );
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.maxPolarAngle = Math.PI / 2 + 0.1;
-      controls.minDistance   = 1.0;
-      controls.maxDistance   = 10.0;
-      controlsRef.current    = controls;
+
+      
+    
 
       const handleContextLost = (event: Event) => {
         event.preventDefault();
@@ -924,7 +913,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
         renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
         window.removeEventListener("resize", handleResize);
-        controls.dispose();
+        controlsRef.current?.dispose();
         composer.dispose();
         composerRef.current  = null;
         bloomPassRef.current = null;
@@ -933,7 +922,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         if (mountRef.current?.contains(renderer.domElement)) mountRef.current.removeChild(renderer.domElement);
         renderer.dispose();
         if (rendererRef.current  === renderer) rendererRef.current  = null;
-        if (controlsRef.current  === controls) controlsRef.current  = null;
+        if (controlsRef.current  === controlsRef.current) controlsRef.current  = null;
       };
 
       requestAnimationFrame(() => {

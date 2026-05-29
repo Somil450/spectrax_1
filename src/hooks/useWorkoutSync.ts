@@ -10,8 +10,7 @@ import {
   getLocalWorkouts,
   fullSyncWorkouts,
   initializeAutoSync,
-  
-   cleanupAutoSync,
+  cleanupAutoSync,
   isOnline,
   getSyncStatus,
   SyncStatus,
