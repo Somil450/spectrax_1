@@ -1,6 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock } from 'lucide-react';
+import {
+  StopCircle,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Lock,
+  Unlock,
+  Award,
+  Clock,
+  RotateCcw,
+  Video,
+  Activity
+} from 'lucide-react';
+
 import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
@@ -14,7 +26,7 @@ import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+
 
 const srOnly: React.CSSProperties = {
   position: "absolute",
