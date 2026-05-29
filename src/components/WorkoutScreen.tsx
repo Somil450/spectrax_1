@@ -20,10 +20,8 @@ import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
-import { FpsMonitor } from './FpsMonitor';
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
-
 import { CameraErrorBoundary } from "./CameraErrorBoundary";
 import { gestureService, GestureCommand } from "../services/gestureService";
 import { debounce } from "../utils/debounce";
