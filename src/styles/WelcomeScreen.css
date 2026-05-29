@@ -997,3 +997,65 @@
   box-shadow: 0 4px 18px rgba(124, 58, 237, 0.18);
   transform: translateY(-2px);
 }
+
+
+.welcome-container[data-theme-style="retro"] {
+  background: radial-gradient(
+    ellipse at center,
+    #1a140f 0%,
+    #120e0a 100%
+  );
+}
+
+.welcome-container[data-theme-style="retro"] .welcome-wordmark {
+  background: linear-gradient(
+    135deg,
+    #fff3a0,
+    #ffb000,
+    #ff7700
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.welcome-container[data-theme-style="retro"] .welcome-tagline {
+  color: rgba(255,176,0,0.8);
+}
+
+.welcome-container[data-theme-style="retro"] .welcome-level-bar,
+.welcome-container[data-theme-style="retro"] .welcome-stats,
+.welcome-container[data-theme-style="retro"] .step-card {
+  background: rgba(40,25,10,0.8);
+  border-color: rgba(255,176,0,0.25);
+}
+
+.welcome-container[data-theme-style="retro"] .welcome-btn-primary {
+  background: linear-gradient(
+    135deg,
+    #ff7700,
+    #ffb000
+  );
+  box-shadow: 0 0 20px rgba(255,176,0,0.4);
+}
+
+.welcome-container[data-theme-style="retro"] .welcome-orb--cyan {
+  background: radial-gradient(
+    circle,
+    #ffb000 0%,
+    transparent 70%
+  );
+}
+
+.welcome-container[data-theme-style="retro"] .welcome-orb--purple {
+  background: radial-gradient(
+    circle,
+    #ff7700 0%,
+    transparent 70%
+  );
+}
+.welcome-container[data-theme-style="retro"] .section-title{
+  color: #ff7700;
+}
+.welcome-container[data-theme-style="retro"] .steps-grid{
+  color: #ff7700;
+}
