@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { calculateAngle, getJointAngles } from "../angleUtils";
+import { getJointAngles } from "../angleUtils";
 
-// Minimal landmark shape matching NormalizedLandmark
 const lm = (x: number, y: number, z = 0, visibility = 1) => ({
   x,
   y,
@@ -9,15 +8,10 @@ const lm = (x: number, y: number, z = 0, visibility = 1) => ({
   visibility,
 });
 
-// Build a 33-element landmarks array with sensible defaults
-function mockLandmarks(overrides: Record<number, ReturnType<typeof lm>> = {}) {
-  const base = Array.from({ length: 33 }, (_, i) =>
+function mockLandmarks() {
+  return Array.from({ length: 33 }, (_, i) =>
     lm(i * 0.03, i * 0.03, 0, 1)
   );
-  for (const [idx, val] of Object.entries(overrides)) {
-    base[+idx] = val;
-  }
-  return base;
 }
 
 describe("calculateAngle", () => {
@@ -44,21 +38,28 @@ describe("calculateAngle", () => {
     expect(calculateAngle(null as any, lm(0, 0), lm(1, 0))).toBe(0);
   });
 });
-
 describe("getJointAngles", () => {
-  it("returns an object with keys knee, elbow, shoulder, and bodyLine", () => {
+  it("returns a valid angles object", () => {
     const angles = getJointAngles(mockLandmarks());
+
+    expect(typeof angles).toBe("object");
     expect(angles).toHaveProperty("knee");
     expect(angles).toHaveProperty("elbow");
     expect(angles).toHaveProperty("shoulder");
     expect(angles).toHaveProperty("bodyLine");
   });
 
-  it("returns default angles object when landmarks is null", () => {
-    const angles = getJointAngles(null);
-    expect(angles).toHaveProperty("knee");
-    expect(angles).toHaveProperty("elbow");
-    expect(angles).toHaveProperty("shoulder");
-    expect(angles).toHaveProperty("bodyLine");
+it("returns empty object when landmarks is null", () => {
+  expect(getJointAngles(null)).toEqual({});
+});
+  });
+
+  it("handles identical points safely", () => {
+    const p = { x: 1, y: 1, z: 0, visibility: 1 };
+    const landmarks = Array(33).fill(p);
+
+    const angles = getJointAngles(landmarks);
+
+    expect(typeof angles).toBe("object");
   });
 });
