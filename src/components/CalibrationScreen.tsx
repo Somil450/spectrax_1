@@ -171,7 +171,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       setAnnouncement(`Starting in ${countdownSeconds}`);
     }
   }, [countdownSeconds, countdownActive]);
-const startSystem = useCallback(async () => {
+
+/*const startSystem = useCallback(async () => {
   if (!videoRef.current || !canvasRef.current) return;
 
   isMountedRef.current = true;

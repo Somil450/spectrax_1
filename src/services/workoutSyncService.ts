@@ -192,6 +192,7 @@ if (workout) {
     synced: true,
   });
 }
+    };
 
 // resolve only after transaction completes safely
 getReq.onerror = () => reject(getReq.error);
@@ -445,25 +446,14 @@ let onlineHandler: (() => void) | null = null;
 let offlineHandler: (() => void) | null = null;
 
 export function initializeAutoSync(userId: string): void {
-const workout = getReq.result as WorkoutRecord;
-
-if (workout) {
-  store.delete(localId);
-
-  store.put({
-    ...workout,
-    id: firestoreId,
-    synced: true,
-  });
-}
-
-// resolve only after transaction completes safely
-getReq.onerror = () => reject(getReq.error);
-
-tx.oncomplete = () => resolve();
-tx.onerror = () => reject(tx.error);
-tx.onabort = () =>
-  reject(new Error(`Transaction aborted for localId ${localId}`));
+  onlineHandler = async () => {
+    console.log("Network connection restored. Starting workout sync...");
+    try {
+      if (!syncInProgress) {
+        syncInProgress = true;
+        await fullSyncWorkouts(userId);
+        syncInProgress = false;
+        console.log("Workout sync completed");
       }
     } catch (error) {
       syncInProgress = false;
@@ -636,7 +626,7 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
   // If this throws (network error, permission denied) the local records are
   // left intact and the error propagates to the caller so the UI can surface
   // a meaningful message instead of falsely reporting success.
-  const remoteWorkouts = await getFirestoreWorkouts();
+  const remoteWorkouts = await getFirestoreWorkouts(userId);
   for (const w of remoteWorkouts) {
     if (w.id) {
       await deleteWorkoutFromFirestore(w.id as string);
