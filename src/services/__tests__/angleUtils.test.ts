@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getJointAngles } from "../angleUtils";
+import { getJointAngles, calculateAngle } from "../angleUtils";
 
 const lm = (x: number, y: number, z = 0, visibility = 1) => ({
   x,
@@ -49,9 +49,8 @@ describe("getJointAngles", () => {
     expect(angles).toHaveProperty("bodyLine");
   });
 
-it("returns empty object when landmarks is null", () => {
-  expect(getJointAngles(null)).toEqual({});
-});
+  it("returns empty object when landmarks is null", () => {
+    expect(getJointAngles(null)).toEqual({});
   });
 
   it("handles identical points safely", () => {

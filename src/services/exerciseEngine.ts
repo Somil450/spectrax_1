@@ -417,52 +417,6 @@ export class ExerciseEngine {
       };
     }
 
-// ───────── PLANK SPLINE REGRESSION ─────────
-let nextPlankSpline = currentState.plankSpline;
-let hipSplineDeviation = currentState.hipSplineDeviation;
-
-if (config.key === "plank" && landmarks && landmarks.length >= 29) {
-  const leftVis =
-    [11, 23, 25].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
-
-  const rightVis =
-    [12, 24, 26].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
-
-  const side = leftVis >= rightVis ? "left" : "right";
-
-  const shoulderIdx = side === "left" ? 11 : 12;
-  const hipIdx = side === "left" ? 23 : 24;
-  const kneeIdx = side === "left" ? 25 : 26;
-
-  const shoulder = landmarks?.[shoulderIdx];
-  const hip = landmarks?.[hipIdx];
-  const knee = landmarks?.[kneeIdx];
-
-  const sufficientVis =
-    (shoulder?.visibility || 0) > 0.5 &&
-    (hip?.visibility || 0) > 0.5 &&
-    (knee?.visibility || 0) > 0.5;
-
-  if (sufficientVis) {
-    if (!nextPlankSpline.isCalibrated) {
-      nextPlankSpline = updatePlankCalibration(
-        nextPlankSpline,
-        shoulder,
-        hip,
-        knee
-      );
-    }
-
-    if (nextPlankSpline.isCalibrated) {
-      hipSplineDeviation = computeHipSplineDeviation(
-        nextPlankSpline,
-        shoulder,
-        hip,
-        knee
-      );
-    }
-  }
-}
 
 // ───────── REP LOGIC ─────────
     let nextStage = stage;
@@ -494,13 +448,14 @@ if (config.key === "plank" && landmarks && landmarks.length >= 29) {
       const durationInDown = now - stageStartTime;
 
       if (
-now - lastRepTime > currentCooldown &&
-durationInDown > this.MIN_DOWN_DURATION
-) {
-  nextStage = "up";
-  stageStartTime = now;
-  repJustCounted = true;
-}
+        now - lastRepTime > currentCooldown &&
+        durationInDown > this.MIN_DOWN_DURATION
+      ) {
+        nextStage = "up";
+        stageStartTime = now;
+        repJustCounted = true;
+      }
+    }
 
 // ───────── POSTURE VALIDATION ─────────
 const isInExercisePosture = this.isValidExercisePosture(

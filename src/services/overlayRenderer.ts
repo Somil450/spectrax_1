@@ -112,8 +112,9 @@ this.ctx.shadowBlur = 15;
 this.ctx.shadowColor = color;
 }
 
-this.drawScanningLine();
-this.drawCenterOfMass(results.poseLandmarks);
+    this.drawScanningLine();
+    this.drawCenterOfMass(results.poseLandmarks);
+  }
 
   private drawScanningLine() {
     if (!this.ctx) return;
