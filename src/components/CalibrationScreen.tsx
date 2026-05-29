@@ -242,34 +242,6 @@ useEffect(() => {
     );
   }
 }, [error]); 
-    frameId.current = requestAnimationFrame(processLoop);
-
-  } catch (err: any) {
-    if (isMountedRef.current) {
-      setError(
-        err.message === "PERMISSION_DENIED"
-          ? "CAMERA_PERMISSION_DENIED"
-          : "Hardware synchronization error. Verify camera and refresh."
-      );
-
-      setResult((prev) => ({
-        ...prev,
-        status: "red",
-        message: "Sync failed",
-      }));
-    }
-  }
-}, [
-  selectedExercise,
-  onBodyTypeDetected,
-  overlayRenderer,
-  calibrationLogic,
-  cameraService,
-  poseService,
-  bodyTypeEngine,
-  gestureService,
-]);*/
-
 
   useEffect(() => {
     setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));

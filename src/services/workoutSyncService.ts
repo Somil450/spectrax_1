@@ -200,7 +200,6 @@ tx.oncomplete = () => resolve();
 tx.onerror = () => reject(tx.error);
 tx.onabort = () =>
   reject(new Error(`Transaction aborted for localId ${localId}`));
-  });
 }
 
 /**
@@ -445,30 +444,14 @@ let onlineHandler: (() => void) | null = null;
 let offlineHandler: (() => void) | null = null;
 
 export function initializeAutoSync(userId: string): void {
-const workout = getReq.result as WorkoutRecord;
+  if (onlineHandler || offlineHandler) return;
 
-if (workout) {
-  store.delete(localId);
-
-  store.put({
-    ...workout,
-    id: firestoreId,
-    synced: true,
-  });
-}
-
-// resolve only after transaction completes safely
-getReq.onerror = () => reject(getReq.error);
-
-tx.oncomplete = () => resolve();
-tx.onerror = () => reject(tx.error);
-tx.onabort = () =>
-  reject(new Error(`Transaction aborted for localId ${localId}`));
-      }
-    } catch (error) {
-      syncInProgress = false;
-      console.error("Auto-sync failed:", error);
-    }
+  onlineHandler = () => {
+    if (syncInProgress) return;
+    syncInProgress = true;
+    fullSyncWorkouts(userId)
+      .catch((error) => console.error("Auto-sync failed:", error))
+      .finally(() => { syncInProgress = false; });
   };
 
   offlineHandler = () => {
