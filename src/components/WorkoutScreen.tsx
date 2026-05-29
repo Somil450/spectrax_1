@@ -17,6 +17,7 @@ import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
+ main
 import { useThrottleLevel } from '../services/performanceThrottleService';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, VelocityMeterPanel } from './WorkoutPanels';
 import { ghostService, type GhostStats } from '../services/ghostService';
@@ -26,7 +27,17 @@ import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
 import type { VBTMetrics } from '../services/kinematicEngine';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { ghostService, type GhostStats } from '../services/ghostService';
+import type { FrameData } from '../services/sessionRecorder';
+import { FpsMonitor } from './FpsMonitor';
+import { cameraService } from "../services/cameraService";
+import { poseService } from "../services/poseService"; main
 
+import { CameraErrorBoundary } from "./CameraErrorBoundary";
+import { gestureService, GestureCommand } from "../services/gestureService";
+import { debounce } from "../utils/debounce";
+import { useThrottleLevel } from "../services/performanceThrottleService";
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
   new Worker(new URL("../workers/poseWorker.ts", import.meta.url), {
@@ -52,6 +63,7 @@ onEnd: (stats: {
    }) => void;
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
+  adaptiveFactor?: number;
 }
 
 type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "velocity";
@@ -158,9 +170,11 @@ const extrapolateLandmarks = (
   });
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, adaptiveFactor = 1.0 }) => {
   const bodyTypeRef = useRef(bodyType);
   bodyTypeRef.current = bodyType;
+  const adaptiveFactorRef = useRef(adaptiveFactor);
+  adaptiveFactorRef.current = adaptiveFactor;
   const onAutoDetectRef = useRef(onAutoDetect);
   onAutoDetectRef.current = onAutoDetect;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -180,28 +194,30 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }
 
   const panelRefsById = panelRefs.current;
-  const [panelsLocked, setPanelsLocked] = useState(true);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
-  const [showExitModal, setShowExitModal] = useState(false);
+const [panelsLocked, setPanelsLocked] = useState(true);
+const [cameraError, setCameraError] = useState<string | null>(null);
+const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+const [showExitModal, setShowExitModal] = useState(false);
   const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-  const throttleLevel = useThrottleLevel();
-  const srOnly: React.CSSProperties = {
-    position: 'absolute',
-    width: '1px',
-    height: '1px',
-    padding: 0,
-    margin: '-1px',
-    overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
-    whiteSpace: 'nowrap',
-    borderWidth: 0,
-  };
+const [panelsLocked, setPanelsLocked] = useState(true);
+const [cameraError, setCameraError] = useState<string | null>(null);
+const FPS_LIMIT = 30;
 
+const srOnly: React.CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  borderWidth: 0,
+};
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -239,17 +255,26 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const previousObservedLandmarksRef = useRef<any[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+const workerAnglesRef = useRef<Record<string, number>>({});
+const lastProcessTime = useRef(0);
+const frameId = useRef<number | null>(null);
+const countRef = useRef(0);
 
-  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
-  const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
-  const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
-  const ghostFramesRef = useRef<FrameData[]>([]);
-  const ghostStatsRef = useRef<GhostStats | null>(null);
-  const [hasGhost, setHasGhost] = useState(false);
+const animationFrameRef = useRef<number | null>(null);
+
+const [showExitModal, setShowExitModal] = useState(false);
+
+const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
+const [gestureHudVisible, setGestureHudVisible] = useState(false);
+const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
+const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
+
+const ghostFramesRef = useRef<FrameData[]>([]);
+const ghostStatsRef = useRef<GhostStats | null>(null);
+const [hasGhost, setHasGhost] = useState(false);
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
@@ -271,6 +296,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   useEffect(() => {
     bodyTypeRef.current = bodyType;
   }, [bodyType]);
+
+  useEffect(() => {
+    adaptiveFactorRef.current = adaptiveFactor;
+  }, [adaptiveFactor]);
 
   useEffect(() => {
     onAutoDetectRef.current = onAutoDetect;
@@ -358,7 +387,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }, [mismatchError]);
 
 
-  const workerAnglesRef = useRef<Record<string, number>>({});
   const wsSocketRef = useRef<WebSocket | null>(null);
   const offscreenEnabledRef = useRef<boolean>(false);
   const { initOffscreenCanvas } = useOffscreenCanvas();
@@ -479,14 +507,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     const visibility = getJointVisibility(results.poseLandmarks);
 
-    // Adjust structural thresholds dynamically based on active detected body type
+    // Adjust structural thresholds dynamically based on body-type calibration factor
     const activeConfig = { ...exercise };
-    if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
-      activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
-    } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
-      activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
-    } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
-      activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
+    const factor = adaptiveFactorRef.current;
+    if (factor !== 1.0) {
+      activeConfig.downThreshold = Math.round(activeConfig.downThreshold * factor);
+      activeConfig.upThreshold = Math.round(activeConfig.upThreshold * factor);
     }
 
     // 2. Process through multi-exercise engine (stays on main thread — manages state)
@@ -565,11 +591,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       setHasGhost(false);
     }
 
-    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
-    const wsSocketRef = useWorkoutWebSocket();
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent) => {
+      const { angles } = event.data;
+      if (angles) {
+        workerAnglesRef.current = angles;
+      }
+    };
 
     
   
@@ -587,7 +618,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
         sessionRecorder.start();
         await clipEngine.init();
-        await startSystem();
+await startSystem();
       } catch (err: any) {
         console.error("Workout camera error:", err);
         if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -661,6 +692,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       }
     }
 
+ main
 onEnd({
        reps: mutableState.current.reps,
        totalReps: mutableState.current.totalReps,
@@ -681,6 +713,26 @@ onEnd({
        vbtMetrics: mutableState.current.vbtMetrics,
        velocitiesSession: mutableState.current.vbtMetrics?.velocitiesSession,
      });
+
+    onEnd({
+      reps: mutableState.current.reps,
+      totalReps: mutableState.current.totalReps,
+      correctReps: mutableState.current.correctReps,
+      repScores: mutableState.current.repScores,
+      repDeviations: mutableState.current.repDeviations,
+      duration: seconds,
+      accuracy: accuracy,
+      mistakes: finalMistakes,
+      bestStreak: mutableState.current.bestStreak,
+      jumpingJackSync: mutableState.current.jumpingJackSync,
+      tags: clipEngine.generateSessionTags({
+        accuracy: accuracy,
+        avgConfidence: clipResult?.confidence || 0.8,
+mistakes:Object.keys(finalMistakes),
+        duration: seconds,
+      }),
+    });
+ main
   };
 
   const formatTime = (s: number) => {

@@ -34,7 +34,6 @@ import {
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
-import { getSupinationScore } from './wristRotationDetector';
 import type { NormalizedLandmark } from "@mediapipe/pose";
 
 export interface JumpingJackSyncSample {
@@ -182,16 +181,11 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
   depthStats: SquatDepthStats;
-  liveDepthFeedback: string;
 
   // VBT Metrics
-  vbtMetrics?: VBTMetrics;
 
   // ── Pushup depth classification ──────────────────────────────
-  lastPushupDepthResult?: PushupDepthResult | null;
-  pushupDepthStats?: PushupDepthStats;
-  livePushupDepthFeedback?: string;
-  downZReached?: number;
+
 
   // Tracking & recovery buffers
   visibilityBuffer?: number[];
@@ -202,6 +196,25 @@ export interface EngineState {
   jumpingJackSync?: JumpingJackSyncMetrics;
 
   wristSupinationScore?: number;
+ main
+
+  /**
+   * Real-time depth coaching string emitted during the DOWN phase.
+   * Empty string when no depth cue is active.
+   */
+  liveDepthFeedback: string;
+
+  // VBT Metrics
+  vbtMetrics?: VBTMetrics;
+
+  // ── Pushup depth classification (NEW) ──────────────────────────
+  lastPushupDepthResult?: PushupDepthResult | null;
+  pushupDepthStats?: PushupDepthStats;
+  livePushupDepthFeedback?: string;
+  downZReached?: number;
+
+  // Tracking & recovery buffers
+ main
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -224,6 +237,7 @@ interface RepParams {
 
 const ENGINE_DEFAULTS: RepParams = {
   repCooldown: 600,
+
   hysteresis: 10,
   smoothingWindow: 5,
   minDownDuration: 150,
@@ -282,11 +296,17 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
+ main
     landmarks?: NormalizedLandmark[],
     timestamp?: number
+
+
+    landmarks?: any[]
+
+ main
   ): Promise<EngineState> {
     const now = Date.now();
-    const p = this.repParams(config.key);
+    const p = ENGINE_DEFAULTS;
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
@@ -400,7 +420,54 @@ export class ExerciseEngine {
       };
     }
 
-    // ───────── REP LOGIC ─────────
+// ───────── PLANK SPLINE REGRESSION ─────────
+let nextPlankSpline = currentState.plankSpline;
+let hipSplineDeviation = currentState.hipSplineDeviation;
+
+if (config.key === "plank" && landmarks && landmarks.length >= 29) {
+  const leftVis =
+    [11, 23, 25].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
+
+  const rightVis =
+    [12, 24, 26].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
+
+  const side = leftVis >= rightVis ? "left" : "right";
+
+  const shoulderIdx = side === "left" ? 11 : 12;
+  const hipIdx = side === "left" ? 23 : 24;
+  const kneeIdx = side === "left" ? 25 : 26;
+
+  const shoulder = landmarks?.[shoulderIdx];
+  const hip = landmarks?.[hipIdx];
+  const knee = landmarks?.[kneeIdx];
+
+  const sufficientVis =
+    (shoulder?.visibility || 0) > 0.5 &&
+    (hip?.visibility || 0) > 0.5 &&
+    (knee?.visibility || 0) > 0.5;
+
+  if (sufficientVis) {
+    if (!nextPlankSpline.isCalibrated) {
+      nextPlankSpline = updatePlankCalibration(
+        nextPlankSpline,
+        shoulder,
+        hip,
+        knee
+      );
+    }
+
+    if (nextPlankSpline.isCalibrated) {
+      hipSplineDeviation = computeHipSplineDeviation(
+        nextPlankSpline,
+        shoulder,
+        hip,
+        knee
+      );
+    }
+  }
+}
+
+// ───────── REP LOGIC ─────────
     let nextStage = stage;
     let nextReps = reps;
     let nextLastRepTime = lastRepTime;
@@ -430,6 +497,7 @@ export class ExerciseEngine {
       const durationInDown = now - stageStartTime;
 
       if (
+ main
         now - lastRepTime > currentCooldown &&
         durationInDown > this.MIN_DOWN_DURATION
       ) {
@@ -484,28 +552,75 @@ export class ExerciseEngine {
       wristSupinationScore,
     };
 
-    let feedbackResult: FeedbackResult;
-    let frameScore: number;
+now - lastRepTime > currentCooldown &&
+durationInDown > this.MIN_DOWN_DURATION
+) {
+  nextStage = "up";
+  stageStartTime = now;
+  repJustCounted = true;
+}
+ main
 
-    if (isInExercisePosture) {
-      feedbackResult = getFeedback(context, config.key);
-      frameScore = feedbackResult.score;
-    } else {
-      feedbackResult = {
-        score: 100,
-        color: 'green',
-        message: 'READY 🟢',
-        issues: [],
-        deviation: 0,
-      };
-      frameScore = 100;
-    }
+// ───────── POSTURE VALIDATION ─────────
+const isInExercisePosture = this.isValidExercisePosture(
+  history,
+  config,
+  nextStage
+);
 
+// Accumulate hold time for static exercises
+let nextHoldTime = currentState.holdTime || 0;
+if (
+  config.isStatic &&
+  isInExercisePosture &&
+  (currentState.status === "green" || currentState.status === "yellow")
+) {
+  nextHoldTime += 1 / 20;
+}
+
+// ───────── WRIST ROTATION DETECTION ─────────
+const wristSupinationScore =
+  config.key === "bicepCurl" ? getSupinationScore(landmarks) : NaN;
+
+const PLANK_DEVIATION_THRESHOLD = 0.05;
+const hipSplineDeviation = 0;
+const nextPlankSpline = { isCalibrated: false };
+
+const context: any = {
+  ...angles,
+  stage: nextStage,
+  lateralScore: angles.lateralScore,
+  hipDepth: angles.hipDepth,
+  horizontalStretch: angles.horizontalStretch,
+  downAngleReached,
+  hipSplineDeviation,
+  plankSplineCalibrated: nextPlankSpline.isCalibrated,
+  hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
+  hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+  wristSupinationScore,
+};
+
+let feedbackResult: FeedbackResult;
+let frameScore: number;
+
+if (isInExercisePosture) {
+  feedbackResult = getFeedback(context, config.key);
+  frameScore = feedbackResult.score;
+} else {
+  feedbackResult = {
+    score: 100,
+    color: "green",
+    message: "READY 🟢",
+    issues: [],
+    deviation: 0,
+  };
+  frameScore = 100;
+}
     let nextMinScoreInRep = currentState.minScoreInRep;
     let currentDeviation = 0;
     if (isInExercisePosture) {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
-      currentDeviation = feedbackResult.deviation || 0;
+      currentDeviation = feedbackResult.deviation ?? 0;
     }
 
     // ───────── LIVE DEPTH FEEDBACK (during down phase) ────────────────────

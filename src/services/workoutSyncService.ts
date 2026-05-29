@@ -15,7 +15,9 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
+
 import { getAuth } from "firebase/auth";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & Interfaces
@@ -179,26 +181,32 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     const getReq = store.get(localId);
 
     getReq.onsuccess = () => {
-  const workout = getReq.result as WorkoutRecord;
-  if (workout) {
-    store.delete(localId);
-    store.put({ ...workout, id: firestoreId, synced: true });
-  }
-  // ✅ Do NOT resolve here
-};
+const workout = getReq.result as WorkoutRecord;
 
+if (workout) {
+  store.delete(localId);
+
+  store.put({
+    ...workout,
+    id: firestoreId,
+    synced: true,
+  });
+}
+
+// resolve only after transaction completes safely
 getReq.onerror = () => reject(getReq.error);
 
-tx.oncomplete = () => resolve();           // ✅ resolve only after commit
-tx.onerror    = () => reject(tx.error);    // ✅ surface transaction errors
-tx.onabort    = () => reject(new Error(`Transaction aborted for localId ${localId}`));
+tx.oncomplete = () => resolve();
+tx.onerror = () => reject(tx.error);
+tx.onabort = () =>
+  reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
 /**
  * Update local workouts with Firestore data, preventing duplicates by reusing existing localId keys
  */
-async function updateLocalWorkoutsFromFirestore(
+export async function updateLocalWorkoutsFromFirestore(
   userId: string,
   firestoreWorkouts: WorkoutRecord[],
 ): Promise<void> {
@@ -275,7 +283,7 @@ export async function uploadWorkoutToFirestore(
 /**
  * Get all workouts from Firestore for current user
  */
-export async function getFirestoreWorkouts(): Promise<WorkoutRecord[]> {
+export async function getFirestoreWorkouts(userId: string): Promise<WorkoutRecord[]> {
   try {
     const auth = getAuth();
     const userId = auth.currentUser?.uid;
@@ -367,8 +375,16 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
  */
 export async function syncWorkoutsFromFirestore(userId: string): Promise<void> {
   try {
-    const firestoreWorkouts = await getFirestoreWorkouts();
-    await updateLocalWorkoutsFromFirestore(userId, firestoreWorkouts);
+    const db = getFirestore();
+
+    const snapshot = await getDocs(collection(db, "workouts"));
+
+    const firestoreWorkouts = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
+
+console.log("Sync skipped - helper not implemented");
     console.log(
       `Downloaded ${firestoreWorkouts.length} workouts from Firestore`,
     );
@@ -425,27 +441,56 @@ let syncInProgress = false;
 /**
  * Start auto-sync when connection is restored
  */
+let onlineHandler: (() => void) | null = null;
+let offlineHandler: (() => void) | null = null;
+
 export function initializeAutoSync(userId: string): void {
-  // Listen for online event
-  window.addEventListener("online", async () => {
-    try {
-      if (!syncInProgress) {
-        syncInProgress = true;
-        await fullSyncWorkouts(userId);
-        syncInProgress = false;
+const workout = getReq.result as WorkoutRecord;
+
+if (workout) {
+  store.delete(localId);
+
+  store.put({
+    ...workout,
+    id: firestoreId,
+    synced: true,
+  });
+}
+
+// resolve only after transaction completes safely
+getReq.onerror = () => reject(getReq.error);
+
+tx.oncomplete = () => resolve();
+tx.onerror = () => reject(tx.error);
+tx.onabort = () =>
+  reject(new Error(`Transaction aborted for localId ${localId}`));
       }
     } catch (error) {
       syncInProgress = false;
       console.error("Auto-sync failed:", error);
     }
-  });
+  };
 
-  // Listen for offline event
-  window.addEventListener("offline", () => {
+  offlineHandler = () => {
     console.log(
       "Network connection lost. Workouts will sync when back online.",
     );
-  });
+  };
+
+  // Add listeners
+  window.addEventListener("online", onlineHandler);
+  window.addEventListener("offline", offlineHandler);
+}
+export function cleanupAutoSync(): void {
+  if (onlineHandler) {
+    window.removeEventListener("online", onlineHandler);
+    onlineHandler = null;
+  }
+
+  if (offlineHandler) {
+    window.removeEventListener("offline", offlineHandler);
+    offlineHandler = null;
+  }
 }
 
 /**
@@ -617,6 +662,24 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+try {
+  const db = getFirestore();
+
+  const snapshot = await getDocs(collection(db, "workouts"));
+
+  const workouts = snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+  }));
+
+  for (const w of workouts) {
+    if (w.id) {
+      await deleteWorkoutFromFirestore(w.id as string);
+    }
+  }
+} catch (error) {
+  console.error("Failed to clear workouts from Firestore:", error);
+}
 }
 
 export default {
@@ -629,6 +692,7 @@ export default {
   syncWorkoutsToFirestore,
   syncWorkoutsFromFirestore,
   fullSyncWorkouts,
+  cleanupAutoSync,
   initializeAutoSync,
   isOnline,
   getSyncStatus,

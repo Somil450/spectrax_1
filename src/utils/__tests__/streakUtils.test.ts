@@ -94,4 +94,57 @@ describe('streakUtils', () => {
       expect(data.lastWorkoutDate).toBe(new Date('2024-01-04T12:00:00Z').toDateString());
     });
   });
+
+  describe('storage failure handling', () => {
+    it('returns defaults when localStorage contains corrupt JSON', () => {
+      localStorage.setItem(STORAGE_KEY, '{not valid json');
+      const data = getWorkoutStreak();
+      expect(data).toEqual({
+        currentStreak: 0,
+        longestStreak: 0,
+        lastWorkoutDate: null,
+      });
+    });
+
+    it('returns defaults when the parsed value is not an object', () => {
+      localStorage.setItem(STORAGE_KEY, '42');
+      const data = getWorkoutStreak();
+      expect(data).toEqual({
+        currentStreak: 0,
+        longestStreak: 0,
+        lastWorkoutDate: null,
+      });
+    });
+
+    it('returns defaults when localStorage.getItem itself throws', () => {
+      const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('storage disabled');
+      });
+      try {
+        const data = getWorkoutStreak();
+        expect(data).toEqual({
+          currentStreak: 0,
+          longestStreak: 0,
+          lastWorkoutDate: null,
+        });
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('does not throw when localStorage.setItem throws (Safari private mode)', () => {
+      vi.setSystemTime(new Date('2024-01-01T12:00:00Z'));
+      const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+      try {
+        expect(() => updateWorkoutStreak()).not.toThrow();
+        const data = updateWorkoutStreak();
+        expect(data.currentStreak).toBe(1);
+        expect(data.lastWorkoutDate).toBe(new Date('2024-01-01T12:00:00Z').toDateString());
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
 });

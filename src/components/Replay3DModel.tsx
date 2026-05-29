@@ -37,8 +37,25 @@ type HudLabel = {
   angle: number;
   label: string;
   id: number;
+}; main
+type StressVectorRig = {
+  mesh: THREE.Mesh;
+  material: THREE.ShaderMaterial;
+  geometry: THREE.BufferGeometry;
+  jointIdx: number;
+  parentIdx: number;
+  muscleGroup: keyof typeof MUSCLE_JOINT_GROUPS;
 };
 
+type RippleEvent = {
+  origin: THREE.Vector2;
+  startTime: number;
+  speed: number;
+  strength: number;
+};
+
+
+ main
 // ─── Graphic Quality Presets ───────────────────────────────────────────────────
 
 export type GraphicsPreset = "ultra" | "high" | "medium" | "low" | "potato";
@@ -558,6 +575,302 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const recoveryTimeoutRef = useRef<number | null>(null);
   const rendererPipelineCleanupRef = useRef<(() => void) | null>(null);
 
+main
+
+
+
+  const createStressVectorMaterial = useCallback(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0x00ffff) },
+        uStress: { value: 0 },
+        uLength: { value: 1 },
+        uThickness: { value: 0.05 },
+        uTime: { value: 0 },
+      },
+      vertexShader: `
+        uniform float uStress;
+        uniform float uLength;
+        uniform float uThickness;
+        uniform float uTime;
+        varying float vProgress;
+        varying float vStress;
+
+        void main() {
+          vProgress = clamp(position.y, 0.0, 1.0);
+          vStress = clamp(uStress, 0.0, 1.0);
+
+          vec3 transformed = position;
+          float pulse = 1.0 + sin(uTime * 4.5 + vProgress * 8.0) * 0.06 * vStress;
+          float taper = mix(1.0, 0.22, vProgress);
+
+          transformed.x *= uThickness * taper * pulse;
+          transformed.z *= uThickness * taper * pulse;
+          transformed.y *= mix(0.45, uLength, vStress);
+
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uStress;
+        varying float vProgress;
+        varying float vStress;
+
+        void main() {
+          vec3 hot = vec3(1.0, 0.35, 0.12);
+          vec3 cool = uColor;
+          vec3 color = mix(cool, hot, clamp(uStress, 0.0, 1.0));
+          float shaft = smoothstep(0.0, 0.18, vProgress) * (1.0 - smoothstep(0.82, 1.0, vProgress));
+          float glow = mix(0.35, 0.95, vStress);
+          float alpha = mix(0.24, 0.92, shaft) * glow;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+
+  const createRippleGridMaterial = useCallback(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uGridColor: { value: new THREE.Color(0x00ffff) },
+        uRippleColor: { value: new THREE.Color(0x85fff4) },
+        uGridScale: { value: 7.5 },
+        uLineWidth: { value: 0.06 },
+        uRippleCount: { value: 0 },
+        uRippleOrigins: {
+          value: Array.from(
+            { length: GRID_RIPPLE_MAX },
+            () => new THREE.Vector2(-10, -10),
+          ),
+        },
+        uRippleStarts: {
+          value: Array.from({ length: GRID_RIPPLE_MAX }, () => 0),
+        },
+        uRippleSpeeds: {
+          value: Array.from({ length: GRID_RIPPLE_MAX }, () => 0),
+        },
+        uRippleStrengths: {
+          value: Array.from({ length: GRID_RIPPLE_MAX }, () => 0),
+        },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        #define MAX_RIPPLES ${GRID_RIPPLE_MAX}
+
+        uniform float uTime;
+        uniform vec3 uGridColor;
+        uniform vec3 uRippleColor;
+        uniform float uGridScale;
+        uniform float uLineWidth;
+        uniform int uRippleCount;
+        uniform vec2 uRippleOrigins[MAX_RIPPLES];
+        uniform float uRippleStarts[MAX_RIPPLES];
+        uniform float uRippleSpeeds[MAX_RIPPLES];
+        uniform float uRippleStrengths[MAX_RIPPLES];
+        varying vec2 vUv;
+
+        float gridMask(vec2 uv) {
+          vec2 cell = abs(fract(uv * uGridScale) - 0.5);
+          float lineX = smoothstep(0.5, 0.5 - uLineWidth, cell.x);
+          float lineY = smoothstep(0.5, 0.5 - uLineWidth, cell.y);
+          return max(lineX, lineY);
+        }
+
+        void main() {
+          vec3 base = vec3(0.01, 0.03, 0.05);
+          float grid = gridMask(vUv);
+          float rippleGlow = 0.0;
+          float rippleCore = 0.0;
+
+          for (int i = 0; i < MAX_RIPPLES; i++) {
+            if (i >= uRippleCount) break;
+            float age = max(uTime - uRippleStarts[i], 0.0);
+            float radius = age * uRippleSpeeds[i];
+            float dist = distance(vUv, uRippleOrigins[i]);
+            float ring = 1.0 - smoothstep(0.0, 0.035, abs(dist - radius));
+            float pulse = 0.5 + 0.5 * sin((dist - radius) * 65.0);
+            float fade = exp(-age * 1.25) * exp(-dist * 0.8);
+            float strength = uRippleStrengths[i] * ring * pulse * fade;
+            rippleGlow += strength;
+            rippleCore = max(rippleCore, strength);
+          }
+
+          vec3 gridColor = mix(base, uGridColor, grid * 0.55);
+          vec3 rippleColor = mix(gridColor, uRippleColor, clamp(rippleGlow, 0.0, 1.0));
+          rippleColor += uRippleColor * rippleCore * 0.75;
+
+          float alpha = clamp(0.08 + grid * 0.6 + rippleGlow * 0.85, 0.0, 0.95);
+          gl_FragColor = vec4(rippleColor, alpha);
+
+        }
+      `,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, []);
+
+
+  const updateStressVectors = useCallback(
+    (
+      getLm: (idx: number) => THREE.Vector3 | null,
+      bodyCenter: THREE.Vector3 | null,
+      shoulderCenter: THREE.Vector3 | null,
+      hipCenter: THREE.Vector3 | null,
+      baseColor: THREE.Color,
+      badJoints: Set<number>,
+      exerciseName: string,
+      time: number,
+    ) => {
+      const rigs = stressVectorsRef.current;
+      if (rigs.length === 0) return;
+
+      const previousPositions = previousJointPositionsRef.current;
+      const allowedGroups = new Set<keyof typeof MUSCLE_JOINT_GROUPS>(
+        (exerciseName.includes("squat")
+          ? ["legs", "core"]
+          : exerciseName.includes("plank")
+            ? ["core", "legs"]
+            : exerciseName.includes("curl") || exerciseName.includes("push")
+              ? ["arms", "core"]
+              : ["arms", "core", "legs"]) as Array<
+          keyof typeof MUSCLE_JOINT_GROUPS
+        >,
+      );
+
+      const fallbackCenter =
+        bodyCenter ?? shoulderCenter ?? hipCenter ?? new THREE.Vector3(0, 0, 0);
+      const upAxis = new THREE.Vector3(0, 1, 0);
+      const sideAxis = new THREE.Vector3(1, 0, 0);
+
+      rigs.forEach((rig) => {
+        const jointPos = getLm(rig.jointIdx);
+        const parentPos = getLm(rig.parentIdx) ?? fallbackCenter;
+        if (!jointPos) {
+          rig.mesh.visible = false;
+          return;
+        }
+
+        const previousPos = previousPositions[rig.jointIdx];
+        const movement = previousPos ? jointPos.distanceTo(previousPos) : 0;
+        const motionStress = THREE.MathUtils.clamp(movement * 3.25, 0, 1);
+        const tensionBoost = badJoints.has(rig.jointIdx) ? 0.38 : 0;
+        const groupBoost = allowedGroups.has(rig.muscleGroup) ? 0.14 : 0.04;
+
+        const outward = jointPos.clone().sub(fallbackCenter).normalize();
+        const limbAxis = jointPos.clone().sub(parentPos).normalize();
+        const direction = outward
+          .multiplyScalar(0.55)
+          .add(limbAxis.multiplyScalar(0.35))
+          .add(upAxis.clone().multiplyScalar(0.07))
+          .add(sideAxis.clone().multiplyScalar(0.03))
+          .normalize();
+
+        const stress = THREE.MathUtils.clamp(
+          motionStress * 0.55 + tensionBoost + groupBoost,
+          0,
+          1,
+        );
+
+        const length = 0.45 + stress * 1.55;
+        const thickness = 0.045 + stress * 0.03;
+        const position = jointPos
+          .clone()
+          .add(direction.clone().multiplyScalar(0.08 + stress * 0.1));
+
+        rig.mesh.visible = stress > 0.02;
+        rig.mesh.position.copy(position);
+        rig.mesh.quaternion.setFromUnitVectors(upAxis, direction);
+        rig.mesh.renderOrder = 4;
+
+        rig.material.uniforms.uStress.value = stress;
+        rig.material.uniforms.uLength.value = length;
+        rig.material.uniforms.uThickness.value = thickness;
+        rig.material.uniforms.uTime.value = time * 0.001;
+        rig.material.uniforms.uColor.value
+          .copy(baseColor)
+          .lerp(
+            badJoints.has(rig.jointIdx)
+              ? new THREE.Color(0xff3300)
+              : new THREE.Color(0x00ffff),
+            stress,
+          );
+
+        previousPositions[rig.jointIdx] = jointPos.clone();
+      });
+    },
+    [],
+  );
+
+  const syncRippleUniforms = useCallback((timeSeconds: number) => {
+    const material = rippleMaterialRef.current;
+    if (!material) return;
+
+    const activeEvents = rippleEventsRef.current.filter(
+      (event) => timeSeconds - event.startTime <= GRID_RIPPLE_LIFETIME,
+    );
+    rippleEventsRef.current = activeEvents;
+
+    const origins = material.uniforms.uRippleOrigins.value as THREE.Vector2[];
+    const starts = material.uniforms.uRippleStarts.value as number[];
+    const speeds = material.uniforms.uRippleSpeeds.value as number[];
+    const strengths = material.uniforms.uRippleStrengths.value as number[];
+
+    material.uniforms.uTime.value = timeSeconds;
+    material.uniforms.uRippleCount.value = activeEvents.length;
+
+    for (let i = 0; i < GRID_RIPPLE_MAX; i++) {
+      const event = activeEvents[i];
+      if (event) {
+        origins[i].copy(event.origin);
+        starts[i] = event.startTime;
+        speeds[i] = event.speed;
+        strengths[i] = event.strength;
+      } else {
+        origins[i].set(-10, -10);
+        starts[i] = 0;
+        speeds[i] = 0;
+        strengths[i] = 0;
+      }
+    }
+  }, []);
+
+  const emitRipple = useCallback(
+    (
+      origin: THREE.Vector2,
+      speed: number,
+      strength: number,
+      timeSeconds: number,
+    ) => {
+      rippleEventsRef.current = [
+        { origin: origin.clone(), startTime: timeSeconds, speed, strength },
+        ...rippleEventsRef.current,
+      ].slice(0, GRID_RIPPLE_MAX);
+      lastRippleCompletionTimeRef.current = timeSeconds;
+      syncRippleUniforms(timeSeconds);
+    },
+    [syncRippleUniforms],
+  );
+
+  const orbitPelvisTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const hasOrbitPelvisTargetRef = useRef(false);
+
+ main
   // ─── Rebuild post-processing passes when preset changes ───────────────────
   const rebuildPasses = useCallback(
     (preset: GraphicsPreset, forceWidth?: number, forceHeight?: number) => {
@@ -729,8 +1042,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const createdBones: { line: THREE.Line; startIdx: number; endIdx: number }[] = [];
     BONES_CONNECTIONS.forEach(([startIdx, endIdx]) => {
       const geometry = new THREE.BufferGeometry();
+ main
       geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
       const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 }));
+
+
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(new Float32Array(6), 3),
+      );
+      const line = new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 }),
+      );
+
+      line.userData.isOverlay = true;
+
+ main
       scene.add(line);
       createdBones.push({ line, startIdx, endIdx });
     });
@@ -867,16 +1195,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       composer.addPass(bloomPass);
       bloomPassRef.current = bloomPass;
 
-      const controls = new OrbitControls(
-        cameraRef.current,
-        renderer.domElement,
-      );
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.maxPolarAngle = Math.PI / 2 + 0.1;
-      controls.minDistance   = 1.0;
-      controls.maxDistance   = 10.0;
-      controlsRef.current    = controls;
+
+      
+    
 
       const handleContextLost = (event: Event) => {
         event.preventDefault();
@@ -919,9 +1240,17 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       rendererPipelineCleanupRef.current = () => {
         renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
         renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
+ main
         window.removeEventListener("resize", handleResize);
         controls.dispose();
         composer.dispose();
+
+        window.removeEventListener("resize", handleResize);
+        controlsRef.current?.dispose();
+
+   
+     
+ main
         composerRef.current  = null;
         bloomPassRef.current = null;
         smaaPassRef.current  = null;
@@ -929,7 +1258,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         if (mountRef.current?.contains(renderer.domElement)) mountRef.current.removeChild(renderer.domElement);
         renderer.dispose();
         if (rendererRef.current  === renderer) rendererRef.current  = null;
-        if (controlsRef.current  === controls) controlsRef.current  = null;
+        if (controlsRef.current  === controlsRef.current) controlsRef.current  = null;
       };
 
       requestAnimationFrame(() => {
@@ -1037,7 +1366,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         return;
       }
 
+main
+
+
+
+      const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
+      const timeSeconds = time * 0.001; main
       const { baseColor, badJoints, mistakeColor } = parseFeedback(frame.feedback);
+      const exerciseName = frame.exercise?.toLowerCase() || "";
 
       // Helper
       let depthScale = 2.0;
@@ -1055,16 +1391,90 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
       };
 
+ main
       const lShoulder = getLm(11), rShoulder = getLm(12);
       const lHip = getLm(23), rHip = getLm(24);
       const lAnkle = getLm(27), rAnkle = getLm(28);
 
+
+      const lShoulder = getLm(11),
+        rShoulder = getLm(12);
+      const lHip = getLm(23),
+        rHip = getLm(24);
+      const lAnkle = getLm(27),
+        rAnkle = getLm(28);
+      const shoulderCenter =
+        lShoulder && rShoulder
+          ? new THREE.Vector3()
+              .addVectors(lShoulder, rShoulder)
+              .multiplyScalar(0.5)
+          : null;
+      const hipCenter =
+        lHip && rHip
+          ? new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5)
+          : null;
+      const bodyCenter =
+        shoulderCenter && hipCenter
+          ? new THREE.Vector3()
+              .addVectors(shoulderCenter, hipCenter)
+              .multiplyScalar(0.5)
+          : shoulderCenter || hipCenter;
+
+      if (modelLoaded) {
+        updateSegmentScaleAdaptor(frame.landmarks, getLm);
+      }
+
+
+      const footCenter =
+        lAnkle && rAnkle
+          ? new THREE.Vector2(
+              (lAnkle.x + rAnkle.x) * 0.5,
+              (lAnkle.z + rAnkle.z) * 0.5,
+            )
+          : lAnkle
+            ? new THREE.Vector2(lAnkle.x, lAnkle.z)
+            : rAnkle
+              ? new THREE.Vector2(rAnkle.x, rAnkle.z)
+              : null;
+
+      syncRippleUniforms(timeSeconds);
+      if (lastRepCountRef.current === null) {
+        lastRepCountRef.current = repCount;
+      } else if (repCount !== lastRepCountRef.current) {
+        if (repCount > lastRepCountRef.current && footCenter) {
+          const lastCompletion = lastRippleCompletionTimeRef.current;
+          const intervalSeconds = lastCompletion
+            ? timeSeconds - lastCompletion
+            : 1.0;
+          const tempo = THREE.MathUtils.clamp(
+            1.8 / Math.max(intervalSeconds, 0.25),
+            0.7,
+            1.6,
+          );
+          const rippleOrigin = new THREE.Vector2(
+            THREE.MathUtils.clamp(footCenter.x / GRID_SIZE + 0.5, 0.05, 0.95),
+            THREE.MathUtils.clamp(footCenter.y / GRID_SIZE + 0.5, 0.05, 0.95),
+          );
+          emitRipple(
+            rippleOrigin,
+            0.5 + tempo * 0.55,
+            0.65 + tempo * 0.35,
+            timeSeconds,
+          );
+        }
+        lastRepCountRef.current = repCount;
+      }
+main
+
       if (modelLoaded) {
         if (!modelGroupRef.current) return;
 
+ main
         if (lShoulder && rShoulder && lHip && rHip) {
           const shoulderCenter = new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5);
           const hipCenter      = new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5);
+
+        if (lShoulder && rShoulder && lHip && rHip && shoulderCenter && hipCenter) { main
           const up      = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
           const right   = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
           const forward = new THREE.Vector3().crossVectors(right, up).normalize();
