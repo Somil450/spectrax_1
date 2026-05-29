@@ -1,5 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import React from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 export type Theme = 'cyber-dark' | 'retro' | 'light';
 
@@ -23,7 +22,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     // 1. Check localStorage first
     const saved = localStorage.getItem('spectrax-theme');

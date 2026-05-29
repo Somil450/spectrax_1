@@ -28,7 +28,6 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { FitnessCalculator } from "./components/FitnessCalculator";
-import React from "react";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
 
 type Screen =

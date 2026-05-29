@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { syncOfflineQueue } from "../syncQueue";
 import * as offlineQueue from "../../utils/offlineQueue";
-import type { ReplaySession } from "../../utils/offlineQueue";
 
 // Mock Firebase
 vi.mock("firebase/auth", () => ({
@@ -19,7 +18,7 @@ vi.mock("firebase/firestore", () => ({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function createMockSession(id: string): ReplaySession {
+function createMockSession(id: string): offlineQueue.ReplaySession {
   return {
     id,
     userId: "user-123",
