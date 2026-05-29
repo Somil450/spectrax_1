@@ -180,26 +180,27 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     const store = tx.objectStore(WORKOUTS_STORE);
     const getReq = store.get(localId);
 
-    getReq.onsuccess = () => {
-const workout = getReq.result as WorkoutRecord;
+  getReq.onsuccess = () => {
+    const workout = getReq.result as WorkoutRecord;
 
-if (workout) {
-  store.delete(localId);
+    if (workout) {
+      store.delete(localId);
 
-  store.put({
-    ...workout,
-    id: firestoreId,
-    synced: true,
-  });
-}
+      store.put({
+        ...workout,
+        id: firestoreId,
+        synced: true,
+      });
+    }
+  };
 
-// resolve only after transaction completes safely
-getReq.onerror = () => reject(getReq.error);
+  // resolve only after transaction completes safely
+  getReq.onerror = () => reject(getReq.error);
 
-tx.oncomplete = () => resolve();
-tx.onerror = () => reject(tx.error);
-tx.onabort = () =>
-  reject(new Error(`Transaction aborted for localId ${localId}`));
+  tx.oncomplete = () => resolve();
+  tx.onerror = () => reject(tx.error);
+  tx.onabort = () =>
+    reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
@@ -445,39 +446,29 @@ let onlineHandler: (() => void) | null = null;
 let offlineHandler: (() => void) | null = null;
 
 export function initializeAutoSync(userId: string): void {
-const workout = getReq.result as WorkoutRecord;
+  if (onlineHandler || offlineHandler) return;
 
-if (workout) {
-  store.delete(localId);
-
-  store.put({
-    ...workout,
-    id: firestoreId,
-    synced: true,
-  });
-}
-
-// resolve only after transaction completes safely
-getReq.onerror = () => reject(getReq.error);
-
-tx.oncomplete = () => resolve();
-tx.onerror = () => reject(tx.error);
-tx.onabort = () =>
-  reject(new Error(`Transaction aborted for localId ${localId}`));
+  onlineHandler = async () => {
+    if (syncInProgress) return;
+    syncInProgress = true;
+    try {
+      const syncedCount = await syncWorkoutsToFirestore(userId);
+      if (syncedCount > 0) {
+        console.log(`Auto-sync complete: synced ${syncedCount} workouts`);
       }
     } catch (error) {
-      syncInProgress = false;
       console.error("Auto-sync failed:", error);
+    } finally {
+      syncInProgress = false;
     }
   };
 
   offlineHandler = () => {
     console.log(
-      "Network connection lost. Workouts will sync when back online.",
+      "Network connection lost. Workouts will sync when back online."
     );
   };
 
-  // Add listeners
   window.addEventListener("online", onlineHandler);
   window.addEventListener("offline", offlineHandler);
 }
