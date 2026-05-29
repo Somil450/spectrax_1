@@ -37,6 +37,7 @@ export interface SessionArchive {
 const ANGLE_THRESHOLD = 2.0;
 const LANDMARK_THRESHOLD = 0.002;
 const FLOAT_PRECISION = 4;
+const MAX_DECOMPRESSED_FRAMES = 100000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RLD Compression Driver
@@ -69,6 +70,7 @@ export class RLDCompressionDriver {
     let previousFrame: FrameData | null = null;
 
     for (const item of compressedData) {
+      if (frames.length >= MAX_DECOMPRESSED_FRAMES) break;
       const runLength = Math.max(item.runLength || 1, 1);
       let currentFrame =
         item.kind === "base"
@@ -78,7 +80,7 @@ export class RLDCompressionDriver {
       frames.push(currentFrame);
       previousFrame = currentFrame;
 
-      for (let i = 1; i < runLength; i++) {
+      for (let i = 1; i < runLength && frames.length < MAX_DECOMPRESSED_FRAMES; i++) {
         currentFrame = {
           ...currentFrame,
           timestamp: currentFrame.timestamp + (item.timestampDelta || 33),

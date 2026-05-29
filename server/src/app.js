@@ -38,10 +38,17 @@ const io = new Server(server, {
 
 // ─── Socket Authentication ────────────────────────────────────────────────
 io.use((socket, next) => {
-  if (!SOCKET_AUTH_TOKEN) return next();
-  const token = socket.handshake.auth && socket.handshake.auth.token;
+  if (SOCKET_AUTH_TOKEN === null) {
+    // Not configured: reject in production, warn and allow in development
+    if (process.env.NODE_ENV === 'production') {
+      return next(new Error('Server misconfiguration: SOCKET_AUTH_TOKEN is not set'));
+    }
+    console.warn('[SpectraX] WARNING: SOCKET_AUTH_TOKEN is not set. All WebSocket connections accepted without authentication.');
+    return next();
+  }
+  const token = socket.handshake.auth?.token;
   if (token === SOCKET_AUTH_TOKEN) return next();
-  return next(new Error("Unauthorized"));
+  return next(new Error('Unauthorized'));
 });
 
 // ─── In-Memory Session Store (Per Socket) ─────────────────────────────────
