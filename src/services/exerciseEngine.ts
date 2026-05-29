@@ -669,10 +669,7 @@ if (
 const wristSupinationScore =
   config.key === "bicepCurl" ? getSupinationScore(landmarks) : NaN;
 
-const PLANK_DEVIATION_THRESHOLD = 0.05;
-const hipSplineDeviation = 0;
-const nextPlankSpline = { isCalibrated: false };
-
+    const PLANK_DEVIATION_THRESHOLD = 0.05;
     const context: any = {
       ...angles,
       stage: nextStage,

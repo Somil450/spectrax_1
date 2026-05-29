@@ -191,21 +191,6 @@ const [showExitModal, setShowExitModal] = useState(false);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-const [panelsLocked, setPanelsLocked] = useState(true);
-const [cameraError, setCameraError] = useState<string | null>(null);
-const FPS_LIMIT = 30;
-
-const srOnly: React.CSSProperties = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  borderWidth: 0,
-};
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -245,12 +230,6 @@ const srOnly: React.CSSProperties = {
   const previousObservedLandmarksRef = useRef<any[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
-const workerAnglesRef = useRef<Record<string, number>>({});
-const lastProcessTime = useRef(0);
-const frameId = useRef<number | null>(null);
-const countRef = useRef(0);
-
-  const [showExitModal, setShowExitModal] = useState(false);
 
   const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
   const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
