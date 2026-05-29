@@ -24,7 +24,7 @@ export function NotFound({ onGoHome }: NotFoundProps) {
         Page Not Found
       </h2>
       <p style={{ opacity: 0.6, marginBottom: "2rem" }}>
-        Oops! This page doesn't exist.
+        Oops! This page doesn&apos;t exist.
       </p>
       <button
         onClick={onGoHome}

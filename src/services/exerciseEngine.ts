@@ -185,16 +185,11 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
   depthStats: SquatDepthStats;
-  liveDepthFeedback: string;
 
   // VBT Metrics
-  vbtMetrics?: VBTMetrics;
 
   // ── Pushup depth classification ──────────────────────────────
-  lastPushupDepthResult?: PushupDepthResult | null;
-  pushupDepthStats?: PushupDepthStats;
-  livePushupDepthFeedback?: string;
-  downZReached?: number;
+
 
   // Tracking & recovery buffers
   visibilityBuffer?: number[];
