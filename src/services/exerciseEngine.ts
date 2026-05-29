@@ -36,7 +36,6 @@ import {
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
-import { getSupinationScore } from './wristRotationDetector';
 import type { NormalizedLandmark } from "@mediapipe/pose";
 
 export interface JumpingJackSyncSample {
@@ -186,16 +185,11 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
   depthStats: SquatDepthStats;
-  liveDepthFeedback: string;
 
   // VBT Metrics
-  vbtMetrics?: VBTMetrics;
 
   // ── Pushup depth classification ──────────────────────────────
-  lastPushupDepthResult?: PushupDepthResult | null;
-  pushupDepthStats?: PushupDepthStats;
-  livePushupDepthFeedback?: string;
-  downZReached?: number;
+
 
   // Tracking & recovery buffers
   visibilityBuffer?: number[];
@@ -223,11 +217,6 @@ export interface EngineState {
   downZReached?: number;
 
   // Tracking & recovery buffers
-  visibilityBuffer?: number[];
-  trackingLostFrames?: number;
-  lastValidAngles?: Record<string, number>;
-  jumpingJackSyncSamples?: JumpingJackSyncSample[];
-  jumpingJackSync?: JumpingJackSyncMetrics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -769,17 +758,6 @@ export class ExerciseEngine {
       holdTime: nextHoldTime,
 
       wristSupinationScore,
-
-      lastPushupDepthResult: nextLastPushupDepthResult,
-      pushupDepthStats: nextPushupDepthStats,
-      livePushupDepthFeedback,
-      downZReached,
-
-      visibilityBuffer: newVisibilityBuffer,
-      trackingLostFrames: nextTrackingLostFrames,
-      lastValidAngles: nextLastValidAngles,
-      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
-      jumpingJackSync: nextJumpingJackSync,
     };
   }
 }
