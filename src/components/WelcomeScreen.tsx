@@ -126,7 +126,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   return (
     <div
       className="welcome-container"
-      data-theme={theme === "light" ? "light" : "dark"}
+      data-theme={theme}
+  data-theme-style={theme}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
