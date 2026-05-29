@@ -12,7 +12,7 @@ const fs = require("fs");
 
 // ─── Config Imports ────────────────────────────────────────────────────────
 const { PORT, SESSIONS_DIR, SOCKET_AUTH_TOKEN } = require("./config/constants");
-const { corsOptions } = require("./config/cors");
+const { createCorsOptions } = require("./config/cors");
 
 // ─── Middleware Imports ────────────────────────────────────────────────────
 const errorHandler = require("./middleware/errorHandler");
@@ -22,14 +22,18 @@ const setupSocketHandlers = require("./socket/handlers");
 const setupHealthRoute = require("./modules/healthRoute");
 
 // ─── App Setup ─────────────────────────────────────────────────────────────
+const corsConfig = createCorsOptions({
+  corsOrigin: process.env.ALLOWED_ORIGIN || process.env.CORS_ORIGIN,
+});
+
 const app = express();
-app.use(cors({ origin: "*" }));
-app.use(express.json({ limit: "100kb" })); // Added payload limit to prevent DoS
+app.use(cors(corsConfig));
+app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: corsOptions,
+  cors: corsConfig,
   // Tune for minimal latency
   pingInterval: 5000,
   pingTimeout: 3000,
