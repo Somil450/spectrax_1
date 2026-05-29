@@ -188,8 +188,6 @@ const [showExitModal, setShowExitModal] = useState(false);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-const [panelsLocked, setPanelsLocked] = useState(true);
-const [cameraError, setCameraError] = useState<string | null>(null);
 const FPS_LIMIT = 30;
 
 const srOnly: React.CSSProperties = {
@@ -248,8 +246,6 @@ const frameId = useRef<number | null>(null);
 const countRef = useRef(0);
 
 const animationFrameRef = useRef<number | null>(null);
-
-const [showExitModal, setShowExitModal] = useState(false);
 
 const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
 const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
