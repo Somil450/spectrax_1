@@ -207,7 +207,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     isCalibrated: false,
     history: [],
     stageStartTime: 0,
-    frameScore: 0,
+    frameScore: 100,
     totalScore: 0,
     totalFrames: 0,
     allowRep: false,
@@ -243,8 +243,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
   const [gestureHudVisible, setGestureHudVisible] = useState(false);
   const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
-  const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
+  const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('running');
+  const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('running');
   const ghostFramesRef = useRef<FrameData[]>([]);
   const ghostStatsRef = useRef<GhostStats | null>(null);
   const [hasGhost, setHasGhost] = useState(false);
@@ -284,7 +284,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     isCalibrated: false,
     history: [],
     stageStartTime: 0,
-    frameScore: 0,
+    frameScore: 100,
     totalScore: 0,
     totalFrames: 0,
     allowRep: false,
@@ -764,7 +764,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            opacity: 0.4,
+            opacity: 0.8,
             transform: "scaleX(-1)",
           }}
         />
