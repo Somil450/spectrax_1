@@ -21,7 +21,6 @@ import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './Wo
 import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
-import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
 import { useThrottleLevel } from '../services/performanceThrottleService';
