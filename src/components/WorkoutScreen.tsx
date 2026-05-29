@@ -17,7 +17,7 @@ import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel } from './WorkoutPanels';
 import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
@@ -54,7 +54,7 @@ interface WorkoutScreenProps {
   adaptiveFactor?: number;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial";
 
 type PanelPosition = {
   x: number;
@@ -79,6 +79,7 @@ const getDefaultPanelPositions = (): PanelPositions => {
     reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
     engine: { x: 40, y: Math.max(height - 110, 30) },
     sense: { x: 280, y: Math.max(height - 110, 30) },
+    dial: { x: Math.max(width - 230, 30), y: 150 },
   };
 };
 
@@ -176,7 +177,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       timer: React.createRef<HTMLDivElement>(),
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
-      sense: React.createRef<HTMLDivElement>()
+      sense: React.createRef<HTMLDivElement>(),
+      dial: React.createRef<HTMLDivElement>()
     };
   }
 
@@ -256,6 +258,7 @@ const [showExitModal, setShowExitModal] = useState(false);
 const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
 const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
 const [gestureHudVisible, setGestureHudVisible] = useState(false);
+const [currentAngle, setCurrentAngle] = useState<number>(0);
 const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
@@ -386,6 +389,11 @@ const [hasGhost, setHasGhost] = useState(false);
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
     const filteredResults = poseLockService.filter(results);
     if (!filteredResults || !filteredResults.poseLandmarks) return;
+
+    // Calculate primary joint angle on every frame for real-time dial updates
+    const currentFrameAngles = getJointAngles(results.poseLandmarks);
+    const primaryJoint = exercise.primaryJoint || 'knee';
+    setCurrentAngle(currentFrameAngles[primaryJoint] || 0);
 
     // ── GESTURE COMMAND PARSING ─────────────────────────────────────────────
     const gestureResult = gestureService.analyze(results.poseLandmarks);
@@ -996,6 +1004,7 @@ mistakes:Object.keys(finalMistakes),
         {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
         {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
+        {renderDraggablePanel('dial', '', <AngleDialPanel angle={currentAngle} label={exercise.primaryJoint} statusColor={statusColor} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
