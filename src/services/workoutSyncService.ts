@@ -617,7 +617,7 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
   // If this throws (network error, permission denied) the local records are
   // left intact and the error propagates to the caller so the UI can surface
   // a meaningful message instead of falsely reporting success.
-  const remoteWorkouts = await getFirestoreWorkouts();
+  const remoteWorkouts = await getFirestoreWorkouts(userId);
   for (const w of remoteWorkouts) {
     if (w.id) {
       await deleteWorkoutFromFirestore(w.id as string);
