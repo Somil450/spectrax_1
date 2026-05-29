@@ -5,10 +5,12 @@ export interface BodyMetrics {
   hipWidth: number;
   torsoLength: number;
   legLength: number;
+  femurLength: number;
   armLength: number;
   ratios: {
     shoulderToHip: number;
     torsoToLeg: number;
+    torsoToFemur: number;
     armToTorso: number;
   };
 }
@@ -17,6 +19,7 @@ export interface BodyTypeResult {
   bodyType: BodyType;
   confidence: number;
   metrics?: BodyMetrics;
+  adaptiveFactor: number;
   explanation: string;
 }
 
@@ -24,6 +27,7 @@ class BodyTypeEngine {
   private history: {
     shoulderToHip: number;
     torsoToLeg: number;
+    torsoToFemur: number;
     armToTorso: number;
   }[] = [];
   private readonly HISTORY_SIZE = 15;
@@ -32,12 +36,14 @@ class BodyTypeEngine {
     this.history = [];
   }
 
+  private readonly REFERENCE_TORSO_FEMUR_RATIO = 1.6;
+
   public analyze(landmarks: any[]): BodyTypeResult {
     // We only use visible landmarks > 0.5
     const checkVis = (...indices: number[]) => indices.every(i => landmarks[i] && landmarks[i].visibility > 0.5);
 
     if (!checkVis(11, 12, 23, 24, 25, 27, 26, 28, 13, 15, 14, 16)) {
-      return { bodyType: 'scanning', confidence: 0, explanation: 'Waiting for full body visibility...' };
+      return { bodyType: 'scanning', confidence: 0, adaptiveFactor: 1.0, explanation: 'Waiting for full body visibility...' };
     }
 
     const dist = (p1: any, p2: any) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) + Math.pow(p1.z - p2.z, 2));
@@ -59,9 +65,14 @@ class BodyTypeEngine {
 
     const torsoLength = dist(shoulderMid, hipMid);
     
-    // Legs
-    const leftLeg = dist(landmarks[23], landmarks[25]) + dist(landmarks[25], landmarks[27]);
-    const rightLeg = dist(landmarks[24], landmarks[26]) + dist(landmarks[26], landmarks[28]);
+    // Femurs (hip-to-knee) — the key ratio for squat/lunge mechanics
+    const leftFemur = dist(landmarks[23], landmarks[25]);
+    const rightFemur = dist(landmarks[24], landmarks[26]);
+    const femurLength = (leftFemur + rightFemur) / 2;
+
+    // Full legs (hip-to-knee + knee-to-ankle)
+    const leftLeg = leftFemur + dist(landmarks[25], landmarks[27]);
+    const rightLeg = rightFemur + dist(landmarks[26], landmarks[28]);
     const legLength = (leftLeg + rightLeg) / 2;
 
     // Arms
@@ -70,33 +81,46 @@ class BodyTypeEngine {
     const armLength = (leftArm + rightArm) / 2;
 
     // Prevent div by 0 just in case
-    if (hipWidth === 0 || legLength === 0 || torsoLength === 0) {
-      return { bodyType: 'scanning', confidence: 0, explanation: 'Invalid body dimensions...' };
+    if (hipWidth === 0 || legLength === 0 || torsoLength === 0 || femurLength === 0) {
+      return { bodyType: 'scanning', confidence: 0, adaptiveFactor: 1.0, explanation: 'Invalid body dimensions...' };
     }
 
     const shoulderToHip = shoulderWidth / hipWidth;
     const torsoToLeg = torsoLength / legLength;
+    const torsoToFemur = torsoLength / femurLength;
     const armToTorso = armLength / torsoLength;
 
-    this.history.push({ shoulderToHip, torsoToLeg, armToTorso });
+    // Adaptive calibration factor: body-type-specific ±10% threshold scaling
+    // When torsoToFemur > reference → shorter femurs → thresholds decrease (factor < 1.0)
+    // When torsoToFemur < reference → longer femurs → thresholds increase (factor > 1.0)
+    const rawFactor = this.REFERENCE_TORSO_FEMUR_RATIO / torsoToFemur;
+    const adaptiveFactor = Math.min(1.1, Math.max(0.9, rawFactor));
+
+    this.history.push({ shoulderToHip, torsoToLeg, torsoToFemur, armToTorso });
     if (this.history.length > this.HISTORY_SIZE) {
       this.history.shift();
     }
 
     if (this.history.length < this.HISTORY_SIZE) {
       const pct = Math.round((this.history.length / this.HISTORY_SIZE) * 100);
-      return { bodyType: 'scanning', confidence: 0, explanation: `Scanning geometry ${pct}%...` };
+      return { bodyType: 'scanning', confidence: 0, adaptiveFactor: 1.0, explanation: `Scanning geometry ${pct}%...` };
     }
 
     const avg = this.history.reduce((acc, curr) => ({
       shoulderToHip: acc.shoulderToHip + curr.shoulderToHip,
       torsoToLeg: acc.torsoToLeg + curr.torsoToLeg,
+      torsoToFemur: acc.torsoToFemur + curr.torsoToFemur,
       armToTorso: acc.armToTorso + curr.armToTorso,
-    }), { shoulderToHip: 0, torsoToLeg: 0, armToTorso: 0 });
+    }), { shoulderToHip: 0, torsoToLeg: 0, torsoToFemur: 0, armToTorso: 0 });
 
     avg.shoulderToHip /= this.HISTORY_SIZE;
     avg.torsoToLeg /= this.HISTORY_SIZE;
+    avg.torsoToFemur /= this.HISTORY_SIZE;
     avg.armToTorso /= this.HISTORY_SIZE;
+
+    // Recompute adaptive factor from smoothed ratios
+    const smoothedFactor = this.REFERENCE_TORSO_FEMUR_RATIO / avg.torsoToFemur;
+    const smoothedAdaptiveFactor = Math.min(1.1, Math.max(0.9, smoothedFactor));
 
     let type: BodyType = 'meso';
     let explanation = '';
@@ -129,13 +153,20 @@ class BodyTypeEngine {
       bodyType: type,
       // Cap confidence at 0.99 for realism
       confidence: Math.min(confidence, 0.99),
+      adaptiveFactor: smoothedAdaptiveFactor,
       metrics: {
         shoulderWidth,
         hipWidth,
         torsoLength,
         legLength,
+        femurLength,
         armLength,
-        ratios: avg
+        ratios: {
+          shoulderToHip: avg.shoulderToHip,
+          torsoToLeg: avg.torsoToLeg,
+          torsoToFemur: avg.torsoToFemur,
+          armToTorso: avg.armToTorso,
+        }
       },
       explanation
     };

@@ -15,7 +15,7 @@ interface CalibrationScreenProps {
   onSelectExercise: (key: string) => void;
   onNext: () => void;
   onBack: () => void;
-  onBodyTypeDetected: (type: BodyType) => void;
+  onBodyTypeDetected: (type: BodyType, factor: number) => void;
 }
 
 // ── Visually-hidden style (sr-only) ──────────────────────────────────────────
@@ -51,6 +51,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isReady: false,
     visibleCount: 0,
     totalCount: 8,
+    adaptiveFactor: 1.0,
   });
   const [error, setError] = useState<string | null>(null);
   const [bodyTypeRes, setBodyTypeRes] = useState<BodyTypeResult | null>(null);
@@ -78,19 +79,22 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
 
   const handleResults = useCallback((results: any) => {
-    const evaluation = calibrationLogic.evaluate(results);
-    setResult(evaluation);
+    let adaptiveFactor = 1.0;
     
     if (results.poseLandmarks) {
       const bt = bodyTypeEngine.analyze(results.poseLandmarks);
       setBodyTypeRes(bt);
+      adaptiveFactor = bt.adaptiveFactor;
       if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-        onBodyTypeDetected(bt.bodyType);
+        onBodyTypeDetected(bt.bodyType, bt.adaptiveFactor);
       }
 
       const gesture = gestureService.analyze(results.poseLandmarks);
       setGestureResult(gesture);
     }
+
+    const evaluation = calibrationLogic.evaluate(results, adaptiveFactor);
+    setResult(evaluation);
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);

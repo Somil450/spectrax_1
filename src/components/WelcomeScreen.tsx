@@ -5,7 +5,6 @@ import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from "../context/ThemeContext";
 import { debounce } from "../utils/debounce";
-import { useTheme } from "../context/ThemeContext";
 
 const STATS = [
   { value: "30+", label: "FPS tracking" },
