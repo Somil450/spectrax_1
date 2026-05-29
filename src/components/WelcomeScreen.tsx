@@ -12,6 +12,9 @@ interface WelcomeScreenProps {
     progress: number;
     nextLevelXp: number;
   };
+  pendingRecovery?: { stats: any; exerciseKey: string } | null;
+  onApplyRecovery?: () => void;
+  onDiscardRecovery?: () => void;
 }
 
 const STATS = [
@@ -25,6 +28,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewHistory,
   onViewTrophies,
   leveling,
+  pendingRecovery,
+  onApplyRecovery,
+  onDiscardRecovery,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });

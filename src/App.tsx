@@ -83,6 +83,39 @@ function App() {
     mistakes: {},
     bestStreak: 0,
   });
+  const [pendingRecovery, setPendingRecovery] = useState<{ stats: WorkoutStats; exerciseKey: string } | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const cacheKey = `spectrax_telemetry_snapshot_${user.uid}`;
+    const rawCache = localStorage.getItem(cacheKey);
+    if (rawCache) {
+      try {
+        const parsed = JSON.parse(rawCache);
+        if (parsed && parsed.stats && parsed.stats.totalReps > 0) {
+          setPendingRecovery(parsed);
+        }
+      } catch (e) {
+        console.error("Failed parsing telemetry cache:", e);
+      }
+    }
+  }, [user?.uid, currentScreen]);
+
+  const handleApplyRecovery = () => {
+    if (!pendingRecovery) return;
+    setStats(pendingRecovery.stats);
+    if (exercises[pendingRecovery.exerciseKey]) {
+      setSelectedExercise(exercises[pendingRecovery.exerciseKey]);
+    }
+    setPendingRecovery(null);
+    navigateTo("summary");
+  };
+
+  const handleDiscardRecovery = () => {
+    if (!user?.uid) return;
+    localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+    setPendingRecovery(null);
+  };
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
   const { addWorkout } = useWorkoutSync();
@@ -139,6 +172,9 @@ function App() {
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
     setStatsLoading(true);
+    if (user?.uid) {
+      localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+    }
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
     const fullStats = { ...finalStats, exerciseName: selectedExercise.name, gainedXp };
     setStats(fullStats);
@@ -265,6 +301,9 @@ function App() {
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
           leveling={leveling}
+          pendingRecovery={pendingRecovery}
+          onApplyRecovery={handleApplyRecovery}
+          onDiscardRecovery={handleDiscardRecovery}
         />
       )}
 
@@ -285,6 +324,14 @@ function App() {
             onEnd={handleWorkoutEnd}
             onAutoDetect={handleAutoDetect}
             bodyType={bodyType}
+            onSnapshotUpdate={(liveStats: any) => {
+              if (!user?.uid) return;
+              const fullStats = { ...liveStats, exerciseName: selectedExercise.name };
+              localStorage.setItem(
+                `spectrax_telemetry_snapshot_${user.uid}`,
+                JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
+              );
+            }}
           />
         )}
 
@@ -396,6 +443,9 @@ function App() {
         <button
           onClick={() => {
             setShowExitModal(false);
+            if (user?.uid) {
+              localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+            }
             navigateTo('welcome');
           }}
           style={{
