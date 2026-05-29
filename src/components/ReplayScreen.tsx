@@ -154,7 +154,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
             }}
           >
             {stats?.exerciseName?.toUpperCase() || "SQUAT"} MODULE — SESSION #
-            {Math.random().toString(36).substr(2, 6).toUpperCase()}
+            {sessionId}
           </div>
         </div>
 
