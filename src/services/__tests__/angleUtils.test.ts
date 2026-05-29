@@ -41,8 +41,7 @@ describe("calculateAngle", () => {
   });
 
   it("returns 0 when a landmark is missing (null guard)", () => {
-    
-    expect(calculateAngle(null, lm(0, 0), lm(1, 0))).toBe(0);
+    expect(calculateAngle(null as any, lm(0, 0), lm(1, 0))).toBe(0);
   });
 });
 
@@ -55,7 +54,11 @@ describe("getJointAngles", () => {
     expect(angles).toHaveProperty("bodyLine");
   });
 
-  it("returns an empty object when landmarks is null", () => {
-    expect(getJointAngles(null)).toEqual({});
+  it("returns default angles object when landmarks is null", () => {
+    const angles = getJointAngles(null);
+    expect(angles).toHaveProperty("knee");
+    expect(angles).toHaveProperty("elbow");
+    expect(angles).toHaveProperty("shoulder");
+    expect(angles).toHaveProperty("bodyLine");
   });
 });

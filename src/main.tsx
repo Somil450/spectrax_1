@@ -7,12 +7,10 @@ import "./index.css";
 import { registerSW } from 'virtual:pwa-register';
 
 // Register PWA Service Worker for offline support
-const updateSW = registerSW({
+registerSW({
   onNeedRefresh() {
-    console.log('PWA: Update available');
   },
   onOfflineReady() {
-    console.log('PWA: Offline ready');
   },
 });
 

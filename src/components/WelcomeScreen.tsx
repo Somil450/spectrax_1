@@ -1,11 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { debounce } from "../utils/debounce";
+
+const STATS = [
+  { value: "30+", label: "FPS tracking" },
+  { value: "6", label: "exercises" },
+  { value: "< 1s", label: "feedback lag" },
+];
 
 interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
   onViewTrophies: () => void;
+  onViewProfile?: () => void;
+  onViewFitnessCalculator?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -17,12 +28,6 @@ interface WelcomeScreenProps {
   onDiscardRecovery?: () => void;
 }
 
-const STATS = [
-  { value: "30+", label: "FPS tracking" },
-  { value: "6", label: "exercises" },
-  { value: "< 1s", label: "feedback lag" },
-];
-
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
@@ -32,15 +37,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onApplyRecovery,
   onDiscardRecovery,
 }) => {
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
-
-  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
+  const [userWeight, setUserWeight] = useState<string>(
+    String(getSavedUserWeight() ?? "")
+  );
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isMobile) return;
+    if (isMobile || prefersReducedMotion) return;
     const { clientX, clientY } = e;
     const { innerWidth, innerHeight } = window;
     const x = -((clientY - innerHeight / 2) / innerHeight) * 14;
@@ -57,6 +64,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   }, []);
 
   useEffect(() => {
+    if (prefersReducedMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -118,27 +126,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   return (
     <div
-      className="screen-container welcome-screen welcome-container"
-      data-theme={isDarkMode ? "dark" : "light"}
+      className="welcome-container"
+      data-theme={theme === "light" ? "light" : "dark"}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Dark Mode Toggle (From your branch) */}
-      <button
-        className="dark-mode-toggle"
-        onClick={toggleDarkMode}
-        aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 50 }}
-      >
-        {isDarkMode ? "☀️" : "🌙"}
-      </button>
-
-      {/* Particle canvas & Orbs (Merged) */}
+      {/* Particle canvas & Orbs */}
       <canvas ref={canvasRef} className="welcome-canvas particle-canvas" />
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
@@ -193,28 +190,57 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </button>
 
               <div className="welcome-btn-row">
-                <button
-                  onClick={onViewHistory}
-                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
-                  aria-label="View Workout History"
-                  tabIndex={0}
-                >
-                  <History size={15} />
-                  History
-                </button>
+  <button
+    onClick={onViewHistory}
+    className="welcome-btn-secondary welcome-btn-secondary--cyan"
+    aria-label="View Workout History"
+    tabIndex={0}
+  >
+    <History size={15} />
+    History
+  </button>
 
-                <button
-                  onClick={onViewTrophies}
-                  className="welcome-btn-secondary welcome-btn-secondary--gold"
-                  aria-label="View Trophy Room"
-                  tabIndex={0}
-                >
-                  <Trophy size={15} />
-                  Trophies
-                </button>
+  <button
+    onClick={onViewTrophies}
+    className="welcome-btn-secondary welcome-btn-secondary--gold"
+    aria-label="View Trophy Room"
+    tabIndex={0}
+  >
+    <Trophy size={15} />
+    Trophies
+  </button>
+</div>
+
+{/* Weight input for calorie estimation */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginTop: "12px",
+    background: "rgba(0,255,100,0.04)",
+    border: "1px solid rgba(0,255,100,0.2)",
+    borderRadius: "10px",
+    padding: "10px 14px",
+  }}
+>
+                  <span>⚖️</span>
+                  <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
+                  <input
+                    type="number" min="30" max="200" placeholder="70"
+                    value={userWeight}
+                    onChange={(e) => {
+                      setUserWeight(e.target.value);
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+                    }}
+                    style={{ background:'transparent', border:'none', outline:'none', color:'#fff', fontSize:'1rem', fontWeight:700, width:'50px' }}
+                  />
+                  <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
+                </div>
+
               </div>
             </div>
-          </div>
 
           {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">

@@ -125,7 +125,7 @@ npm run dev
 
 Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
-> 📝 The backend port is hardcoded to **3001** in [server/index.js](server/index.js). If you change it, update the Socket.io client URL on the frontend accordingly.
+> 📝 The backend port defaults to **3001** and can be overridden via `PORT` in `server/.env`. The frontend reads `VITE_BACKEND_URL` from the root `.env` (defaults to `http://localhost:3001`), so you set the port in one place and both sides agree.
 
 ### Q8. How do I verify everything started correctly?
 

@@ -36,18 +36,6 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
     }
   };
 
-  const safeRemoveItem = (key: string) => {
-    try {
-      localStorage.removeItem(key);
-    } catch (e) {
-
-      return;
-
-      // Ignored: Fallback if localStorage is disabled or not accessible
-
-    }
-  };
-
   // Load lockout state from localStorage when email changes
   useEffect(() => {
     if (!email) {
@@ -144,12 +132,12 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
           setLocalError(
             "Too many requests. Password reset locked for 60 seconds.",
           );
+        } else if (errorCode === "auth/network-request-failed") {
+          setLocalError("Network error. Check your connection.");
         } else {
           setLocalError(
             err.message || "Failed to send reset link. Please try again.",
           );
-
-          setLocalError("Too many requests. Password reset locked for 60 seconds.");
         }
       }
     }
@@ -168,7 +156,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
         <div className="auth-header">
           <h1>Reset Password</h1>
           <p>
-            Enter your email address and we'll send you a link to reset your
+            Enter your email address and we&apos;ll send you a link to reset your
             password
           </p>
         </div>
