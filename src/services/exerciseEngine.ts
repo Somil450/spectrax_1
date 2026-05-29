@@ -494,13 +494,14 @@ if (config.key === "plank" && landmarks && landmarks.length >= 29) {
       const durationInDown = now - stageStartTime;
 
       if (
-now - lastRepTime > currentCooldown &&
-durationInDown > this.MIN_DOWN_DURATION
-) {
-  nextStage = "up";
-  stageStartTime = now;
-  repJustCounted = true;
-}
+        now - lastRepTime > currentCooldown &&
+        durationInDown > this.MIN_DOWN_DURATION
+      ) {
+        nextStage = "up";
+        stageStartTime = now;
+        repJustCounted = true;
+      }
+    }
 
 // ───────── POSTURE VALIDATION ─────────
 const isInExercisePosture = this.isValidExercisePosture(
@@ -524,8 +525,8 @@ const wristSupinationScore =
   config.key === "bicepCurl" ? getSupinationScore(landmarks) : NaN;
 
 const PLANK_DEVIATION_THRESHOLD = 0.05;
-const hipSplineDeviation = 0;
-const nextPlankSpline = { isCalibrated: false };
+hipSplineDeviation = 0;
+nextPlankSpline = { isCalibrated: false };
 
 const context: any = {
   ...angles,

@@ -62,7 +62,7 @@ function getBestSide(landmarks: any): 'left' | 'right' {
 }
 
 export function getJointAngles(landmarks: any): Record<string, number> {
-  if (!landmarks) return _angles;
+  if (!landmarks) return {};
 
   const side = getBestSide(landmarks);
 
