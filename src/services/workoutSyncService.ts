@@ -9,9 +9,7 @@ import {
   collection,
   addDoc,
   query,
-  where,
   getDocs,
-  updateDoc,
   deleteDoc,
   doc,
   serverTimestamp,
@@ -183,21 +181,25 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     const getReq = store.get(localId);
 
     getReq.onsuccess = () => {
-      const workout = getReq.result as WorkoutRecord;
-      if (workout) {
-        // Delete the record with numeric ID to prevent duplication
-        
-        // Save the record with the new Firestore string ID
-        store.put({
-          ...workout,
-          localId,
-          id: firestoreId,
-          synced: true,
-        });
-      }
-      resolve();
-    };
-    getReq.onerror = () => reject(getReq.error);
+const workout = getReq.result as WorkoutRecord;
+
+if (workout) {
+  store.delete(localId);
+
+  store.put({
+    ...workout,
+    id: firestoreId,
+    synced: true,
+  });
+}
+
+// resolve only after transaction completes safely
+getReq.onerror = () => reject(getReq.error);
+
+tx.oncomplete = () => resolve();
+tx.onerror = () => reject(tx.error);
+tx.onabort = () =>
+  reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
@@ -361,7 +363,6 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
       }
     }
 
-    console.log(`Successfully synced ${syncedCount} workouts to Firestore`);
     return syncedCount;
   } catch (error) {
     console.error("Error syncing workouts to Firestore:", error);
@@ -444,30 +445,25 @@ let onlineHandler: (() => void) | null = null;
 let offlineHandler: (() => void) | null = null;
 
 export function initializeAutoSync(userId: string): void {
+const workout = getReq.result as WorkoutRecord;
 
-  // Remove previous listeners first
-  if (onlineHandler) {
-    window.removeEventListener("online", onlineHandler);
-  }
+if (workout) {
+  store.delete(localId);
 
-  if (offlineHandler) {
-    window.removeEventListener("offline", offlineHandler);
-  }
+  store.put({
+    ...workout,
+    id: firestoreId,
+    synced: true,
+  });
+}
 
-  // Create fresh handlers
-  onlineHandler = async () => {
-    console.log("Network connection restored. Starting workout sync...");
+// resolve only after transaction completes safely
+getReq.onerror = () => reject(getReq.error);
 
-    try {
-      if (!syncInProgress) {
-        syncInProgress = true;
-try{
-        await fullSyncWorkouts(userId);}
-        finally{
-
-        syncInProgress = false;}
-
-        console.log("Workout sync completed");
+tx.oncomplete = () => resolve();
+tx.onerror = () => reject(tx.error);
+tx.onabort = () =>
+  reject(new Error(`Transaction aborted for localId ${localId}`));
       }
     } catch (error) {
       syncInProgress = false;
@@ -573,6 +569,30 @@ export async function bulkUploadWorkouts(
     });
 
     await batch.commit();
+
+    // Mark each uploaded workout as synced in IndexedDB so subsequent
+    // calls to getUnsyncedWorkouts do not find them again and re-upload them.
+    for (let i = 0; i < workouts.length; i++) {
+      const workout = workouts[i];
+      const firestoreId = uploadedIds[i];
+      const localKey =
+        workout.localId !== undefined
+          ? workout.localId
+          : typeof workout.id === "number"
+            ? workout.id
+            : undefined;
+      if (localKey !== undefined) {
+        try {
+          await markWorkoutAsSynced(localKey, firestoreId);
+        } catch (syncError) {
+          console.error(
+            `[SpectraX] Failed to mark workout ${localKey} as synced locally:`,
+            syncError,
+          );
+        }
+      }
+    }
+
     return uploadedIds;
   } catch (error) {
     console.error("Error in bulk upload:", error);
@@ -612,9 +632,19 @@ export async function deleteWorkout(
  * Clear all workouts for a user locally and from Firestore
  */
 export async function clearAllWorkouts(userId: string): Promise<void> {
-  const db = await openDB();
+  // Phase 1: delete from Firestore first.
+  // If this throws (network error, permission denied) the local records are
+  // left intact and the error propagates to the caller so the UI can surface
+  // a meaningful message instead of falsely reporting success.
+  const remoteWorkouts = await getFirestoreWorkouts();
+  for (const w of remoteWorkouts) {
+    if (w.id) {
+      await deleteWorkoutFromFirestore(w.id as string);
+    }
+  }
 
-  // 1. Delete all user records locally from IndexedDB
+  // Phase 2: wipe IndexedDB only after remote deletion is confirmed.
+  const db = await openDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");
     const store = tx.objectStore(WORKOUTS_STORE);
@@ -626,15 +656,13 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
       if (cursor) {
         cursor.delete();
         cursor.continue();
-      } else {
-        resolve();
       }
     };
     req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
-
-  // 2. Get and delete all workouts from Firestore for this user
-  try {
+try {
   const db = getFirestore();
 
   const snapshot = await getDocs(collection(db, "workouts"));

@@ -295,6 +295,10 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   const hip = landmarks[ids.h];
   const ankle = landmarks[ids.a];
   const totalHeight = Math.abs((ankle?.y || 0) - (shoulder?.y || 0)) || 1;
+  const leftArmOpen = calculateAngle(landmarks[13], landmarks[11], landmarks[23]);
+  const rightArmOpen = calculateAngle(landmarks[14], landmarks[12], landmarks[24]);
+  const hipWidth = Math.abs((landmarks[23]?.x || 0) - (landmarks[24]?.x || 0)) || 0.1;
+  const ankleGap = Math.abs((landmarks[27]?.x || 0) - (landmarks[28]?.x || 0));
 
   // Lunge specific calculations
   const leftKneeAngle = calculateAngle(
@@ -315,11 +319,32 @@ function computeAngles(landmarks: any[]): Record<string, number> {
   const aKnee = landmarks[activeKneeIdx];
   const aToe = landmarks[activeToeIdx];
   const aHeel = landmarks[activeHeelIdx];
+  let lungeKnee = 180;
+  let kneePastToes = 0;
+  let backKnee = 180;
   if (aKnee && aToe && aHeel) {
-    // knee past toes calculation omitted since it is unused
+    lungeKnee = calculateAngle(
+      landmarks[activeSideLunge === "left" ? 23 : 24],
+      aKnee,
+      landmarks[activeSideLunge === "left" ? 27 : 28],
+    );
+    const hip = landmarks[activeSideLunge === "left" ? 23 : 24];
+    const forwardDir = Math.sign((aToe?.x || 0) - (hip?.x || 0));
+    kneePastToes = forwardDir * ((aKnee?.x || 0) - (aToe?.x || 0)) > 0.02 ? 1 : 0;
+    const backKneeIdx = activeSideLunge === "left" ? 26 : 25;
+    const backHipIdx = activeSideLunge === "left" ? 24 : 23;
+    const backAnkleIdx = activeSideLunge === "left" ? 28 : 27;
+    backKnee = calculateAngle(
+      landmarks[backHipIdx],
+      landmarks[backKneeIdx],
+      landmarks[backAnkleIdx],
+    );
   }
 
   return {
+    lungeKnee,
+    kneePastToes,
+    backKnee,
     knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
     elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
     shoulder: calculateAngle(
@@ -335,6 +360,9 @@ function computeAngles(landmarks: any[]): Record<string, number> {
     hipDepth: Math.round(
       (((ankle?.y || 0) - (hip?.y || 0)) / totalHeight) * 100,
     ),
+    pushupDepthZ: Math.abs((landmarks[ids.s]?.z || 0) - (landmarks[ids.w]?.z || 0)) * 100,
+    jumpingJackArmOpen: (leftArmOpen + rightArmOpen) / 2,
+    jumpingJackLegSpread: Math.min(300, (ankleGap / hipWidth) * 100),
   };
 }
 
@@ -347,7 +375,6 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
   if (knee < 140 && hipDepth < 60) return { label: "squat", confidence: 0.9 };
   if (elbow < 80 && shoulder < 30)
     return { label: "bicepCurl", confidence: 0.85 };
-
   const lShoulder = landmarks[11];
   const lHip = landmarks[23];
   const lAnkle = landmarks[27];
@@ -355,11 +382,15 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
     const hStretch = Math.abs(lAnkle.x - lShoulder.x);
     const vCompact = Math.abs(lAnkle.y - lShoulder.y);
     if (hStretch > vCompact * 0.8) {
+      if (Math.abs(lShoulder.y - lHip.y) < 0.12) {
+        return { label: "flutterKicks", confidence: 0.85 };
+      }
       if (elbow < 120) return { label: "pushup", confidence: 0.85 };
       return { label: "plank", confidence: 0.8 };
     }
   }
 
+  if (shoulder > 120 && elbow > 120) return { label: "shoulderPress", confidence: 0.8 };
   if (shoulder > 60) return { label: "jumpingJack", confidence: 0.75 };
   return { label: "unknown", confidence: 0.4 };
 }
@@ -457,6 +488,59 @@ function drawSkeleton(
   });
 }
 
+function drawGhostSkeleton(landmarks: any[]) {
+  if (!offscreenCtx || !landmarks) return;
+  const ctx = offscreenCtx;
+  const { width, height } = ctx.canvas;
+
+  const ghostColor = "rgba(0, 255, 255, 0.4)";
+  const xOffset = -0.25;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 255, 255, 0.8)";
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = ghostColor;
+  ctx.lineWidth = 3;
+
+  const connections = [
+    [11, 13], [13, 15],
+    [12, 14], [14, 16],
+    [11, 12], [23, 24], [11, 23], [12, 24],
+    [23, 25], [25, 27], [27, 29], [29, 31], [31, 27],
+    [24, 26], [26, 28], [28, 30], [30, 32], [32, 28],
+    [0, 1], [1, 2], [2, 3], [3, 7],
+    [0, 4], [4, 5], [5, 6], [6, 8],
+    [9, 10]
+  ];
+
+  ctx.beginPath();
+  for (const [a, b] of connections) {
+    const lmA = landmarks[a];
+    const lmB = landmarks[b];
+    if (lmA && lmB && lmA.visibility > 0.5 && lmB.visibility > 0.5) {
+      const xA = (lmA.x + xOffset) * width;
+      const yA = lmA.y * height;
+      const xB = (lmB.x + xOffset) * width;
+      const yB = lmB.y * height;
+      ctx.moveTo(xA, yA);
+      ctx.lineTo(xB, yB);
+    }
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(0, 255, 255, 0.7)";
+  for (const lm of landmarks) {
+    if (lm.visibility > 0.5) {
+      const x = (lm.x + xOffset) * width;
+      const y = lm.y * height;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 self.onmessage = (event: MessageEvent) => {
   const {
     type,
@@ -550,13 +634,17 @@ self.onmessage = (event: MessageEvent) => {
   const predicted = predictor.predict(landmarks);
   const correctedLandmarks = predicted.landmarks;
 
-  if (offscreenCtx)
+  if (offscreenCtx) {
     drawSkeleton(
       correctedLandmarks,
       status || "green",
       primaryJoints || [],
       predicted.wasOccluded,
     );
+    if (event.data.ghostLandmarks) {
+      drawGhostSkeleton(event.data.ghostLandmarks);
+    }
+  }
 
   const angles = computeAngles(correctedLandmarks);
   const { label: detectedExercise, confidence } = detectExercise(

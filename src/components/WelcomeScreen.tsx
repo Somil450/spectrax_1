@@ -3,12 +3,22 @@ import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Git
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { useTheme } from "../context/ThemeContext";
+import { debounce } from "../utils/debounce";
+import { useTheme } from "../context/ThemeContext";
+
+const STATS = [
+  { value: "30+", label: "FPS tracking" },
+  { value: "6", label: "exercises" },
+  { value: "< 1s", label: "feedback lag" },
+];
 
 interface WelcomeScreenProps {
   onStart: () => void;
   onViewHistory: () => void;
   onViewTrophies: () => void;
   onViewProfile?: () => void;
+  onViewFitnessCalculator?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -17,29 +27,20 @@ interface WelcomeScreenProps {
   };
 }
 
-const STATS = [
-  { value: "30+", label: "FPS tracking" },
-  { value: "6", label: "exercises" },
-  { value: "< 1s", label: "feedback lag" },
-];
-
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
-  onViewProfile,
   leveling,
 }) => {
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [userWeight, setUserWeight] = useState<string>(
-    String(getSavedUserWeight() ?? '')
+    String(getSavedUserWeight() ?? "")
   );
   const prefersReducedMotion = usePrefersReducedMotion();
-
-  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isMobile || prefersReducedMotion) return;
@@ -125,71 +126,24 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div
-      className="screen-container welcome-screen welcome-container"
-      data-theme={isDarkMode ? "dark" : "light"}
+      className="welcome-container"
+      data-theme={theme}
+  data-theme-style={theme}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Dark Mode Toggle (From your branch) */}
-      <button
-        className="dark-mode-toggle"
-        onClick={toggleDarkMode}
-        aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-        style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 50 }}
-      >
-        {isDarkMode ? "☀️" : "🌙"}
-      </button>
-
-      {/* Particle canvas & Orbs (Merged) */}
+      {/* Particle canvas & Orbs */}
       <canvas ref={canvasRef} className="welcome-canvas particle-canvas" />
       <div className="welcome-orb welcome-orb--cyan" aria-hidden="true" />
       <div className="welcome-orb welcome-orb--purple" aria-hidden="true" />
 
-        <h1
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "clamp(3.5rem, 14vw, 7rem)",
-            fontWeight: 900,
-            letterSpacing: "14px",
-            color: "var(--neon-cyan)",
-            textShadow:
-              "0 0 20px rgba(0,240,255,0.8), 0 0 40px rgba(0,240,255,0.6), 0 0 60px rgba(0,240,255,0.4), 0 0 80px rgba(0,240,255,0.2)",
-            margin: "20px 0",
-            fontStyle: "normal",
-            textTransform: "uppercase",
-          }}
-        >
-          SPECTRAX
-        </h1>
-
-        <p
-          style={{
-            color: "var(--text-secondary)",
-            fontSize: "1rem",
-            letterSpacing: "3px",
-            fontWeight: 300,
-            marginBottom: "48px",
-          }}
-        >
-          Real-time Pose Tracking & Performance Analysis
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
-          <button onClick={onStart} className="btn-neon" tabIndex={0}>
-            INITIALIZE SYSTEM <Play size={18} fill="currentColor" />
-          </button>
-
-          <button
-            onClick={onViewHistory}
-            tabIndex={0}
+      {/* Scrolling wrapper (From maintainer's branch) */}
+      <div className="welcome-scroll-area">
+        <div className="welcome-scroll-inner">
+          
+          {/* ── Hero Section (Maintainer's updated structure) ── */}
+          <div
+            className="welcome-hero animate-in"
             style={{
               transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
               transition: "transform 0.15s ease-out",
@@ -202,20 +156,211 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </button>
             </div>
 
-      <div
-        style={{
-          position: "absolute",
-          bottom: "40px",
-          left: "0",
-          right: "0",
-          color: "var(--text-secondary)",
-          fontSize: "0.7rem",
-          letterSpacing: "4px",
-          textTransform: "uppercase",
-          zIndex: 10,
-        }}
-      >
-        Precision Performance Research Lab
+            <h1 className="welcome-wordmark">SPECTRAX</h1>
+
+            <p className="welcome-tagline">
+              Train smarter. Every rep counts.
+            </p>
+
+            {leveling && (
+              <div className="welcome-level-bar">
+                <div className="welcome-level-bar__header">
+                  <span className="welcome-level-bar__label">Level {leveling.level}</span>
+                  <span className="welcome-level-bar__xp">{leveling.xp} / {leveling.nextLevelXp} XP</span>
+                </div>
+                <div className="welcome-level-bar__track">
+                  <div
+                    className="welcome-level-bar__fill"
+                    style={{ width: `${leveling.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="welcome-actions">
+              <button
+                onClick={onStart}
+                className="btn-neon welcome-btn-primary"
+                aria-label="Start Training"
+                tabIndex={0}
+              >
+                <Play size={16} fill="currentColor" />
+                Start Training
+              </button>
+
+              <div className="welcome-btn-row">
+  <button
+    onClick={onViewHistory}
+    className="welcome-btn-secondary welcome-btn-secondary--cyan"
+    aria-label="View Workout History"
+    tabIndex={0}
+  >
+    <History size={15} />
+    History
+  </button>
+
+  <button
+    onClick={onViewTrophies}
+    className="welcome-btn-secondary welcome-btn-secondary--gold"
+    aria-label="View Trophy Room"
+    tabIndex={0}
+  >
+    <Trophy size={15} />
+    Trophies
+  </button>
+</div>
+
+{/* Weight input for calorie estimation */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginTop: "12px",
+    background: "rgba(0,255,100,0.04)",
+    border: "1px solid rgba(0,255,100,0.2)",
+    borderRadius: "10px",
+    padding: "10px 14px",
+  }}
+>
+                  <span>⚖️</span>
+                  <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
+                  <input
+                    type="number" min="30" max="200" placeholder="70"
+                    value={userWeight}
+                    aria-label="User weight in kilograms"
+                    onChange={(e) => {
+                      setUserWeight(e.target.value);
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+                    }}
+                    style={{ background:'transparent', border:'none', outline:'none', color:'#fff', fontSize:'1rem', fontWeight:700, width:'50px' }}
+                  />
+                  <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
+                </div>
+
+              </div>
+            </div>
+
+          {/* ── Stat strip (From maintainer's branch) ── */}
+          <div className="welcome-stats">
+            {STATS.map(({ value, label }, i) => (
+              <React.Fragment key={label}>
+                <div className="welcome-stat">
+                  <span className="welcome-stat__value">{value}</span>
+                  <span className="welcome-stat__label">{label}</span>
+                </div>
+                {i < STATS.length - 1 && (
+                  <div className="welcome-stat-divider" aria-hidden="true" />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* ── How it Works Section (From your branch) ── */}
+          <div className="how-it-works-section" style={{ marginTop: '60px' }}>
+            <div className="section-container">
+              <div className="section-header">
+                <div className="section-badge">
+                  <Sparkles size={14} color="#00f0ff" />
+                  <span>THE PROCESS</span>
+                </div>
+                <h2 className="section-title">How It Works</h2>
+                <p className="section-description">
+                  Four simple steps to transform your workout experience
+                </p>
+              </div>
+
+              <div className="steps-grid">
+                {[
+                  { icon: User, title: "Welcome", desc: "Choose an exercise or let the AI auto-detect", step: "01", color: "#00f0ff" },
+                  { icon: Camera, title: "Calibration", desc: "Align with the camera for optimal tracking", step: "02", color: "#00ffcc" },
+                  { icon: Activity, title: "Workout", desc: "Start exercising with live real-time rep counting", step: "03", color: "#00f0ff" },
+                  { icon: BarChart3, title: "Summary", desc: "Review detailed post-workout analytics and streaks", step: "04", color: "#00ffcc" },
+                ].map((step, idx) => (
+                  <div key={idx} className="step-card">
+                    <div className="step-watermark" style={{ color: step.color }}>
+                      {step.step}
+                    </div>
+                    <div className="step-icon-wrapper" style={{ borderColor: `${step.color}30` }}>
+                      <step.icon size={32} color={step.color} />
+                    </div>
+                    <h3 className="step-title" style={{ color: step.color }}>
+                      {step.title}
+                    </h3>
+                    <p className="step-description">{step.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Footer Section (From your branch) ── */}
+          <footer className="footer" style={{ marginTop: '60px' }}>
+            <div className="footer-container">
+              <div className="footer-grid">
+                <div className="footer-column">
+                  <h3 className="footer-brand-name">SPECTRAX</h3>
+                  <p className="footer-brand-desc">
+                    Precision Performance Research Lab.
+                  </p>
+                  <div className="footer-badge">
+                    <GitFork size={12} color="#00f0ff" />
+                    <span>GSSoC 2026</span>
+                  </div>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">PRODUCT</h4>
+                  <ul className="footer-links">
+                    {["Features", "Usage", "API"].map((item) => (
+                      <li key={item}>
+                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">RESOURCES</h4>
+                  <ul className="footer-links">
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1" className="footer-link">
+                        <Github size={14} /> GitHub
+                      </a>
+                    </li>
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1/blob/main/README.md" className="footer-link">
+                        <FileText size={14} /> Documentation
+                      </a>
+                    </li>
+                    <li>
+                      <a href="https://github.com/Somil450/spectrax_1/discussions" className="footer-link">
+                        <Star size={14} /> Community
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="footer-column">
+                  <h4 className="footer-column-title">LEGAL</h4>
+                  <ul className="footer-links">
+                    {["MIT License", "Privacy", "Terms"].map((item) => (
+                      <li key={item}>
+                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="footer-copyright">
+                <p>© 2026 SpectraX. All rights reserved.</p>
+              </div>
+            </div>
+          </footer>
+
+        </div>
       </div>
       </div>
   );

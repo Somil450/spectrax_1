@@ -33,9 +33,14 @@ export interface SessionArchive {
   frames: CompressedFrameChunk[];
 }
 
+
 const ANGLE_THRESHOLD = 2.0;
 const LANDMARK_THRESHOLD = 0.002;
 const FLOAT_PRECISION = 4;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RLD Compression Driver
+// ─────────────────────────────────────────────────────────────────────────────
 
 export class RLDCompressionDriver {
   static compress(frames: FrameData[]): CompressedFrameChunk[] {
@@ -335,45 +340,46 @@ class SessionRecorder {
     this.displacements = [];
     telemetryBroker.logState("SessionRecorder_Start");
   }
-recordFrame(frame: FrameData) {
-  if (this._frameCount >= MAX_FRAMES) {
-    const first = this.compressedFrames[0];
-    if (first && first.runLength > 1) {
-      first.runLength--;
-      first.timestamp += first.timestampDelta || 33;
-    } else {
-      this.compressedFrames.shift();
+  recordFrame(frame: FrameData) {
+    if (this._frameCount >= MAX_FRAMES) {
+      const first = this.compressedFrames[0];
+      if (first && first.runLength > 1) {
+        first.runLength--;
+        first.timestamp += first.timestampDelta || 33;
+      } else {
+        this.compressedFrames.shift();
+      }
+      this._frameCount--;
     }
-    this._frameCount--;
 
     if (this.displacements.length >= MAX_FRAMES - 1) {
       this.displacements.shift();
     }
-  }
 
-  const centroid = this.getCentroid(frame.landmarks);
-  if (centroid && this.lastCentroid) {
-    const dx = centroid.x - this.lastCentroid.x;
-    const dy = centroid.y - this.lastCentroid.y;
-    const distance = Math.hypot(dx, dy);
-    this.displacements.push(distance);
-  }
-  this.lastCentroid = centroid;
-
-  const lastCompressed =
-      this.compressedFrames[this.compressedFrames.length - 1];
+    const centroid = this.getCentroid(frame.landmarks);
+    if (centroid && this.lastCentroid) {
+      const dx = centroid.x - this.lastCentroid.x;
+      const dy = centroid.y - this.lastCentroid.y;
+      const distance = Math.hypot(dx, dy);
+      this.displacements.push(distance);
+    }
+    this.lastCentroid = centroid;
 
     if (
       this.lastRawFrame &&
       RLDCompressionDriver.isStationary(this.lastRawFrame, frame)
     ) {
+      const lastCompressed = this.compressedFrames[this.compressedFrames.length - 1];
       lastCompressed.runLength++;
       lastCompressed.timestampDelta =
         frame.timestamp - this.lastRawFrame.timestamp;
     } else {
-      this.compressedFrames.push(
-        RLDCompressionDriver.createChunk(this.lastRawFrame, frame),
-      );
+      this.compressedFrames.push({
+        ...frame,
+        kind: "base",
+        timestampDelta: this.lastRawFrame ? frame.timestamp - this.lastRawFrame.timestamp : 33,
+        runLength: 1,
+      });
     }
 
     this.lastRawFrame = frame;

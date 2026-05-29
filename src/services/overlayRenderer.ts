@@ -1,7 +1,8 @@
 import type { Results } from "@mediapipe/pose";
-import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
-import { POSE_CONNECTIONS } from "@mediapipe/pose";
-
+// MediaPipe's npm packages are not ESM-compatible. We use globals from CDN scripts.
+const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
+const drawConnectors = (window as any).drawConnectors;
+const drawLandmarks = (window as any).drawLandmarks;
 
 /**
  * overlayRenderer.ts
@@ -54,6 +55,7 @@ export class OverlayRenderer {
     this.clear();
 
     const color = this.getStatusColor(status);
+    const glow = `${color}88`;
 
     for (const landmark of results.poseLandmarks) {
       this.ctx.beginPath();
@@ -66,7 +68,13 @@ export class OverlayRenderer {
         2 * Math.PI
       );
 this.ctx.fill();
-    }
+}
+
+const drawConnectors = (window as any).drawConnectors;
+const drawLandmarks = (window as any).drawLandmarks;
+const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
+
+if (drawConnectors && POSE_CONNECTIONS && drawLandmarks) {
       // 1. Draw standard connectors with status color
       drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
         color: 'rgba(255, 255, 255, 0.2)',
@@ -84,14 +92,14 @@ this.ctx.fill();
       drawLandmarks(this.ctx, results.poseLandmarks, {
         color: '#ffffff',
         fillColor: (data: any) => {
-          // Highlight primary joints with stronger color
-          if (primaryJoints.includes(data.index!)) return color;
+// Highlight primary joints with stronger color
+if (primaryJoints.includes(data.index!)) return color;
 
-          if (data.index! >= 11) {
-            if (data.index! % 2 !== 0) return 'rgba(0, 240, 255, 0.8)'; // Neon Blue (Left)
-            if (data.index! % 2 === 0) return 'rgba(157, 78, 221, 0.8)'; // Neon Purple (Right)
-          }
-          return 'rgba(255,255,255,0.5)';
+if (data.index! >= 11) {
+  if (data.index! % 2 !== 0) return 'rgba(0, 240, 255, 0.8)'; // Neon Blue (Left)
+  if (data.index! % 2 === 0) return 'rgba(157, 78, 221, 0.8)'; // Neon Purple (Right)
+}
+return 'rgba(255,255,255,0.5)';
         },
         lineWidth: 1,
         radius: (data: any) => {
@@ -100,10 +108,12 @@ this.ctx.fill();
       });
 
       // Global glow
-       const glow=color;
-      this.ctx.shadowBlur = 15;
-      this.ctx.shadowColor = glow;
-    }
+this.ctx.shadowBlur = 15;
+this.ctx.shadowColor = color;
+}
+
+this.drawScanningLine();
+this.drawCenterOfMass(results.poseLandmarks);
 
   private drawScanningLine() {
     if (!this.ctx) return;
