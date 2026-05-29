@@ -152,8 +152,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
             </div>
-            </button>
-            </div>
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
 

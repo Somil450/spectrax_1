@@ -800,15 +800,25 @@
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .fitness-tabs {
-    gap: 4px;
-    padding: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding: 6px;
+  }
+
+  .fitness-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .fitness-tab-btn {
-    min-width: 0;
-    padding: 9px 10px;
-    font-size: 0.7rem;
-    gap: 4px;
+    flex: 0 0 auto;
+    min-width: auto;
+    padding: 10px 16px;
+    font-size: 0.78rem;
+    gap: 6px;
   }
 
   .bmi-reference {
@@ -826,11 +836,5 @@
 
   .bmi-gauge-wrapper {
     width: 100%;
-  }
-}
-
-@media (max-width: 400px) {
-  .fitness-tab-btn span {
-    display: none;
   }
 }
