@@ -216,6 +216,8 @@ export interface EngineState {
   rightStageStartTime?: number;
   leftRepCount?: number;
   rightRepCount?: number;
+  leftLastRepTime?: number;
+  rightLastRepTime?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -464,6 +466,8 @@ export class ExerciseEngine {
     let nextRightStageStart = currentState.rightStageStartTime ?? now;
     let nextLeftReps = currentState.leftRepCount ?? 0;
     let nextRightReps = currentState.rightRepCount ?? 0;
+    let nextLeftLastRepTime = currentState.leftLastRepTime ?? 0;
+    let nextRightLastRepTime = currentState.rightLastRepTime ?? 0;
     let nextReps = isBilateral ? (nextLeftReps + nextRightReps) : reps;
 
     // Initialize bilateral per-arm stages if not yet set (e.g. fresh session)
@@ -487,6 +491,7 @@ export class ExerciseEngine {
           nextLeftStage = "down";
           nextLeftStageStart = now;
           nextLeftDownAngle = smoothedAngleLeft;
+          console.log(`[bilateral] LEFT arm went DOWN angle=${smoothedAngleLeft.toFixed(1)} stage=${nextLeftStage}`, { left: smoothedAngleLeft.toFixed(1), right: smoothedAngleRight.toFixed(1) });
         }
         if (nextLeftStage === "down") {
           nextLeftDownAngle = Math.min(nextLeftDownAngle, smoothedAngleLeft);
@@ -498,12 +503,13 @@ export class ExerciseEngine {
       ) {
         const leftDurationInDown = now - nextLeftStageStart;
         if (
-          now - nextLastRepTime > currentCooldown &&
+          now - nextLeftLastRepTime > currentCooldown &&
           leftDurationInDown > this.MIN_DOWN_DURATION
         ) {
           nextLeftStage = "up";
           nextLeftStageStart = now;
           leftRepJustCounted = true;
+          console.log(`[bilateral] LEFT rep counted! angle=${smoothedAngleLeft.toFixed(1)} total now=${nextLeftReps + (leftRepJustCounted ? 1 : 0) + (rightRepJustCounted ? 1 : 0)}`);
         }
       }
 
@@ -513,6 +519,7 @@ export class ExerciseEngine {
           nextRightStage = "down";
           nextRightStageStart = now;
           nextRightDownAngle = smoothedAngleRight;
+          console.log(`[bilateral] RIGHT arm went DOWN angle=${smoothedAngleRight.toFixed(1)} stage=${nextRightStage}`, { left: smoothedAngleLeft.toFixed(1), right: smoothedAngleRight.toFixed(1) });
         }
         if (nextRightStage === "down") {
           nextRightDownAngle = Math.min(nextRightDownAngle, smoothedAngleRight);
@@ -524,12 +531,13 @@ export class ExerciseEngine {
       ) {
         const rightDurationInDown = now - nextRightStageStart;
         if (
-          now - nextLastRepTime > currentCooldown &&
+          now - nextRightLastRepTime > currentCooldown &&
           rightDurationInDown > this.MIN_DOWN_DURATION
         ) {
           nextRightStage = "up";
           nextRightStageStart = now;
           rightRepJustCounted = true;
+          console.log(`[bilateral] RIGHT rep counted! angle=${smoothedAngleRight.toFixed(1)}`);
         }
       }
     } else {
@@ -550,9 +558,10 @@ export class ExerciseEngine {
 
     // Rep counting (bilateral: each arm can independently count)
     let repJustCounted = false;
+    let armsThisFrame = 0;
     if (isBilateral) {
-      if (leftRepJustCounted) { repJustCounted = true; nextLastRepTime = now; nextLeftReps++; }
-      if (rightRepJustCounted) { repJustCounted = true; nextLastRepTime = now; nextRightReps++; }
+      if (leftRepJustCounted) { repJustCounted = true; nextLeftLastRepTime = now; nextLeftReps++; armsThisFrame++; }
+      if (rightRepJustCounted) { repJustCounted = true; nextRightLastRepTime = now; nextRightReps++; armsThisFrame++; }
       nextReps = nextLeftReps + nextRightReps;
     } else {
       // Single-side rep counting
@@ -763,16 +772,21 @@ export class ExerciseEngine {
         );
       }
 
-      nextTotalReps += 1;
-      nextRepScores.push(nextMinScoreInRep);
-      nextRepDeviations.push(currentDeviation);
+      nextTotalReps += isBilateral ? armsThisFrame : 1;
+
+      // For bilateral, push a score+deviation for each arm that counted
+      const scoreCount = isBilateral ? armsThisFrame : 1;
+      for (let i = 0; i < scoreCount; i++) {
+        nextRepScores.push(nextMinScoreInRep);
+        nextRepDeviations.push(currentDeviation);
+      }
 
       nextLastRepTime = now;
 
       allowRep = nextMinScoreInRep > 70;
 
       if (allowRep) {
-        nextCorrectReps += 1;
+        nextCorrectReps += scoreCount;
         if (!isBilateral) nextReps += 1;
         if (nextMinScoreInRep > p.streakMinScore) {
           nextCurrentStreak += 1;
@@ -893,6 +907,8 @@ export class ExerciseEngine {
       rightStageStartTime: nextRightStageStart,
       leftRepCount: nextLeftReps,
       rightRepCount: nextRightReps,
+      leftLastRepTime: isBilateral ? nextLeftLastRepTime : undefined,
+      rightLastRepTime: isBilateral ? nextRightLastRepTime : undefined,
     };
   }
 }

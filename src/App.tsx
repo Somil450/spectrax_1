@@ -9,6 +9,7 @@ import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
+import { cameraService } from "./services/cameraService";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { useLeveling } from "./hooks/useLeveling";
@@ -77,6 +78,8 @@ interface WorkoutStats {
   exerciseName: string;
   mistakes: Record<string, number>;
   bestStreak: number;
+  leftRepCount?: number;
+  rightRepCount?: number;
   jumpingJackSync?: {
     score: number | null;
     lagMs: number | null;
@@ -180,6 +183,7 @@ function App() {
   const handleWorkoutEnd = (
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
+    cameraService.releaseCamera();
     setStatsLoading(true);
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
     const calorieResult = estimateCalories({
@@ -487,6 +491,7 @@ function App() {
               <button
                 onClick={() => {
                   setShowExitModal(false);
+                  cameraService.releaseCamera();
                   navigateTo("welcome");
                 }}
                 style={{

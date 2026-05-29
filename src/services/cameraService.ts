@@ -26,10 +26,29 @@ export class CameraService {
 
   /**
    * Requests camera permission and starts the stream.
+   * If a stream is already active, reattaches to the new video element
+   * rather than requesting a new camera. This avoids the costly getUserMedia
+   * call and prevents issues during screen transitions.
    * @param videoElement The HTML video element to attach the stream to.
    */
   async startCamera(videoElement: HTMLVideoElement): Promise<MediaStream> {
     this.videoElement = videoElement;
+
+    // If we already have an active stream, just reattach to the new element
+    // and play it. This avoids getUserMedia race conditions during screen
+    // transitions (calibration → workout).
+    if (this.stream && this.stream.active) {
+      this.videoElement.srcObject = this.stream;
+      // Wait for metadata to load before play (prevents "play() interrupted
+      // by new load request" race condition).
+      if (this.videoElement.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        await new Promise<void>((resolve) => {
+          this.videoElement!.onloadedmetadata = () => resolve();
+        });
+      }
+      await this.videoElement.play();
+      return this.stream;
+    }
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
@@ -43,13 +62,18 @@ export class CameraService {
 
       this.videoElement.srcObject = this.stream;
 
-      return new Promise((resolve) => {
-        if (!this.videoElement) return;
-        this.videoElement.onloadedmetadata = () => {
-          this.videoElement?.play();
-          resolve(this.stream!);
-        };
-      });
+      // Try play immediately; if too early, wait for metadata
+      try {
+        await this.videoElement.play();
+      } catch {
+        await new Promise<void>((resolve) => {
+          this.videoElement!.onloadedmetadata = () => {
+            this.videoElement?.play();
+            resolve();
+          };
+        });
+      }
+      return this.stream;
     } catch (error: any) {
       console.error("Camera access denied or unavailable:", error);
       if (error.name === 'NotAllowedError') {
@@ -183,10 +207,34 @@ export class CameraService {
   }
 
   /**
-   * Stops the camera stream and cleans up all resources.
+   * Returns whether a camera stream is currently active.
+   */
+  isStreamActive(): boolean {
+    return !!(this.stream && this.stream.active);
+  }
+
+  /**
+   * Soft-stops the camera: detaches from the video element and stops the
+   * frame loop, but keeps the MediaStream alive so it can be reattached to
+   * a different video element on the next screen. Call releaseCamera() for
+   * full cleanup.
    */
   stopCamera(): void {
-    this.stopFrameLoop(); // Always stop loop before stopping camera
+    this.stopFrameLoop();
+
+    if (this.videoElement) {
+      this.videoElement.srcObject = null;
+      this.videoElement = null;
+    }
+  }
+
+  /**
+   * Hard-stops the camera: fully releases all camera resources including
+   * stopping the underlying MediaStream tracks. Call this when the app
+   * is truly done with the camera (e.g., navigating back to welcome screen).
+   */
+  releaseCamera(): void {
+    this.stopFrameLoop();
 
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());

@@ -17,6 +17,8 @@ interface SummaryScreenProps {
     mistakes: Record<string, number>; 
     bestStreak: number; 
     tags?: string[];
+    leftRepCount?: number;
+    rightRepCount?: number;
     gainedXp?: number;
     exerciseName?: string;
     calories?: number; 
@@ -367,6 +369,28 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
             Total Rated
           </div>
         </div>
+        {stats.leftRepCount !== undefined && (
+          <div
+            className="glass"
+            style={{
+              padding: "12px 16px",
+              textAlign: "center",
+              gridColumn: "1 / -1",
+              background: "rgba(10, 10, 26, 0.5)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "center", gap: "32px", fontSize: "0.75rem" }}>
+              <div>
+                <span style={{ color: "var(--neon-cyan)", fontWeight: 700 }}>LEFT ARM</span>
+                <span style={{ color: "#fff", fontWeight: 900, marginLeft: "8px", fontSize: "1.1rem" }}>{stats.leftRepCount}</span>
+              </div>
+              <div>
+                <span style={{ color: "var(--neon-cyan)", fontWeight: 700 }}>RIGHT ARM</span>
+                <span style={{ color: "#fff", fontWeight: 900, marginLeft: "8px", fontSize: "1.1rem" }}>{stats.rightRepCount}</span>
+              </div>
+            </div>
+          </div>
+        )}
         <div
           className="glass"
           style={{
