@@ -57,7 +57,6 @@ type HudLabel = {
   label: string;
   id: number;
 };
-
 type StressVectorRig = {
   mesh: THREE.Mesh;
   material: THREE.ShaderMaterial;
@@ -654,15 +653,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const fpsMonitor = useRef(new AdaptiveFPSMonitor());
 
   // Keep refs in sync with state for use inside animation loop
-
   useEffect(() => {
     graphicsPresetRef.current = graphicsPreset;
   }, [graphicsPreset]);
   useEffect(() => {
     autoAdaptRef.current = autoAdapt;
   }, [autoAdapt]);
-
-
 
   const isPlaying =
     externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
@@ -689,7 +685,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const axesRef   = useRef<THREE.AxesHelper[]>([]);
 
   // GLTF refs
-
   const modelGroupRef = useRef<THREE.Group | null>(null);
   const boneMapRef = useRef<Record<string, THREE.Bone>>({});
   const skinnedMeshesRef = useRef<THREE.SkinnedMesh[]>([]);
@@ -713,6 +708,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     Partial<Record<BoneProportionKey, THREE.Vector3>>
   >({});
 
+  const stressVectorsRef = useRef<StressVectorRig[]>([]);
+  const previousJointPositionsRef = useRef<(THREE.Vector3 | null)[]>([]);
+
   const ripplePlaneRef = useRef<THREE.Mesh | null>(null);
   const rippleMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
   const rippleEventsRef = useRef<RippleEvent[]>([]);
@@ -720,7 +718,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const lastRippleCompletionTimeRef = useRef<number | null>(null);
   const stressVectorsRef = useRef<StressVectorRig[]>([]);
   const previousJointPositionsRef = useRef<Array<THREE.Vector3 | null>>([]);
-
 
   const [hudLabels, setHudLabels] = useState<HudLabel[]>([]);
   const reqIdRef           = useRef<number>(0);
@@ -1306,7 +1303,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     BONES_CONNECTIONS.forEach(([startIdx, endIdx]) => {
       const geometry = new THREE.BufferGeometry();
-
       geometry.setAttribute(
         "position",
         new THREE.BufferAttribute(new Float32Array(6), 3),
@@ -1315,9 +1311,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         geometry,
         new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 }),
       );
-
       line.userData.isOverlay = true;
-
       scene.add(line);
       createdBones.push({ line, startIdx, endIdx });
     });
@@ -1723,14 +1717,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
 
-
       const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
       const timeSeconds = time * 0.001;
       const { baseColor, badJoints, mistakeColor } = parseFeedback(frame.feedback);
       const exerciseName = frame.exercise?.toLowerCase() || "";
 
 
-
+      const { baseColor, badJoints, mistakeColor } = parseFeedback(frame.feedback);
+      const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
+      const timeSeconds = time * 0.001;
+      const exerciseName = frame.exercise?.toLowerCase() || "";
 
       // Helper
       let depthScale = 2.0;
@@ -1748,6 +1744,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
       };
 
+      const lShoulder = getLm(11), rShoulder = getLm(12);
+      const lHip = getLm(23), rHip = getLm(24);
+      const lAnkle = getLm(27), rAnkle = getLm(28);
 
       const lShoulder = getLm(11),
         rShoulder = getLm(12);
@@ -1760,6 +1759,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           ? new THREE.Vector3()
               .addVectors(lShoulder, rShoulder)
               .multiplyScalar(0.5)
+      const shoulderCenter =
+        lShoulder && rShoulder
+          ? new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5)
           : null;
       const hipCenter =
         lHip && rHip
@@ -1770,6 +1772,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           ? new THREE.Vector3()
               .addVectors(shoulderCenter, hipCenter)
               .multiplyScalar(0.5)
+          ? new THREE.Vector3().addVectors(shoulderCenter, hipCenter).multiplyScalar(0.5)
           : shoulderCenter || hipCenter;
 
       if (modelLoaded) {
@@ -1790,6 +1793,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
               : null;
 
       syncRippleUniforms(timeSeconds);
+
       if (lastRepCountRef.current === null) {
         lastRepCountRef.current = repCount;
       } else if (repCount !== lastRepCountRef.current) {
@@ -1824,6 +1828,15 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const up      = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
           const right   = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
           const forward = new THREE.Vector3().crossVectors(right, up).normalize();
+          const up = new THREE.Vector3()
+            .subVectors(shoulderCenter, hipCenter)
+            .normalize();
+          const right = new THREE.Vector3()
+            .subVectors(lShoulder, rShoulder)
+            .normalize();
+          const forward = new THREE.Vector3()
+            .crossVectors(right, up)
+            .normalize();
 
           right.crossVectors(up, forward).normalize();
           const mat       = new THREE.Matrix4();

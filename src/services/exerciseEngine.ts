@@ -1,4 +1,3 @@
-import { getSupinationScore } from "./wristRotationDetector";
 
 /**
  * exerciseEngine.ts  (updated — squat depth classification integrated)
@@ -217,6 +216,11 @@ export interface EngineState {
   downZReached?: number;
 
   // Tracking & recovery buffers
+  visibilityBuffer?: number[];
+  trackingLostFrames?: number;
+  lastValidAngles?: Record<string, number>;
+  jumpingJackSyncSamples?: JumpingJackSyncSample[];
+  jumpingJackSync?: JumpingJackSyncMetrics;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

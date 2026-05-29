@@ -1,6 +1,7 @@
 import type { Pose as PoseType, Results } from '@mediapipe/pose';
 
 // Load MediaPipe Pose from CDN (standard in classic Web Worker scope)
+declare const importScripts: (...urls: string[]) => void;
 importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js");
 
 const Pose = (self as any).Pose as typeof PoseType;
