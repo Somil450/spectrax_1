@@ -62,4 +62,3 @@ it("returns empty object when landmarks is null", () => {
 
     expect(typeof angles).toBe("object");
   });
-});

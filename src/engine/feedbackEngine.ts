@@ -223,16 +223,28 @@ const rules: Record<string, ExerciseRule> = {
   bicepCurl: (ctx: any) => {
     const issues: DetectionIssue[] = [];
 
-    // ── Existing form checks ──────────────────────────────────────────────
-    if (ctx.stage === "down" && ctx.downAngleReached > 75) {
-      issues.push({
-        type: "squeeze",
-        severity: "medium",
-        message: "Squeeze at the top! ⚡",
-        penalty: 35,
-      });
+    // Determine the active stage across both arms (bilateral-aware)
+    const activeStage = ctx.stage;
+    const leftInDown = ctx.leftStage === 'down';
+    const rightInDown = ctx.rightStage === 'down';
+    const anyArmDown = leftInDown || rightInDown;
+
+    // ── Squeeze check: any arm in down stage with insufficient depth ─────
+    if (anyArmDown) {
+      const leftSqueeze = ctx.leftDownAngleReached != null && ctx.leftDownAngleReached > 75;
+      const rightSqueeze = ctx.rightDownAngleReached != null && ctx.rightDownAngleReached > 75;
+      if (leftSqueeze || rightSqueeze) {
+        issues.push({
+          type: "squeeze",
+          severity: "medium",
+          message: "Squeeze at the top! ⚡",
+          penalty: 35,
+        });
+      }
     }
-    if (ctx.shoulder > 35) {
+
+    // ── Elbow position check (both shoulders) ────────────────────────────
+    if ((ctx.shoulderLeft ?? 0) > 35 || (ctx.shoulderRight ?? 0) > 35) {
       issues.push({
         type: "posture",
         severity: "medium",
@@ -242,14 +254,10 @@ const rules: Record<string, ExerciseRule> = {
     }
 
     // ── Pronation / Supination check ─────────────────────────────────────
-    // At the top of the curl ("down" stage) the palm should be fully
-    // supinated (facing upward).  A score below the threshold means the
-    // user is curling without twisting the wrist correctly.
     const supScore: number | undefined = ctx.wristSupinationScore;
 
     if (typeof supScore === 'number' && !isNaN(supScore)) {
-      if (ctx.stage === 'down' && supScore < 0.2) {
-        // Palm is pronated or neutral at peak of curl
+      if (anyArmDown && supScore < 0.2) {
         issues.push({
           type: 'wrist_pronation',
           severity: 'high',
@@ -258,9 +266,7 @@ const rules: Record<string, ExerciseRule> = {
             : 'Rotate wrist – supinate at the top 🔄',
           penalty: 40,
         });
-      } else if (ctx.stage === 'up' && supScore > 0.2) {
-        // Wrist should return to neutral / slight pronation at the bottom
-        // This is optional coaching – use a lower penalty
+      } else if (activeStage === 'up' && supScore > 0.2) {
         issues.push({
           type: 'wrist_return',
           severity: 'low',

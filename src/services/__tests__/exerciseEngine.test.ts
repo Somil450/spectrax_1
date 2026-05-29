@@ -14,6 +14,18 @@ const squatConfig: ExerciseConfig = {
   feedbackRules: [],
 };
 
+const bicepCurlConfig: ExerciseConfig = {
+  key: "bicepCurl",
+  name: "Bicep Curls",
+  primaryJoint: "elbow",
+  joints: [[11, 13], [13, 15], [12, 14], [14, 16]],
+  downThreshold: 130,
+  upThreshold: 155,
+  bilateral: true,
+  bilateralJoints: { left: "elbowLeft", right: "elbowRight" },
+  feedbackRules: [],
+};
+
 const jumpingJackConfig: ExerciseConfig = {
   key: "jumpingJack",
   name: "Jumping Jacks",
@@ -216,5 +228,100 @@ describe("ExerciseEngine", () => {
 
     expect(result.jumpingJackSyncSamples).toHaveLength(1);
     expect(result.jumpingJackSync?.samples).toBe(1);
+  });
+
+  // ── Bilateral bicep curl tests ──────────────────────────────────────────
+
+  it("counts a left-arm bicep curl rep independently from the right arm", async () => {
+    const state = makeState({
+      stage: "up",
+      history: [170, 170, 170, 170],
+      lastRepTime: 0,
+      minScoreInRep: 100,
+      // Left arm starts in "down" (already curled at bottom)
+      leftStage: "down",
+      rightStage: "up",
+      leftHistory: [170, 170, 170, 170],
+      rightHistory: [170, 170, 170, 170],
+      leftDownAngleReached: 80,
+      rightDownAngleReached: 180,
+      leftStageStartTime: 0,
+      rightStageStartTime: Date.now() - 5000,
+      leftRepCount: 0,
+      rightRepCount: 0,
+      isInExercisePosture: true,
+    });
+
+    // Left arm comes up (170°) while right arm stays extended
+    const result = await engine.process(
+      bicepCurlConfig,
+      { elbowLeft: 170, elbowRight: 170, elbow: 170, shoulderLeft: 10, shoulderRight: 10 },
+      { elbow: 1.0 },
+      state
+    );
+    expect(result.leftStage).toBe("up");
+    expect(result.rightStage).toBe("up");
+    expect(result.leftRepCount).toBe(1);
+    expect(result.rightRepCount).toBe(0);
+    expect(result.reps).toBe(1);
+  });
+
+  it("counts bilateral bicep curl reps for both arms independently", async () => {
+    const state = makeState({
+      stage: "up",
+      history: [170, 170, 170, 170],
+      lastRepTime: 0,
+      minScoreInRep: 100,
+      // Both arms start in "down"
+      leftStage: "down",
+      rightStage: "down",
+      leftHistory: [170, 170, 170, 170],
+      rightHistory: [170, 170, 170, 170],
+      leftDownAngleReached: 80,
+      rightDownAngleReached: 80,
+      leftStageStartTime: 0,
+      rightStageStartTime: Date.now() - 5000,
+      leftRepCount: 0,
+      rightRepCount: 0,
+      isInExercisePosture: true,
+    });
+
+    // Both arms come up → both reps counted
+    const result = await engine.process(
+      bicepCurlConfig,
+      { elbowLeft: 170, elbowRight: 170, elbow: 170, shoulderLeft: 10, shoulderRight: 10 },
+      { elbow: 1.0 },
+      state
+    );
+    expect(result.leftStage).toBe("up");
+    expect(result.rightStage).toBe("up");
+    expect(result.leftRepCount).toBe(1);
+    expect(result.rightRepCount).toBe(1);
+    expect(result.reps).toBe(2);
+  });
+
+  it("initializes bilateral state fields from scratch", async () => {
+    const state = makeState({
+      stage: "up",
+      history: [170, 170, 170, 170],
+      isCalibrated: true,
+      leftStage: undefined,
+      rightStage: undefined,
+      leftRepCount: undefined,
+      rightRepCount: undefined,
+      isInExercisePosture: false,
+    });
+
+    const result = await engine.process(
+      bicepCurlConfig,
+      { elbowLeft: 170, elbowRight: 100, elbow: 170, shoulderLeft: 10, shoulderRight: 10 },
+      { elbow: 1.0 },
+      state
+    );
+
+    expect(result.leftStage).toBeDefined();
+    expect(result.rightStage).toBeDefined();
+    expect(result.leftRepCount).toBe(0);
+    expect(result.rightRepCount).toBe(0);
   });
 });

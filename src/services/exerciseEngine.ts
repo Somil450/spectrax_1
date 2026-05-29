@@ -1,5 +1,3 @@
-import { getSupinationScore } from "./wristRotationDetector";
-
 /**
  * exerciseEngine.ts  (updated — squat depth classification integrated)
  *
@@ -36,6 +34,7 @@ import {
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
+import { getSupinationScore } from './wristRotationDetector';
 import type { NormalizedLandmark } from "@mediapipe/pose";
 
 export interface JumpingJackSyncSample {
@@ -210,13 +209,25 @@ export interface EngineState {
   // VBT Metrics
   vbtMetrics?: VBTMetrics;
 
-  // ── Pushup depth classification (NEW) ──────────────────────────
+  // ── Pushup depth classification ──────────────────────────
   lastPushupDepthResult?: PushupDepthResult | null;
   pushupDepthStats?: PushupDepthStats;
   livePushupDepthFeedback?: string;
   downZReached?: number;
 
-  // Tracking & recovery buffers
+  // ── Bilateral (left/right) tracking for bicep curls ─────────────
+  leftHistory?: number[];
+  rightHistory?: number[];
+  leftStage?: "up" | "down";
+  rightStage?: "up" | "down";
+  leftDownAngleReached?: number;
+  rightDownAngleReached?: number;
+  leftStageStartTime?: number;
+  rightStageStartTime?: number;
+  leftRepCount?: number;
+  rightRepCount?: number;
+  leftLastRepTime?: number;
+  rightLastRepTime?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -370,6 +381,26 @@ export class ExerciseEngine {
         : angles;
     const rawAngle = activeAngles[config.primaryJoint];
 
+    // ── Bilateral (left/right) arm tracking for bicep curls ────────────────
+    const isBilateral = config.bilateral && config.bilateralJoints != null;
+    const leftJoint = isBilateral ? config.bilateralJoints!.left : null;
+    const rightJoint = isBilateral ? config.bilateralJoints!.right : null;
+    const rawAngleLeft = leftJoint ? (activeAngles[leftJoint] ?? 0) : 0;
+    const rawAngleRight = rightJoint ? (activeAngles[rightJoint] ?? 0) : 0;
+
+    let newLeftHistory = currentState.leftHistory ?? [] as number[];
+    let newRightHistory = currentState.rightHistory ?? [] as number[];
+    if (isBilateral) {
+      newLeftHistory = [...newLeftHistory, rawAngleLeft].slice(-p.smoothingWindow);
+      newRightHistory = [...newRightHistory, rawAngleRight].slice(-p.smoothingWindow);
+    }
+    const smoothedAngleLeft = newLeftHistory.length > 0
+      ? newLeftHistory.reduce((a, b) => a + b, 0) / newLeftHistory.length
+      : rawAngleLeft;
+    const smoothedAngleRight = newRightHistory.length > 0
+      ? newRightHistory.reduce((a, b) => a + b, 0) / newRightHistory.length
+      : rawAngleRight;
+
     // Only block exercise if visibility is consistently low for several frames
     if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
@@ -404,6 +435,18 @@ export class ExerciseEngine {
         resetFeedbackEngine();
       }
 
+      // Bilateral calibration: also calibrate per-arm stages
+      let nextLeftStage = currentState.leftStage;
+      let nextRightStage = currentState.rightStage;
+      if (isBilateral && isCalibrated) {
+        const leftIsUp = smoothedAngleLeft > config.upThreshold - 5;
+        const rightIsUp = smoothedAngleRight > config.upThreshold - 5;
+        const leftIsDown = smoothedAngleLeft < config.downThreshold + 5;
+        const rightIsDown = smoothedAngleRight < config.downThreshold + 5;
+        nextLeftStage = leftIsDown ? "down" : leftIsUp ? "up" : undefined;
+        nextRightStage = rightIsDown ? "down" : rightIsUp ? "up" : undefined;
+      }
+
       return {
         ...currentState,
         isCalibrated,
@@ -414,93 +457,142 @@ export class ExerciseEngine {
         status: 'yellow',
         isInExercisePosture: false,
         liveDepthFeedback: '',
+        leftHistory: newLeftHistory,
+        rightHistory: newRightHistory,
+        leftStage: nextLeftStage,
+        rightStage: nextRightStage,
       };
     }
 
-// ───────── PLANK SPLINE REGRESSION ─────────
-let nextPlankSpline = currentState.plankSpline;
-let hipSplineDeviation = currentState.hipSplineDeviation;
-
-if (config.key === "plank" && landmarks && landmarks.length >= 29) {
-  const leftVis =
-    [11, 23, 25].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
-
-  const rightVis =
-    [12, 24, 26].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
-
-  const side = leftVis >= rightVis ? "left" : "right";
-
-  const shoulderIdx = side === "left" ? 11 : 12;
-  const hipIdx = side === "left" ? 23 : 24;
-  const kneeIdx = side === "left" ? 25 : 26;
-
-  const shoulder = landmarks?.[shoulderIdx];
-  const hip = landmarks?.[hipIdx];
-  const knee = landmarks?.[kneeIdx];
-
-  const sufficientVis =
-    (shoulder?.visibility || 0) > 0.5 &&
-    (hip?.visibility || 0) > 0.5 &&
-    (knee?.visibility || 0) > 0.5;
-
-  if (sufficientVis) {
-    if (!nextPlankSpline.isCalibrated) {
-      nextPlankSpline = updatePlankCalibration(
-        nextPlankSpline,
-        shoulder,
-        hip,
-        knee
-      );
-    }
-
-    if (nextPlankSpline.isCalibrated) {
-      hipSplineDeviation = computeHipSplineDeviation(
-        nextPlankSpline,
-        shoulder,
-        hip,
-        knee
-      );
-    }
-  }
-}
-
-// ───────── REP LOGIC ─────────
+    // ───────── REP LOGIC (bilateral-aware) ─────────
     let nextStage = stage;
-    let nextReps = reps;
     let nextLastRepTime = lastRepTime;
     let downAngleReached = currentState.downAngleReached;
     let downZReached = currentState.downZReached ?? 1000;
 
-    if (smoothedAngle < config.downThreshold - currentHysteresis / 2) {
-      if (stage === "up") {
-        nextStage = "down";
-        stageStartTime = now;
-        downAngleReached = smoothedAngle;
-        downZReached = angles.pushupDepthZ ?? 1000;
+    // Bilateral per-arm state
+    let nextLeftStage = currentState.leftStage;
+    let nextRightStage = currentState.rightStage;
+    let nextLeftDownAngle = currentState.leftDownAngleReached ?? 180;
+    let nextRightDownAngle = currentState.rightDownAngleReached ?? 180;
+    let nextLeftStageStart = currentState.leftStageStartTime ?? now;
+    let nextRightStageStart = currentState.rightStageStartTime ?? now;
+    let nextLeftReps = currentState.leftRepCount ?? 0;
+    let nextRightReps = currentState.rightRepCount ?? 0;
+    let nextLeftLastRepTime = currentState.leftLastRepTime ?? 0;
+    let nextRightLastRepTime = currentState.rightLastRepTime ?? 0;
+    let nextReps = isBilateral ? (nextLeftReps + nextRightReps) : reps;
+
+    // Initialize bilateral per-arm stages if not yet set (e.g. fresh session)
+    if (isBilateral && isCalibrated) {
+      if (nextLeftStage === undefined) {
+        nextLeftStage = smoothedAngleLeft > config.upThreshold - 5 ? "up" : "down";
+        if (nextLeftStage === "down" && currentState.leftStageStartTime === undefined) nextLeftStageStart = now;
       }
-      if (nextStage === "down") {
-        downAngleReached = Math.min(downAngleReached, smoothedAngle);
-        downZReached = Math.min(downZReached, angles.pushupDepthZ ?? 1000);
+      if (nextRightStage === undefined) {
+        nextRightStage = smoothedAngleRight > config.upThreshold - 5 ? "up" : "down";
+        if (nextRightStage === "down" && currentState.rightStageStartTime === undefined) nextRightStageStart = now;
+      }
+    }
+    let leftRepJustCounted = false;
+    let rightRepJustCounted = false;
+
+    if (isBilateral) {
+      // ── Left arm ──
+      if (smoothedAngleLeft < config.downThreshold - currentHysteresis / 2) {
+        if (nextLeftStage === "up" || nextLeftStage === undefined) {
+          nextLeftStage = "down";
+          nextLeftStageStart = now;
+          nextLeftDownAngle = smoothedAngleLeft;
+          console.log(`[bilateral] LEFT arm went DOWN angle=${smoothedAngleLeft.toFixed(1)} stage=${nextLeftStage}`, { left: smoothedAngleLeft.toFixed(1), right: smoothedAngleRight.toFixed(1) });
+        }
+        if (nextLeftStage === "down") {
+          nextLeftDownAngle = Math.min(nextLeftDownAngle, smoothedAngleLeft);
+        }
+      }
+      if (
+        smoothedAngleLeft > (config.upThreshold + currentHysteresis / 2) &&
+        nextLeftStage === "down"
+      ) {
+        const leftDurationInDown = now - nextLeftStageStart;
+        if (
+          now - nextLeftLastRepTime > currentCooldown &&
+          leftDurationInDown > this.MIN_DOWN_DURATION
+        ) {
+          nextLeftStage = "up";
+          nextLeftStageStart = now;
+          leftRepJustCounted = true;
+          console.log(`[bilateral] LEFT rep counted! angle=${smoothedAngleLeft.toFixed(1)} total now=${nextLeftReps + (leftRepJustCounted ? 1 : 0) + (rightRepJustCounted ? 1 : 0)}`);
+        }
+      }
+
+      // ── Right arm ──
+      if (smoothedAngleRight < config.downThreshold - currentHysteresis / 2) {
+        if (nextRightStage === "up" || nextRightStage === undefined) {
+          nextRightStage = "down";
+          nextRightStageStart = now;
+          nextRightDownAngle = smoothedAngleRight;
+          console.log(`[bilateral] RIGHT arm went DOWN angle=${smoothedAngleRight.toFixed(1)} stage=${nextRightStage}`, { left: smoothedAngleLeft.toFixed(1), right: smoothedAngleRight.toFixed(1) });
+        }
+        if (nextRightStage === "down") {
+          nextRightDownAngle = Math.min(nextRightDownAngle, smoothedAngleRight);
+        }
+      }
+      if (
+        smoothedAngleRight > (config.upThreshold + currentHysteresis / 2) &&
+        nextRightStage === "down"
+      ) {
+        const rightDurationInDown = now - nextRightStageStart;
+        if (
+          now - nextRightLastRepTime > currentCooldown &&
+          rightDurationInDown > this.MIN_DOWN_DURATION
+        ) {
+          nextRightStage = "up";
+          nextRightStageStart = now;
+          rightRepJustCounted = true;
+          console.log(`[bilateral] RIGHT rep counted! angle=${smoothedAngleRight.toFixed(1)}`);
+        }
+      }
+    } else {
+      // Single-side rep logic (existing)
+      if (smoothedAngle < config.downThreshold - currentHysteresis / 2) {
+        if (stage === "up") {
+          nextStage = "down";
+          stageStartTime = now;
+          downAngleReached = smoothedAngle;
+          downZReached = angles.pushupDepthZ ?? 1000;
+        }
+        if (nextStage === "down") {
+          downAngleReached = Math.min(downAngleReached, smoothedAngle);
+          downZReached = Math.min(downZReached, angles.pushupDepthZ ?? 1000);
+        }
       }
     }
 
+    // Rep counting (bilateral: each arm can independently count)
     let repJustCounted = false;
-    const durationInDown = now - stageStartTime;
-
-    if (
-      smoothedAngle > (config.upThreshold + currentHysteresis / 2) &&
-      stage === 'down'
-    ) {
-      const durationInDown = now - stageStartTime;
-
+    let armsThisFrame = 0;
+    if (isBilateral) {
+      if (leftRepJustCounted) { repJustCounted = true; nextLeftLastRepTime = now; nextLeftReps++; armsThisFrame++; }
+      if (rightRepJustCounted) { repJustCounted = true; nextRightLastRepTime = now; nextRightReps++; armsThisFrame++; }
+      nextReps = nextLeftReps + nextRightReps;
+    } else {
+      // Single-side rep counting
       if (
-now - lastRepTime > currentCooldown &&
-durationInDown > this.MIN_DOWN_DURATION
-) {
-  nextStage = "up";
-  stageStartTime = now;
-  repJustCounted = true;
-}
+        smoothedAngle > (config.upThreshold + currentHysteresis / 2) &&
+        stage === 'down'
+      ) {
+        const singleDurationInDown = now - stageStartTime;
+        if (
+          now - lastRepTime > currentCooldown &&
+          singleDurationInDown > this.MIN_DOWN_DURATION
+        ) {
+          nextStage = "up";
+          stageStartTime = now;
+          repJustCounted = true;
+        }
+      }
+    }
 
 // ───────── POSTURE VALIDATION ─────────
 const isInExercisePosture = this.isValidExercisePosture(
@@ -523,23 +615,19 @@ if (
 const wristSupinationScore =
   config.key === "bicepCurl" ? getSupinationScore(landmarks) : NaN;
 
-const PLANK_DEVIATION_THRESHOLD = 0.05;
-const hipSplineDeviation = 0;
-const nextPlankSpline = { isCalibrated: false };
-
-const context: any = {
-  ...angles,
-  stage: nextStage,
-  lateralScore: angles.lateralScore,
-  hipDepth: angles.hipDepth,
-  horizontalStretch: angles.horizontalStretch,
-  downAngleReached,
-  hipSplineDeviation,
-  plankSplineCalibrated: nextPlankSpline.isCalibrated,
-  hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-  hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
-  wristSupinationScore,
-};
+    const context: any = {
+      ...angles,
+      stage: nextStage,
+      leftStage: nextLeftStage,
+      rightStage: nextRightStage,
+      lateralScore: angles.lateralScore,
+      hipDepth: angles.hipDepth,
+      horizontalStretch: angles.horizontalStretch,
+      downAngleReached,
+      leftDownAngleReached: nextLeftDownAngle,
+      rightDownAngleReached: nextRightDownAngle,
+      wristSupinationScore,
+    };
 
 let feedbackResult: FeedbackResult;
 let frameScore: number;
@@ -684,17 +772,22 @@ if (isInExercisePosture) {
         );
       }
 
-      nextTotalReps += 1;
-      nextRepScores.push(nextMinScoreInRep);
-      nextRepDeviations.push(currentDeviation);
+      nextTotalReps += isBilateral ? armsThisFrame : 1;
+
+      // For bilateral, push a score+deviation for each arm that counted
+      const scoreCount = isBilateral ? armsThisFrame : 1;
+      for (let i = 0; i < scoreCount; i++) {
+        nextRepScores.push(nextMinScoreInRep);
+        nextRepDeviations.push(currentDeviation);
+      }
 
       nextLastRepTime = now;
 
       allowRep = nextMinScoreInRep > 70;
 
       if (allowRep) {
-        nextCorrectReps += 1;
-        nextReps += 1;
+        nextCorrectReps += scoreCount;
+        if (!isBilateral) nextReps += 1;
         if (nextMinScoreInRep > p.streakMinScore) {
           nextCurrentStreak += 1;
           nextBestStreak = Math.max(nextBestStreak, nextCurrentStreak);
@@ -802,6 +895,20 @@ if (isInExercisePosture) {
       holdTime: nextHoldTime,
 
       wristSupinationScore,
+
+      // Bilateral state
+      leftHistory: isBilateral ? newLeftHistory : undefined,
+      rightHistory: isBilateral ? newRightHistory : undefined,
+      leftStage: nextLeftStage,
+      rightStage: nextRightStage,
+      leftDownAngleReached: nextLeftDownAngle,
+      rightDownAngleReached: nextRightDownAngle,
+      leftStageStartTime: nextLeftStageStart,
+      rightStageStartTime: nextRightStageStart,
+      leftRepCount: nextLeftReps,
+      rightRepCount: nextRightReps,
+      leftLastRepTime: isBilateral ? nextLeftLastRepTime : undefined,
+      rightLastRepTime: isBilateral ? nextRightLastRepTime : undefined,
     };
   }
 }

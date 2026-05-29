@@ -18,6 +18,8 @@ export interface ExerciseConfig {
   }[];
   demoUrl?: string;
   isStatic?: boolean;
+  bilateral?: boolean;
+  bilateralJoints?: { left: string; right: string };
 }
 
 export const exercises: Record<string, ExerciseConfig> = {
@@ -83,6 +85,8 @@ export const exercises: Record<string, ExerciseConfig> = {
     joints: [[11, 13], [13, 15], [12, 14], [14, 16]],
     downThreshold: 130,
     upThreshold: 155,
+    bilateral: true,
+    bilateralJoints: { left: "elbowLeft", right: "elbowRight" },
     feedbackRules: [
       {
         condition: (ctx: any) => ctx.elbow > 165 && ctx.stage === 'up',

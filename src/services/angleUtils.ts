@@ -20,6 +20,7 @@ let _angle = 0;
 const _angles: Record<string, number> = {
   knee: 0, elbow: 0, shoulder: 0, bodyLine: 0,
   hipDepth: 0, lateralScore: 0, horizontalStretch: 0,
+  elbowLeft: 0, elbowRight: 0, shoulderLeft: 0, shoulderRight: 0,
 };
 
 const _visibility: Record<string, number> = {
@@ -85,7 +86,11 @@ export function getJointAngles(landmarks: any): Record<string, number> {
 
   _angles.knee              = calculateAngle(landmarks[hi], landmarks[ki], landmarks[ai]);
   _angles.elbow             = calculateAngle(landmarks[si], landmarks[ei], landmarks[wi]);
+  _angles.elbowLeft         = calculateAngle(landmarks[11], landmarks[13], landmarks[15]);
+  _angles.elbowRight        = calculateAngle(landmarks[12], landmarks[14], landmarks[16]);
   _angles.shoulder          = calculateAngle(landmarks[ei], landmarks[si], landmarks[hi]);
+  _angles.shoulderLeft      = calculateAngle(landmarks[13], landmarks[11], landmarks[23]);
+  _angles.shoulderRight     = calculateAngle(landmarks[14], landmarks[12], landmarks[24]);
   _angles.bodyLine          = calculateAngle(landmarks[si], landmarks[hi], landmarks[ai]);
   _angles.hipDepth          = hipDepth * 100;
   _angles.lateralScore      = lateralScore * 100;

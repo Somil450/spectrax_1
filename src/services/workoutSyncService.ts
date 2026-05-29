@@ -1,4 +1,4 @@
- /**
+﻿ /**
  * Workout Sync Service
  * Handles syncing workout data between local IndexedDB and Firestore
  * Supports offline persistence and automatic synchronization
@@ -19,16 +19,16 @@ import {
 import { getAuth } from "firebase/auth";
 
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Types & Interfaces
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface WorkoutRecord {
   id?: string | number;
   userId: string;
   exerciseType: string;
   totalReps: number;
-  accuracyScore: number; // 0–100
+  accuracyScore: number; // 0â€“100
   duration: number; // seconds
   timestamp: number; // Date.now() for local timestamp
   createdAt?: any; // Firestore server timestamp
@@ -44,9 +44,9 @@ export interface SyncStatus {
   error: string | null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // IndexedDB Setup
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DB_NAME = "spectrax_db";
 const DB_VERSION = 3; // Incremented for sync fields and localId keyPath upgrade
@@ -108,9 +108,9 @@ async function openDB(): Promise<IDBDatabase> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Local Storage (IndexedDB) Operations
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Save a workout session to IndexedDB with sync flag
@@ -181,25 +181,22 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     const getReq = store.get(localId);
 
     getReq.onsuccess = () => {
-const workout = getReq.result as WorkoutRecord;
+      const workout = getReq.result as WorkoutRecord;
+      if (workout) {
+        store.delete(localId);
+        store.put({
+          ...workout,
+          id: firestoreId,
+          synced: true,
+        });
+      }
+    };
 
-if (workout) {
-  store.delete(localId);
-
-  store.put({
-    ...workout,
-    id: firestoreId,
-    synced: true,
-  });
-}
-
-// resolve only after transaction completes safely
-getReq.onerror = () => reject(getReq.error);
-
-tx.oncomplete = () => resolve();
-tx.onerror = () => reject(tx.error);
-tx.onabort = () =>
-  reject(new Error(`Transaction aborted for localId ${localId}`));
+    getReq.onerror = () => reject(getReq.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () =>
+      reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
@@ -242,9 +239,9 @@ export async function updateLocalWorkoutsFromFirestore(
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Firestore Operations
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Upload a workout to Firestore
@@ -337,9 +334,9 @@ export async function deleteWorkoutFromFirestore(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sync Operations
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Sync all unsynced workouts to Firestore
@@ -432,9 +429,9 @@ export async function fullSyncWorkouts(userId: string): Promise<SyncStatus> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Offline Detection & Auto-Sync
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let syncInProgress = false;
 
@@ -445,30 +442,14 @@ let onlineHandler: (() => void) | null = null;
 let offlineHandler: (() => void) | null = null;
 
 export function initializeAutoSync(userId: string): void {
-const workout = getReq.result as WorkoutRecord;
+  if (onlineHandler || offlineHandler) return;
 
-if (workout) {
-  store.delete(localId);
-
-  store.put({
-    ...workout,
-    id: firestoreId,
-    synced: true,
-  });
-}
-
-// resolve only after transaction completes safely
-getReq.onerror = () => reject(getReq.error);
-
-tx.oncomplete = () => resolve();
-tx.onerror = () => reject(tx.error);
-tx.onabort = () =>
-  reject(new Error(`Transaction aborted for localId ${localId}`));
-      }
-    } catch (error) {
-      syncInProgress = false;
-      console.error("Auto-sync failed:", error);
-    }
+  onlineHandler = () => {
+    if (syncInProgress) return;
+    syncInProgress = true;
+    fullSyncWorkouts(userId)
+      .catch((error) => console.error("Auto-sync failed:", error))
+      .finally(() => { syncInProgress = false; });
   };
 
   offlineHandler = () => {
@@ -532,9 +513,9 @@ export async function getSyncStatus(userId: string): Promise<SyncStatus> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Batch Operations for Performance
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Bulk upload workouts with batch operations
@@ -636,7 +617,7 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
   // If this throws (network error, permission denied) the local records are
   // left intact and the error propagates to the caller so the UI can surface
   // a meaningful message instead of falsely reporting success.
-  const remoteWorkouts = await getFirestoreWorkouts();
+  const remoteWorkouts = await getFirestoreWorkouts(userId);
   for (const w of remoteWorkouts) {
     if (w.id) {
       await deleteWorkoutFromFirestore(w.id as string);
@@ -662,24 +643,6 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
-try {
-  const db = getFirestore();
-
-  const snapshot = await getDocs(collection(db, "workouts"));
-
-  const workouts = snapshot.docs.map((d) => ({
-    id: d.id,
-    ...d.data(),
-  }));
-
-  for (const w of workouts) {
-    if (w.id) {
-      await deleteWorkoutFromFirestore(w.id as string);
-    }
-  }
-} catch (error) {
-  console.error("Failed to clear workouts from Firestore:", error);
-}
 }
 
 export default {

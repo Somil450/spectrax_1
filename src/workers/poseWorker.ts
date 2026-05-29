@@ -347,11 +347,15 @@ function computeAngles(landmarks: any[]): Record<string, number> {
     backKnee,
     knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
     elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
+    elbowLeft: calculateAngle(landmarks[11], landmarks[13], landmarks[15]),
+    elbowRight: calculateAngle(landmarks[12], landmarks[14], landmarks[16]),
     shoulder: calculateAngle(
       landmarks[ids.e],
       landmarks[ids.s],
       landmarks[ids.h],
     ),
+    shoulderLeft: calculateAngle(landmarks[13], landmarks[11], landmarks[23]),
+    shoulderRight: calculateAngle(landmarks[14], landmarks[12], landmarks[24]),
     bodyLine: calculateAngle(
       landmarks[ids.s],
       landmarks[ids.h],
