@@ -4,12 +4,6 @@
    CSS Custom Properties (Design Tokens)
    ============================================= */
 :root {
-  --neon-cyan: #00f0ff;
-  --neon-yellow: #ffd600;
-  --text-primary: rgba(255, 255, 255, 0.9);
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --text-dim: rgba(255, 255, 255, 0.5);
-  --text-muted: rgba(255, 255, 255, 0.3);
   --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
 

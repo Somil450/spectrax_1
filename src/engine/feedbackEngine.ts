@@ -307,6 +307,48 @@ const rules: Record<string, ExerciseRule> = {
     }
     return issues;
   },
+
+  flutterKicks: (ctx: any) => {
+    const issues: DetectionIssue[] = [];
+    if (ctx.knee < 155) {
+      issues.push({
+        type: "knee_bend",
+        severity: "medium",
+        message: "Keep your legs straight ⚠️",
+        penalty: 30,
+      });
+    }
+    if (ctx.bodyLine < 120) {
+      issues.push({
+        type: "leg_height",
+        severity: "medium",
+        message: "Keep legs lower for core engagement ⚠️",
+        penalty: 25,
+      });
+    }
+    return issues;
+  },
+
+  shoulderPress: (ctx: any) => {
+    const issues: DetectionIssue[] = [];
+    if (ctx.elbow < 70) {
+      issues.push({
+        type: "elbows",
+        severity: "medium",
+        message: "Don't drop elbows too low ⚠️",
+        penalty: 35,
+      });
+    }
+    if (ctx.shoulder < 60) {
+      issues.push({
+        type: "posture",
+        severity: "medium",
+        message: "Keep elbows up ⚠️",
+        penalty: 35,
+      });
+    }
+    return issues;
+  },
 };
 
 // --- Scoring & Smoothing Logic ---
@@ -353,11 +395,11 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
 
   // Update the deviation profiler with a posture metric specific to the exercise
   let postureMetric = 0;
-  if (exerciseKey === 'pushup' || exerciseKey === 'plank') {
+  if (exerciseKey === 'pushup' || exerciseKey === 'plank' || exerciseKey === 'flutterKicks') {
     postureMetric = ctx.bodyLine;
   } else if (exerciseKey === 'squat' || exerciseKey === 'lunge') {
     postureMetric = ctx.lateralScore;
-  } else if (exerciseKey === 'bicepCurl') {
+  } else if (exerciseKey === 'bicepCurl' || exerciseKey === 'shoulderPress') {
     // Use shoulder angle for primary posture tracking, plus supination as secondary
     postureMetric = ctx.shoulder;
     // Also track wrist rotation deviation when available

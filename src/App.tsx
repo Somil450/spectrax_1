@@ -17,6 +17,7 @@ import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
+import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
 
@@ -28,6 +29,7 @@ import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { FitnessCalculator } from "./components/FitnessCalculator";
 import React from "react";
+import { PageErrorBoundary } from "./components/PageErrorBoundary";
 
 type Screen =
   | "welcome"
@@ -40,12 +42,13 @@ type Screen =
   | "signup"
   | "forgot-password"
   | "trophy"
-  | "profile";
+  | "profile"
+  | "fitness";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -56,6 +59,7 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   "forgot-password": ["login", "welcome"],
   trophy: ["welcome", "login"],
   profile: ["welcome", "login"],
+  fitness: ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -133,7 +137,7 @@ function App() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
+    onRegistered() {
     },
     onRegisterError(error) {
       console.error("SW registration error", error);
@@ -374,11 +378,15 @@ function App() {
         )}
 
         {currentScreen === "history" && (
-          <HistoryPage onBack={() => navigateTo("welcome")} />
+          <PageErrorBoundary fallbackMessage="Failed to load workout history. Please try again.">
+            <HistoryPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "trophy" && (
-          <TrophyRoom onBack={() => navigateTo("welcome")} />
+          <PageErrorBoundary fallbackMessage="Failed to load Trophy Room. Please try again.">
+            <TrophyRoom onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "profile" && (
@@ -393,6 +401,7 @@ function App() {
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
+      <ScrollToTopButton />
 
       {(offlineReady || needRefresh) && (
         <div className="pwa-toast glass animate-in" role="alert">

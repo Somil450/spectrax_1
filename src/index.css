@@ -1297,74 +1297,67 @@ body {
   opacity: 1 !important;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CURSOR GLOW — Subtle Neon Orb + Sparkle Trail
-   Three layers: core orb · soft halo · sparkle dots.
-   Sizes are intentionally small — this is a micro-interaction,
-   not a spotlight. Colors set per-frame in JS (theme-aware).
-   ═══════════════════════════════════════════════════════════════ */
-
-/* Shared base for core + halo */
-.cursor-core,
-.cursor-halo {
+.scroll-to-top-button {
   position: fixed;
-  top: 0;
-  left: 0;
+  right: clamp(16px, 3vw, 28px);
+  bottom: clamp(88px, 10vh, 112px);
+  z-index: 9998;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--neon-cyan);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 50%;
-  pointer-events: none;
-  will-change: transform;
-  transition: opacity 0.35s ease;
-  opacity: 0;
+  box-shadow: var(--glass-shadow), 0 0 18px rgba(0, 240, 255, 0.14);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  cursor: pointer;
+  transition:
+    transform 0.25s var(--ease-out),
+    color 0.25s var(--ease-out),
+    border-color 0.25s var(--ease-out),
+    box-shadow 0.25s var(--ease-out),
+    background 0.25s var(--ease-out);
 }
 
-/* Tight neon core — small, sharp, close to cursor */
-.cursor-core {
-  width: 28px;
-  height: 28px;
-  filter: blur(4px);
-  z-index: 9993;
+.scroll-to-top-button:hover {
+  transform: translateY(-4px);
+  color: var(--text-primary);
+  border-color: var(--neon-cyan);
+  box-shadow: var(--glass-shadow), 0 0 24px rgba(0, 240, 255, 0.28);
 }
 
-/* Soft outer bloom — larger, blurrier, lags slightly */
-.cursor-halo {
-  width: 80px;
-  height: 80px;
-  filter: blur(18px);
-  z-index: 9992;
+.scroll-to-top-button:active {
+  transform: translateY(-1px) scale(0.96);
 }
 
-/* Sparkle dot container — JS injects .cursor-spark children */
-.cursor-sparks {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-  z-index: 9991;
-  overflow: visible;
+[data-theme-style="retro"] .scroll-to-top-button {
+  color: var(--neon-yellow);
+  box-shadow: var(--glass-shadow), 0 0 18px rgba(255, 176, 0, 0.18);
 }
 
-/* Individual sparkle dot — sized + colored by JS */
-.cursor-spark {
-  position: fixed;
-  top: 0;
-  left: 0;
-  border-radius: 50%;
-  pointer-events: none;
-  will-change: transform, opacity;
-  opacity: 0;
+[data-theme-style="retro"] .scroll-to-top-button:hover {
+  border-color: var(--neon-yellow);
+  box-shadow: var(--glass-shadow), 0 0 24px rgba(255, 176, 0, 0.3);
 }
 
-/* ── Disable on touch & reduced-motion ───────────────────────── */
-@media (pointer: coarse) {
-  .cursor-core,
-  .cursor-halo,
-  .cursor-sparks { display: none; }
+@media (max-width: 640px) {
+  .scroll-to-top-button {
+    right: 14px;
+    bottom: 84px;
+    width: 44px;
+    height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cursor-core,
-  .cursor-halo,
-  .cursor-sparks { display: none; }
+  .scroll-to-top-button,
+  .scroll-to-top-button:hover,
+  .scroll-to-top-button:active {
+    transition: none;
+    transform: none;
+  }
 }
