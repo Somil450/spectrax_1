@@ -21,6 +21,7 @@ import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './Wo
 import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
 import { useThrottleLevel } from '../services/performanceThrottleService';
@@ -185,7 +186,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-  const throttleLevel = useThrottleLevel();
   const srOnly: React.CSSProperties = {
     position: 'absolute',
     width: '1px',
@@ -564,11 +564,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       setHasGhost(false);
     }
 
-    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
-    const wsSocketRef = useWorkoutWebSocket();
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent) => {
+      const { angles } = event.data;
+      if (angles) {
+        workerAnglesRef.current = angles;
+      }
+    };
 
     
   
