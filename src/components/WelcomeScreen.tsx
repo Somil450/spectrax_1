@@ -224,6 +224,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <input
                     type="number" min="30" max="200" placeholder="70"
                     value={userWeight}
+                    aria-label="User weight in kilograms"
                     onChange={(e) => {
                       setUserWeight(e.target.value);
                       const val = parseFloat(e.target.value);
