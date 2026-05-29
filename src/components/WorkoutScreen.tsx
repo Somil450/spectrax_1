@@ -184,6 +184,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
   const throttleLevel = useThrottleLevel();
+  const wsSocketRef = useWorkoutWebSocket();
   const srOnly: React.CSSProperties = {
     position: 'absolute',
     width: '1px',
@@ -562,8 +563,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       setHasGhost(false);
     }
 
-    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
-    const wsSocketRef = useWorkoutWebSocket();
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
