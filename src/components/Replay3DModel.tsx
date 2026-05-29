@@ -60,27 +60,6 @@ type HudLabel = {
 
 
 
-const createdStressVectors: StressVectorRig[] = [];
-STRESS_VECTOR_ATTACHMENTS.forEach(({ jointIdx, parentIdx, muscleGroup }) => {
-  const geometry = new THREE.CylinderGeometry(0.05, 0.015, 1, 10, 1, false);
-  geometry.translate(0, 0.5, 0);
-  const material = createStressVectorMaterial();
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.visible = false;
-  mesh.frustumCulled = false;
-  mesh.renderOrder = 4;
-  scene.add(mesh);
-  createdStressVectors.push({
-    mesh,
-    material,
-    geometry,
-    jointIdx,
-    parentIdx,
-    muscleGroup,
-  });
-});
-stressVectorsRef.current = createdStressVectors;
-previousJointPositionsRef.current = new Array(33).fill(null);
 type StressVectorRig = {
   mesh: THREE.Mesh;
   material: THREE.ShaderMaterial;
@@ -88,6 +67,7 @@ type StressVectorRig = {
   jointIdx: number;
   parentIdx: number;
   muscleGroup: keyof typeof MUSCLE_JOINT_GROUPS;
+};
 
 type RippleEvent = {
   origin: THREE.Vector2;
