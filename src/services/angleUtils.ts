@@ -20,10 +20,12 @@ let _angle = 0;
 const _angles: Record<string, number> = {
   knee: 0, elbow: 0, shoulder: 0, bodyLine: 0,
   hipDepth: 0, lateralScore: 0, horizontalStretch: 0,
+  lungeKnee: 180, backKnee: 180, kneePastToes: 0,
 };
 
 const _visibility: Record<string, number> = {
   knee: 0, elbow: 0, shoulder: 0, bodyLine: 0, hipDepth: 0,
+  lungeKnee: 0, backKnee: 0,
 };
 
 export function calculateAngle(
@@ -91,6 +93,35 @@ export function getJointAngles(landmarks: any): Record<string, number> {
   _angles.lateralScore      = lateralScore * 100;
   _angles.horizontalStretch = horizontalStretch * 100;
 
+  // Lunge fields. Mirrors poseWorker's compute so the main-thread fallback
+  // (used until the worker warms up) produces the same shape. Active leg is
+  // the more-bent knee; the other leg's angle is reported as backKnee. If
+  // any required landmark is missing we keep the safe defaults (lungeKnee
+  // and backKnee = 180 so the engine reads "fully extended", not NaN).
+  _angles.lungeKnee = 180;
+  _angles.backKnee = 180;
+  _angles.kneePastToes = 0;
+  const lH = landmarks[23];
+  const lK = landmarks[25];
+  const lA = landmarks[27];
+  const rH = landmarks[24];
+  const rK = landmarks[26];
+  const rA = landmarks[28];
+  if (lH && lK && lA && rH && rK && rA) {
+    const lkAngle = calculateAngle(lH, lK, lA);
+    const rkAngle = calculateAngle(rH, rK, rA);
+    const leftActive = lkAngle < rkAngle;
+    _angles.lungeKnee = leftActive ? lkAngle : rkAngle;
+    _angles.backKnee  = leftActive ? rkAngle : lkAngle;
+    const aHip = leftActive ? lH : rH;
+    const aKnee = leftActive ? lK : rK;
+    const aToe = landmarks[leftActive ? 31 : 32];
+    if (aToe) {
+      const forwardDir = Math.sign(aToe.x - aHip.x);
+      _angles.kneePastToes = forwardDir * (aKnee.x - aToe.x) > 0.02 ? 1 : 0;
+    }
+  }
+
   return _angles;
 }
 
@@ -107,6 +138,22 @@ export function getJointVisibility(landmarks: any): Record<string, number> {
   _visibility.hipDepth =
     (Math.max(landmarks[23]?.visibility || 0, landmarks[24]?.visibility || 0) +
      Math.max(landmarks[27]?.visibility || 0, landmarks[28]?.visibility || 0)) / 2;
+
+  _visibility.lungeKnee = 0;
+  _visibility.backKnee = 0;
+  const lH = landmarks[23];
+  const lK = landmarks[25];
+  const lA = landmarks[27];
+  const rH = landmarks[24];
+  const rK = landmarks[26];
+  const rA = landmarks[28];
+  if (lH && lK && lA && rH && rK && rA) {
+    const lkAngle = calculateAngle(lH, lK, lA);
+    const rkAngle = calculateAngle(rH, rK, rA);
+    const leftActive = lkAngle < rkAngle;
+    _visibility.lungeKnee = leftActive ? (lK.visibility || 0) : (rK.visibility || 0);
+    _visibility.backKnee  = leftActive ? (rK.visibility || 0) : (lK.visibility || 0);
+  }
 
   return _visibility;
 }
