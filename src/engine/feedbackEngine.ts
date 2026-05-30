@@ -142,6 +142,9 @@ class JointDeviationProfiler {
     this.allValues = [];
   }
 }
+
+const jointDeviationProfiler = new JointDeviationProfiler();
+
 export interface DetectionIssue {
   type: string;
   severity: "high" | "medium" | "low";
@@ -538,5 +541,6 @@ export function getPostureErrorCategories(): Record<string, number> {
  */
 export function resetFeedbackEngine(): void {
   scoreHistory = [];
+  jointDeviationProfiler.reset();
   //skeletalSense.reset();
 }

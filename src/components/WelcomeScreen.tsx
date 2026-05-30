@@ -3,6 +3,7 @@ import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Git
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { useTheme } from "../context/ThemeContext";
 
 const STATS = [
   { value: "30+", label: "FPS tracking" },
@@ -149,8 +150,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             <div className="welcome-eyebrow" aria-hidden="true">
               <span className="welcome-eyebrow__dot" />
               AI-Powered Fitness
-            </div>
-            </button>
             </div>
 
             <h1 className="welcome-wordmark">SPECTRAX</h1>
