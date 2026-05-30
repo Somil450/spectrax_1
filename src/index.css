@@ -1361,3 +1361,31 @@ body {
     transform: none;
   }
 }
+
+/* ==========================================================================
+   GLOBAL SCROLLBAR STYLES (Enforces dark theme on all scrollable containers)
+   ========================================================================== */
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  /* Use transparent or match your app's exact dark background hex */
+  background: transparent; 
+}
+
+*::-webkit-scrollbar-thumb {
+  /* A sleek, dark slate color for the draggable thumb */
+  background-color: #334155; 
+  border-radius: 9999px;
+  /* Adds a tiny gap around the thumb so it doesn't touch the edges */
+  border: 2px solid transparent; 
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  /* Slightly lighter on hover for good UX */
+  background-color: #475569; 
+}
