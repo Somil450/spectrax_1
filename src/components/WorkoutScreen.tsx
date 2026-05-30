@@ -191,19 +191,7 @@ const [showExitModal, setShowExitModal] = useState(false);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-  const throttleLevel = useThrottleLevel();
-  const wsSocketRef = useWorkoutWebSocket();
-  const srOnly: React.CSSProperties = {
-    position: 'absolute',
-    width: '1px',
-    height: '1px',
-    padding: 0,
-    margin: '-1px',
-    overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
-    whiteSpace: 'nowrap',
-    borderWidth: 0,
-  };
+const FPS_LIMIT = 30;
 
 const srOnly: React.CSSProperties = {
   position: 'absolute',
@@ -261,8 +249,6 @@ const frameId = useRef<number | null>(null);
 const countRef = useRef(0);
 
 const animationFrameRef = useRef<number | null>(null);
-
-const [showExitModal, setShowExitModal] = useState(false);
 
 const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
 const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
