@@ -4,8 +4,8 @@ import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
 import { ReplayScreen } from "./components/ReplayScreen";
-import { TrophyRoom } from "./components/TrophyRoom";
-import { UserProfileScreen } from "./components/UserProfileScreen";
+const TrophyRoom = React.lazy(() => import("./components/TrophyRoom"));
+const UserProfileScreen = React.lazy(() => import("./components/UserProfileScreen"));
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
@@ -30,7 +30,7 @@ import { CursorGlow } from "./components/CursorGlow";
 import { FitnessCalculator } from "./components/FitnessCalculator";
 import React from "react";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
-
+import { GridSkeleton } from "./components/CardSkeleton";
 type Screen =
   | "welcome"
   | "calibration"
@@ -336,13 +336,7 @@ function App() {
         />
       )}
 
-      <Suspense
-        fallback={
-          <div className="loading-container">
-            <div className="spinner" />
-          </div>
-        }
-      >
+      <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
           <CalibrationScreen
             selectedExercise={selectedExercise}
