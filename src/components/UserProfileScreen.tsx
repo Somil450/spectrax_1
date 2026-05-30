@@ -8,7 +8,7 @@ interface UserProfileScreenProps {
 }
 
 export function UserProfileScreen({ onLogout }: UserProfileScreenProps) {
-  const { user, userProfile, logout, loading } = useAuth();
+  const { userProfile, logout, loading } = useAuth();
 
   const handleLogout = async () => {
     try {

@@ -8,7 +8,7 @@ export function useOffscreenCanvas() {
 
     if (canvasEl.__offscreenTransferred) {
       offscreenEnabledRef.current = true;
-      console.log("[useOffscreenCanvas] Canvas already has Offscreen control transferred.");
+      // Canvas control already transferred
       return canvasEl;
     }
 
@@ -23,7 +23,7 @@ export function useOffscreenCanvas() {
         ]);
         offscreenEnabledRef.current = true;
         canvasEl.__offscreenTransferred = true;
-        console.log("[useOffscreenCanvas] OffscreenCanvas enabled.");
+        // OffscreenCanvas enabled
       } catch (e) {
         console.warn(
           "[useOffscreenCanvas] Failed to transfer canvas control:",

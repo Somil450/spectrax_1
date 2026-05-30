@@ -50,6 +50,7 @@ interface WorkoutScreenProps {
   }) => void;
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
+  adaptiveFactor?: number;
 }
 
 type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
