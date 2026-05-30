@@ -1,0 +1,59 @@
+
+> spectrax-track@0.0.0 build
+> tsc && vite build
+
+src/components/Replay3DModel.tsx(867,20): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(870,33): error TS2552: Cannot find name 'previousJointPositionsRef'. Did you mean 'previousPositions'?
+src/components/Replay3DModel.tsx(1300,33): error TS2304: Cannot find name 'StressVectorRig'.
+src/components/Replay3DModel.tsx(1301,5): error TS2304: Cannot find name 'STRESS_VECTOR_ATTACHMENTS'.
+src/components/Replay3DModel.tsx(1329,5): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(1330,5): error TS2304: Cannot find name 'previousJointPositionsRef'.
+src/components/Replay3DModel.tsx(1587,7): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(1592,7): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(1593,7): error TS2304: Cannot find name 'previousJointPositionsRef'.
+src/components/Replay3DModel.tsx(1701,15): error TS2451: Cannot redeclare block-scoped variable 'baseColor'.
+src/components/Replay3DModel.tsx(1701,26): error TS2451: Cannot redeclare block-scoped variable 'badJoints'.
+src/components/Replay3DModel.tsx(1701,37): error TS2451: Cannot redeclare block-scoped variable 'mistakeColor'.
+src/components/Replay3DModel.tsx(1705,13): error TS2451: Cannot redeclare block-scoped variable 'repCount'.
+src/components/Replay3DModel.tsx(1706,13): error TS2451: Cannot redeclare block-scoped variable 'timeSeconds'.
+src/components/Replay3DModel.tsx(1708,13): error TS2451: Cannot redeclare block-scoped variable 'repCount'.
+src/components/Replay3DModel.tsx(1709,13): error TS2451: Cannot redeclare block-scoped variable 'timeSeconds'.
+src/components/Replay3DModel.tsx(1711,15): error TS2451: Cannot redeclare block-scoped variable 'baseColor'.
+src/components/Replay3DModel.tsx(1711,26): error TS2451: Cannot redeclare block-scoped variable 'badJoints'.
+src/components/Replay3DModel.tsx(1711,37): error TS2451: Cannot redeclare block-scoped variable 'mistakeColor'.
+src/components/Replay3DModel.tsx(1733,13): error TS2451: Cannot redeclare block-scoped variable 'lShoulder'.
+src/components/Replay3DModel.tsx(1734,9): error TS2451: Cannot redeclare block-scoped variable 'rShoulder'.
+src/components/Replay3DModel.tsx(1735,13): error TS2451: Cannot redeclare block-scoped variable 'lHip'.
+src/components/Replay3DModel.tsx(1736,9): error TS2451: Cannot redeclare block-scoped variable 'rHip'.
+src/components/Replay3DModel.tsx(1737,13): error TS2451: Cannot redeclare block-scoped variable 'lAnkle'.
+src/components/Replay3DModel.tsx(1738,9): error TS2451: Cannot redeclare block-scoped variable 'rAnkle'.
+src/components/Replay3DModel.tsx(1760,13): error TS2451: Cannot redeclare block-scoped variable 'lShoulder'.
+src/components/Replay3DModel.tsx(1760,36): error TS2451: Cannot redeclare block-scoped variable 'rShoulder'.
+src/components/Replay3DModel.tsx(1761,13): error TS2451: Cannot redeclare block-scoped variable 'lHip'.
+src/components/Replay3DModel.tsx(1761,31): error TS2451: Cannot redeclare block-scoped variable 'rHip'.
+src/components/Replay3DModel.tsx(1762,13): error TS2451: Cannot redeclare block-scoped variable 'lAnkle'.
+src/components/Replay3DModel.tsx(1762,33): error TS2451: Cannot redeclare block-scoped variable 'rAnkle'.
+src/components/Replay3DModel.tsx(1772,17): error TS2451: Cannot redeclare block-scoped variable 'shoulderCenter'.
+src/components/Replay3DModel.tsx(1775,17): error TS2451: Cannot redeclare block-scoped variable 'hipCenter'.
+src/components/Replay3DModel.tsx(1779,17): error TS2451: Cannot redeclare block-scoped variable 'up'.
+src/components/Replay3DModel.tsx(1782,17): error TS2451: Cannot redeclare block-scoped variable 'right'.
+src/components/Replay3DModel.tsx(1785,17): error TS2451: Cannot redeclare block-scoped variable 'forward'.
+src/components/Replay3DModel.tsx(1789,17): error TS2451: Cannot redeclare block-scoped variable 'shoulderCenter'.
+src/components/Replay3DModel.tsx(1790,17): error TS2451: Cannot redeclare block-scoped variable 'hipCenter'.
+src/components/Replay3DModel.tsx(1791,17): error TS2451: Cannot redeclare block-scoped variable 'up'.
+src/components/Replay3DModel.tsx(1792,17): error TS2451: Cannot redeclare block-scoped variable 'right'.
+src/components/Replay3DModel.tsx(1793,17): error TS2451: Cannot redeclare block-scoped variable 'forward'.
+src/components/Replay3DModel.tsx(1942,36): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(1944,13): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(1946,15): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(1946,48): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(1983,9): error TS2304: Cannot find name 'bodyCenter'.
+src/components/Replay3DModel.tsx(1984,9): error TS2304: Cannot find name 'shoulderCenter'.
+src/components/Replay3DModel.tsx(1985,9): error TS2304: Cannot find name 'hipCenter'.
+src/components/Replay3DModel.tsx(1988,9): error TS2304: Cannot find name 'exerciseName'.
+src/services/exerciseEngine.ts(1,10): error TS2300: Duplicate identifier 'getSupinationScore'.
+src/services/exerciseEngine.ts(39,10): error TS2300: Duplicate identifier 'getSupinationScore'.
+src/services/exerciseEngine.ts(189,3): error TS2300: Duplicate identifier 'liveDepthFeedback'.
+src/services/exerciseEngine.ts(192,3): error TS2300: Duplicate identifier 'vbtMetrics'.
+src/services/exerciseEngine.ts(214,3): error TS2300: Duplicate identifier 'liveDepthFeedback'.
+src/services/exerciseEngine.ts(217,3): error TS2300: Duplicate identifier 'vbtMetrics'.

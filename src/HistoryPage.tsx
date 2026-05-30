@@ -369,7 +369,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
               <>
                 <WifiOff size={14} />
                 <span>
-                  You're offline — {pendingCount} session{pendingCount !== 1 ? "s" : ""} will sync when you reconnect
+                  You&apos;re offline — {pendingCount} session{pendingCount !== 1 ? "s" : ""} will sync when you reconnect
                 </span>
               </>
             )}

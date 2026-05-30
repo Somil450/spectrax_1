@@ -423,9 +423,13 @@ let syncInProgress = false;
 /**
  * Start auto-sync when connection is restored
  */
+let onlineHandler: (() => void) | null = null;
+let offlineHandler: (() => void) | null = null;
+
 export function initializeAutoSync(userId: string): void {
-  // Listen for online event
-  window.addEventListener("online", async () => {
+  cleanupAutoSync(); // remove existing before adding
+
+  onlineHandler = async () => {
     try {
       if (!syncInProgress) {
         syncInProgress = true;
@@ -436,12 +440,25 @@ export function initializeAutoSync(userId: string): void {
       syncInProgress = false;
       console.error("Auto-sync failed:", error);
     }
-  });
+  };
 
-  // Listen for offline event
-  window.addEventListener("offline", () => {
+  offlineHandler = () => {
     // Network connection lost, sync when online
-  });
+  };
+
+  window.addEventListener("online", onlineHandler);
+  window.addEventListener("offline", offlineHandler);
+}
+
+export function cleanupAutoSync(): void {
+  if (onlineHandler) {
+    window.removeEventListener("online", onlineHandler);
+    onlineHandler = null;
+  }
+  if (offlineHandler) {
+    window.removeEventListener("offline", offlineHandler);
+    offlineHandler = null;
+  }
 }
 
 /**
@@ -626,6 +643,7 @@ export default {
   syncWorkoutsFromFirestore,
   fullSyncWorkouts,
   initializeAutoSync,
+  cleanupAutoSync,
   isOnline,
   getSyncStatus,
   bulkUploadWorkouts,
