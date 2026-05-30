@@ -1,5 +1,6 @@
 import React from "react";
-import { Activity } from "lucide-react";
+import { Activity, Zap } from "lucide-react";
+import type { VBTMetrics } from "../services/kinematicEngine";
 
 export const FocusPanel = ({ exerciseName }: { exerciseName: string }) => (
   <div className="glass workout-stat-card workout-focus-panel animate-in">
@@ -76,3 +77,55 @@ export const SensePanel = ({ clipEngine, clipResult }: { clipEngine: any, clipRe
     </div>
   )
 );
+
+// ── VBT Velocity/Power Meter Panel ───────────────────────────────
+export const VelocityMeterPanel = ({ vbtMetrics }: { vbtMetrics?: VBTMetrics }) => {
+  if (!vbtMetrics) return null;
+  
+  const { currentVelocity, peakConcentricVelocity, baselineVelocity, fatigueDropoff, phase } = vbtMetrics;
+  const velocity = currentVelocity || 0;
+  const peak = peakConcentricVelocity || 0;
+  const baseline = baselineVelocity || 0;
+  
+  const velocityPercent = Math.min(100, (velocity / (baseline || 1)) * 100);
+  const fatiguePct = fatigueDropoff || 0;
+  
+  const velocityColor = fatiguePct > 20 ? 'var(--neon-red)' : fatiguePct > 10 ? 'var(--neon-yellow)' : 'var(--neon-green)';
+  const phaseColor = phase === 'concentric' ? 'var(--neon-green)' : phase === 'eccentric' ? 'var(--neon-blue)' : 'var(--neon-yellow)';
+  
+  return (
+    <div className="glass workout-stat-card animate-in" style={{
+      minWidth: '140px',
+      borderLeft: `3px solid ${velocityColor}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+        <Zap size={14} color={velocityColor} />
+        <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>
+          Power/Velocity
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+          <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', color: velocityColor, fontWeight: 700 }}>
+            {velocity.toFixed(1)}
+          </span>
+          <span style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>units/s</span>
+        </div>
+        <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ width: `${velocityPercent}%`, height: '100%', background: velocityColor, transition: 'width 0.2s ease' }} />
+        </div>
+        {baseline > 0 && (
+          <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Baseline: {baseline.toFixed(1)}</span>
+            <span style={{ color: fatiguePct > 20 ? 'var(--neon-red)' : fatiguePct > 10 ? 'var(--neon-yellow)' : 'var(--neon-green)' }}>
+              Drop-off: {fatiguePct.toFixed(0)}%
+            </span>
+          </div>
+        )}
+        <div style={{ fontSize: '0.6rem', color: phaseColor, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
+          Phase: {phase}
+        </div>
+      </div>
+    </div>
+  );
+};

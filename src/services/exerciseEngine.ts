@@ -1,5 +1,3 @@
-import { getSupinationScore } from "./wristRotationDetector";
-
 /**
  * exerciseEngine.ts  (updated — squat depth classification integrated)
  *
@@ -147,9 +145,7 @@ export function calculateJumpingJackSyncMetrics(
   };
 }
 
-// ─────────────────────────────────────────────
-// EngineState
-// ─────────────────────────────────────────────
+// ─── EngineState ──────────────
 
 export interface EngineState {
   reps: number;
@@ -200,6 +196,7 @@ export interface EngineState {
   jumpingJackSync?: JumpingJackSyncMetrics;
 
   wristSupinationScore?: number;
+ main
 
   /**
    * Real-time depth coaching string emitted during the DOWN phase.
@@ -217,6 +214,7 @@ export interface EngineState {
   downZReached?: number;
 
   // Tracking & recovery buffers
+ main
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,16 +296,21 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
+ main
+    landmarks?: NormalizedLandmark[],
+    timestamp?: number
+
 
     landmarks?: any[]
 
+ main
   ): Promise<EngineState> {
     const now = Date.now();
     const p = ENGINE_DEFAULTS;
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
-    if (landmarks) {
+    if (landmarks && timestamp !== undefined) {
       const jointMap: Record<string, number> = {
         squat: 24, // Right Hip
         pushup: 11, // Left Shoulder
@@ -319,7 +322,7 @@ export class ExerciseEngine {
       const primaryJointIndex = jointMap[config.key] ?? 24;
       updatedVbtMetrics = this.kinematicEngine.update(
         landmarks,
-        Date.now(),
+        timestamp,
         primaryJointIndex
       );
     }
@@ -494,6 +497,61 @@ if (config.key === "plank" && landmarks && landmarks.length >= 29) {
       const durationInDown = now - stageStartTime;
 
       if (
+ main
+        now - lastRepTime > currentCooldown &&
+        durationInDown > this.MIN_DOWN_DURATION
+      ) {
+        nextStage = "up";
+        stageStartTime = now;
+        repJustCounted = true;
+      }
+    }
+
+    // ───────── POSTURE VALIDATION ─────────
+    const isInExercisePosture = this.isValidExercisePosture(
+      history,
+      config,
+      nextStage
+    );
+
+    // Accumulate hold time for static exercises (1/FPS approximately, or based on time diff)
+    // Since process is called roughly FPS times per second, we can estimate hold time.
+    // However, the cleanest way is to use a timestamp delta if we had previousTimestamp.
+    // We can just add 1/15th of a second roughly, or just pass the timestamp from `now`.
+    let nextHoldTime = currentState.holdTime || 0;
+    if (config.isStatic && isInExercisePosture && (currentState.status === 'green' || currentState.status === 'yellow')) {
+      // Estimate based on FPS_LIMIT=20 (from WorkoutScreen.tsx)
+      nextHoldTime += 1 / 20;
+    } else if (config.isStatic && !isInExercisePosture) {
+      // Optional: Reset hold time if they break posture, or keep accumulating total?
+      // Usually we want total hold time. We'll keep accumulating.
+    }
+
+    // ───────── WRIST ROTATION DETECTION ─────────
+    const wristSupinationScore = config.key === 'bicepCurl'
+      ? getSupinationScore(landmarks)
+      : NaN;
+
+    const PLANK_DEVIATION_THRESHOLD = 0.05;
+    const hipSplineDeviation = 0;
+    const nextPlankSpline = { isCalibrated: false };
+
+    const context: any = {
+      ...angles,
+      stage: nextStage,
+      lateralScore: angles.lateralScore,
+      hipDepth: angles.hipDepth,
+      horizontalStretch: angles.horizontalStretch,
+      downAngleReached,
+      downZReached,
+      vbtMetrics: updatedVbtMetrics,
+      hipSplineDeviation,
+      plankSplineCalibrated: nextPlankSpline.isCalibrated,
+      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
+      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+      wristSupinationScore,
+    };
+
 now - lastRepTime > currentCooldown &&
 durationInDown > this.MIN_DOWN_DURATION
 ) {
@@ -501,6 +559,7 @@ durationInDown > this.MIN_DOWN_DURATION
   stageStartTime = now;
   repJustCounted = true;
 }
+ main
 
 // ───────── POSTURE VALIDATION ─────────
 const isInExercisePosture = this.isValidExercisePosture(
@@ -789,6 +848,10 @@ if (isInExercisePosture) {
       lastDepthResult: nextLastDepthResult,
       depthStats: nextDepthStats,
       liveDepthFeedback,
+
+      vbtMetrics: updatedVbtMetrics,
+
+      // Pushup Depth classification (NEW)
       lastPushupDepthResult: nextLastPushupDepthResult,
       pushupDepthStats: nextPushupDepthStats,
       livePushupDepthFeedback,
@@ -798,7 +861,6 @@ if (isInExercisePosture) {
       lastValidAngles: nextLastValidAngles,
       jumpingJackSyncSamples: nextJumpingJackSyncSamples,
       jumpingJackSync: nextJumpingJackSync,
-      vbtMetrics: updatedVbtMetrics,
       holdTime: nextHoldTime,
 
       wristSupinationScore,

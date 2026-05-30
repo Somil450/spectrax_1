@@ -9,6 +9,7 @@ import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
+import type { VBTMetrics } from "./services/kinematicEngine";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { useLeveling } from "./hooks/useLeveling";
@@ -86,6 +87,7 @@ interface WorkoutStats {
   tags?: string[];
   gainedXp?: number;
   calories?: number;
+  vbtMetrics?: VBTMetrics;
 }
 
 // Derived from build-time env — safe to compute outside or at the top of the component
