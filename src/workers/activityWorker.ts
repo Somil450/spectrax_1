@@ -64,7 +64,7 @@ async function loadModel(quantized: boolean) {
   }
 }
 
-self.onmessage = async (event) => {
+self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   const data = event.data;
 
   if (data.type === 'init') {

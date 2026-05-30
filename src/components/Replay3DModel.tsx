@@ -37,7 +37,14 @@ type HudLabel = {
   angle: number;
   label: string;
   id: number;
+ main
 }; main
+
+};
+
+
+
+ main
 type StressVectorRig = {
   mesh: THREE.Mesh;
   material: THREE.ShaderMaterial;
