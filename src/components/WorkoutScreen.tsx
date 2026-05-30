@@ -18,7 +18,8 @@ import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { ghostService, type GhostStats } from '../services/ghostService';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
+import { ghostService } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 import { cameraService } from "../services/cameraService";
@@ -190,7 +191,19 @@ const [showExitModal, setShowExitModal] = useState(false);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-const FPS_LIMIT = 30;
+  const throttleLevel = useThrottleLevel();
+  const wsSocketRef = useWorkoutWebSocket();
+  const srOnly: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  };
 
 const srOnly: React.CSSProperties = {
   position: 'absolute',
