@@ -142,6 +142,9 @@ class JointDeviationProfiler {
     this.allValues = [];
   }
 }
+
+const jointDeviationProfiler = new JointDeviationProfiler();
+
 export interface DetectionIssue {
   type: string;
   severity: "high" | "medium" | "low";
