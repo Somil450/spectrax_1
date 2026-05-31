@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, Suspense, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { CalibrationScreen } from "./components/CalibrationScreen";
 import { WorkoutScreen } from "./components/WorkoutScreen";
@@ -94,7 +95,15 @@ const firebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
 function App() {
   const { theme, setTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getScreenFromPath = (path: string): Screen => {
+    const key = path.substring(1); // remove leading slash
+    return (key || "welcome") as Screen;
+  };
+  const currentScreen = getScreenFromPath(location.pathname);
 
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -151,17 +160,9 @@ function App() {
   };
 
   const navigateTo = useCallback((screen: Screen, force = false) => {
-    setCurrentScreen((prevScreen) => {
-      if (force || canTransitionTo(prevScreen, screen)) {
-        return screen;
-      }
-
-      console.warn(
-        `[App] Blocked illegal screen transition from ${prevScreen} to ${screen}`,
-      );
-      return prevScreen;
-    });
-  }, []);
+    const path = screen === "welcome" ? "/" : `/${screen}`;
+    navigate(path);
+  }, [navigate]);
 
   useEffect(() => {
     if (!firebaseConfigured) return; // no-op in demo/offline mode
