@@ -208,3 +208,5 @@ export const exercises: Record<string, ExerciseConfig> = {
     ]
   }
 };
+
+// TODO: Consider adding more comprehensive JSDoc comments
