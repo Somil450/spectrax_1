@@ -142,6 +142,10 @@ class JointDeviationProfiler {
     this.allValues = [];
   }
 }
+
+/** Module-level singleton used by evaluateFeedback and getPostureErrorCategories */
+const jointDeviationProfiler = new JointDeviationProfiler();
+
 export interface DetectionIssue {
   type: string;
   severity: "high" | "medium" | "low";

@@ -1,8 +1,9 @@
 import { encode } from "@msgpack/msgpack";
+import type { NormalizedLandmark } from '@mediapipe/pose';
 
 export interface FrameData {
   timestamp: number;
-  landmarks: any[];
+  landmarks: NormalizedLandmark[];
   angles: Record<string, number>;
   feedback: string;
   exercise: string;
@@ -23,7 +24,7 @@ export interface CompressedFrameChunk {
   exercise?: string;
   feedback?: string;
   angles?: Record<string, number>;
-  landmarks?: Array<any> | CompressedLandmarkDelta[];
+  landmarks?: NormalizedLandmark[] | CompressedLandmarkDelta[];
 }
 
 export interface SessionArchive {
@@ -169,7 +170,7 @@ export class RLDCompressionDriver {
   private static deserializeBaseChunk(chunk: CompressedFrameChunk): FrameData {
     return {
       timestamp: chunk.timestamp,
-      landmarks: this.cloneLandmarks(chunk.landmarks || []),
+      landmarks: this.cloneLandmarks((chunk.landmarks as NormalizedLandmark[]) || []),
       angles: { ...(chunk.angles || {}) },
       feedback: chunk.feedback || "",
       exercise: chunk.exercise || "workout",
@@ -246,8 +247,8 @@ export class RLDCompressionDriver {
   }
 
   private static getLandmarkDelta(
-    previousLandmarks: any[],
-    currentLandmarks: any[],
+    previousLandmarks: NormalizedLandmark[],
+    currentLandmarks: NormalizedLandmark[],
   ): CompressedLandmarkDelta[] {
     const delta: CompressedLandmarkDelta[] = [];
     const length = Math.max(
@@ -299,23 +300,23 @@ export class RLDCompressionDriver {
     return normalized;
   }
 
-  private static normalizeLandmarks(landmarks: any[]): any[] {
+  private static normalizeLandmarks(landmarks: NormalizedLandmark[]): NormalizedLandmark[] {
     return (landmarks || []).map((landmark) => ({
-      x: this.roundNumber(landmark?.x || 0),
-      y: this.roundNumber(landmark?.y || 0),
-      z: this.roundNumber(landmark?.z || 0),
-      visibility: this.roundNumber(landmark?.visibility || 0),
+      x: this.roundNumber(landmark?.x ?? 0),
+      y: this.roundNumber(landmark?.y ?? 0),
+      z: this.roundNumber(landmark?.z ?? 0),
+      visibility: this.roundNumber(landmark?.visibility ?? 0),
     }));
   }
 
-  private static ensureLandmark(landmarks: any[], index: number) {
+  private static ensureLandmark(landmarks: NormalizedLandmark[], index: number): NormalizedLandmark {
     while (landmarks.length <= index) {
       landmarks.push({ x: 0, y: 0, z: 0, visibility: 0 });
     }
     return landmarks[index];
   }
 
-  private static cloneLandmarks(landmarks: any[]): any[] {
+  private static cloneLandmarks(landmarks: NormalizedLandmark[]): NormalizedLandmark[] {
     return (landmarks || []).map((landmark) => ({ ...landmark }));
   }
 
@@ -430,7 +431,7 @@ class SessionRecorder {
     this.lastRawFrame = this.frames[this.frames.length - 1] || null;
   }
 
-  private getCentroid(landmarks: any[]) {
+  private getCentroid(landmarks: NormalizedLandmark[]) {
     if (!landmarks || landmarks.length === 0) return null;
 
     let x = 0;
@@ -507,8 +508,8 @@ class SessionRecorder {
 
       URL.revokeObjectURL(url);
       telemetryBroker.logEvent("SessionRecorder_Download_Completed");
-    } catch (e: any) {
-      telemetryBroker.logError(e, { context: "SessionRecorder.download" });
+    } catch (e: unknown) {
+      telemetryBroker.logError(e instanceof Error ? e : new Error(String(e)), { context: "SessionRecorder.download" });
     }
   }
 }
@@ -523,7 +524,7 @@ export interface TelemetryEvent {
   timestamp: number;
   type: "info" | "error" | "state_change";
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 class TelemetryBroker {
@@ -549,7 +550,7 @@ class TelemetryBroker {
     }
   }
 
-  logState(stateName: string, data?: any) {
+  logState(stateName: string, data?: unknown) {
     this._addLog({
       timestamp: Date.now(),
       type: "state_change",
@@ -558,7 +559,7 @@ class TelemetryBroker {
     });
   }
 
-  logEvent(message: string, data?: any) {
+  logEvent(message: string, data?: unknown) {
     this._addLog({
       timestamp: Date.now(),
       type: "info",
@@ -567,7 +568,7 @@ class TelemetryBroker {
     });
   }
 
-  logError(error: Error | string, context?: any) {
+  logError(error: Error | string, context?: unknown) {
     const message = error instanceof Error ? error.message : error;
     const stack = error instanceof Error ? error.stack : undefined;
 
@@ -575,7 +576,7 @@ class TelemetryBroker {
       timestamp: Date.now(),
       type: "error",
       message,
-      data: { ...context, stack },
+      data: Object.assign({}, context instanceof Object ? context : {}, { stack }),
     });
   }
 

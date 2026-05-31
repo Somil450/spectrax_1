@@ -4,6 +4,8 @@
  * Uses joint angles and relative positions for deterministic classification.
  */
 
+import type { NormalizedLandmark } from '@mediapipe/pose';
+
 export interface SkeletalResult {
   label: string;
   confidence: number;
@@ -11,7 +13,7 @@ export interface SkeletalResult {
 
 export interface PoseFrame {
   timestamp: number;
-  landmarks: any[];
+  landmarks: NormalizedLandmark[];
 }
 
 export interface JointStressEntry {
@@ -85,7 +87,7 @@ const JOINT_DEFINITIONS: JointDefinition[] = [
   { name: "RIGHT_WRIST", proximal: 14, vertex: 16, distal: 18 },
 ];
 
-function jointAngleDeg(a: any, b: any, c: any): number {
+function jointAngleDeg(a: NormalizedLandmark, b: NormalizedLandmark, c: NormalizedLandmark): number {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
   let angle = Math.abs((radians * 180.0) / Math.PI);
   if (angle > 180.0) angle = 360 - angle;
@@ -108,7 +110,7 @@ function toRiskTier(bsi: number): "low" | "moderate" | "high" | "critical" {
   return "critical";
 }
 
-function hasValidLandmarks(def: JointDefinition, landmarks: any[]): boolean {
+function hasValidLandmarks(def: JointDefinition, landmarks: NormalizedLandmark[]): boolean {
   return [def.proximal, def.vertex, def.distal].every((idx) => {
     const lm = landmarks[idx];
     return lm != null && (lm.visibility == null || lm.visibility >= VISIBILITY_THRESHOLD);
@@ -116,14 +118,14 @@ function hasValidLandmarks(def: JointDefinition, landmarks: any[]): boolean {
 }
 
 export class SkeletalSense {
-  private calculateAngle(a: any, b: any, c: any): number {
+  private calculateAngle(a: NormalizedLandmark, b: NormalizedLandmark, c: NormalizedLandmark): number {
     const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
     let angle = Math.abs((radians * 180.0) / Math.PI);
     if (angle > 180.0) angle = 360 - angle;
     return angle;
   }
 
-  analyze(landmarks: any[]): SkeletalResult | null {
+  analyze(landmarks: NormalizedLandmark[]): SkeletalResult | null {
     if (!landmarks || landmarks.length < 33) return null;
 
     // 1. Extract Key Joints

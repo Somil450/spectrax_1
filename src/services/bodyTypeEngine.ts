@@ -1,3 +1,5 @@
+import type { NormalizedLandmark } from '@mediapipe/pose';
+
 export type BodyType = 'ecto' | 'meso' | 'endo' | 'scanning';
 
 export interface BodyMetrics {
@@ -38,15 +40,16 @@ class BodyTypeEngine {
 
   private readonly REFERENCE_TORSO_FEMUR_RATIO = 1.6;
 
-  public analyze(landmarks: any[]): BodyTypeResult {
+  public analyze(landmarks: NormalizedLandmark[]): BodyTypeResult {
     // We only use visible landmarks > 0.5
-    const checkVis = (...indices: number[]) => indices.every(i => landmarks[i] && landmarks[i].visibility > 0.5);
+    const checkVis = (...indices: number[]) => indices.every(i => landmarks[i] && landmarks[i].visibility! > 0.5);
 
     if (!checkVis(11, 12, 23, 24, 25, 27, 26, 28, 13, 15, 14, 16)) {
       return { bodyType: 'scanning', confidence: 0, adaptiveFactor: 1.0, explanation: 'Waiting for full body visibility...' };
     }
 
-    const dist = (p1: any, p2: any) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) + Math.pow(p1.z - p2.z, 2));
+    const dist = (p1: NormalizedLandmark, p2: NormalizedLandmark) =>
+      Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) + Math.pow((p1.z ?? 0) - (p2.z ?? 0), 2));
 
     const shoulderWidth = dist(landmarks[11], landmarks[12]);
     const hipWidth = dist(landmarks[23], landmarks[24]);

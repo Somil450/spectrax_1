@@ -6,6 +6,8 @@
  * preventing redundant frame calculations and reducing CPU load.
  */
 
+import type { NormalizedLandmark } from '@mediapipe/pose';
+
 export class CameraService {
   private stream: MediaStream | null = null;
   private videoElement: HTMLVideoElement | null = null;
@@ -50,11 +52,12 @@ export class CameraService {
           resolve(this.stream!);
         };
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Camera access denied or unavailable:", error);
-      if (error.name === 'NotAllowedError') {
+      const domError = error as DOMException;
+      if (domError.name === 'NotAllowedError') {
         throw new Error("PERMISSION_DENIED");
-      } else if (error.name === 'NotFoundError') {
+      } else if (domError.name === 'NotFoundError') {
         throw new Error("NO_CAMERA_FOUND");
       }
       throw error;
@@ -212,12 +215,12 @@ throttleMonitor.onLevelChange((level) => {
 });
 
 // Helper drawing functions
-function drawFullSkeleton(ctx: CanvasRenderingContext2D, landmarks: any[]) {
+function drawFullSkeleton(ctx: CanvasRenderingContext2D, landmarks: NormalizedLandmark[]) {
   // Your existing full drawing logic (connections + labels + shadows)
   // ...
 }
 
-function drawReducedSkeleton(ctx: CanvasRenderingContext2D, landmarks: any[]) {
+function drawReducedSkeleton(ctx: CanvasRenderingContext2D, landmarks: NormalizedLandmark[]) {
   // Draw only major joints: shoulders, hips, knees, ankles
   const majorIndices = [11, 12, 23, 24, 25, 26, 27, 28]; // MediaPipe indices
   // Draw simple circles and lines between them
@@ -239,7 +242,7 @@ function drawReducedSkeleton(ctx: CanvasRenderingContext2D, landmarks: any[]) {
   // Optionally draw connections (e.g., shoulder to hip)
 }
 
-function drawBoundingBox(ctx: CanvasRenderingContext2D, landmarks: any[]) {
+function drawBoundingBox(ctx: CanvasRenderingContext2D, landmarks: NormalizedLandmark[]) {
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
@@ -264,7 +267,7 @@ function drawBoundingBox(ctx: CanvasRenderingContext2D, landmarks: any[]) {
 // Replace your existing draw call with this
 export function drawLandmarksOnCanvas(
   ctx: CanvasRenderingContext2D,
-  landmarks: any[],
+  landmarks: NormalizedLandmark[],
 ) {
   if (!ctx || !landmarks) return;
 

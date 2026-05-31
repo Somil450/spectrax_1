@@ -1,3 +1,5 @@
+import type { NormalizedLandmark } from '@mediapipe/pose';
+
 /**
  * gestureService.ts
  *
@@ -104,7 +106,7 @@ class GestureService {
    * Average visibility across a set of landmark indices.
    * Returns 0 if `landmarks` is falsy or all indices are missing.
    */
-  private avgVisibility(landmarks: any[], indices: number[]): number {
+  private avgVisibility(landmarks: NormalizedLandmark[], indices: number[]): number {
     if (!landmarks) return 0;
     const vals = indices.map(i => landmarks[i]?.visibility ?? 0).filter(v => v > 0);
     return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
@@ -115,7 +117,7 @@ class GestureService {
    * by at least 5 % of normalised height (guards against noise).
    * "Above" in MediaPipe means lower y value.
    */
-  private isAbove(landmarks: any[], sourceIdx: number, targetIdx: number): boolean {
+  private isAbove(landmarks: NormalizedLandmark[], sourceIdx: number, targetIdx: number): boolean {
     const src = landmarks[sourceIdx];
     const tgt = landmarks[targetIdx];
     if (!src || !tgt) return false;
@@ -126,7 +128,7 @@ class GestureService {
   // ── Individual gesture detectors ──────────────────────────────────────────
 
   /** Both wrists raised above their respective shoulders. */
-  private detectBothHandsRaised(lm: any[]): boolean {
+  private detectBothHandsRaised(lm: NormalizedLandmark[]): boolean {
     return (
       this.isAbove(lm, IDX.LEFT_WRIST,  IDX.LEFT_SHOULDER) &&
       this.isAbove(lm, IDX.RIGHT_WRIST, IDX.RIGHT_SHOULDER)
@@ -134,7 +136,7 @@ class GestureService {
   }
 
   /** Exactly one wrist (left OR right, not both) raised above its shoulder. */
-  private detectSingleHandRaised(lm: any[]): boolean {
+  private detectSingleHandRaised(lm: NormalizedLandmark[]): boolean {
     const leftUp  = this.isAbove(lm, IDX.LEFT_WRIST,  IDX.LEFT_SHOULDER);
     const rightUp = this.isAbove(lm, IDX.RIGHT_WRIST, IDX.RIGHT_SHOULDER);
     return leftUp !== rightUp; // XOR — exactly one
@@ -145,7 +147,7 @@ class GestureService {
    * index finger still below wrist level, hand at or above chest.
    * Works for either hand.
    */
-  private detectThumbsUp(lm: any[]): boolean {
+  private detectThumbsUp(lm: NormalizedLandmark[]): boolean {
     const leftThumbUp =
       this.isAbove(lm, IDX.LEFT_THUMB,  IDX.LEFT_INDEX) &&
       this.isAbove(lm, IDX.LEFT_THUMB,  IDX.LEFT_PINKY) &&
@@ -163,7 +165,7 @@ class GestureService {
    * Crossed arms: both wrists very close together horizontally
    * and vertically, positioned between shoulder and hip (chest level).
    */
-  private detectCrossedArms(lm: any[]): boolean {
+  private detectCrossedArms(lm: NormalizedLandmark[]): boolean {
     const lw = lm[IDX.LEFT_WRIST];
     const rw = lm[IDX.RIGHT_WRIST];
     const ls = lm[IDX.LEFT_SHOULDER];
@@ -210,7 +212,7 @@ class GestureService {
    *
    * Returns the command string, or null if nothing has crossed threshold.
    */
-  parseCommand(landmarks: any[]): GestureCommand | null {
+  parseCommand(landmarks: NormalizedLandmark[]): GestureCommand | null {
     if (!landmarks || landmarks.length < 33) return null;
 
     // Detect raw gestures this frame
@@ -252,7 +254,7 @@ class GestureService {
    * Existing callers that only read `isHandRaised` / `isCrossedArms` etc.
    * continue to work unchanged.
    */
-  analyze(landmarks: any[]): GestureResult {
+  analyze(landmarks: NormalizedLandmark[]): GestureResult {
     const empty: GestureResult = {
       isHandRaised: false,
       confidence: 0,

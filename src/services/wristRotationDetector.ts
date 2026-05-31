@@ -28,6 +28,8 @@
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+import type { NormalizedLandmark } from '@mediapipe/pose';
+
 export type WristRotationState = 'supinated' | 'neutral' | 'pronated' | 'unknown';
 
 export interface WristRotationResult {
@@ -99,7 +101,7 @@ function normalize(v: Vec3): Vec3 {
  * Chooses the arm with better overall landmark visibility.
  * Returns null if neither arm has sufficient confidence.
  */
-function chooseSide(landmarks: any[]): 'left' | 'right' | null {
+function chooseSide(landmarks: NormalizedLandmark[]): 'left' | 'right' | null {
   const sumVis = (indices: number[]) =>
     indices.reduce((acc, i) => acc + (landmarks[i]?.visibility ?? 0), 0);
 
@@ -140,7 +142,7 @@ function computeRawScore(wrist: Vec3, thumb: Vec3, pinky: Vec3): number {
  * @returns          WristRotationResult, or null if landmarks are insufficient.
  */
 export function detectWristRotation(
-  landmarks: any[] | null | undefined,
+  landmarks: NormalizedLandmark[] | null | undefined,
 ): WristRotationResult | null {
   if (!landmarks || landmarks.length < 33) return null;
 
@@ -175,7 +177,7 @@ export function detectWristRotation(
  * Convenience: returns only the supination score (or NaN if detection failed).
  * Useful for injecting a single number into the feedback context.
  */
-export function getSupinationScore(landmarks: any[] | null | undefined): number {
+export function getSupinationScore(landmarks: NormalizedLandmark[] | null | undefined): number {
   const result = detectWristRotation(landmarks);
   return result ? result.supinationScore : NaN;
 }

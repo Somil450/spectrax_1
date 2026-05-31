@@ -5,6 +5,7 @@
  * Falls back to CPU (angleUtils) if WebGPU is unavailable.
  */
 
+import type { NormalizedLandmark } from '@mediapipe/pose';
 import { getJointAngles } from './angleUtils';
 
 // WGSL compute shader — runs entirely on GPU
@@ -143,7 +144,7 @@ export class GpuAngleCalculator {
     }
   }
 
-  async compute(landmarks: any[]): Promise<Record<string, number>> {
+  async compute(landmarks: NormalizedLandmark[]): Promise<Record<string, number>> {
     if (!this.ready || !this.device || !this.pipeline ||
         !this.landmarkBuf || !this.angleBuf || !this.readbackBuf || !this.bindGroup) {
       return getJointAngles(landmarks);

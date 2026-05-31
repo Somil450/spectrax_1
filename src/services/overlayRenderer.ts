@@ -1,8 +1,15 @@
-import type { Results } from "@mediapipe/pose";
+import type { Results, NormalizedLandmark } from "@mediapipe/pose";
 // MediaPipe's npm packages are not ESM-compatible. We use globals from CDN scripts.
 const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
 const drawConnectors = (window as any).drawConnectors;
 const drawLandmarks = (window as any).drawLandmarks;
+
+/** Shape of the per-landmark data passed to MediaPipe drawing callbacks */
+interface LandmarkData {
+  index?: number;
+  from?: NormalizedLandmark;
+  to?: NormalizedLandmark;
+}
 
 /**
  * overlayRenderer.ts
@@ -91,7 +98,7 @@ if (drawConnectors && POSE_CONNECTIONS && drawLandmarks) {
       // 3. Draw Landmarks with dynamic size/glow
       drawLandmarks(this.ctx, results.poseLandmarks, {
         color: '#ffffff',
-        fillColor: (data: any) => {
+        fillColor: (data: LandmarkData) => {
 // Highlight primary joints with stronger color
 if (primaryJoints.includes(data.index!)) return color;
 
@@ -102,7 +109,7 @@ if (data.index! >= 11) {
 return 'rgba(255,255,255,0.5)';
         },
         lineWidth: 1,
-        radius: (data: any) => {
+        radius: (data: LandmarkData) => {
           return primaryJoints.includes(data.index!) ? 6 : 3;
         }
       });
@@ -112,8 +119,9 @@ this.ctx.shadowBlur = 15;
 this.ctx.shadowColor = color;
 }
 
-this.drawScanningLine();
-this.drawCenterOfMass(results.poseLandmarks);
+    this.drawScanningLine();
+    this.drawCenterOfMass(results.poseLandmarks);
+  }
 
   private drawScanningLine() {
     if (!this.ctx) return;
@@ -135,7 +143,7 @@ this.drawCenterOfMass(results.poseLandmarks);
     this.ctx.stroke();
   }
 
-  private drawCenterOfMass(landmarks: any[]) {
+  private drawCenterOfMass(landmarks: NormalizedLandmark[]) {
     if (!this.ctx || landmarks.length < 29) return;
 
     const width = this.ctx.canvas.width;
