@@ -225,6 +225,10 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           top: '90px',
           right: '20px',
           width: '260px',
+          maxWidth: 'calc(25vw)',
+          minWidth: '200px',
+          maxHeight: 'calc(100vh - 130px)',
+          overflowY: 'auto',
           zIndex: 20,
           background: 'rgba(0,0,0,0.7)',
           border: '1px solid rgba(0,255,255,0.15)',
@@ -232,6 +236,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           padding: '16px',
           backdropFilter: 'blur(12px)',
           boxShadow: '0 0 30px rgba(0,255,255,0.05)',
+          boxSizing: 'border-box',
         }}
       >
         <div
@@ -327,6 +332,10 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           top: '90px',
           left: '20px',
           width: '260px',
+          maxWidth: 'calc(25vw)',
+          minWidth: '200px',
+          maxHeight: 'calc(100vh - 130px)',
+          overflowY: 'auto',
           zIndex: 20,
           background: 'rgba(0,0,0,0.7)',
           border: '1px solid rgba(0,255,255,0.15)',
@@ -334,6 +343,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           padding: '16px',
           backdropFilter: 'blur(12px)',
           boxShadow: '0 0 30px rgba(0,255,255,0.05)',
+          boxSizing: 'border-box',
         }}
       >
         <div
@@ -490,27 +500,38 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)',
         }}
       >
-        {/* Play/Pause */}
+        {/* Play/Pause — pill button with visible text label (fixes #96) */}
         <button
+          aria-label={isPlaying ? 'Pause replay' : 'Play replay'}
+          title={isPlaying ? 'Pause replay' : 'Play replay'}
           onClick={() => setIsPlaying((p) => !p)}
           style={{
-            width: '40px',
             height: '40px',
-            borderRadius: '50%',
+            padding: '0 18px',
+            borderRadius: '20px',
             background: 'var(--neon-purple, #9D4EDD)',
             border: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: '8px',
             boxShadow: '0 0 20px rgba(157,78,221,0.5)',
             transition: 'transform 0.1s ease',
             flexShrink: 0,
+            color: '#fff',
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            letterSpacing: '1.5px',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.1)')}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
           onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         >
-          {isPlaying ? <Pause size={16} fill="#fff" color="#fff" /> : <Play size={16} fill="#fff" color="#fff" />}
+          {isPlaying ? (
+            <><Pause size={14} fill="#fff" color="#fff" /> PAUSE</>
+          ) : (
+            <><Play size={14} fill="#fff" color="#fff" /> PLAY</>
+          )}
         </button>
 
         {/* Scrubber */}
