@@ -142,6 +142,8 @@ class JointDeviationProfiler {
     this.allValues = [];
   }
 }
+
+const jointDeviationProfiler = new JointDeviationProfiler();
 export interface DetectionIssue {
   type: string;
   severity: "high" | "medium" | "low";
@@ -538,5 +540,144 @@ export function getPostureErrorCategories(): Record<string, number> {
  */
 export function resetFeedbackEngine(): void {
   scoreHistory = [];
+  jointDeviationProfiler.reset();
   //skeletalSense.reset();
 }
+
+export interface QueueItem {
+  text: string;
+  priority: number; // 0 = LOW (reps, basic status), 1 = MEDIUM, 2 = HIGH (severe corrections, mismatches)
+  type: string;     // e.g. 'rep', 'posture', 'mismatch', 'general'
+  timestamp: number;
+}
+
+export class FeedbackNotificationQueue {
+  private queue: QueueItem[] = [];
+  private currentItem: QueueItem | null = null;
+  private cooldowns = new Map<string, number>();
+  private defaultCooldown = 3000; // 3 seconds
+  private isSpeaking = false;
+
+  constructor() {}
+
+  enqueue(text: string, priority: number = 0, type: string = 'general', cooldownMs?: number) {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      return;
+    }
+
+    const now = Date.now();
+    const key = `${type}:${text}`;
+    const lastTime = this.cooldowns.get(key) || 0;
+    const effectiveCooldown = cooldownMs !== undefined ? cooldownMs : (priority > 0 ? this.defaultCooldown : 0);
+
+    if (now - lastTime < effectiveCooldown) {
+      return;
+    }
+
+    // High priority preempts low priority
+    if (priority > 0) {
+      if (this.currentItem && this.currentItem.priority === 0) {
+        this.cancelCurrent();
+      }
+      this.queue = this.queue.filter(item => item.priority > 0);
+    }
+
+    // Deduplicate rep counts or same-type warnings: keep only the latest one
+    this.queue = this.queue.filter(item => !(item.type === type && item.priority <= priority));
+
+    if (effectiveCooldown > 0) {
+      this.cooldowns.set(key, now);
+    }
+
+    this.queue.push({
+      text,
+      priority,
+      type,
+      timestamp: now
+    });
+
+    this.queue.sort((a, b) => {
+      if (b.priority !== a.priority) {
+        return b.priority - a.priority;
+      }
+      return a.timestamp - b.timestamp;
+    });
+
+    this.process();
+  }
+
+  private cancelCurrent() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    this.currentItem = null;
+    this.isSpeaking = false;
+  }
+
+  private process() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      return;
+    }
+
+    if (this.isSpeaking) {
+      return;
+    }
+
+    const nextItem = this.queue.shift();
+    if (!nextItem) {
+      return;
+    }
+
+    this.currentItem = nextItem;
+    this.isSpeaking = true;
+
+    try {
+      const utterance = new SpeechSynthesisUtterance(nextItem.text);
+      utterance.rate = nextItem.type === 'rep' ? 1.15 : 1.0;
+      
+      utterance.onend = () => {
+        if (this.currentItem === nextItem) {
+          this.currentItem = null;
+          this.isSpeaking = false;
+          this.process();
+        }
+      };
+
+      utterance.onerror = (e) => {
+        console.error('SpeechSynthesis error:', e);
+        if (this.currentItem === nextItem) {
+          this.currentItem = null;
+          this.isSpeaking = false;
+          this.process();
+        }
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error('SpeechSynthesis speak call failed:', err);
+      this.currentItem = null;
+      this.isSpeaking = false;
+      this.process();
+    }
+  }
+
+  clear() {
+    this.cancelCurrent();
+    this.queue = [];
+    this.cooldowns.clear();
+  }
+
+  getQueue() {
+    return this.queue;
+  }
+
+  getCurrentItem() {
+    return this.currentItem;
+  }
+
+  getCooldowns() {
+    return this.cooldowns;
+  }
+}
+
+export const feedbackQueue = new FeedbackNotificationQueue();

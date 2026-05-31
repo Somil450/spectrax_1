@@ -4,7 +4,7 @@ import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } fr
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { getPostureErrorCategories } from '../engine/feedbackEngine';
+import { getPostureErrorCategories, feedbackQueue } from '../engine/feedbackEngine';
 import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
@@ -204,18 +204,6 @@ const [showExitModal, setShowExitModal] = useState(false);
     whiteSpace: 'nowrap',
     borderWidth: 0,
   };
-
-const srOnly: React.CSSProperties = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  borderWidth: 0,
-};
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -255,6 +243,12 @@ const srOnly: React.CSSProperties = {
   const previousObservedLandmarksRef = useRef<any[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      feedbackQueue.clear();
+    };
+  }, []);
 const workerAnglesRef = useRef<Record<string, number>>({});
 const lastProcessTime = useRef(0);
 const frameId = useRef<number | null>(null);
@@ -356,25 +350,27 @@ const [hasGhost, setHasGhost] = useState(false);
   // message repeated across frames will NOT re-trigger this effect.
   useEffect(() => {
     setFeedbackAnnouncement(engineState.feedback);
-  }, [engineState.feedback]);
+
+    const isWarning =
+      engineState.feedback &&
+      !engineState.feedback.includes("Good form") &&
+      !engineState.feedback.includes("READY") &&
+      !engineState.feedback.includes("SENSORS BLURRED") &&
+      !engineState.feedback.includes("ESTABLISHING POSTURE");
+
+    if (isWarning) {
+      const priority = engineState.status === 'red' ? 2 : 1;
+      feedbackQueue.enqueue(engineState.feedback, priority, 'posture');
+    }
+  }, [engineState.feedback, engineState.status]);
 
   // ── Announce rep count on each increment ─────────────────────────────────────
   // We check prevRepsRef so we only announce when reps actually go up.
   // This prevents announcing "Rep 0" on first render.
   useEffect(() => {
     if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
-      // Announce the number for screen readers
       setRepAnnouncement(engineState.reps.toString());
-      
-      // Voice Coach feature: Physically speak the rep count out loud
-      if ('speechSynthesis' in window) {
-        // Cancel any ongoing speech to prioritize the current rep count
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(engineState.reps.toString());
-        // Optional: you can tune rate and pitch here
-        utterance.rate = 1.1; 
-        window.speechSynthesis.speak(utterance);
-      }
+      feedbackQueue.enqueue(engineState.reps.toString(), 0, 'rep');
     }
     prevRepsRef.current = engineState.reps;
   }, [engineState.reps]);
@@ -384,7 +380,9 @@ const [hasGhost, setHasGhost] = useState(false);
   // immediately. We only use this for genuinely urgent errors like a mismatch.
   useEffect(() => {
     if (mismatchError) {
-      setAlertAnnouncement(`Exercise mismatch detected. You appear to be doing ${mismatchError}. Switching is disabled mid-set.`);
+      const msg = `Exercise mismatch detected. You appear to be doing ${mismatchError}. Switching is disabled mid-set.`;
+      setAlertAnnouncement(msg);
+      feedbackQueue.enqueue(msg, 2, 'mismatch');
     }
   }, [mismatchError]);
 
@@ -707,10 +705,11 @@ await startSystem();
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
-mistakes:Object.keys(finalMistakes),
+        mistakes: Object.keys(finalMistakes),
         duration: seconds,
       }),
     });
+    feedbackQueue.clear();
   };
 
   const formatTime = (s: number) => {

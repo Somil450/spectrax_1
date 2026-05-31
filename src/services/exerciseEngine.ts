@@ -170,6 +170,10 @@ export interface EngineState {
   isInExercisePosture: boolean;
   downAngleReached: number;
 
+  // Plank Spline Regression
+  plankSpline?: any;
+  hipSplineDeviation?: number;
+
   // Accuracy system
   totalReps: number;
   correctReps: number;
@@ -418,8 +422,8 @@ export class ExerciseEngine {
     }
 
 // ───────── PLANK SPLINE REGRESSION ─────────
-let nextPlankSpline = currentState.plankSpline;
-let hipSplineDeviation = currentState.hipSplineDeviation;
+let nextPlankSpline = currentState.plankSpline || { isCalibrated: false };
+let hipSplineDeviation = currentState.hipSplineDeviation || 0;
 
 if (config.key === "plank" && landmarks && landmarks.length >= 29) {
   const leftVis =
@@ -494,13 +498,14 @@ if (config.key === "plank" && landmarks && landmarks.length >= 29) {
       const durationInDown = now - stageStartTime;
 
       if (
-now - lastRepTime > currentCooldown &&
-durationInDown > this.MIN_DOWN_DURATION
-) {
-  nextStage = "up";
-  stageStartTime = now;
-  repJustCounted = true;
-}
+        now - lastRepTime > currentCooldown &&
+        durationInDown > this.MIN_DOWN_DURATION
+      ) {
+        nextStage = "up";
+        stageStartTime = now;
+        repJustCounted = true;
+      }
+    }
 
 // ───────── POSTURE VALIDATION ─────────
 const isInExercisePosture = this.isValidExercisePosture(
@@ -524,8 +529,6 @@ const wristSupinationScore =
   config.key === "bicepCurl" ? getSupinationScore(landmarks) : NaN;
 
 const PLANK_DEVIATION_THRESHOLD = 0.05;
-const hipSplineDeviation = 0;
-const nextPlankSpline = { isCalibrated: false };
 
 const context: any = {
   ...angles,
@@ -785,6 +788,10 @@ if (isInExercisePosture) {
       repScores: nextRepScores,
       repDeviations: nextRepDeviations,
       accuracy,
+
+      // Plank Spline state
+      plankSpline: nextPlankSpline,
+      hipSplineDeviation,
 
       lastDepthResult: nextLastDepthResult,
       depthStats: nextDepthStats,
