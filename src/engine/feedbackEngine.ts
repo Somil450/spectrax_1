@@ -136,12 +136,9 @@ class JointDeviationProfiler {
   getAllValues(): number[] {
     return this.allValues;
   }
-
-  reset() {
-    this.values = [];
-    this.allValues = [];
-  }
 }
+
+export const jointDeviationProfiler = new JointDeviationProfiler();
 export interface DetectionIssue {
   type: string;
   severity: "high" | "medium" | "low";

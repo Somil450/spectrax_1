@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getJointAngles } from "../angleUtils";
+import { getJointAngles, calculateAngle } from "../angleUtils";
 
 const lm = (x: number, y: number, z = 0, visibility = 1) => ({
   x,
