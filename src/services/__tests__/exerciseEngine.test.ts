@@ -217,4 +217,56 @@ describe("ExerciseEngine", () => {
     expect(result.jumpingJackSyncSamples).toHaveLength(1);
     expect(result.jumpingJackSync?.samples).toBe(1);
   });
+
+  describe("lunge knee-over-toe collision checker", () => {
+    const lungeConfig: ExerciseConfig = {
+      key: "lunge",
+      name: "Lunges",
+      primaryJoint: "lungeKnee",
+      joints: [],
+      downThreshold: 110,
+      upThreshold: 140,
+      feedbackRules: [],
+    };
+
+    const makeLungeLandmarks = (kneeX: number, toeX: number, hipX: number) => {
+      const landmarks = Array.from({ length: 33 }, (_, i) => ({
+        x: 0.5,
+        y: 0.5,
+        z: 0.0,
+        visibility: 0.9,
+      }));
+      // Active Side indices (left side -> 23 hip, 25 knee, 27 ankle, 31 toe)
+      landmarks[23] = { x: hipX, y: 0.4, z: 0.0, visibility: 0.9 }; // Left Hip
+      landmarks[25] = { x: kneeX, y: 0.6, z: 0.0, visibility: 0.9 }; // Left Knee
+      landmarks[27] = { x: toeX, y: 0.8, z: 0.0, visibility: 0.9 }; // Left Ankle
+      landmarks[31] = { x: toeX, y: 0.8, z: 0.0, visibility: 0.9 }; // Left Toe
+      
+      // Make right knee angle large (straight leg) so left leg is active
+      landmarks[24] = { x: hipX - 0.2, y: 0.4, z: 0.0, visibility: 0.9 }; // Right Hip
+      landmarks[26] = { x: hipX - 0.3, y: 0.6, z: 0.0, visibility: 0.9 }; // Right Knee
+      landmarks[28] = { x: hipX - 0.4, y: 0.8, z: 0.0, visibility: 0.9 }; // Right Ankle
+      return landmarks;
+    };
+
+    it("does not trigger kneePastToes warning if knee is behind toe line", async () => {
+      // Facing right (toeX = 0.7 > hipX = 0.5): kneeX = 0.68 is behind toeX = 0.7
+      const landmarks = makeLungeLandmarks(0.68, 0.7, 0.5);
+      const state = makeState({ isInExercisePosture: true });
+      const angles = { lungeKnee: 100 };
+
+      const result = await engine.process(lungeConfig, angles, { lungeKnee: 1.0 }, state, undefined, landmarks);
+      expect(result.feedback).not.toContain("Knee past toes");
+    });
+
+    it("triggers kneePastToes warning if knee is excessively past toe line", async () => {
+      // Facing right (toeX = 0.7 > hipX = 0.5): kneeX = 0.75 is past toeX = 0.7 by 0.05 (>0.02)
+      const landmarks = makeLungeLandmarks(0.75, 0.7, 0.5);
+      const state = makeState({ isInExercisePosture: true });
+      const angles = { lungeKnee: 100 };
+
+      const result = await engine.process(lungeConfig, angles, { lungeKnee: 1.0 }, state, undefined, landmarks);
+      expect(result.feedback).toBe("Knee past toes! Shift weight back ⚠️");
+    });
+  });
 });

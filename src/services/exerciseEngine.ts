@@ -16,6 +16,7 @@ import { getSupinationScore } from "./wristRotationDetector";
 import { ExerciseConfig } from '../config/exercises';
 import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
 // Note: feedbackEngine.ts lives in src/engine/ — path is correct relative to src/services/
+import { calculateAngle } from './angleUtils';
 import {
   classifySquatDepth,
   getLiveDepthFeedback,
@@ -307,6 +308,35 @@ export class ExerciseEngine {
 
   ): Promise<EngineState> {
     const now = Date.now();
+
+    // ───────── LUNGE KNEE-OVER-TOE COLLISION CHECKER ─────────
+    if (config.key === "lunge" && landmarks && landmarks.length >= 33) {
+      const leftKneeAngle = calculateAngle(landmarks[23], landmarks[25], landmarks[27]);
+      const rightKneeAngle = calculateAngle(landmarks[24], landmarks[26], landmarks[28]);
+      
+      const activeSide = leftKneeAngle < rightKneeAngle ? "left" : "right";
+      const activeKneeIdx = activeSide === "left" ? 25 : 26;
+      const activeToeIdx = activeSide === "left" ? 31 : 32;
+      const activeHipIdx = activeSide === "left" ? 23 : 24;
+      const activeAnkleIdx = activeSide === "left" ? 27 : 28;
+
+      const backKneeIdx = activeSide === "left" ? 26 : 25;
+      const backHipIdx = activeSide === "left" ? 24 : 23;
+      const backAnkleIdx = activeSide === "left" ? 28 : 27;
+
+      const aKnee = landmarks[activeKneeIdx];
+      const aToe = landmarks[activeToeIdx];
+      const hip = landmarks[activeHipIdx];
+
+      if (aKnee && aToe && hip) {
+        const forwardDir = Math.sign(aToe.x - hip.x);
+        const isKneePastToes = (forwardDir * (aKnee.x - aToe.x)) > 0.02 ? 1 : 0;
+        
+        angles.kneePastToes = isKneePastToes;
+        angles.lungeKnee = calculateAngle(landmarks[activeHipIdx], aKnee, landmarks[activeAnkleIdx]);
+        angles.backKnee = calculateAngle(landmarks[backHipIdx], landmarks[backKneeIdx], landmarks[backAnkleIdx]);
+      }
+    }
     const p = ENGINE_DEFAULTS;
 
     // ───────── KINEMATICS ENGINE ─────────
