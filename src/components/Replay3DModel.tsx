@@ -689,6 +689,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const jointsRef = useRef<THREE.Mesh[]>([]);
   const bonesRef  = useRef<{ line: THREE.Line; startIdx: number; endIdx: number }[]>([]);
   const axesRef   = useRef<THREE.AxesHelper[]>([]);
+  const gridRef = useRef<THREE.GridHelper | null>(null);
 
   // GLTF refs
 
@@ -722,7 +723,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const lastRippleCompletionTimeRef = useRef<number | null>(null);
   const stressVectorsRef = useRef<StressVectorRig[]>([]);
   const previousJointPositionsRef = useRef<Array<THREE.Vector3 | null>>([]);
-
+  const gridTargetRef = useRef(new THREE.Vector3(0, -1.01, 0));
 
   const [hudLabels, setHudLabels] = useState<HudLabel[]>([]);
   const reqIdRef           = useRef<number>(0);
@@ -1020,6 +1021,15 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     [syncRippleUniforms],
   );
 
+  const updateGridPosition = useCallback((bodyCenter: THREE.Vector3 | null) => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const targetX = bodyCenter ? bodyCenter.x : 0;
+    const targetZ = bodyCenter ? bodyCenter.z : 0;
+    gridTargetRef.current.set(targetX, -1.01, targetZ);
+    grid.position.lerp(gridTargetRef.current, 0.08);
+  }, []);
+
   const orbitPelvisTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const hasOrbitPelvisTargetRef = useRef(false);
 
@@ -1244,20 +1254,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x222222);
     grid.position.y = -1.01;
     (grid.material as THREE.LineBasicMaterial).transparent = true;
-
     (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
     scene.add(grid);
-
-
-
-    (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
-
-    scene.add(grid);
-
-
-    (grid.material as THREE.LineBasicMaterial).opacity     = 0.2;
-
-    scene.add(grid);
+    gridRef.current = grid;
 
 
     // Floor
@@ -1616,6 +1615,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       stressVectorsRef.current = [];
       previousJointPositionsRef.current = [];
 
+      if (gridRef.current) {
+        gridRef.current.geometry.dispose();
+        (gridRef.current.material as THREE.Material).dispose();
+        sceneRef.current?.remove(gridRef.current);
+        gridRef.current = null;
+      }
+
       if (modelGroupRef.current) {
         modelGroupRef.current.traverse((obj) => {
           const mesh = obj as THREE.Mesh;
@@ -1769,6 +1775,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
               .addVectors(shoulderCenter, hipCenter)
               .multiplyScalar(0.5)
           : shoulderCenter || hipCenter;
+
+      updateGridPosition(bodyCenter);
 
       if (modelLoaded) {
         updateSegmentScaleAdaptor(frame.landmarks, getLm);
