@@ -58,6 +58,8 @@ type HudLabel = {
   id: number;
 };
 
+
+
 type StressVectorRig = {
   mesh: THREE.Mesh;
   material: THREE.ShaderMaterial;
