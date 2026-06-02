@@ -171,104 +171,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       setAnnouncement(`Starting in ${countdownSeconds}`);
     }
   }, [countdownSeconds, countdownActive]);
-const startSystem = useCallback(async () => {
-  if (!videoRef.current || !canvasRef.current) return;
-
-  isMountedRef.current = true;
-  frameIndexRef.current = 0;
-
-  try {
-    if (setupContext) {
-      const ctx = canvasRef.current.getContext("2d");
-      if (ctx) overlayRenderer.setContext(ctx);
-    }
-
-    await cameraService.startCamera(videoRef.current);
-
-    poseService.onResults((results) => {
-      if (!isMountedRef.current) return;
-
-      const evaluation = calibrationLogic.evaluate(results);
-      setResult(evaluation);
-
-      if (results.poseLandmarks) {
-        const bt = bodyTypeEngine.analyze(results.poseLandmarks);
-        setBodyTypeRes(bt);
-
-        if (bt.bodyType !== "scanning" && bt.confidence > 0.8) {
-          onBodyTypeDetected(bt.bodyType);
-        }
-
-        const gesture = gestureService.analyze(results.poseLandmarks);
-        setGestureResult(gesture);
-      }
-
-      const primaryJoints = selectedExercise.joints?.flat() || [];
-      overlayRenderer.draw(results, evaluation.status, primaryJoints);
-    });
-
-    const processLoop = (timestamp: number) => {
-      if (!isMountedRef.current) return;
-
-      const elapsed = timestamp - lastProcessTime.current;
-
-      if (elapsed > 1000 / FPS_LIMIT) {
-        if (
-          videoRef.current &&
-          videoRef.current.readyState >= 2 &&
-          !videoRef.current.paused
-        ) {
-          poseService.send(videoRef.current);
-        }
-
-        lastProcessTime.current = timestamp;
-      }
-
-      frameId.current = requestAnimationFrame(processLoop);
-    };
-
-    frameId.current = requestAnimationFrame(processLoop);
-
-  } catch (err) {
-    console.error("startSystem error:", err);
-  }
-}, []);
-
-// ── Announce camera errors ─────────────────────────────────────────────────────
-useEffect(() => {
-  if (error) {
-    setAnnouncement(
-      "Camera error. Please verify camera access and refresh the page."
-    );
-  }
-}, [error]); 
-    frameId.current = requestAnimationFrame(processLoop);
-
-  } catch (err: any) {
-    if (isMountedRef.current) {
-      setError(
-        err.message === "PERMISSION_DENIED"
-          ? "CAMERA_PERMISSION_DENIED"
-          : "Hardware synchronization error. Verify camera and refresh."
-      );
-
-      setResult((prev) => ({
-        ...prev,
-        status: "red",
-        message: "Sync failed",
-      }));
-    }
-  }
-}, [
-  selectedExercise,
-  onBodyTypeDetected,
-  overlayRenderer,
-  calibrationLogic,
-  cameraService,
-  poseService,
-  bodyTypeEngine,
-  gestureService,
-]);*/
 
 
   useEffect(() => {
@@ -330,9 +232,9 @@ useEffect(() => {
     
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
-      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress'],
-      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress'],
-      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress']
+      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress', 'chestPressPunches'],
+      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress', 'chestPressPunches'],
+      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress', 'chestPressPunches']
     };
     
     const order = orderMap[type] || [];

@@ -19,13 +19,11 @@ import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
-import { ghostService } from '../services/ghostService';
+import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
-
-import { CameraErrorBoundary } from "./CameraErrorBoundary";
 import { gestureService, GestureCommand } from "../services/gestureService";
 import { debounce } from "../utils/debounce";
 import { useThrottleLevel } from "../services/performanceThrottleService";
@@ -182,10 +180,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }
 
   const panelRefsById = panelRefs.current;
-const [panelsLocked, setPanelsLocked] = useState(true);
-const [cameraError, setCameraError] = useState<string | null>(null);
-const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
-const [showExitModal, setShowExitModal] = useState(false);
+  const [panelsLocked, setPanelsLocked] = useState(true);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+  const [showExitModal, setShowExitModal] = useState(false);
   const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
@@ -193,29 +191,6 @@ const [showExitModal, setShowExitModal] = useState(false);
   const { isOnline } = useWorkoutSync();
   const throttleLevel = useThrottleLevel();
   const wsSocketRef = useWorkoutWebSocket();
-  const srOnly: React.CSSProperties = {
-    position: 'absolute',
-    width: '1px',
-    height: '1px',
-    padding: 0,
-    margin: '-1px',
-    overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
-    whiteSpace: 'nowrap',
-    borderWidth: 0,
-  };
-
-const srOnly: React.CSSProperties = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  borderWidth: 0,
-};
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -261,8 +236,6 @@ const frameId = useRef<number | null>(null);
 const countRef = useRef(0);
 
 const animationFrameRef = useRef<number | null>(null);
-
-const [showExitModal, setShowExitModal] = useState(false);
 
 const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
 const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
@@ -388,8 +361,6 @@ const [hasGhost, setHasGhost] = useState(false);
     }
   }, [mismatchError]);
 
-
-  const wsSocketRef = useRef<WebSocket | null>(null);
   const offscreenEnabledRef = useRef<boolean>(false);
   const { initOffscreenCanvas } = useOffscreenCanvas();
 
@@ -469,7 +440,9 @@ const [hasGhost, setHasGhost] = useState(false);
               ? "jumpingJack"
               : label.includes("bicep curl")
                 ? "bicepCurl"
-                : "";
+                : label.includes("chest press")
+                  ? "chestPressPunches"
+                  : "";
 
       if (
         detectedKey &&

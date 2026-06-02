@@ -163,6 +163,19 @@ export class SkeletalSense {
       return { label: "JUMPING JACK", confidence: 0.88 };
     }
 
+    // CHEST PRESS / PUNCHES: Standing with elbows at chest/shoulder height, and arms pressing forward (not wide like jumping jacks)
+    const leftShoulderAngle = this.calculateAngle(lElbow, lShoulder, lHip);
+    const rightShoulderAngle = this.calculateAngle(rElbow, rShoulder, rHip);
+    if (
+      lHip.y > lShoulder.y &&
+      rHip.y > rShoulder.y &&
+      ((leftShoulderAngle > 65 && leftShoulderAngle < 115) || (rightShoulderAngle > 65 && rightShoulderAngle < 115)) &&
+      armWidth < 0.5 &&
+      (leftArmAngle > 70 || rightArmAngle > 70)
+    ) {
+      return { label: "CHEST PRESS / PUNCHES", confidence: 0.85 };
+    }
+
     // FLUTTER KICKS: lying flat on back with legs kicking
     if (Math.abs(lShoulder.y - lHip.y) < 0.12 && Math.abs(lShoulder.y - lWrist.y) < 0.15) {
       return { label: "FLUTTER KICKS", confidence: 0.88 };

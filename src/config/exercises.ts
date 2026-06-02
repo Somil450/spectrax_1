@@ -206,6 +206,33 @@ export const exercises: Record<string, ExerciseConfig> = {
         type: 'warning'
       }
     ]
+  },
+
+  chestPressPunches: {
+    key: "chestPressPunches",
+    name: "Resistance Band Chest Press / Punches",
+    demoUrl: '/assets/demos/chestpress_resistanceband.mp4',
+    primaryJoint: "elbow",
+    joints: [[11, 13], [13, 15], [12, 14], [14, 16], [11, 12], [11, 23], [12, 24]],
+    downThreshold: 95,
+    upThreshold: 145,
+    feedbackRules: [
+      {
+        condition: (ctx: any) => ctx.shoulder < 65,
+        message: "Keep arms at shoulder level ⚠️",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.bodyLine < 155,
+        message: "Keep your back straight ❌",
+        type: 'error'
+      },
+      {
+        condition: (ctx: any) => ctx.stage === 'down' && ctx.downAngleReached > 110,
+        message: "Bring hands all the way back to chest ⚠️",
+        type: 'warning'
+      }
+    ]
   }
 };
 
