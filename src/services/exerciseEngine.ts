@@ -314,7 +314,8 @@ export class ExerciseEngine {
         bicepCurl: 15, // Left Wrist
         jumpingJack: 15, // Left Wrist
         plank: 24, // Right Hip
-        lunge: 24 // Right Hip
+        lunge: 24, // Right Hip
+        chestPressPunches: 15 // Left Wrist
       };
       const primaryJointIndex = jointMap[config.key] ?? 24;
       updatedVbtMetrics = this.kinematicEngine.update(

@@ -298,30 +298,32 @@ export function LoginScreen({
           )}
         </button>
 
-        <button
-          className="auth-button guest"
-          onClick={handleGuestSignIn}
-          disabled={loading}
-          style={{
-            marginTop: "12px",
-            background: "rgba(34, 211, 238, 0.12)",
-            border: "1px solid rgba(34, 211, 238, 0.25)",
-            color: "#22d3ee",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "10px",
-            width: "100%",
-            padding: "12px",
-            borderRadius: "8px",
-            fontWeight: "500",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            transition: "all 0.2s ease"
-          }}
-        >
-          Bypass Login (Guest Mode)
-        </button>
+        {import.meta.env.DEV && (
+          <button
+            className="auth-button guest"
+            onClick={handleGuestSignIn}
+            disabled={loading}
+            style={{
+              marginTop: "12px",
+              background: "rgba(34, 211, 238, 0.12)",
+              border: "1px solid rgba(34, 211, 238, 0.25)",
+              color: "#22d3ee",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+              width: "100%",
+              padding: "12px",
+              borderRadius: "8px",
+              fontWeight: "500",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.2s ease"
+            }}
+          >
+            Bypass Login (Guest Mode)
+          </button>
+        )}
 
         <div className="auth-footer">
           <button

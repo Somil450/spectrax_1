@@ -331,9 +331,9 @@ useEffect(() => {
     
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
-      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress'],
-      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress'],
-      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress']
+      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress', 'chestPressPunches'],
+      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress', 'chestPressPunches'],
+      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress', 'chestPressPunches']
     };
     
     const order = orderMap[type] || [];

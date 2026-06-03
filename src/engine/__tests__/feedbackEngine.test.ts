@@ -90,4 +90,46 @@ describe("getFeedback – flutterKicks", () => {
     expect(result.color).toBe("red");
     expect(result.score).toBeLessThanOrEqual(60);
   });
+});
+
+describe("getFeedback – chestPressPunches", () => {
+  it("returns green when chest press form is correct", () => {
+    const result = getFeedback(
+      { shoulder: 80, bodyLine: 165, stage: "down", downAngleReached: 80 },
+      "chestPressPunches"
+    );
+    expect(result.color).toBe("green");
+    expect(result.message).toBe("Good form ✅");
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it("fires arm level warning when arms are too low (shoulder < 65)", () => {
+    const result = getFeedback(
+      { shoulder: 50, bodyLine: 165, stage: "up" },
+      "chestPressPunches"
+    );
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Keep arms at shoulder level ⚠️");
+    expect(result.color).toBe("yellow");
+  });
+
+  it("fires back straight error when body line sag is detected (bodyLine < 155)", () => {
+    const result = getFeedback(
+      { shoulder: 80, bodyLine: 140, stage: "up" },
+      "chestPressPunches"
+    );
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Keep your back straight ❌");
+    expect(result.color).toBe("yellow");
+  });
+
+  it("fires range-of-motion warning when user fails to bring hands back to chest in down stage (downAngleReached > 110)", () => {
+    const result = getFeedback(
+      { shoulder: 80, bodyLine: 165, stage: "down", downAngleReached: 120 },
+      "chestPressPunches"
+    );
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Bring hands all the way back to chest ⚠️");
+    expect(result.color).toBe("yellow");
+  });
 });

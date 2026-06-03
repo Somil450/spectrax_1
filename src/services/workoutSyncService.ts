@@ -181,10 +181,10 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     const getReq = store.get(localId);
 
     getReq.onsuccess = () => {
-const workout = getReq.result as WorkoutRecord;
+      const workout = getReq.result as WorkoutRecord;
 
-if (workout) {
-  store.delete(localId);
+      if (workout) {
+        store.delete(localId);
 
   store.put({
     ...workout,
@@ -194,13 +194,13 @@ if (workout) {
 }
     };
 
-// resolve only after transaction completes safely
-getReq.onerror = () => reject(getReq.error);
+    // resolve only after transaction completes safely
+    getReq.onerror = () => reject(getReq.error);
 
-tx.oncomplete = () => resolve();
-tx.onerror = () => reject(tx.error);
-tx.onabort = () =>
-  reject(new Error(`Transaction aborted for localId ${localId}`));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () =>
+      reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
@@ -456,8 +456,9 @@ export function initializeAutoSync(userId: string): void {
         console.log("Workout sync completed");
       }
     } catch (error) {
-      syncInProgress = false;
       console.error("Auto-sync failed:", error);
+    } finally {
+      syncInProgress = false;
     }
   };
 
@@ -690,3 +691,5 @@ export default {
   deleteWorkout,
   clearAllWorkouts,
 };
+
+// TODO: Consider adding more comprehensive JSDoc comments
