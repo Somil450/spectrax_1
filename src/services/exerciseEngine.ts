@@ -1,4 +1,4 @@
-import { getSupinationScore } from "./wristRotationDetector";
+
 
 /**
  * exerciseEngine.ts  (updated — squat depth classification integrated)
@@ -36,6 +36,7 @@ import {
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
+import { getSupinationScore } from './wristRotationDetector';
 import type { NormalizedLandmark } from "@mediapipe/pose";
 
 export interface JumpingJackSyncSample {
@@ -185,11 +186,16 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
   depthStats: SquatDepthStats;
+  liveDepthFeedback: string;
 
   // VBT Metrics
+  vbtMetrics?: VBTMetrics;
 
   // ── Pushup depth classification ──────────────────────────────
-
+  lastPushupDepthResult?: PushupDepthResult | null;
+  pushupDepthStats?: PushupDepthStats;
+  livePushupDepthFeedback?: string;
+  downZReached?: number;
 
   // Tracking & recovery buffers
   visibilityBuffer?: number[];
@@ -201,22 +207,7 @@ export interface EngineState {
 
   wristSupinationScore?: number;
 
-  /**
-   * Real-time depth coaching string emitted during the DOWN phase.
-   * Empty string when no depth cue is active.
-   */
-  liveDepthFeedback: string;
 
-  // VBT Metrics
-  vbtMetrics?: VBTMetrics;
-
-  // ── Pushup depth classification (NEW) ──────────────────────────
-  lastPushupDepthResult?: PushupDepthResult | null;
-  pushupDepthStats?: PushupDepthStats;
-  livePushupDepthFeedback?: string;
-  downZReached?: number;
-
-  // Tracking & recovery buffers
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -239,7 +230,6 @@ interface RepParams {
 
 const ENGINE_DEFAULTS: RepParams = {
   repCooldown: 600,
-
   hysteresis: 10,
   smoothingWindow: 5,
   minDownDuration: 150,
@@ -298,12 +288,10 @@ export class ExerciseEngine {
     visibility: Record<string, number>,
     currentState: EngineState,
     bodyType?: BodyType,
-
     landmarks?: any[]
-
   ): Promise<EngineState> {
     const now = Date.now();
-    const p = ENGINE_DEFAULTS;
+    const p = this.repParams(config.key);
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
@@ -418,7 +406,7 @@ export class ExerciseEngine {
       };
     }
 
-// ───────── REP LOGIC ─────────
+    // ───────── REP LOGIC ─────────
     let nextStage = stage;
     let nextReps = reps;
     let nextLastRepTime = lastRepTime;
@@ -448,75 +436,80 @@ export class ExerciseEngine {
       const durationInDown = now - stageStartTime;
 
       if (
-now - lastRepTime > currentCooldown &&
-durationInDown > this.MIN_DOWN_DURATION
-) {
-  nextStage = "up";
-  stageStartTime = now;
-  repJustCounted = true;
-}
+        now - lastRepTime > currentCooldown &&
+        durationInDown > this.MIN_DOWN_DURATION
+      ) {
+        nextStage = "up";
+        stageStartTime = now;
+        repJustCounted = true;
+      }
     }
 
-// ───────── POSTURE VALIDATION ─────────
-const isInExercisePosture = this.isValidExercisePosture(
-  history,
-  config,
-  nextStage
-);
+    // ───────── POSTURE VALIDATION ─────────
+    const isInExercisePosture = this.isValidExercisePosture(
+      history,
+      config,
+      nextStage
+    );
 
-// Accumulate hold time for static exercises
-let nextHoldTime = currentState.holdTime || 0;
-if (
-  config.isStatic &&
-  isInExercisePosture &&
-  (currentState.status === "green" || currentState.status === "yellow")
-) {
-  nextHoldTime += 1 / 20;
-}
+    // Accumulate hold time for static exercises (1/FPS approximately, or based on time diff)
+    // Since process is called roughly FPS times per second, we can estimate hold time.
+    // However, the cleanest way is to use a timestamp delta if we had previousTimestamp.
+    // We can just add 1/15th of a second roughly, or just pass the timestamp from `now`.
+    let nextHoldTime = currentState.holdTime || 0;
+    if (config.isStatic && isInExercisePosture && (currentState.status === 'green' || currentState.status === 'yellow')) {
+      // Estimate based on FPS_LIMIT=20 (from WorkoutScreen.tsx)
+      nextHoldTime += 1 / 20;
+    } else if (config.isStatic && !isInExercisePosture) {
+      // Optional: Reset hold time if they break posture, or keep accumulating total?
+      // Usually we want total hold time. We'll keep accumulating.
+    }
 
-// ───────── WRIST ROTATION DETECTION ─────────
-const wristSupinationScore =
-  config.key === "bicepCurl" ? getSupinationScore(landmarks) : NaN;
+    // ───────── WRIST ROTATION DETECTION ─────────
+    const wristSupinationScore = config.key === 'bicepCurl'
+      ? getSupinationScore(landmarks)
+      : NaN;
 
-const PLANK_DEVIATION_THRESHOLD = 0.05;
-const hipSplineDeviation = 0;
-const nextPlankSpline = { isCalibrated: false };
+    const PLANK_DEVIATION_THRESHOLD = 0.05;
+    const hipSplineDeviation = 0;
+    const nextPlankSpline = { isCalibrated: false };
 
-const context: any = {
-  ...angles,
-  stage: nextStage,
-  lateralScore: angles.lateralScore,
-  hipDepth: angles.hipDepth,
-  horizontalStretch: angles.horizontalStretch,
-  downAngleReached,
-  hipSplineDeviation,
-  plankSplineCalibrated: nextPlankSpline.isCalibrated,
-  hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-  hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
-  wristSupinationScore,
-};
+    const context: any = {
+      ...angles,
+      stage: nextStage,
+      lateralScore: angles.lateralScore,
+      hipDepth: angles.hipDepth,
+      horizontalStretch: angles.horizontalStretch,
+      downAngleReached,
+      hipSplineDeviation,
+      plankSplineCalibrated: nextPlankSpline.isCalibrated,
+      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
+      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+      wristSupinationScore,
+    };
 
-let feedbackResult: FeedbackResult;
-let frameScore: number;
+    let feedbackResult: FeedbackResult;
+    let frameScore: number;
 
-if (isInExercisePosture) {
-  feedbackResult = getFeedback(context, config.key);
-  frameScore = feedbackResult.score;
-} else {
-  feedbackResult = {
-    score: 100,
-    color: "green",
-    message: "READY 🟢",
-    issues: [],
-    deviation: 0,
-  };
-  frameScore = 100;
-}
+    if (isInExercisePosture) {
+      feedbackResult = getFeedback(context, config.key);
+      frameScore = feedbackResult.score;
+    } else {
+      feedbackResult = {
+        score: 100,
+        color: 'green',
+        message: 'READY 🟢',
+        issues: [],
+        deviation: 0,
+      };
+      frameScore = 100;
+    }
+
     let nextMinScoreInRep = currentState.minScoreInRep;
     let currentDeviation = 0;
     if (isInExercisePosture) {
       nextMinScoreInRep = Math.min(nextMinScoreInRep, frameScore);
-      currentDeviation = feedbackResult.deviation ?? 0;
+      currentDeviation = feedbackResult.deviation || 0;
     }
 
     // ───────── LIVE DEPTH FEEDBACK (during down phase) ────────────────────

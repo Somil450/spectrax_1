@@ -4,7 +4,8 @@ import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme } from '../context/ThemeContext';
+import { debounce } from "../utils/debounce";
 
 const STATS = [
   { value: "30+", label: "FPS tracking" },
@@ -24,6 +25,9 @@ interface WelcomeScreenProps {
     progress: number;
     nextLevelXp: number;
   };
+  pendingRecovery?: { stats: any; exerciseKey: string } | null;
+  onApplyRecovery?: () => void;
+  onDiscardRecovery?: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
@@ -32,8 +36,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewTrophies,
   onViewFitnessCalculator,
   leveling,
+  pendingRecovery,
+  onApplyRecovery,
+  onDiscardRecovery,
 }) => {
-  const theme = 'dark';
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
@@ -128,8 +135,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   return (
     <div
       className="welcome-container"
-      data-theme={theme}
-  data-theme-style={theme}
+      data-theme={theme === "light" ? "light" : "dark"}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
@@ -447,7 +453,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
         </div>
       </div>
-      </div>
+    </div>
   );
 };
 
