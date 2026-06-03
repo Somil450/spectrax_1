@@ -13,6 +13,7 @@ const MET_VALUES: Record<string, number> = {
   bicep_curl: 3.5,
   bicep_curls: 3.5,
   shoulder_press: 4.5,
+  "resistance_band_chest_press_/_punches": 6.0,
   deadlift: 6.0,
   default: 5.0,
 };
