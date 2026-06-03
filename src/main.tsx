@@ -23,3 +23,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </AuthProvider>
   </React.StrictMode>,
 );
+
+// TODO: Consider adding more comprehensive JSDoc comments
