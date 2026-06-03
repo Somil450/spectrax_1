@@ -590,6 +590,18 @@ SpectraX is a **GSSoC 2026** project and we welcome contributors of all experien
 
 ---
 
+## 💖 Contributors
+
+Thanks to all the amazing people who contribute to **Spectrax** 🚀
+
+<p align="center">
+  <a href="https://github.com/Somil450/spectrax_1/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=Somil450/spectrax_1" alt="Contributors"/>
+  </a>
+</p>
+
+---
+
 ## 🔒 Privacy & Security
 
 - **Local Processing** — Camera data is processed entirely in the browser; no video frames are sent to any server
@@ -610,6 +622,20 @@ See the full [FAQ document](FAQ.md) for detailed answers to common questions abo
 ## 📄 License
 
 This project is licensed under the **[MIT License](LICENSE)**.
+
+---
+
+## ⭐ Project Support
+
+<p align="center">
+  <a href="https://github.com/Somil450/spectrax_1/stargazers">
+    <img src="https://img.shields.io/github/stars/Somil450/spectrax_1?style=social" alt="Stars">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Somil450/spectrax_1/network/members">
+    <img src="https://img.shields.io/github/forks/Somil450/spectrax_1?style=social" alt="Forks">
+  </a>
+</p>
 
 ---
 
