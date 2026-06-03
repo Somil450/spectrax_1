@@ -39,6 +39,53 @@ export interface ReplayFrame {
   repCount?: number;
 }
 
+function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * (
+    (2 * p1) +
+    (-p0 + p2) * t +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+  );
+}
+
+function getInterpolatedLandmarks(
+  frames: ReplayFrame[],
+  floatIdx: number,
+): { x: number; y: number; z: number; visibility?: number }[] | null {
+  const n = frames.length;
+  if (n === 0) return null;
+  const idx = Math.floor(floatIdx);
+  const frac = floatIdx - idx;
+  if (idx < 0 || idx >= n) return frames[idx]?.landmarks ?? null;
+  if (frac < 0.001) return frames[idx].landmarks;
+  const i0 = Math.max(0, idx - 1);
+  const i1 = idx;
+  const i2 = Math.min(n - 1, idx + 1);
+  const i3 = Math.min(n - 1, idx + 2);
+  const f0 = frames[i0].landmarks;
+  const f1 = frames[i1].landmarks;
+  const f2 = frames[i2].landmarks;
+  const f3 = frames[i3].landmarks;
+  const count = Math.min(f1.length, f2.length, 33);
+  const result: { x: number; y: number; z: number; visibility?: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const lm1 = f1[i];
+    const lm2 = f2[i];
+    if (!lm1 || !lm2) { result.push(lm1 || lm2 || { x: 0, y: 0, z: 0 }); continue; }
+    const lm0 = f0[i] || lm1;
+    const lm3 = f3[i] || lm2;
+    result.push({
+      x: catmullRom(lm0.x, lm1.x, lm2.x, lm3.x, frac),
+      y: catmullRom(lm0.y, lm1.y, lm2.y, lm3.y, frac),
+      z: catmullRom(lm0.z, lm1.z, lm2.z, lm3.z, frac),
+      visibility: lm1.visibility ?? lm2.visibility,
+    });
+  }
+  return result;
+}
+
 export interface Replay3DModelProps {
   frames: ReplayFrame[];
   modelUrl?: string;
@@ -542,6 +589,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const graphicsPresetRef = useRef<GraphicsPreset>("high");
   const autoAdaptRef = useRef(true);
   const fpsMonitor = useRef(new AdaptiveFPSMonitor());
+  const frameFloatRef = useRef(0);
 
   // Keep refs in sync with state for use inside animation loop
 
@@ -551,6 +599,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => {
     autoAdaptRef.current = autoAdapt;
   }, [autoAdapt]);
+  useEffect(() => {
+    if (!isPlaying) frameFloatRef.current = currentFrameIdx;
+  }, [currentFrameIdx, isPlaying]);
 
 
   const isPlaying       = externalIsPlaying    !== undefined ? externalIsPlaying    : _isPlaying;
@@ -575,6 +626,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const jointsRef = useRef<THREE.Mesh[]>([]);
   const bonesRef  = useRef<{ line: THREE.Line; startIdx: number; endIdx: number }[]>([]);
   const axesRef   = useRef<THREE.AxesHelper[]>([]);
+  const gridRef = useRef<THREE.GridHelper | null>(null);
 
   // GLTF refs
 
@@ -728,7 +780,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x222222);
     grid.position.y = -1.01;
     (grid.material as THREE.LineBasicMaterial).transparent = true;
-
     (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
 
     (grid.material as THREE.LineBasicMaterial).opacity     = 0.2;
@@ -937,16 +988,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       composer.addPass(bloomPass);
       bloomPassRef.current = bloomPass;
 
-      const controls = new OrbitControls(
-        cameraRef.current,
-        renderer.domElement,
-      );
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.maxPolarAngle = Math.PI / 2 + 0.1;
-      controls.minDistance   = 1.0;
-      controls.maxDistance   = 10.0;
-      controlsRef.current    = controls;
+
+      
+    
 
       const handleContextLost = (event: Event) => {
         event.preventDefault();
@@ -999,8 +1043,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
         renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
 
-        controls.dispose();
-        composer.dispose();
+        controlsRef.current?.dispose();
+
+   
+     
         composerRef.current  = null;
         bloomPassRef.current = null;
         smaaPassRef.current  = null;
@@ -1009,7 +1055,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         renderer.dispose();
         renderer.forceContextLoss();
         if (rendererRef.current  === renderer) rendererRef.current  = null;
-        if (controlsRef.current  === controls) controlsRef.current  = null;
+        if (controlsRef.current  === controlsRef.current) controlsRef.current  = null;
       };
 
       requestAnimationFrame(() => {
@@ -1124,16 +1170,19 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         }
       }
 
-      // Frame advance
+      // Frame advance with spline-interpolated float index
       const cfg = GRAPHICS_PRESETS[graphicsPresetRef.current];
       if (isPlaying && time - lastTimeRef.current > 1000 / 8) {
-        const nextIdx = (currentFrameIdx + 1) % frames.length;
+        const nextFloat = ((frameFloatRef.current ?? currentFrameIdx) + 1) % frames.length;
+        frameFloatRef.current = nextFloat;
+        const nextIdx = Math.round(nextFloat) % frames.length;
         setCurrentFrameIdx(nextIdx);
         lastTimeRef.current = time;
       }
 
-      const frame = frames[currentFrameIdx];
-      if (!frame || !frame.landmarks) {
+      const renderFloat = isPlaying ? (frameFloatRef.current ?? currentFrameIdx) : currentFrameIdx;
+      const interpolatedLm = getInterpolatedLandmarks(frames, renderFloat);
+      if (!interpolatedLm) {
         rendererRef.current?.render(sceneRef.current!, cameraRef.current!);
         return;
       }
@@ -1147,8 +1196,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
       // Helper
       let depthScale = 2.0;
-      const rawLS = frame.landmarks[11], rawRS = frame.landmarks[12];
-      const rawLH = frame.landmarks[23], rawRH = frame.landmarks[24];
+      const rawLS = interpolatedLm[11], rawRS = interpolatedLm[12];
+      const rawLH = interpolatedLm[23], rawRH = interpolatedLm[24];
       if (rawLS && rawRS && rawLH && rawRH) {
         const dx = rawLS.x - rawRH.x, dy = rawLS.y - rawRH.y;
         const torsoSize = Math.sqrt(dx * dx + dy * dy);
@@ -1156,7 +1205,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       const getLm = (idx: number) => {
-        const lm = frame.landmarks[idx];
+        const lm = interpolatedLm[idx];
         if (!lm) return null;
         return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
       };

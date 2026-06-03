@@ -390,6 +390,19 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
     }
   }
 
+  const rShoulder = landmarks[12];
+  const lWrist = landmarks[15];
+  const rWrist = landmarks[16];
+  const rHip = landmarks[24];
+  if (lShoulder && rShoulder && lWrist && rWrist && lHip && rHip) {
+    const isStanding = lHip.y > lShoulder.y && rHip.y > rShoulder.y;
+    const wristDist = Math.abs(lWrist.x - rWrist.x);
+    const shoulderDist = Math.abs(lShoulder.x - rShoulder.x);
+    if (isStanding && shoulder > 60 && shoulder < 115 && wristDist < shoulderDist * 1.8) {
+      return { label: "chestPressPunches", confidence: 0.8 };
+    }
+  }
+
   if (shoulder > 120 && elbow > 120) return { label: "shoulderPress", confidence: 0.8 };
   if (shoulder > 60) return { label: "jumpingJack", confidence: 0.75 };
   return { label: "unknown", confidence: 0.4 };
