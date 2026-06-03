@@ -511,3 +511,5 @@ function App() {
 }
 
 export default App;
+
+// TODO: Consider adding more comprehensive JSDoc comments

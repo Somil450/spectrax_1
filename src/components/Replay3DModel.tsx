@@ -1565,7 +1565,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
         renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
 
-        window.removeEventListener("resize", handleResize);
         controlsRef.current?.dispose();
 
    

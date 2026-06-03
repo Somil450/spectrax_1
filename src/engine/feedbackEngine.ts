@@ -142,6 +142,7 @@ class JointDeviationProfiler {
     this.allValues = [];
   }
 }
+const jointDeviationProfiler = new JointDeviationProfiler();
 export interface DetectionIssue {
   type: string;
   severity: "high" | "medium" | "low";
@@ -393,6 +394,35 @@ const rules: Record<string, ExerciseRule> = {
     }
     return issues;
   },
+
+  chestPressPunches: (ctx: any) => {
+    const issues: DetectionIssue[] = [];
+    if (ctx.shoulder < 65) {
+      issues.push({
+        type: "posture",
+        severity: "medium",
+        message: "Keep arms at shoulder level ⚠️",
+        penalty: 25,
+      });
+    }
+    if (ctx.bodyLine < 155) {
+      issues.push({
+        type: "posture",
+        severity: "high",
+        message: "Keep your back straight ❌",
+        penalty: 35,
+      });
+    }
+    if (ctx.stage === "down" && ctx.downAngleReached > 110) {
+      issues.push({
+        type: "depth",
+        severity: "medium",
+        message: "Bring hands all the way back to chest ⚠️",
+        penalty: 30,
+      });
+    }
+    return issues;
+  },
 };
 
 // --- Scoring & Smoothing Logic ---
@@ -450,7 +480,8 @@ if (
 
 } else if (
   exerciseKey === "bicepCurl" ||
-  exerciseKey === "shoulderPress"
+  exerciseKey === "shoulderPress" ||
+  exerciseKey === "chestPressPunches"
 ) {
   // Use shoulder angle for primary posture tracking
   postureMetric = ctx.shoulder;
