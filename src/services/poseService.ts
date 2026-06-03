@@ -895,3 +895,5 @@ export class PoseService {
 const globalPoseService = new PoseService();
 
 export { globalPoseService as poseService };
+
+// TODO: Consider adding more comprehensive JSDoc comments

@@ -1,9 +1,6 @@
-import { useState, useRef, useEffect, Suspense, useCallback } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { CalibrationScreen } from "./components/CalibrationScreen";
-import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
-import { ReplayScreen } from "./components/ReplayScreen";
 import { TrophyRoom } from "./components/TrophyRoom";
 import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
@@ -28,8 +25,11 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { FitnessCalculator } from "./components/FitnessCalculator";
-import React from "react";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+
+const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
+const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
+const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 
 type Screen =
   | "welcome"
@@ -111,6 +111,7 @@ function App() {
     exercises.squat,
   );
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
+  const [adaptiveFactor, setAdaptiveFactor] = useState<number>(1.0);
   const [showExitModal, setShowExitModal] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
@@ -374,20 +375,14 @@ function App() {
         />
       )}
 
-      <Suspense
-        fallback={
-          <div className="loading-container">
-            <div className="spinner" />
-          </div>
-        }
-      >
+      <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
           <CalibrationScreen
             selectedExercise={selectedExercise}
             onSelectExercise={handleSelectExercise}
             onNext={() => navigateTo("workout")}
             onBack={() => setShowExitModal(true)}
-            onBodyTypeDetected={setBodyType}
+            onBodyTypeDetected={(type, factor) => { setBodyType(type); setAdaptiveFactor(factor); }}
           />
         )}
 
@@ -559,3 +554,5 @@ function App() {
 }
 
 export default App;
+
+// TODO: Consider adding more comprehensive JSDoc comments

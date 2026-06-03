@@ -47,6 +47,13 @@ describe('angle.utils', () => {
     landmarks[11] = { x: 0, y: 0, visibility: 0.95 };
     landmarks[13] = { x: 0, y: 1, visibility: 0.95 };
     landmarks[15] = { x: 1, y: 1, visibility: 0.95 };
+    landmarks[24] = { x: 0, y: 0, visibility: 0.95 };
+    landmarks[26] = { x: 0, y: 1, visibility: 0.95 };
+    landmarks[28] = { x: 1, y: 1, visibility: 0.95 };
+    landmarks[12] = { x: 0, y: 0, visibility: 0.95 };
+    landmarks[14] = { x: 0, y: 1, visibility: 0.95 };
+    landmarks[16] = { x: 1, y: 1, visibility: 0.95 };
+
 
     expect(computeAngles(landmarks)).toEqual({
       knee: 90,
