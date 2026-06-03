@@ -708,15 +708,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => {
     graphicsPresetRef.current = graphicsPreset;
   }, [graphicsPreset]);
-  useEffect(() => {
-    autoAdaptRef.current = autoAdapt;
-  }, [autoAdapt]);
-  useEffect(() => {
-    if (!isPlaying) frameFloatRef.current = currentFrameIdx;
-  }, [currentFrameIdx, isPlaying]);
-
-
-
+  
   const isPlaying =
     externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
   const currentFrameIdx =
@@ -725,6 +717,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const setCurrentFrameIdx = onFrameChange
     ? onFrameChange
     : _setCurrentFrameIdx;
+
+  useEffect(() => {
+    autoAdaptRef.current = autoAdapt;
+  }, [autoAdapt]);
+  useEffect(() => {
+    if (!isPlaying) frameFloatRef.current = currentFrameIdx;
+  }, [currentFrameIdx, isPlaying]);
 
   // Three.js refs
   const sceneRef    = useRef<THREE.Scene | null>(null);

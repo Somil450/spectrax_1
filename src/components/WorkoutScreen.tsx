@@ -21,6 +21,7 @@ import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPa
 import { ghostService, type GhostStats } from '../services/ghostService';
 import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
 
