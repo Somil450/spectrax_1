@@ -24,6 +24,9 @@ interface WelcomeScreenProps {
     progress: number;
     nextLevelXp: number;
   };
+  pendingRecovery?: { stats: any; exerciseKey: string } | null;
+  onApplyRecovery?: () => void;
+  onDiscardRecovery?: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
@@ -32,8 +35,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewTrophies,
   onViewProfile,
   leveling,
+  pendingRecovery,
+  onApplyRecovery,
+  onDiscardRecovery,
 }) => {
-  const { theme } = useTheme();
+  const theme = 'dark';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
