@@ -1,0 +1,245 @@
+commit c927ecfcf6ac643bfdfd9777c2af5cf33da5cf10
+Author: Krishnavamsi-codes <vamsi9398672280@gmail.com>
+Date:   Sat May 30 00:33:50 2026 +0530
+
+    fix:Resolve TS compilations errors
+
+diff --git a/src/components/CalibrationScreen.tsx b/src/components/CalibrationScreen.tsx
+index e0e72cf..326aee9 100644
+--- a/src/components/CalibrationScreen.tsx
++++ b/src/components/CalibrationScreen.tsx
+@@ -171,7 +171,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
+       setAnnouncement(`Starting in ${countdownSeconds}`);
+     }
+   }, [countdownSeconds, countdownActive]);
+-const startSystem = useCallback(async () => {
++
++/*const startSystem = useCallback(async () => {
+   if (!videoRef.current || !canvasRef.current) return;
+ 
+   isMountedRef.current = true;
+diff --git a/src/components/Replay3DModel.tsx b/src/components/Replay3DModel.tsx
+index f3f8a63..7a0352e 100644
+--- a/src/components/Replay3DModel.tsx
++++ b/src/components/Replay3DModel.tsx
+@@ -1563,7 +1563,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
+         renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
+         renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
+ 
+-        window.removeEventListener("resize", handleResize);
+         controlsRef.current?.dispose();
+ 
+    
+diff --git a/src/components/WelcomeScreen.tsx b/src/components/WelcomeScreen.tsx
+index ba989b7..05334b9 100644
+--- a/src/components/WelcomeScreen.tsx
++++ b/src/components/WelcomeScreen.tsx
+@@ -152,8 +152,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
+               <span className="welcome-eyebrow__dot" />
+               AI-Powered Fitness
+             </div>
+-            </button>
+-            </div>
+ 
+             <h1 className="welcome-wordmark">SPECTRAX</h1>
+ 
+diff --git a/src/components/WorkoutScreen.tsx b/src/components/WorkoutScreen.tsx
+index 72f5fe0..e61efc1 100644
+--- a/src/components/WorkoutScreen.tsx
++++ b/src/components/WorkoutScreen.tsx
+@@ -190,8 +190,6 @@ const [showExitModal, setShowExitModal] = useState(false);
+   const [vlmProgress, setVlmProgress] = useState(0);
+   const [clipResult, setClipResult] = useState<any>(null);
+   const { isOnline } = useWorkoutSync();
+-const [panelsLocked, setPanelsLocked] = useState(true);
+-const [cameraError, setCameraError] = useState<string | null>(null);
+ const FPS_LIMIT = 30;
+ 
+ const srOnly: React.CSSProperties = {
+@@ -251,8 +249,6 @@ const countRef = useRef(0);
+ 
+ const animationFrameRef = useRef<number | null>(null);
+ 
+-const [showExitModal, setShowExitModal] = useState(false);
+-
+ const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
+ const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
+ const [gestureHudVisible, setGestureHudVisible] = useState(false);
+diff --git a/src/engine/feedbackEngine.ts b/src/engine/feedbackEngine.ts
+index f06849d..11a7cd8 100644
+--- a/src/engine/feedbackEngine.ts
++++ b/src/engine/feedbackEngine.ts
+@@ -142,6 +142,9 @@ class JointDeviationProfiler {
+     this.allValues = [];
+   }
+ }
++
++const jointDeviationProfiler = new JointDeviationProfiler();
++
+ export interface DetectionIssue {
+   type: string;
+   severity: "high" | "medium" | "low";
+@@ -538,5 +541,6 @@ export function getPostureErrorCategories(): Record<string, number> {
+  */
+ export function resetFeedbackEngine(): void {
+   scoreHistory = [];
++  jointDeviationProfiler.reset();
+   //skeletalSense.reset();
+ }
+diff --git a/src/services/__tests__/angleUtils.test.ts b/src/services/__tests__/angleUtils.test.ts
+index 630b805..f6ffe63 100644
+--- a/src/services/__tests__/angleUtils.test.ts
++++ b/src/services/__tests__/angleUtils.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, it, expect } from "vitest";
+-import { getJointAngles } from "../angleUtils";
++import { calculateAngle, getJointAngles } from "../angleUtils";
+ 
+ const lm = (x: number, y: number, z = 0, visibility = 1) => ({
+   x,
+@@ -48,10 +48,8 @@ describe("getJointAngles", () => {
+     expect(angles).toHaveProperty("shoulder");
+     expect(angles).toHaveProperty("bodyLine");
+   });
+-
+-it("returns empty object when landmarks is null", () => {
+-  expect(getJointAngles(null)).toEqual({});
+-});
++  it("returns empty object when landmarks is null", () => {
++    expect(getJointAngles(null)).toEqual({});
+   });
+ 
+   it("handles identical points safely", () => {
+diff --git a/src/services/exerciseEngine.ts b/src/services/exerciseEngine.ts
+index a50fcde..cc03eb5 100644
+--- a/src/services/exerciseEngine.ts
++++ b/src/services/exerciseEngine.ts
+@@ -417,53 +417,6 @@ export class ExerciseEngine {
+       };
+     }
+ 
+-// ??????????????????????????? PLANK SPLINE REGRESSION ???????????????????????????
+-let nextPlankSpline = currentState.plankSpline;
+-let hipSplineDeviation = currentState.hipSplineDeviation;
+-
+-if (config.key === "plank" && landmarks && landmarks.length >= 29) {
+-  const leftVis =
+-    [11, 23, 25].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
+-
+-  const rightVis =
+-    [12, 24, 26].reduce((s, i) => s + (landmarks[i]?.visibility || 0), 0) / 3;
+-
+-  const side = leftVis >= rightVis ? "left" : "right";
+-
+-  const shoulderIdx = side === "left" ? 11 : 12;
+-  const hipIdx = side === "left" ? 23 : 24;
+-  const kneeIdx = side === "left" ? 25 : 26;
+-
+-  const shoulder = landmarks?.[shoulderIdx];
+-  const hip = landmarks?.[hipIdx];
+-  const knee = landmarks?.[kneeIdx];
+-
+-  const sufficientVis =
+-    (shoulder?.visibility || 0) > 0.5 &&
+-    (hip?.visibility || 0) > 0.5 &&
+-    (knee?.visibility || 0) > 0.5;
+-
+-  if (sufficientVis) {
+-    if (!nextPlankSpline.isCalibrated) {
+-      nextPlankSpline = updatePlankCalibration(
+-        nextPlankSpline,
+-        shoulder,
+-        hip,
+-        knee
+-      );
+-    }
+-
+-    if (nextPlankSpline.isCalibrated) {
+-      hipSplineDeviation = computeHipSplineDeviation(
+-        nextPlankSpline,
+-        shoulder,
+-        hip,
+-        knee
+-      );
+-    }
+-  }
+-}
+-
+ // ??????????????????????????? REP LOGIC ???????????????????????????
+     let nextStage = stage;
+     let nextReps = reps;
+@@ -501,6 +454,7 @@ durationInDown > this.MIN_DOWN_DURATION
+   stageStartTime = now;
+   repJustCounted = true;
+ }
++    }
+ 
+ // ??????????????????????????? POSTURE VALIDATION ???????????????????????????
+ const isInExercisePosture = this.isValidExercisePosture(
+diff --git a/src/services/overlayRenderer.ts b/src/services/overlayRenderer.ts
+index 06814ce..8321033 100644
+--- a/src/services/overlayRenderer.ts
++++ b/src/services/overlayRenderer.ts
+@@ -114,6 +114,7 @@ this.ctx.shadowColor = color;
+ 
+ this.drawScanningLine();
+ this.drawCenterOfMass(results.poseLandmarks);
++}
+ 
+   private drawScanningLine() {
+     if (!this.ctx) return;
+diff --git a/src/services/workoutSyncService.ts b/src/services/workoutSyncService.ts
+index 6245714..53f0fb3 100644
+--- a/src/services/workoutSyncService.ts
++++ b/src/services/workoutSyncService.ts
+@@ -192,6 +192,7 @@ if (workout) {
+     synced: true,
+   });
+ }
++    };
+ 
+ // resolve only after transaction completes safely
+ getReq.onerror = () => reject(getReq.error);
+@@ -445,25 +446,14 @@ let onlineHandler: (() => void) | null = null;
+ let offlineHandler: (() => void) | null = null;
+ 
+ export function initializeAutoSync(userId: string): void {
+-const workout = getReq.result as WorkoutRecord;
+-
+-if (workout) {
+-  store.delete(localId);
+-
+-  store.put({
+-    ...workout,
+-    id: firestoreId,
+-    synced: true,
+-  });
+-}
+-
+-// resolve only after transaction completes safely
+-getReq.onerror = () => reject(getReq.error);
+-
+-tx.oncomplete = () => resolve();
+-tx.onerror = () => reject(tx.error);
+-tx.onabort = () =>
+-  reject(new Error(`Transaction aborted for localId ${localId}`));
++  onlineHandler = async () => {
++    console.log("Network connection restored. Starting workout sync...");
++    try {
++      if (!syncInProgress) {
++        syncInProgress = true;
++        await fullSyncWorkouts(userId);
++        syncInProgress = false;
++        console.log("Workout sync completed");
+       }
+     } catch (error) {
+       syncInProgress = false;
+@@ -636,7 +626,7 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
+   // If this throws (network error, permission denied) the local records are
+   // left intact and the error propagates to the caller so the UI can surface
+   // a meaningful message instead of falsely reporting success.
+-  const remoteWorkouts = await getFirestoreWorkouts();
++  const remoteWorkouts = await getFirestoreWorkouts(userId);
+   for (const w of remoteWorkouts) {
+     if (w.id) {
+       await deleteWorkoutFromFirestore(w.id as string);
