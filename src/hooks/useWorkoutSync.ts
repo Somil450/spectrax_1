@@ -188,3 +188,5 @@ export function useWorkoutSync() {
 }
 
 export default useWorkoutSync;
+
+// TODO: Consider adding more comprehensive JSDoc comments

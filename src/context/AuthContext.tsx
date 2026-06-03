@@ -347,6 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Developer / Offline Bypass Login
    */
   const signInAsGuest = async () => {
+    if (!import.meta.env.DEV) return;
     setError(null);
     setLoading(true);
     try {

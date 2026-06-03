@@ -104,3 +104,5 @@ export function useCameraPose({
     isMountedRef,
   };
 }
+
+// TODO: Consider adding more comprehensive JSDoc comments
