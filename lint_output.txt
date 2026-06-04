@@ -1,0 +1,4 @@
+
+> spectrax-track@0.0.0 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives
+

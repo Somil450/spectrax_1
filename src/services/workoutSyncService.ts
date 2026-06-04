@@ -15,11 +15,11 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
-
 import { getAuth } from "firebase/auth";
 
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // Types & Interfaces
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -197,13 +197,26 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     tx.onerror = () => reject(tx.error);
     tx.onabort = () =>
       reject(new Error(`Transaction aborted for localId ${localId}`));
+  const workout = getReq.result as WorkoutRecord;
+  if (workout) {
+    store.delete(localId);
+    store.put({ ...workout, id: firestoreId, synced: true });
+  }
+  // ✅ Do NOT resolve here
+};
+
+getReq.onerror = () => reject(getReq.error);
+
+tx.oncomplete = () => resolve();           // ✅ resolve only after commit
+tx.onerror    = () => reject(tx.error);    // ✅ surface transaction errors
+tx.onabort    = () => reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
 /**
  * Update local workouts with Firestore data, preventing duplicates by reusing existing localId keys
  */
-export async function updateLocalWorkoutsFromFirestore(
+async function updateLocalWorkoutsFromFirestore(
   userId: string,
   firestoreWorkouts: WorkoutRecord[],
 ): Promise<void> {
@@ -280,7 +293,7 @@ export async function uploadWorkoutToFirestore(
 /**
  * Get all workouts from Firestore for current user
  */
-export async function getFirestoreWorkouts(userId: string): Promise<WorkoutRecord[]> {
+export async function getFirestoreWorkouts(): Promise<WorkoutRecord[]> {
   try {
     const auth = getAuth();
     const userId = auth.currentUser?.uid;
@@ -372,19 +385,9 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
  */
 export async function syncWorkoutsFromFirestore(userId: string): Promise<void> {
   try {
-    const db = getFirestore();
-
-    const snapshot = await getDocs(collection(db, "workouts"));
-
-    const firestoreWorkouts = snapshot.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    }));
-
-console.log("Sync skipped - helper not implemented");
-    console.log(
-      `Downloaded ${firestoreWorkouts.length} workouts from Firestore`,
-    );
+    const firestoreWorkouts = await getFirestoreWorkouts();
+    await updateLocalWorkoutsFromFirestore(userId, firestoreWorkouts);
+    // Downloaded workouts from Firestore
   } catch (error) {
     console.error("Error syncing workouts from Firestore:", error);
     throw error;
@@ -450,24 +453,35 @@ export function initializeAutoSync(userId: string): void {
     fullSyncWorkouts(userId)
       .catch((error) => console.error("Auto-sync failed:", error))
       .finally(() => { syncInProgress = false; });
+  cleanupAutoSync(); // remove existing before adding
+
+  onlineHandler = async () => {
+    try {
+      if (!syncInProgress) {
+        syncInProgress = true;
+        await fullSyncWorkouts(userId);
+        syncInProgress = false;
+      }
+    } catch (error) {
+      console.error("Auto-sync failed:", error);
+    } finally {
+      syncInProgress = false;
+    }
   };
 
   offlineHandler = () => {
-    console.log(
-      "Network connection lost. Workouts will sync when back online.",
-    );
+    // Network connection lost, sync when online
   };
 
-  // Add listeners
   window.addEventListener("online", onlineHandler);
   window.addEventListener("offline", offlineHandler);
 }
+
 export function cleanupAutoSync(): void {
   if (onlineHandler) {
     window.removeEventListener("online", onlineHandler);
     onlineHandler = null;
   }
-
   if (offlineHandler) {
     window.removeEventListener("offline", offlineHandler);
     offlineHandler = null;
@@ -655,8 +669,8 @@ export default {
   syncWorkoutsToFirestore,
   syncWorkoutsFromFirestore,
   fullSyncWorkouts,
-  cleanupAutoSync,
   initializeAutoSync,
+  cleanupAutoSync,
   isOnline,
   getSyncStatus,
   bulkUploadWorkouts,

@@ -324,3 +324,5 @@ export function drawLandmarksOnCanvas(
     drawBoundingBox(ctx, landmarks);
   }
 }
+
+// TODO: Consider adding more comprehensive JSDoc comments

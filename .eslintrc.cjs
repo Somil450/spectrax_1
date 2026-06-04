@@ -22,5 +22,6 @@ module.exports = {
     "@typescript-eslint/ban-types": "off",
     "@typescript-eslint/no-var-requires": "off",
     "no-empty": "warn",
+    "react/react-in-jsx-scope": "off",
   },
 };

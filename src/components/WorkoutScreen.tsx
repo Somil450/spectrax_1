@@ -7,7 +7,7 @@ import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
 import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
-import { sessionRecorder } from '../services/sessionRecorder';
+import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
@@ -25,6 +25,12 @@ import type { FrameData } from '../services/sessionRecorder';
 import { FpsMonitor } from './FpsMonitor';
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel } from './WorkoutPanels';
+import { ghostService } from '../services/ghostService';
+import type { GhostStats } from '../services/ghostService';
+import { useThrottleLevel } from '../services/performanceThrottleService';
+import { FpsMonitor } from './FpsMonitor';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
 
@@ -54,9 +60,10 @@ interface WorkoutScreenProps {
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
   adaptiveFactor?: number;
+  onSnapshotUpdate?: (liveStats: any) => void;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial";
 
 type PanelPosition = {
   x: number;
@@ -81,6 +88,7 @@ const getDefaultPanelPositions = (): PanelPositions => {
     reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
     engine: { x: 40, y: Math.max(height - 110, 30) },
     sense: { x: 280, y: Math.max(height - 110, 30) },
+    dial: { x: Math.max(width - 230, 30), y: 150 },
   };
 };
 
@@ -160,11 +168,9 @@ const extrapolateLandmarks = (
   });
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, adaptiveFactor = 1.0 }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const bodyTypeRef = useRef(bodyType);
   bodyTypeRef.current = bodyType;
-  const adaptiveFactorRef = useRef(adaptiveFactor);
-  adaptiveFactorRef.current = adaptiveFactor;
   const onAutoDetectRef = useRef(onAutoDetect);
   onAutoDetectRef.current = onAutoDetect;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -178,22 +184,23 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       timer: React.createRef<HTMLDivElement>(),
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
-      sense: React.createRef<HTMLDivElement>()
+      sense: React.createRef<HTMLDivElement>(),
+      dial: React.createRef<HTMLDivElement>()
     };
   }
 
   const panelRefsById = panelRefs.current;
-const [panelsLocked, setPanelsLocked] = useState(true);
-const [cameraError, setCameraError] = useState<string | null>(null);
-const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
-const [showExitModal, setShowExitModal] = useState(false);
+  const [panelsLocked, setPanelsLocked] = useState(true);
+  const [currentAngle, setCurrentAngle] = useState(0);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
+  const [showExitModal, setShowExitModal] = useState(false);
   const { config: displayConfig, updateConfig: updateDisplayConfig } = useDisplayConfig();
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
   const throttleLevel = useThrottleLevel();
-  const wsSocketRef = useWorkoutWebSocket();
   const srOnly: React.CSSProperties = {
     position: 'absolute',
     width: '1px',
@@ -205,6 +212,7 @@ const [showExitModal, setShowExitModal] = useState(false);
     whiteSpace: 'nowrap',
     borderWidth: 0,
   };
+
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
     stage: "up",
@@ -244,6 +252,7 @@ const [showExitModal, setShowExitModal] = useState(false);
   const previousObservedLandmarksRef = useRef<any[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
   const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
@@ -275,10 +284,6 @@ const [showExitModal, setShowExitModal] = useState(false);
   useEffect(() => {
     bodyTypeRef.current = bodyType;
   }, [bodyType]);
-
-  useEffect(() => {
-    adaptiveFactorRef.current = adaptiveFactor;
-  }, [adaptiveFactor]);
 
   useEffect(() => {
     onAutoDetectRef.current = onAutoDetect;
@@ -369,6 +374,7 @@ const [showExitModal, setShowExitModal] = useState(false);
 
 
   const workerAnglesRef = useRef<Record<string, number>>({});
+  const wsSocketRef = useWorkoutWebSocket();
   const offscreenEnabledRef = useRef<boolean>(false);
   const { initOffscreenCanvas } = useOffscreenCanvas();
 
@@ -376,6 +382,11 @@ const [showExitModal, setShowExitModal] = useState(false);
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
     const filteredResults = poseLockService.filter(results);
     if (!filteredResults || !filteredResults.poseLandmarks) return;
+
+    // Calculate primary joint angle on every frame for real-time dial updates
+    const currentFrameAngles = getJointAngles(results.poseLandmarks);
+    const primaryJoint = exercise.primaryJoint || 'knee';
+    setCurrentAngle(currentFrameAngles[primaryJoint] || 0);
 
     // ── GESTURE COMMAND PARSING ─────────────────────────────────────────────
     const gestureResult = gestureService.analyze(results.poseLandmarks);
@@ -461,7 +472,9 @@ const [showExitModal, setShowExitModal] = useState(false);
               ? "jumpingJack"
               : label.includes("bicep curl")
                 ? "bicepCurl"
-                : "";
+                : label.includes("chest press")
+                  ? "chestPressPunches"
+                  : "";
 
       if (
         detectedKey &&
@@ -501,12 +514,14 @@ const [showExitModal, setShowExitModal] = useState(false);
 
     const visibility = getJointVisibility(results.poseLandmarks);
 
-    // Adjust structural thresholds dynamically based on body-type calibration factor
+    // Adjust structural thresholds dynamically based on active detected body type
     const activeConfig = { ...exercise };
-    const factor = adaptiveFactorRef.current;
-    if (factor !== 1.0) {
-      activeConfig.downThreshold = Math.round(activeConfig.downThreshold * factor);
-      activeConfig.upThreshold = Math.round(activeConfig.upThreshold * factor);
+    if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
+      activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
+    } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
+      activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
+    } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
+      activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
     }
 
     // 2. Process through multi-exercise engine (stays on main thread — manages state)
@@ -587,16 +602,11 @@ const [showExitModal, setShowExitModal] = useState(false);
       setHasGhost(false);
     }
 
+    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
+
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
-
-    worker.onmessage = (event: MessageEvent) => {
-      const { angles } = event.data;
-      if (angles) {
-        workerAnglesRef.current = angles;
-      }
-    };
 
     
   
@@ -721,6 +731,7 @@ const [showExitModal, setShowExitModal] = useState(false);
         avgConfidence: clipResult?.confidence || 0.8,
         mistakes: Object.keys(finalMistakes),
         duration: actualDuration,
+        duration: seconds,
       }),
     });
     console.log("[handleEnd] sending onEnd with duration:", actualDuration, "startTime was:", startTimeRef.current);
@@ -1054,6 +1065,7 @@ const [showExitModal, setShowExitModal] = useState(false);
         {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} leftRepCount={engineState.leftRepCount} rightRepCount={engineState.rightRepCount} />)}
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} reps={engineState.reps} stage={engineState.stage} frameScore={engineState.frameScore} />)}
         {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
+        {renderDraggablePanel('dial', '', <AngleDialPanel angle={currentAngle} label={exercise.primaryJoint} statusColor={statusColor} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}

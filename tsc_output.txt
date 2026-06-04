@@ -1,11 +1,89 @@
-﻿src/components/Replay3DModel.tsx(960,9): error TS1005: ',' expected.
-src/components/Replay3DModel.tsx(961,7): error TS1005: ':' expected.
-src/components/Replay3DModel.tsx(961,68): error TS1005: ',' expected.
-src/components/Replay3DModel.tsx(1035,7): error TS1005: ',' expected.
-src/components/Replay3DModel.tsx(1046,3): error TS1128: Declaration or statement expected.
-src/components/Replay3DModel.tsx(1046,4): error TS1128: Declaration or statement expected.
-src/components/Replay3DModel.tsx(1046,81): error TS1005: ';' expected.
-src/components/Replay3DModel.tsx(1182,1): error TS1128: Declaration or statement expected.
-src/components/WelcomeScreen.tsx(371,5): error TS1005: ')' expected.
-src/components/WelcomeScreen.tsx(372,3): error TS1109: Expression expected.
-src/components/WelcomeScreen.tsx(373,1): error TS1128: Declaration or statement expected.
+src/components/Replay3DModel.tsx(64,1): error TS2304: Cannot find name 'STRESS_VECTOR_ATTACHMENTS'.
+src/components/Replay3DModel.tsx(67,20): error TS2552: Cannot find name 'createStressVectorMaterial'. Did you mean 'createdStressVectors'?
+src/components/Replay3DModel.tsx(72,3): error TS2304: Cannot find name 'scene'.
+src/components/Replay3DModel.tsx(82,1): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(83,1): error TS2304: Cannot find name 'previousJointPositionsRef'.
+src/components/Replay3DModel.tsx(672,3): error TS2448: Block-scoped variable 'syncRippleUniforms' used before its declaration.
+src/components/Replay3DModel.tsx(672,22): error TS2304: Cannot find name 'timeSeconds'.
+src/components/Replay3DModel.tsx(674,7): error TS2448: Block-scoped variable 'lastRepCountRef' used before its declaration.
+src/components/Replay3DModel.tsx(675,5): error TS2448: Block-scoped variable 'lastRepCountRef' used before its declaration.
+src/components/Replay3DModel.tsx(675,31): error TS2304: Cannot find name 'repCount'.
+src/components/Replay3DModel.tsx(676,14): error TS2304: Cannot find name 'repCount'.
+src/components/Replay3DModel.tsx(676,27): error TS2448: Block-scoped variable 'lastRepCountRef' used before its declaration.
+src/components/Replay3DModel.tsx(677,9): error TS2304: Cannot find name 'repCount'.
+src/components/Replay3DModel.tsx(677,20): error TS2448: Block-scoped variable 'lastRepCountRef' used before its declaration.
+src/components/Replay3DModel.tsx(677,47): error TS2304: Cannot find name 'footCenter'.
+src/components/Replay3DModel.tsx(678,30): error TS2448: Block-scoped variable 'lastRippleCompletionTimeRef' used before its declaration.
+src/components/Replay3DModel.tsx(680,11): error TS2304: Cannot find name 'timeSeconds'.
+src/components/Replay3DModel.tsx(688,31): error TS2304: Cannot find name 'footCenter'.
+src/components/Replay3DModel.tsx(689,31): error TS2304: Cannot find name 'footCenter'.
+src/components/Replay3DModel.tsx(691,7): error TS2448: Block-scoped variable 'emitRipple' used before its declaration.
+src/components/Replay3DModel.tsx(695,9): error TS2304: Cannot find name 'timeSeconds'.
+src/components/Replay3DModel.tsx(698,5): error TS2448: Block-scoped variable 'lastRepCountRef' used before its declaration.
+src/components/Replay3DModel.tsx(698,31): error TS2304: Cannot find name 'repCount'.
+src/components/Replay3DModel.tsx(928,20): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(931,33): error TS2304: Cannot find name 'previousJointPositionsRef'.
+src/components/Replay3DModel.tsx(1342,11): error TS2451: Cannot redeclare block-scoped variable 'createdBones'.
+src/components/Replay3DModel.tsx(1348,11): error TS2451: Cannot redeclare block-scoped variable 'createdBones'.
+src/components/Replay3DModel.tsx(1354,11): error TS2451: Cannot redeclare block-scoped variable 'createdBones'.
+src/components/Replay3DModel.tsx(1363,13): error TS2451: Cannot redeclare block-scoped variable 'line'.
+src/components/Replay3DModel.tsx(1371,13): error TS2451: Cannot redeclare block-scoped variable 'line'.
+src/components/Replay3DModel.tsx(1374,27): error TS2353: Object literal may only specify known properties, and 'line' does not exist in type '{ mesh: Mesh<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>; startIdx: number; endIdx: number; }'.
+src/components/Replay3DModel.tsx(1376,5): error TS2322: Type '{ mesh: Mesh<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>; startIdx: number; endIdx: number; }[]' is not assignable to type '{ line: Line<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>; startIdx: number; endIdx: number; }[]'.
+  Property 'line' is missing in type '{ mesh: Mesh<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>; startIdx: number; endIdx: number; }' but required in type '{ line: Line<BufferGeometry<NormalBufferAttributes>, Material | Material[], Object3DEventMap>; startIdx: number; endIdx: number; }'.
+src/components/Replay3DModel.tsx(1379,5): error TS2304: Cannot find name 'STRESS_VECTOR_ATTACHMENTS'.
+src/components/Replay3DModel.tsx(1407,5): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(1408,5): error TS2304: Cannot find name 'previousJointPositionsRef'.
+src/components/Replay3DModel.tsx(1665,7): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(1670,7): error TS2304: Cannot find name 'stressVectorsRef'.
+src/components/Replay3DModel.tsx(1671,7): error TS2304: Cannot find name 'previousJointPositionsRef'.
+src/components/Replay3DModel.tsx(1779,15): error TS2451: Cannot redeclare block-scoped variable 'baseColor'.
+src/components/Replay3DModel.tsx(1779,26): error TS2451: Cannot redeclare block-scoped variable 'badJoints'.
+src/components/Replay3DModel.tsx(1779,37): error TS2451: Cannot redeclare block-scoped variable 'mistakeColor'.
+src/components/Replay3DModel.tsx(1783,13): error TS2451: Cannot redeclare block-scoped variable 'repCount'.
+src/components/Replay3DModel.tsx(1784,13): error TS2451: Cannot redeclare block-scoped variable 'timeSeconds'.
+src/components/Replay3DModel.tsx(1786,13): error TS2451: Cannot redeclare block-scoped variable 'repCount'.
+src/components/Replay3DModel.tsx(1787,13): error TS2451: Cannot redeclare block-scoped variable 'timeSeconds'.
+src/components/Replay3DModel.tsx(1789,15): error TS2451: Cannot redeclare block-scoped variable 'baseColor'.
+src/components/Replay3DModel.tsx(1789,26): error TS2451: Cannot redeclare block-scoped variable 'badJoints'.
+src/components/Replay3DModel.tsx(1789,37): error TS2451: Cannot redeclare block-scoped variable 'mistakeColor'.
+src/components/Replay3DModel.tsx(1811,13): error TS2451: Cannot redeclare block-scoped variable 'lShoulder'.
+src/components/Replay3DModel.tsx(1812,9): error TS2451: Cannot redeclare block-scoped variable 'rShoulder'.
+src/components/Replay3DModel.tsx(1813,13): error TS2451: Cannot redeclare block-scoped variable 'lHip'.
+src/components/Replay3DModel.tsx(1814,9): error TS2451: Cannot redeclare block-scoped variable 'rHip'.
+src/components/Replay3DModel.tsx(1815,13): error TS2451: Cannot redeclare block-scoped variable 'lAnkle'.
+src/components/Replay3DModel.tsx(1816,9): error TS2451: Cannot redeclare block-scoped variable 'rAnkle'.
+src/components/Replay3DModel.tsx(1838,13): error TS2451: Cannot redeclare block-scoped variable 'lShoulder'.
+src/components/Replay3DModel.tsx(1838,36): error TS2451: Cannot redeclare block-scoped variable 'rShoulder'.
+src/components/Replay3DModel.tsx(1839,13): error TS2451: Cannot redeclare block-scoped variable 'lHip'.
+src/components/Replay3DModel.tsx(1839,31): error TS2451: Cannot redeclare block-scoped variable 'rHip'.
+src/components/Replay3DModel.tsx(1840,13): error TS2451: Cannot redeclare block-scoped variable 'lAnkle'.
+src/components/Replay3DModel.tsx(1840,33): error TS2451: Cannot redeclare block-scoped variable 'rAnkle'.
+src/components/Replay3DModel.tsx(1850,17): error TS2451: Cannot redeclare block-scoped variable 'shoulderCenter'.
+src/components/Replay3DModel.tsx(1853,17): error TS2451: Cannot redeclare block-scoped variable 'hipCenter'.
+src/components/Replay3DModel.tsx(1857,17): error TS2451: Cannot redeclare block-scoped variable 'up'.
+src/components/Replay3DModel.tsx(1860,17): error TS2451: Cannot redeclare block-scoped variable 'right'.
+src/components/Replay3DModel.tsx(1863,17): error TS2451: Cannot redeclare block-scoped variable 'forward'.
+src/components/Replay3DModel.tsx(1867,17): error TS2451: Cannot redeclare block-scoped variable 'shoulderCenter'.
+src/components/Replay3DModel.tsx(1868,17): error TS2451: Cannot redeclare block-scoped variable 'hipCenter'.
+src/components/Replay3DModel.tsx(1869,17): error TS2451: Cannot redeclare block-scoped variable 'up'.
+src/components/Replay3DModel.tsx(1870,17): error TS2451: Cannot redeclare block-scoped variable 'right'.
+src/components/Replay3DModel.tsx(1871,17): error TS2451: Cannot redeclare block-scoped variable 'forward'.
+src/components/Replay3DModel.tsx(2020,36): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(2022,13): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(2024,15): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(2024,48): error TS2304: Cannot find name 'exerciseName'.
+src/components/Replay3DModel.tsx(2061,9): error TS2304: Cannot find name 'bodyCenter'.
+src/components/Replay3DModel.tsx(2062,9): error TS2304: Cannot find name 'shoulderCenter'.
+src/components/Replay3DModel.tsx(2063,9): error TS2304: Cannot find name 'hipCenter'.
+src/components/Replay3DModel.tsx(2066,9): error TS2304: Cannot find name 'exerciseName'.
+src/components/WelcomeScreen.tsx(35,21): error TS2304: Cannot find name 'useTheme'.
+src/components/WorkoutScreen.tsx(8,39): error TS2305: Module '"../services/exerciseEngine"' has no exported member 'createPlankCalibration'.
+src/components/WorkoutScreen.tsx(187,25): error TS2552: Cannot find name 'useThrottleLevel'. Did you mean 'throttleLevel'?
+src/components/WorkoutScreen.tsx(248,32): error TS2304: Cannot find name 'GhostStats'.
+src/services/exerciseEngine.ts(1,10): error TS2300: Duplicate identifier 'getSupinationScore'.
+src/services/exerciseEngine.ts(39,10): error TS2300: Duplicate identifier 'getSupinationScore'.
+src/services/exerciseEngine.ts(189,3): error TS2300: Duplicate identifier 'liveDepthFeedback'.
+src/services/exerciseEngine.ts(192,3): error TS2300: Duplicate identifier 'vbtMetrics'.
+src/services/exerciseEngine.ts(214,3): error TS2300: Duplicate identifier 'liveDepthFeedback'.
+src/services/exerciseEngine.ts(217,3): error TS2300: Duplicate identifier 'vbtMetrics'.
