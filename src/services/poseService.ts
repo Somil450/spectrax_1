@@ -1,3 +1,8 @@
+// MediaPipe Pose Landmarker wrapper support
+export const mediaPipePoseLandmarkerConfig = {
+  runningMode: "VIDEO",
+  numPoses: 1
+};
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import { gpuAngleCalculator } from './gpuAngleUtils';
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
