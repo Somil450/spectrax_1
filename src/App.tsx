@@ -1,3 +1,4 @@
+import { ProgressChart } from "./components/ProgressChart";
 import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
