@@ -15,6 +15,7 @@ import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
+import { TermsPage } from "./components/TermsPage";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
@@ -42,6 +43,7 @@ type Screen =
   | "login"
   | "signup"
   | "forgot-password"
+  | "terms"
   | "trophy"
   | "profile"
   | "fitness";
@@ -58,6 +60,7 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   login: ["signup", "forgot-password", "welcome"],
   signup: ["login", "welcome"],
   "forgot-password": ["login", "welcome"],
+  terms: ["welcome", "login", "signup", "forgot-password"],
   trophy: ["welcome", "login"],
   profile: ["welcome", "login"],
   fitness: ["welcome"],
@@ -96,6 +99,7 @@ function App() {
   const { theme, setTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  const [termsReturnScreen, setTermsReturnScreen] = useState<Screen>("welcome");
 
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -197,11 +201,25 @@ function App() {
     });
   }, []);
 
+  const handleOpenTerms = useCallback(
+    (returnScreen: Screen) => {
+      setTermsReturnScreen(returnScreen);
+      navigateTo("terms", true);
+    },
+    [navigateTo],
+  );
+
+  const handleCloseTerms = useCallback(() => {
+    navigateTo(termsReturnScreen ?? "welcome", true);
+  }, [navigateTo, termsReturnScreen]);
+
   useEffect(() => {
     if (!firebaseConfigured) return; // no-op in demo/offline mode
     if (!authLoading) {
       if (!user) {
-        navigateTo("login", true);
+        if (currentScreen !== "login" && currentScreen !== "signup" && currentScreen !== "forgot-password" && currentScreen !== "terms") {
+          navigateTo("login", true);
+        }
       } else if (
         currentScreen === "login" ||
         currentScreen === "signup" ||
@@ -290,6 +308,10 @@ function App() {
     );
   }
 
+  if (currentScreen === "terms") {
+    return <TermsPage onBack={handleCloseTerms} />;
+  }
+
   // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
     const activeAuthScreen = ["login", "signup", "forgot-password"].includes(
@@ -306,16 +328,21 @@ function App() {
             onLoginSuccess={() => navigateTo("welcome")}
             onSignUpClick={() => navigateTo("signup")}
             onForgotPasswordClick={() => navigateTo("forgot-password")}
+            onViewTerms={() => handleOpenTerms("login")}
           />
         )}
         {activeAuthScreen === "signup" && (
           <SignUpScreen
             onSignUpSuccess={() => navigateTo("welcome")}
             onLoginClick={() => navigateTo("login")}
+            onViewTerms={() => handleOpenTerms("signup")}
           />
         )}
         {activeAuthScreen === "forgot-password" && (
-          <ForgotPasswordScreen onBack={() => navigateTo("login")} />
+          <ForgotPasswordScreen
+            onBack={() => navigateTo("login")}
+            onViewTerms={() => handleOpenTerms("forgot-password")}
+          />
         )}
       </main>
     );
@@ -369,6 +396,7 @@ function App() {
           onViewTrophies={() => navigateTo("trophy")}
           onViewProfile={user ? () => navigateTo("profile") : undefined}
           onViewFitnessCalculator={() => navigateTo("fitness")}
+          onViewTerms={() => handleOpenTerms("welcome")}
           leveling={leveling}
           pendingRecovery={pendingRecovery}
           onApplyRecovery={handleApplyRecovery}

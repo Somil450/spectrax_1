@@ -7,12 +7,14 @@ interface LoginScreenProps {
   onLoginSuccess: () => void;
   onSignUpClick: () => void;
   onForgotPasswordClick: () => void;
+  onViewTerms?: () => void;
 }
 
 export function LoginScreen({
   onLoginSuccess,
   onSignUpClick,
   onForgotPasswordClick,
+  onViewTerms,
 }: LoginScreenProps) {
   const { signIn, signInWithGoogle, signInAsGuest, error, clearError, loading } = useAuth();
   const [email, setEmail] = useState("");
@@ -343,6 +345,19 @@ export function LoginScreen({
               Sign up
             </button>
           </div>
+          {onViewTerms && (
+            <div className="auth-link">
+              By continuing, you agree to the{" "}
+              <button
+                type="button"
+                className="link-button"
+                onClick={onViewTerms}
+              >
+                Terms of Service
+              </button>
+              .
+            </div>
+          )}
         </div>
       </div>
     </div>

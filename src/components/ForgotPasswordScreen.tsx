@@ -5,9 +5,13 @@ import "../styles/auth.css";
 
 interface ForgotPasswordScreenProps {
   onBack: () => void;
+  onViewTerms?: () => void;
 }
 
-export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
+export function ForgotPasswordScreen({
+  onBack,
+  onViewTerms,
+}: ForgotPasswordScreenProps) {
   const { resetPassword, error, clearError, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -160,6 +164,22 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
             password
           </p>
         </div>
+
+        {onViewTerms && (
+          <div className="auth-footer" style={{ marginTop: "18px" }}>
+            <div className="auth-link">
+              Need a quick legal reference?{" "}
+              <button
+                type="button"
+                className="link-button"
+                onClick={onViewTerms}
+              >
+                View the Terms
+              </button>
+              .
+            </div>
+          </div>
+        )}
 
         {success ? (
           <div className="success-alert">

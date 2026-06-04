@@ -6,11 +6,13 @@ import "../styles/auth.css";
 interface SignUpScreenProps {
   onSignUpSuccess: () => void;
   onLoginClick: () => void;
+  onViewTerms?: () => void;
 }
 
 export function SignUpScreen({
   onSignUpSuccess,
   onLoginClick,
+  onViewTerms,
 }: SignUpScreenProps) {
   const { signUp, error, clearError, loading } = useAuth();
   const [displayName, setDisplayName] = useState("");
@@ -286,6 +288,19 @@ export function SignUpScreen({
               Sign in
             </button>
           </div>
+          {onViewTerms && (
+            <div className="auth-link">
+              Review the{" "}
+              <button
+                type="button"
+                className="link-button"
+                onClick={onViewTerms}
+              >
+                Terms of Service
+              </button>
+              before creating your account.
+            </div>
+          )}
         </div>
       </div>
     </div>

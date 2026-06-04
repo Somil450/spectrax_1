@@ -18,6 +18,7 @@ interface WelcomeScreenProps {
   onViewTrophies: () => void;
   onViewProfile?: () => void;
   onViewFitnessCalculator?: () => void;
+  onViewTerms?: () => void;
   leveling?: {
     xp: number;
     level: number;
@@ -38,6 +39,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   pendingRecovery,
   onApplyRecovery,
   onDiscardRecovery,
+  onViewTerms,
 }) => {
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -347,11 +349,35 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 <div className="footer-column">
                   <h4 className="footer-column-title">LEGAL</h4>
                   <ul className="footer-links">
-                    {["MIT License", "Privacy", "Terms"].map((item) => (
-                      <li key={item}>
-                        <a href="#" className="footer-link" onClick={(e) => e.preventDefault()}>{item}</a>
-                      </li>
-                    ))}
+                    <li>
+                      <a
+                        href="https://github.com/Somil450/spectrax_1/blob/main/LICENSE"
+                        className="footer-link"
+                      >
+                        MIT License
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href="#privacy"
+                        className="footer-link"
+                        onClick={(e) => e.preventDefault()}
+                      >
+                        Privacy
+                      </a>
+                    </li>
+                    <li>
+                      <a
+                        href="#terms"
+                        className="footer-link"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onViewTerms?.();
+                        }}
+                      >
+                        Terms
+                      </a>
+                    </li>
                   </ul>
                 </div>
               </div>
