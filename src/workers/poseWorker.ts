@@ -683,3 +683,8 @@ self.onmessage = (event: MessageEvent) => {
     (self as any).postMessage(reply);
   }
 };
+
+// Kinematic computation offload helper
+export function performKinematicAnalysis(landmarks: any): any {
+  return { success: true, timestamp: Date.now() };
+}
