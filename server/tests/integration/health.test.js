@@ -69,9 +69,11 @@ describe("health route", () => {
   });
 
   it("keeps the legacy app bootstrap route aligned with the same guard", async () => {
-    const sessionStore = {
-      size: () => 3,
-    };
+    const sessionStore = new Map([
+      ["socket-a", []],
+      ["socket-b", []],
+      ["socket-c", []],
+    ]);
     const app = express();
     setupHealthRoute(app, sessionStore, "top-secret");
 
