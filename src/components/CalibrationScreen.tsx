@@ -71,6 +71,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [countdownSeconds, setCountdownSeconds] = useState(3);
   
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
+  const[expandedExercise, setExpandedExercise] = useState<string | null>(null);
   
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
@@ -471,7 +472,29 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         alignItems: 'center'
                       }}
                     >
-                      <span>{ex.name.toUpperCase()}</span>
+                      <div
+                        style = {{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        >
+                          <span>{ex.name.toUpperCase()}</span>
+                          <span
+                          title = "view guide"
+                          onClick = {(e) =>{
+                            e.stopPropagation();
+                            setExpandedExercise(expandedExercise === ex.key ? null : ex.key);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 'bold',
+                          }}
+                          >{expandedExercise === ex.key ? '▲' : '▼'}
+                          </span>
+                      </div>
+        
                       <span style={{ 
                         fontSize: '0.65rem', 
                         opacity: 0.8,
@@ -482,6 +505,53 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
                       </span>
                     </button>
+                    {expandedExercise === ex.key &&  ex.guide &&(
+                      <div 
+                      style = {{
+                        marginTop: '6px',
+                        padding: '16px',
+                        borderRadius: '12px',
+                        background: 'rgba(168,85,247,0.08)',
+                        border: '1px solid rgba(168,85,247,0.2)',
+                        fontSize: '0.75rem',
+                        color:'var(--text-secondary)',
+                      }} >
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Instructions</h4>
+                        <ul style = {{
+                          marginLeft: '16px',
+                          marginBottom: '12px',
+                        }}>
+                          {ex.guide?.instructions.map((item,idx) =>(
+                            <li key = {idx}>{item}</li>
+                          ))}
+                        </ul>
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Common Mistakes</h4>
+                        <ul style = {{
+                          marginLeft: '16px',
+                          marginBottom: '12px',
+                        }}>
+                          {ex.guide?.commonMistakes.map((item,idx) =>(
+                            <li key = {idx}>{item}</li>
+                          ))}
+                        </ul>
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Target Muscles</h4>
+                        <div>
+                          {ex.guide?.targetMuscles.join(',')}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Video Overlay */}
                     { (hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)) && ex.demoUrl && (
