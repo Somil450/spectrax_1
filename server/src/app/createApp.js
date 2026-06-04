@@ -9,7 +9,12 @@ function createApp({ sessionStore, config = getConfig() }) {
 
   app.use(cors(createCorsOptions(config)));
   app.use(express.json());
-  app.use(createHealthRouter({ sessionStore }));
+  app.use(
+    createHealthRouter({
+      sessionStore,
+      monitorSecret: config.healthMonitorSecret,
+    }),
+  );
 
   return app;
 }

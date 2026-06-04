@@ -1,10 +1,10 @@
-function setupHealthRoute(app, sessions) {
-  app.get("/health", (_req, res) => {
-    res.json({
-      status: "ok",
-      activeSessions: sessions.size,
-      uptime: Math.round(process.uptime()),
-    });
+const { buildHealthPayload } = require("./health/health.utils");
+
+function setupHealthRoute(app, sessions, monitorSecret = null) {
+  app.get("/health", (req, res) => {
+    res.json(
+      buildHealthPayload(sessions, monitorSecret, req.get("x-monitor-secret")),
+    );
   });
 }
 

@@ -140,11 +140,11 @@ Example response:
 
 ```json
 {
-  "status": "ok",
-  "activeSessions": 0,
-  "uptime": 12
+  "status": "ok"
 }
 ```
+
+To expose internal metrics such as `activeSessions` and `uptime`, set `HEALTH_MONITOR_SECRET` and send the matching `X-Monitor-Secret` header.
 
 ## Testing
 

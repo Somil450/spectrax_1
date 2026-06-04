@@ -11,6 +11,8 @@ function getConfig(overrides = {}) {
     overrides.socketPath ?? process.env.SOCKET_PATH ?? "/socket.io";
   const maxConnectionsPerIp =
     overrides.maxConnectionsPerIp ?? Number(process.env.MAX_CONNECTIONS_PER_IP || 10);
+  const healthMonitorSecret =
+    overrides.healthMonitorSecret ?? process.env.HEALTH_MONITOR_SECRET ?? null;
 
   return {
     port,
@@ -19,6 +21,7 @@ function getConfig(overrides = {}) {
     maxSessionFrames,
     socketPath,
     maxConnectionsPerIp,
+    healthMonitorSecret,
   };
 }
 

@@ -6,5 +6,6 @@ module.exports = {
   MAX_FRAMES_PER_SEC: Number(process.env.MAX_FRAMES_PER_SEC) || 60,
   MAX_SESSION_FRAMES: 300, // Rolling buffer
   SOCKET_AUTH_TOKEN: process.env.SOCKET_AUTH_TOKEN ?? null,
+  HEALTH_MONITOR_SECRET: process.env.HEALTH_MONITOR_SECRET ?? null,
   PAYLOAD_LIMIT: "100kb",
 };

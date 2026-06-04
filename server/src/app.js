@@ -11,7 +11,12 @@ const cors = require("cors");
 const fs = require("fs");
 
 // ─── Config Imports ────────────────────────────────────────────────────────
-const { PORT, SESSIONS_DIR, SOCKET_AUTH_TOKEN } = require("./config/constants");
+const {
+  PORT,
+  SESSIONS_DIR,
+  SOCKET_AUTH_TOKEN,
+  HEALTH_MONITOR_SECRET,
+} = require("./config/constants");
 const { createCorsOptions } = require("./config/cors");
 
 // ─── Middleware Imports ────────────────────────────────────────────────────
@@ -64,7 +69,7 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 }
 
 // ─── Setup Routes & Socket Handlers ────────────────────────────────────────
-setupHealthRoute(app, sessions);
+setupHealthRoute(app, sessions, HEALTH_MONITOR_SECRET);
 setupSocketHandlers(io, sessions);
 
 // ─── Global Error Handler ─────────────────────────────────────────────────
