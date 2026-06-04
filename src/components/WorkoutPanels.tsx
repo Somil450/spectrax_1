@@ -76,3 +76,132 @@ export const SensePanel = ({ clipEngine, clipResult }: { clipEngine: any, clipRe
     </div>
   )
 );
+
+export const AngleDialPanel = ({
+  angle,
+  label,
+  min = 0,
+  max = 180,
+  statusColor,
+}: {
+  angle: number;
+  label: string;
+  min?: number;
+  max?: number;
+  statusColor: string;
+}) => {
+  const clampedAngle = Math.min(max, Math.max(min, angle || 0));
+  const p = (clampedAngle - min) / (max - min);
+  const totalArc = 188.49; // 270 degrees on r=40 circle
+  const filledArc = p * totalArc;
+  const needleRotation = -135 + p * 270;
+
+  return (
+    <div
+      className="glass workout-stat-card workout-dial-panel animate-in"
+      style={{
+        textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "12px 16px",
+        minWidth: "150px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.65rem",
+          color: "var(--text-dim)",
+          letterSpacing: "2px",
+          textTransform: "uppercase",
+          marginBottom: "8px",
+        }}
+      >
+        {label.toUpperCase()} DIAL
+      </div>
+      <div style={{ position: "relative", width: "120px", height: "120px" }}>
+        <svg
+          width="120"
+          height="120"
+          viewBox="0 0 120 120"
+          style={{ transform: "rotate(90deg)" }}
+        >
+          <defs>
+            <filter id="dial-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          {/* Background Track Circle */}
+          <circle
+            cx="60"
+            cy="60"
+            r="40"
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.05)"
+            strokeWidth="8"
+            strokeDasharray="188.49 251.32"
+            strokeLinecap="round"
+            style={{ transformOrigin: "60px 60px", transform: "rotate(45deg)" }}
+          />
+          {/* Active Arc Gauges */}
+          <circle
+            cx="60"
+            cy="60"
+            r="40"
+            fill="none"
+            stroke={statusColor}
+            strokeWidth="8"
+            strokeDasharray={`${filledArc} 251.32`}
+            strokeLinecap="round"
+            filter="url(#dial-glow)"
+            style={{
+              transformOrigin: "60px 60px",
+              transform: "rotate(45deg)",
+              transition: "stroke-dasharray 0.15s ease-out, stroke 0.3s ease",
+            }}
+          />
+          {/* Needle Indicator */}
+          <line
+            x1="60"
+            y1="60"
+            x2="60"
+            y2="28"
+            stroke="#fff"
+            strokeWidth="3"
+            strokeLinecap="round"
+            filter="url(#dial-glow)"
+            style={{
+              transformOrigin: "60px 60px",
+              transform: `rotate(${needleRotation}deg)`,
+              transition: "transform 0.15s ease-out",
+            }}
+          />
+          {/* Center Hub */}
+          <circle cx="60" cy="60" r="5" fill="#fff" filter="url(#dial-glow)" />
+        </svg>
+        {/* Numerical Readout Overlay in Center */}
+        <div
+          style={{
+            position: "absolute",
+            top: "62%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            color: "#fff",
+            fontFamily: "var(--font-heading)",
+            fontSize: "1.1rem",
+            fontWeight: 800,
+            textShadow: `0 0 10px ${statusColor}`,
+          }}
+        >
+          {Math.round(clampedAngle)}°
+        </div>
+      </div>
+    </div>
+  );
+};
+

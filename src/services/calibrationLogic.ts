@@ -11,6 +11,7 @@ export interface CalibrationResult {
   isReady: boolean;
   visibleCount: number;
   totalCount: number;
+  adaptiveFactor: number;
 }
 
 export class CalibrationLogic {
@@ -18,15 +19,17 @@ export class CalibrationLogic {
 
   /**
    * Processes current pose results and returns a calibration status.
+   * @param adaptiveFactor - Body-type calibration factor (0.9–1.1) from bodyTypeEngine, applied to thresholds.
    */
-  evaluate(results: Results): CalibrationResult {
+  evaluate(results: Results, adaptiveFactor: number = 1.0): CalibrationResult {
     if (!results.poseLandmarks) {
       return {
         status: 'red',
         message: 'No body detected. Step into frame.',
         isReady: false,
         visibleCount: 0,
-        totalCount: 8
+        totalCount: 8,
+        adaptiveFactor
       };
     }
 
@@ -44,7 +47,8 @@ export class CalibrationLogic {
         message: 'Step back. Full body must be visible.',
         isReady: false,
         visibleCount,
-        totalCount: requiredIndices.length
+        totalCount: requiredIndices.length,
+        adaptiveFactor
       };
     }
 
@@ -54,7 +58,8 @@ export class CalibrationLogic {
         message: 'Adjust position. Ankles or knees not clear.',
         isReady: false,
         visibleCount,
-        totalCount: requiredIndices.length
+        totalCount: requiredIndices.length,
+        adaptiveFactor
       };
     }
 
@@ -66,17 +71,19 @@ export class CalibrationLogic {
         message: 'Center your body in the frame.',
         isReady: false,
         visibleCount,
-        totalCount: requiredIndices.length
+        totalCount: requiredIndices.length,
+        adaptiveFactor
       };
     }
 
-    // High confidence + full body
+    // High confidence + full body — include the adaptive factor
     return {
       status: 'green',
       message: 'Good position. Calibration complete.',
       isReady: true,
       visibleCount,
-      totalCount: requiredIndices.length
+      totalCount: requiredIndices.length,
+      adaptiveFactor
     };
   }
 }

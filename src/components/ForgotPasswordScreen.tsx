@@ -36,18 +36,6 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
     }
   };
 
-  const safeRemoveItem = (key: string) => {
-    try {
-      localStorage.removeItem(key);
-    } catch (e) {
-
-      return;
-
-      // Ignored: Fallback if localStorage is disabled or not accessible
-
-    }
-  };
-
   // Load lockout state from localStorage when email changes
   useEffect(() => {
     if (!email) {
@@ -168,7 +156,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
         <div className="auth-header">
           <h1>Reset Password</h1>
           <p>
-            Enter your email address and we'll send you a link to reset your
+            Enter your email address and we&apos;ll send you a link to reset your
             password
           </p>
         </div>

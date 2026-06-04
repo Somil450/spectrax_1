@@ -1,19 +1,21 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState , useCallback } from 'react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
-import { Camera, AlertCircle, Dumbbell, Hand } from 'lucide-react';
+import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity } from 'lucide-react';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
+import { cameraService } from "../services/cameraService";
+import { poseService } from "../services/poseService";
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
   onSelectExercise: (key: string) => void;
   onNext: () => void;
   onBack: () => void;
-  onBodyTypeDetected: (type: BodyType) => void;
+  onBodyTypeDetected: (type: BodyType, factor: number) => void;
 }
 
 // ── Visually-hidden style (sr-only) ──────────────────────────────────────────
@@ -49,6 +51,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isReady: false,
     visibleCount: 0,
     totalCount: 8,
+    adaptiveFactor: 1.0,
   });
   const [error, setError] = useState<string | null>(null);
   const [bodyTypeRes, setBodyTypeRes] = useState<BodyTypeResult | null>(null);
@@ -76,19 +79,22 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
 
   const handleResults = useCallback((results: any) => {
-    const evaluation = calibrationLogic.evaluate(results);
-    setResult(evaluation);
+    let adaptiveFactor = 1.0;
     
     if (results.poseLandmarks) {
       const bt = bodyTypeEngine.analyze(results.poseLandmarks);
       setBodyTypeRes(bt);
+      adaptiveFactor = bt.adaptiveFactor;
       if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-        onBodyTypeDetected(bt.bodyType);
+        onBodyTypeDetected(bt.bodyType, bt.adaptiveFactor);
       }
 
       const gesture = gestureService.analyze(results.poseLandmarks);
       setGestureResult(gesture);
     }
+
+    const evaluation = calibrationLogic.evaluate(results, adaptiveFactor);
+    setResult(evaluation);
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
@@ -165,12 +171,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       setAnnouncement(`Starting in ${countdownSeconds}`);
     }
   }, [countdownSeconds, countdownActive]);
-  // ── Announce camera errors ─────────────────────────────────────────────────────
-  useEffect(() => {
-    if (error) {
-      setAnnouncement('Camera error. Please verify camera access and refresh the page.');
-    }
-  }, [error]);
+
+
 
 
   useEffect(() => {
@@ -232,9 +234,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
-      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress'],
-      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress'],
-      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress']
+      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress', 'chestPressPunches'],
+      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress', 'chestPressPunches'],
+      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress', 'chestPressPunches']
     };
     
     const order = orderMap[type] || [];
@@ -297,13 +299,139 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         
         {/* Header & Exercise Selector */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'all' }}>
-          <div className="calib-header">
-            <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
-              <Camera color="var(--neon-cyan)" size={24} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="calib-header">
+              <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
+                <Camera color="var(--neon-cyan)" size={24} />
+              </div>
+              <div>
+                <h2 className="calib-title">Camera Calibration</h2>
+                <p className="calib-subtitle">Step into frame and hold still</p>
+              </div>
             </div>
-            <div>
-              <h2 className="calib-title">Camera Calibration</h2>
-              <p className="calib-subtitle">Step into frame and hold still</p>
+
+            {/* Quick Start Panel */}
+            <div className="glass calib-onboarding-panel" style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
+              padding: '24px',
+              width: '320px',
+              border: '1px solid var(--glass-border)',
+              boxShadow: 'var(--glass-shadow)',
+              background: 'var(--glass-bg)',
+              pointerEvents: 'all'
+            }}>
+              {/* Header: QUICK START */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+                <Activity size={24} color="var(--neon-cyan)" />
+                <span style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '1.2rem',
+                  fontWeight: 800,
+                  letterSpacing: '2px',
+                  color: 'var(--neon-cyan)',
+                  textTransform: 'uppercase'
+                }}>
+                  ⚡ QUICK START
+                </span>
+              </div>
+
+              {/* Step 1: FULL BODY VISIBLE */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px' }}>
+                  <User size={32} color="var(--text-primary)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    FULL BODY VISIBLE
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: START */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <Hand size={32} color="var(--neon-green)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    START
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Raise both hands
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: PAUSE */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <Hand size={32} color="var(--neon-yellow)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    PAUSE
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Raise one hand
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4: STOP */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <StopCircle size={32} color="var(--neon-red)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    STOP
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Cross arms
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -525,6 +653,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         }
         .radar-ping.loading::after {
           animation: radar-pulse 1s infinite;
+        }
+        @media (max-width: 1024px) {
+          .calib-onboarding-panel {
+            display: none !important;
+          }
         }
       `}</style>
     </div>
