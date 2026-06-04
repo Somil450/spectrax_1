@@ -427,19 +427,27 @@ let onlineHandler: (() => void) | null = null;
 let offlineHandler: (() => void) | null = null;
 
 export function initializeAutoSync(userId: string): void {
-  cleanupAutoSync(); // remove existing before adding
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    navigator.serviceWorker.ready.then((reg) => {
+      return (reg as any).sync.register('workout-sync');
+    }).then(() => {
+      console.log('Background Sync registered successfully.');
+    }).catch((err) => {
+      console.error('Failed to register Background Sync:', err);
+    });
+  }
 
+  // Fallback to standard online/offline event handlers
   onlineHandler = async () => {
+    if (syncInProgress) return;
     try {
-      if (!syncInProgress) {
-        syncInProgress = true;
-        await fullSyncWorkouts(userId);
-        syncInProgress = false;
-      }
-    } catch (error) {
-      console.error("Auto-sync failed:", error);
-    } finally {
+      syncInProgress = true;
+      const syncedCount = await syncWorkoutsToFirestore(userId);
+      console.log(`Successfully synced ${syncedCount} workouts.`);
       syncInProgress = false;
+    } catch (err) {
+      syncInProgress = false;
+      console.error("Auto-sync failed:", err);
     }
   };
 
