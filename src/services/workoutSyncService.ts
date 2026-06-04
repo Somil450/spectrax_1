@@ -427,9 +427,13 @@ let onlineHandler: (() => void) | null = null;
 let offlineHandler: (() => void) | null = null;
 
 export function initializeAutoSync(userId: string): void {
+  cleanupAutoSync();
+
   if ('serviceWorker' in navigator && 'SyncManager' in window) {
     navigator.serviceWorker.ready.then((reg) => {
-      return (reg as any).sync.register('workout-sync');
+      if ('sync' in reg) {
+        return (reg as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('workout-sync');
+      }
     }).then(() => {
       console.log('Background Sync registered successfully.');
     }).catch((err) => {
@@ -444,10 +448,10 @@ export function initializeAutoSync(userId: string): void {
       syncInProgress = true;
       const syncedCount = await syncWorkoutsToFirestore(userId);
       console.log(`Successfully synced ${syncedCount} workouts.`);
-      syncInProgress = false;
     } catch (err) {
-      syncInProgress = false;
       console.error("Auto-sync failed:", err);
+    } finally {
+      syncInProgress = false;
     }
   };
 
