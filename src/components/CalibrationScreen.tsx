@@ -489,7 +489,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         className="animate-in"
                         style={{
                           position: 'absolute',
-                          right: '105%', // Pop out to the left
+                          right: 'calc(100% + 24px)', // Clear the panel's 16px padding + 8px gap
                           top: '50%',
                           transform: 'translateY(-50%)',
                           width: '240px', /* <--- INCREASED SIZE HERE */
