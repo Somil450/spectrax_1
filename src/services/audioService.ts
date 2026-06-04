@@ -1,19 +1,42 @@
 /**
  * Audio Service for Voice Feedback / Text to Speech (TTS)
  */
-export class AudioService {
-  private static synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
 
-  public static speak(text: string): void {
-    if (!this.synth) return;
+export interface SpeakOptions {
+  rate?: number;
+  pitch?: number;
+  interrupt?: boolean;
+  onError?: (error: any) => void;
+}
+
+export class AudioService {
+  public static speak(text: string, options: SpeakOptions = {}): boolean {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      return false;
+    }
+
+    const synth = window.speechSynthesis;
+    const { rate = 1.0, pitch = 1.0, interrupt = false, onError } = options;
+
     try {
-      this.synth.cancel();
+      if (interrupt) {
+        synth.cancel();
+      }
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      this.synth.speak(utterance);
+      utterance.rate = rate;
+      utterance.pitch = pitch;
+      
+      if (onError) {
+        utterance.onerror = (event) => onError(event);
+      }
+
+      synth.speak(utterance);
+      return true;
     } catch (error) {
-      console.error("Voice synthesis failed:", error);
+      if (onError) {
+        onError(error);
+      }
+      return false;
     }
   }
 }
