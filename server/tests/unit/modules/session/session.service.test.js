@@ -42,4 +42,45 @@ describe('session.service', () => {
     expect(saved.frameCount).toBe(1);
     expect(saved.frames).toEqual([{ timestamp: 1 }]);
   });
+
+  it('keeps finalize tracking isolated across service instances', async () => {
+    const socketId = 'socket-shared';
+    const sessionPathA = path.join(os.tmpdir(), `spectrax-session-a-${Date.now()}.json`);
+    const sessionPathB = path.join(os.tmpdir(), `spectrax-session-b-${Date.now()}.json`);
+
+    const storeA = createSessionStore();
+    const storeB = createSessionStore();
+    storeA.initializeSession(socketId);
+    storeB.initializeSession(socketId);
+    storeA.setSessionFrames(socketId, [{ timestamp: 1 }]);
+    storeB.setSessionFrames(socketId, [{ timestamp: 2 }]);
+
+    const serviceA = createSessionService({
+      sessionStore: storeA,
+      sessionPath: sessionPathA,
+      maxSessionFrames: 3,
+      logger: { info() {}, error() {} },
+    });
+    const serviceB = createSessionService({
+      sessionStore: storeB,
+      sessionPath: sessionPathB,
+      maxSessionFrames: 3,
+      logger: { info() {}, error() {} },
+    });
+
+    const framesA = await serviceA.finalizeSession(socketId);
+    const framesB = await serviceB.finalizeSession(socketId);
+
+    const savedA = JSON.parse(
+      fs.readFileSync(`${sessionPathA.replace(/\.json$/, '')}-${socketId}.json`, 'utf8'),
+    );
+    const savedB = JSON.parse(
+      fs.readFileSync(`${sessionPathB.replace(/\.json$/, '')}-${socketId}.json`, 'utf8'),
+    );
+
+    expect(framesA).toEqual([{ timestamp: 1 }]);
+    expect(framesB).toEqual([{ timestamp: 2 }]);
+    expect(savedA.frames).toEqual([{ timestamp: 1 }]);
+    expect(savedB.frames).toEqual([{ timestamp: 2 }]);
+  });
 });
