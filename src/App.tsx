@@ -25,8 +25,16 @@ import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
-import { FitnessCalculator } from "./components/FitnessCalculator";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+const WelcomeScreen = lazy(() => import("./components/WelcomeScreen").then(m => ({ default: m.WelcomeScreen })));
+const SummaryScreen = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
+const TrophyRoom = lazy(() => import("./components/TrophyRoom").then(m => ({ default: m.TrophyRoom })));
+const UserProfileScreen = lazy(() => import("./components/UserProfileScreen").then(m => ({ default: m.UserProfileScreen })));
+const HistoryPage = lazy(() => import("./HistoryPage"));
+const LoginScreen = lazy(() => import("./components/LoginScreen").then(m => ({ default: m.LoginScreen })));
+const SignUpScreen = lazy(() => import("./components/SignUpScreen").then(m => ({ default: m.SignUpScreen })));
+const ForgotPasswordScreen = lazy(() => import("./components/ForgotPasswordScreen").then(m => ({ default: m.ForgotPasswordScreen })));
+const FitnessCalculator = lazy(() => import("./components/FitnessCalculator").then(m => ({ default: m.FitnessCalculator })));
 
 const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
