@@ -6,18 +6,33 @@ export interface WorkoutStreakData {
 
 const STORAGE_KEY = "spectrax_workout_streak";
 
-export function getWorkoutStreak(): WorkoutStreakData {
-  const saved = localStorage.getItem(STORAGE_KEY);
+const DEFAULT_STREAK_DATA: WorkoutStreakData = {
+  currentStreak: 0,
+  longestStreak: 0,
+  lastWorkoutDate: null,
+};
 
-  if (!saved) {
-    return {
-      currentStreak: 0,
-      longestStreak: 0,
-      lastWorkoutDate: null,
-    };
+function safeWrite(data: WorkoutStreakData): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  return JSON.parse(saved);
+export function getWorkoutStreak(): WorkoutStreakData {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return { ...DEFAULT_STREAK_DATA };
+    const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== "object") {
+      return { ...DEFAULT_STREAK_DATA };
+    }
+    return { ...DEFAULT_STREAK_DATA, ...parsed };
+  } catch {
+    return { ...DEFAULT_STREAK_DATA };
+  }
 }
 
 export function updateWorkoutStreak(): WorkoutStreakData {
@@ -34,7 +49,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
       lastWorkoutDate: todayString,
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+    safeWrite(newData);
     return newData;
   }
 
@@ -83,7 +98,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
     lastWorkoutDate: todayString,
   };
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+  safeWrite(updatedData);
 
   return updatedData;
 }

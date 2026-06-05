@@ -1,9 +1,6 @@
-import { useState, useRef, useEffect, Suspense, useCallback } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { CalibrationScreen } from "./components/CalibrationScreen";
-import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
-import { ReplayScreen } from "./components/ReplayScreen";
 import { TrophyRoom } from "./components/TrophyRoom";
 import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
@@ -13,6 +10,7 @@ import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+import { GridSkeleton } from "./components/CardSkeleton";
 import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
@@ -28,8 +26,11 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { FitnessCalculator } from "./components/FitnessCalculator";
-import React from "react";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+
+const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
+const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
+const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 
 type Screen =
   | "welcome"
@@ -111,6 +112,7 @@ function App() {
     exercises.squat,
   );
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
+  const [adaptiveFactor, setAdaptiveFactor] = useState<number>(1.0);
   const [showExitModal, setShowExitModal] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
@@ -123,6 +125,39 @@ function App() {
     mistakes: {},
     bestStreak: 0,
   });
+  const [pendingRecovery, setPendingRecovery] = useState<{ stats: WorkoutStats; exerciseKey: string } | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const cacheKey = `spectrax_telemetry_snapshot_${user.uid}`;
+    const rawCache = localStorage.getItem(cacheKey);
+    if (rawCache) {
+      try {
+        const parsed = JSON.parse(rawCache);
+        if (parsed && parsed.stats && parsed.stats.totalReps > 0) {
+          setPendingRecovery(parsed);
+        }
+      } catch (e) {
+        console.error("Failed parsing telemetry cache:", e);
+      }
+    }
+  }, [user?.uid, currentScreen]);
+
+  const handleApplyRecovery = () => {
+    if (!pendingRecovery) return;
+    setStats(pendingRecovery.stats);
+    if (exercises[pendingRecovery.exerciseKey]) {
+      setSelectedExercise(exercises[pendingRecovery.exerciseKey]);
+    }
+    setPendingRecovery(null);
+    navigateTo("summary");
+  };
+
+  const handleDiscardRecovery = () => {
+    if (!user?.uid) return;
+    localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+    setPendingRecovery(null);
+  };
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
   const { addWorkout } = useWorkoutSync();
@@ -137,7 +172,7 @@ function App() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
+    onRegistered() {
     },
     onRegisterError(error) {
       console.error("SW registration error", error);
@@ -181,6 +216,9 @@ function App() {
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
     setStatsLoading(true);
+    if (user?.uid) {
+      localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+    }
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
     const calorieResult = estimateCalories({
       exerciseName: selectedExercise.name,
@@ -332,23 +370,20 @@ function App() {
           onViewProfile={user ? () => navigateTo("profile") : undefined}
           onViewFitnessCalculator={() => navigateTo("fitness")}
           leveling={leveling}
+          pendingRecovery={pendingRecovery}
+          onApplyRecovery={handleApplyRecovery}
+          onDiscardRecovery={handleDiscardRecovery}
         />
       )}
 
-      <Suspense
-        fallback={
-          <div className="loading-container">
-            <div className="spinner" />
-          </div>
-        }
-      >
+      <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
           <CalibrationScreen
             selectedExercise={selectedExercise}
             onSelectExercise={handleSelectExercise}
             onNext={() => navigateTo("workout")}
             onBack={() => setShowExitModal(true)}
-            onBodyTypeDetected={setBodyType}
+            onBodyTypeDetected={(type, factor) => { setBodyType(type); setAdaptiveFactor(factor); }}
           />
         )}
 
@@ -358,6 +393,14 @@ function App() {
             onEnd={handleWorkoutEnd}
             onAutoDetect={handleAutoDetect}
             bodyType={bodyType}
+            onSnapshotUpdate={(liveStats: any) => {
+              if (!user?.uid) return;
+              const fullStats = { ...liveStats, exerciseName: selectedExercise.name };
+              localStorage.setItem(
+                `spectrax_telemetry_snapshot_${user.uid}`,
+                JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
+              );
+            }}
           />
         )}
 
@@ -484,28 +527,33 @@ function App() {
                 Stay
               </button>
 
-              <button
-                onClick={() => {
-                  setShowExitModal(false);
-                  navigateTo("welcome");
-                }}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: "10px",
-                  border: "none",
-                  cursor: "pointer",
-                  background: "#ff4d4f",
-                  color: "white",
-                }}
-              >
-                Exit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <button
+          onClick={() => {
+            setShowExitModal(false);
+            if (user?.uid) {
+              localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+            }
+            navigateTo('welcome');
+          }}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer',
+            background: '#ff4d4f',
+            color: 'white'
+          }}
+        >
+          Exit
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }
 
 export default App;
+
+// TODO: Consider adding more comprehensive JSDoc comments

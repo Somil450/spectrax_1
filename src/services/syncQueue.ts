@@ -3,8 +3,7 @@
  * Handles syncing offline-queued replay sessions to the backend.
  */
 
-import { getQueue, removeFromQueue } from "../utils/offlineQueue";
-import type { ReplaySession } from "../utils/offlineQueue";
+import { getQueue, removeFromQueue, type ReplaySession } from "../utils/offlineQueue";
 import { getAuth } from "firebase/auth";
 import {
   getFirestore,

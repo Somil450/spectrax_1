@@ -3,7 +3,7 @@ import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Git
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme } from '../context/ThemeContext';
 import { debounce } from "../utils/debounce";
 
 const STATS = [
@@ -24,6 +24,9 @@ interface WelcomeScreenProps {
     progress: number;
     nextLevelXp: number;
   };
+  pendingRecovery?: { stats: any; exerciseKey: string } | null;
+  onApplyRecovery?: () => void;
+  onDiscardRecovery?: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
@@ -32,6 +35,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewTrophies,
   onViewProfile,
   leveling,
+  pendingRecovery,
+  onApplyRecovery,
+  onDiscardRecovery,
 }) => {
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
