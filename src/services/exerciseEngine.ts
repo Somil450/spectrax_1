@@ -268,6 +268,10 @@ export class ExerciseEngine {
   private kinematicEngine = new KinematicEngine();
   private readonly MIN_DOWN_DURATION = 150;
 
+  public reset(): void {
+    this.kinematicEngine.reset();
+  }
+
   private repParams(key: string): RepParams {
     return {
       repCooldown: this.BASE_REP_COOLDOWN,
