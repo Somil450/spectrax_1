@@ -587,7 +587,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
              </div>
 
              {/* Total Reps Lifetime Stats - Small Section */}
-             <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+             <div style={{ marginTop: '20px', paddingTop: '16px', paddingBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {Object.values(exercises).map(ex => {
@@ -622,7 +622,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
             </div>
           ) : (
             <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
-               <p style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44` }}>
+               <p className="pb-4" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44`, paddingBottom: '16px' }}>
                 {result.message.toUpperCase()}
                </p>
                <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
@@ -688,7 +688,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                     hidden live region at the top of the JSX, which covers ALL states
                     (calibrating, ready, pose lost, countdown, error) — not just this one.
                   */}
-                  <div style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem' }}>
+                  <div className="pb-4" style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem', paddingBottom: '16px' }}>
                     {result.message}
                   </div>
               </div>

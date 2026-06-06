@@ -1100,12 +1100,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             </span>
           </div>
           <p
+            className="pb-4"
             style={{
               fontFamily: "var(--font-heading)",
               fontSize: "1.8rem",
               color: "#fff",
               letterSpacing: "2px",
               margin: "10px 0",
+              paddingBottom: "16px",
             }}
             aria-live="assertive"
             aria-atomic="true"
