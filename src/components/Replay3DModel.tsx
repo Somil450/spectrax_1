@@ -690,6 +690,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
 
+  // ─ Export state ─
+  type ExportStatus = "idle" | "recording" | "unsupported";
+  const [exportStatus, setExportStatus] = useState<ExportStatus>(
+    typeof MediaRecorder !== "undefined" ? "idle" : "unsupported",
+  );
+  const [exportProgress, setExportProgress] = useState(0); // 0-100
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
   // ─ Graphic state ─
   const [graphicsPreset, setGraphicsPreset] = useState<GraphicsPreset>("high");
   const [autoAdapt, setAutoAdapt] = useState(true);
@@ -786,6 +794,81 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const lastTimeRef        = useRef<number>(0);
   const recoveryTimeoutRef = useRef<number | null>(null);
   const rendererPipelineCleanupRef = useRef<(() => void) | null>(null);
+
+  /**
+   * Capture 5 seconds of the WebGL canvas using the MediaRecorder API
+   * and trigger an automatic browser download of the resulting WebM file.
+   */
+  const exportHighlight = useCallback(() => {
+    const renderer = rendererRef.current;
+    if (!renderer || exportStatus === "recording") return;
+
+    const canvas = renderer.domElement;
+    let stream: MediaStream;
+    try {
+      // captureStream is available in all modern browsers that support MediaRecorder
+      stream = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
+    } catch {
+      setExportStatus("unsupported");
+      return;
+    }
+
+    // Pick the best supported MIME type
+    const mimeType = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+    ].find((m) => MediaRecorder.isTypeSupported(m)) ?? "video/webm";
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5_000_000 });
+    } catch {
+      setExportStatus("unsupported");
+      return;
+    }
+    mediaRecorderRef.current = recorder;
+
+    const DURATION_MS = 5000;
+    const chunks: Blob[] = [];
+    let startTime = 0;
+    let rafId = 0;
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      cancelAnimationFrame(rafId);
+      const blob = new Blob(chunks, { type: mimeType });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `spectrax-highlight-${Date.now()}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportStatus("idle");
+      setExportProgress(0);
+      mediaRecorderRef.current = null;
+    };
+
+    recorder.start(100); // collect in 100 ms chunks
+    setExportStatus("recording");
+    setExportProgress(0);
+    startTime = performance.now();
+
+    const tick = () => {
+      const elapsed = performance.now() - startTime;
+      const pct = Math.min(100, Math.round((elapsed / DURATION_MS) * 100));
+      setExportProgress(pct);
+      if (elapsed >= DURATION_MS) {
+        recorder.stop();
+      } else {
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+    rafId = requestAnimationFrame(tick);
+  }, [exportStatus]);
 
 
 
@@ -2223,6 +2306,72 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           <span style={{ color: "#aaa", fontSize: "0.85rem", minWidth: "80px", textAlign: "right" }}>
             {currentFrameIdx} / {frames.length - 1}
           </span>
+
+          {/* ── Export Highlight Button ── */}
+          <button
+            onClick={exportHighlight}
+            disabled={exportStatus !== "idle"}
+            title={
+              exportStatus === "unsupported"
+                ? "Your browser does not support canvas recording"
+                : exportStatus === "recording"
+                ? `Recording… ${exportProgress}%`
+                : "Export a 5-second highlight as WebM video"
+            }
+            style={{
+              padding: "8px 14px",
+              background:
+                exportStatus === "recording"
+                  ? "rgba(0,255,204,0.15)"
+                  : exportStatus === "unsupported"
+                  ? "rgba(80,80,80,0.4)"
+                  : "rgba(0,255,204,0.12)",
+              color:
+                exportStatus === "unsupported" ? "#555" : "#00ffcc",
+              border: `1px solid ${
+                exportStatus === "unsupported" ? "#444" : "#00ffcc"
+              }`,
+              borderRadius: "4px",
+              cursor:
+                exportStatus === "idle" ? "pointer" : "not-allowed",
+              fontWeight: "bold",
+              fontSize: "0.78rem",
+              letterSpacing: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              whiteSpace: "nowrap",
+              transition: "all 0.2s",
+              flexShrink: 0,
+            }}
+          >
+            {exportStatus === "recording" ? (
+              <>
+                {/* Pulsing record dot */}
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: "#ff4444",
+                    animation: "replay-rec-pulse 0.8s ease-in-out infinite",
+                  }}
+                />
+                {exportProgress}%
+              </>
+            ) : exportStatus === "unsupported" ? (
+              "⚠ Not Supported"
+            ) : (
+              "⬇ Export Highlight"
+            )}
+          </button>
+          <style>{`
+            @keyframes replay-rec-pulse {
+              0%, 100% { opacity: 1; transform: scale(1); }
+              50%       { opacity: 0.3; transform: scale(0.7); }
+            }
+          `}</style>
         </div>
       )}
     </div>
