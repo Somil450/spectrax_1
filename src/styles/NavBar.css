@@ -1,0 +1,17 @@
+.spectrax-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.nav-brand { display: inline-flex; gap: 8px; align-items: center; font-family: var(--font-heading); font-weight:700; color: var(--text-primary); cursor: pointer }
+.nav-center { display:flex; gap:10px; align-items:center }
+.nav-item { padding:8px 12px; border-radius:10px; cursor:pointer }
+.nav-label { margin-left:6px; font-weight:700 }
+
+@media (max-width:820px) { .nav-center { display:none } }
