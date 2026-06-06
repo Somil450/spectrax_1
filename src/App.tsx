@@ -401,6 +401,12 @@ function App() {
                 JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
               );
             }}
+            onCancel={() => {
+              if (user?.uid) {
+                localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+              }
+              navigateTo("welcome", true);
+            }}
           />
         )}
 
