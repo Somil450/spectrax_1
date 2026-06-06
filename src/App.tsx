@@ -27,6 +27,7 @@ import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { FitnessCalculator } from "./components/FitnessCalculator";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+import NavBar from "./components/NavBar";
 
 const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
@@ -329,6 +330,7 @@ function App() {
     >
       {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
+      <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <div
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
