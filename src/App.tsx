@@ -40,6 +40,8 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
+  | "about"
+  | "contact"
   | "login"
   | "signup"
   | "forgot-password"
@@ -50,7 +52,7 @@ type Screen =
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -62,6 +64,8 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   trophy: ["welcome", "login"],
   profile: ["welcome", "login"],
   fitness: ["welcome"],
+  about: ["welcome"],
+  contact: ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -403,6 +407,12 @@ function App() {
                 JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
               );
             }}
+            onCancel={() => {
+              if (user?.uid) {
+                localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+              }
+              navigateTo("welcome", true);
+            }}
           />
         )}
 
@@ -442,6 +452,14 @@ function App() {
           <FitnessCalculator onBack={() => navigateTo("welcome")} />
         )}
       </Suspense>
+
+      {currentScreen === "about" && (
+        <About />
+      )}
+
+      {currentScreen === "contact" && (
+        <Contact />
+      )}
 
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}

@@ -25,6 +25,7 @@ import { FpsMonitor } from './FpsMonitor';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
+import { gestureService, type GestureCommand } from "../services/gestureService";
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -51,6 +52,7 @@ interface WorkoutScreenProps {
   bodyType?: BodyType;
   adaptiveFactor?: number;
   onSnapshotUpdate?: (liveStats: any) => void;
+  onCancel?: () => void;
 }
 
 type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial";
@@ -158,7 +160,7 @@ const extrapolateLandmarks = (
   });
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, onCancel }) => {
   const bodyTypeRef = useRef(bodyType);
   bodyTypeRef.current = bodyType;
   const onAutoDetectRef = useRef(onAutoDetect);
@@ -870,11 +872,33 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           zIndex: 10,
           display: "flex",
           justifyContent: "space-between",
+          alignItems: "flex-start",
           padding: "30px",
           pointerEvents: "none",
         }}
       >
-        <div className="glass animate-in" style={{ padding: "16px 24px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", pointerEvents: "auto" }}>
+          <button
+            onClick={() => onCancel && onCancel()}
+            className="btn-neon"
+            aria-label="Exit Workout"
+            style={{
+              padding: "8px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "0.85rem",
+              background: "rgba(0, 240, 255, 0.1)",
+              border: "1px solid rgba(0, 240, 255, 0.3)",
+              color: "var(--neon-cyan)",
+              width: "fit-content",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            EXIT
+          </button>
+          
+          <div className="glass animate-in" style={{ padding: "16px 24px", pointerEvents: "none" }}>
           <div
             style={{
               fontSize: "0.65rem",
@@ -911,6 +935,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               </span>
             )}
           </div>
+        </div>
         </div>
 
         <div
@@ -1075,12 +1100,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             </span>
           </div>
           <p
+            className="pb-4"
             style={{
               fontFamily: "var(--font-heading)",
               fontSize: "1.8rem",
               color: "#fff",
               letterSpacing: "2px",
               margin: "10px 0",
+              paddingBottom: "16px",
             }}
             aria-live="assertive"
             aria-atomic="true"
