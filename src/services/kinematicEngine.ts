@@ -101,6 +101,17 @@ export class KinematicEngine {
       this.currentConcentricVelocities = [];
   }
 
+  public reset(): void {
+    this.previousY = 0;
+    this.previousTime = 0;
+    this.currentPhase = "isometric";
+    this.currentConcentricVelocities = [];
+    this.baselineVelocities = [];
+    this.sessionPeakVelocities = [];
+    this.emaVelocity = 0;
+    this.boundingBoxHeight = 1;
+  }
+
   public getMetrics(): VBTMetrics {
       const baseline = this.baselineVelocities.length > 0 
           ? this.baselineVelocities.reduce((a, b) => a + b, 0) / this.baselineVelocities.length 
