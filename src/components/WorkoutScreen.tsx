@@ -1,51 +1,31 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Draggable, {
-  type DraggableData,
-  type DraggableEvent,
-} from "react-draggable";
-import {
-  Activity,
-  StopCircle,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Lock,
-  Unlock,
-} from "lucide-react";
+import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
+import { useCameraPose } from '../hooks/useCameraPose';
+import { overlayRenderer } from '../services/overlayRenderer';
+import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { getPostureErrorCategories } from '../engine/feedbackEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { ExerciseConfig } from '../config/exercises';
+import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
+import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
+import { poseLockService } from '../services/poseLockService';
+import { clipEngine } from '../services/clipEngine';
+import { BodyType } from '../services/bodyTypeEngine';
+import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
+import { useWorkoutSync } from '../hooks/useWorkoutSync';
+import { useDisplayConfig } from '../hooks/useDisplayConfig';
+import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
+import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel } from './WorkoutPanels';
+import { ghostService } from '../services/ghostService';
+import type { GhostStats } from '../services/ghostService';
+import { useThrottleLevel } from '../services/performanceThrottleService';
+import { FpsMonitor } from './FpsMonitor';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { cameraService } from "../services/cameraService";
 import { poseService } from "../services/poseService";
-import { overlayRenderer } from "../services/overlayRenderer";
-import { getJointAngles, getJointVisibility } from "../services/angleUtils";
-import { getPostureErrorCategories } from "../engine/feedbackEngine";
-import { exerciseEngine, EngineState } from "../services/exerciseEngine";
-import { ExerciseConfig } from "../config/exercises";
-import { sessionRecorder } from "../services/sessionRecorder";
-import type { FrameData } from "../services/sessionRecorder";
-import { skeletalSense } from "../services/skeletalSense";
-import { poseLockService } from "../services/poseLockService";
-import { clipEngine } from "../services/clipEngine";
-import { BodyType } from "../services/bodyTypeEngine";
-import { useWorkoutSync } from "../hooks/useWorkoutSync";
-import { useDisplayConfig } from "../hooks/useDisplayConfig";
-import { useCameraPose } from "../hooks/useCameraPose";
-import {
-  useThrottleLevel,
-  throttleMonitor,
-} from "../services/performanceThrottleService";
-import {
-  FocusPanel,
-  TimerPanel,
-  RepsPanel,
-  EnginePanel,
-  SensePanel,
-} from "./WorkoutPanels";
-import { CameraErrorBoundary } from "./CameraErrorBoundary";
-import FpsOverlay from "./FpsOverlay";
-import { useFpsCounter } from "../hooks/useFpsCounter";
-import { Replay3DModel } from "./Replay3DModel";
-import { ghostService, GhostStats } from "../services/ghostService";
-import { gestureService, GestureCommand } from "../services/gestureService";
-import { initialSquatDepthStats } from "../services/Squat_depth_classifier";
-import { FpsMonitor } from "./FpsMonitor";
+import { gestureService, type GestureCommand } from "../services/gestureService";
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -70,9 +50,12 @@ interface WorkoutScreenProps {
   }) => void;
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
+  adaptiveFactor?: number;
+  onSnapshotUpdate?: (liveStats: any) => void;
+  onCancel?: () => void;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial";
 
 type PanelPosition = {
   x: number;
@@ -97,6 +80,7 @@ const getDefaultPanelPositions = (): PanelPositions => {
     reps: { x: Math.max(width / 2 - 110, 30), y: Math.max(height - 250, 30) },
     engine: { x: 40, y: Math.max(height - 110, 30) },
     sense: { x: 280, y: Math.max(height - 110, 30) },
+    dial: { x: Math.max(width - 230, 30), y: 150 },
   };
 };
 
@@ -176,7 +160,7 @@ const extrapolateLandmarks = (
   });
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, onCancel }) => {
   const bodyTypeRef = useRef(bodyType);
   bodyTypeRef.current = bodyType;
   const onAutoDetectRef = useRef(onAutoDetect);
@@ -192,12 +176,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       timer: React.createRef<HTMLDivElement>(),
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
-      sense: React.createRef<HTMLDivElement>()
+      sense: React.createRef<HTMLDivElement>(),
+      dial: React.createRef<HTMLDivElement>()
     };
   }
 
   const panelRefsById = panelRefs.current;
   const [panelsLocked, setPanelsLocked] = useState(true);
+  const [currentAngle, setCurrentAngle] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
   const [showExitModal, setShowExitModal] = useState(false);
@@ -206,7 +192,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
-  const throttleLevel = useThrottleLevel();
   const srOnly: React.CSSProperties = {
     position: 'absolute',
     width: '1px',
@@ -380,13 +365,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
 
   const workerAnglesRef = useRef<Record<string, number>>({});
-  const wsSocketRef = useRef<WebSocket | null>(null);
+  const wsSocketRef = useWorkoutWebSocket();
   const offscreenEnabledRef = useRef<boolean>(false);
+  const { initOffscreenCanvas } = useOffscreenCanvas();
 
   const handlePoseResults = useCallback(async (results: any) => {
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
     const filteredResults = poseLockService.filter(results);
     if (!filteredResults || !filteredResults.poseLandmarks) return;
+
+    // Calculate primary joint angle on every frame for real-time dial updates
+    const currentFrameAngles = getJointAngles(results.poseLandmarks);
+    const primaryJoint = exercise.primaryJoint || 'knee';
+    setCurrentAngle(currentFrameAngles[primaryJoint] || 0);
 
     // ── GESTURE COMMAND PARSING ─────────────────────────────────────────────
     const gestureResult = gestureService.analyze(results.poseLandmarks);
@@ -459,7 +450,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               ? "jumpingJack"
               : label.includes("bicep curl")
                 ? "bicepCurl"
-                : "";
+                : label.includes("chest press")
+                  ? "chestPressPunches"
+                  : "";
 
       if (
         detectedKey &&
@@ -571,6 +564,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   useEffect(() => {
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
+    exerciseEngine.reset();
 
     // Load Ghost Data
     const ghostData = ghostService.loadGhost(exercise.key);
@@ -583,46 +577,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       ghostStatsRef.current = null;
       setHasGhost(false);
     }
-
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
 
-    // Worker posts back computed angles — exercise detection stays on main thread
-    worker.onmessage = (evt: MessageEvent) => {
-      const { angles } = evt.data;
-      workerAnglesRef.current = angles;
-    };
-
-    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
-    let wsSocket: WebSocket | null = null;
-    try {
-      const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
-      if (!rawBackendUrl) {
-        console.warn(
-          "[SpectraX] VITE_BACKEND_URL is not set. " +
-          "Falling back to http://localhost:3001. " +
-          "Set VITE_BACKEND_URL in .env.local for non-local deployments " +
-          "(see .env.example for the expected format).",
-        );
+    worker.onmessage = (event: MessageEvent) => {
+      const { angles } = event.data;
+      if (angles) {
+        workerAnglesRef.current = angles;
       }
-      const backendUrl = (rawBackendUrl ?? "http://localhost:3001").replace(/\/+$/, "");
-      const wsUrl = backendUrl.replace(/^http/, "ws") + "/socket.io/?EIO=4&transport=websocket";
-      wsSocket = new WebSocket(wsUrl);
-      wsSocketRef.current = wsSocket;
-      wsSocket.onopen = () => console.log("[SpectraX WS] connected to backend at", backendUrl);
-      wsSocket.onerror = () => {
-        console.warn(
-          "[SpectraX WS] Could not connect to backend at",
-          wsUrl,
-          "— live backend features will be unavailable. " +
-          "Check that the server is running and that VITE_BACKEND_URL is correct in .env.local.",
-        );
-        wsSocketRef.current = null;
-      };
-    } catch (_) {
-      wsSocketRef.current = null;
-    }
+    };
 
     
   
@@ -631,30 +595,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
       try {
         const canvasEl = canvasRef.current as any;
-        if (canvasEl.__offscreenTransferred) {
-          offscreenEnabledRef.current = true;
-          console.log("[WorkoutScreen] Canvas already has Offscreen control transferred.");
-        } else {
-          const isOffscreenSupported = !!canvasEl.transferControlToOffscreen;
-          offscreenEnabledRef.current = false;
-
-          if (isOffscreenSupported) {
-            try {
-              const offscreen = canvasEl.transferControlToOffscreen();
-              worker.postMessage({ type: "initCanvas", canvas: offscreen }, [
-                offscreen,
-              ]);
-              offscreenEnabledRef.current = true;
-              canvasEl.__offscreenTransferred = true;
-              console.log("[WorkoutScreen] OffscreenCanvas enabled.");
-            } catch (e) {
-              console.warn(
-                "[WorkoutScreen] Failed to transfer canvas control:",
-                e,
-              );
-            }
-          }
-        }
+        initOffscreenCanvas(canvasEl, worker);
 
         const ctx = !offscreenEnabledRef.current
           ? canvasRef.current.getContext("2d")
@@ -686,15 +627,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       isMountedRef.current = false;
       stopSystem();
       worker.terminate();
-      if (wsSocketRef.current) {
-        try {
-          wsSocketRef.current.close();
-        } catch (err) {
-          console.warn("WS close failed:", err);
-        }
-      }
       clearInterval(timerRef);
       gestureService.reset();
+      exerciseEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
   }, [exercise, startSystem, stopSystem]);
@@ -942,11 +877,33 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           zIndex: 10,
           display: "flex",
           justifyContent: "space-between",
+          alignItems: "flex-start",
           padding: "30px",
           pointerEvents: "none",
         }}
       >
-        <div className="glass animate-in" style={{ padding: "16px 24px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", pointerEvents: "auto" }}>
+          <button
+            onClick={() => onCancel && onCancel()}
+            className="btn-neon"
+            aria-label="Exit Workout"
+            style={{
+              padding: "8px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "0.85rem",
+              background: "rgba(0, 240, 255, 0.1)",
+              border: "1px solid rgba(0, 240, 255, 0.3)",
+              color: "var(--neon-cyan)",
+              width: "fit-content",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            EXIT
+          </button>
+          
+          <div className="glass animate-in" style={{ padding: "16px 24px", pointerEvents: "none" }}>
           <div
             style={{
               fontSize: "0.65rem",
@@ -983,6 +940,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               </span>
             )}
           </div>
+        </div>
         </div>
 
         <div
@@ -1058,6 +1016,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
         {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
+        {renderDraggablePanel('dial', '', <AngleDialPanel angle={currentAngle} label={exercise.primaryJoint} statusColor={statusColor} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
@@ -1146,12 +1105,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             </span>
           </div>
           <p
+            className="pb-4"
             style={{
               fontFamily: "var(--font-heading)",
               fontSize: "1.8rem",
               color: "#fff",
               letterSpacing: "2px",
               margin: "10px 0",
+              paddingBottom: "16px",
             }}
             aria-live="assertive"
             aria-atomic="true"

@@ -44,7 +44,7 @@ describe('streakUtils', () => {
       expect(data).toEqual({
         currentStreak: 1,
         longestStreak: 1,
-        lastWorkoutDate: new Date('2024-01-01T12:00:00Z').toISOString().split('T')[0],
+        lastWorkoutDate: new Date('2024-01-01T12:00:00Z').toDateString(),
       });
       expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual(data);
     });
@@ -59,7 +59,7 @@ describe('streakUtils', () => {
       const data = updateWorkoutStreak();
 
       expect(data.currentStreak).toBe(1);
-      expect(data.lastWorkoutDate).toBe(initialDate.toISOString().split('T')[0]);
+      expect(data.lastWorkoutDate).toBe(initialDate.toDateString());
     });
 
     it('should increment streak if working out on the next consecutive day', () => {
@@ -73,7 +73,7 @@ describe('streakUtils', () => {
 
       expect(data.currentStreak).toBe(2);
       expect(data.longestStreak).toBe(2);
-      expect(data.lastWorkoutDate).toBe(new Date('2024-01-02T12:00:00Z').toISOString().split('T')[0]);
+      expect(data.lastWorkoutDate).toBe(new Date('2024-01-02T12:00:00Z').toDateString());
     });
 
     it('should reset streak if a day is skipped', () => {
@@ -91,7 +91,60 @@ describe('streakUtils', () => {
 
       expect(data.currentStreak).toBe(1);
       expect(data.longestStreak).toBe(2); // Retains longest streak
-      expect(data.lastWorkoutDate).toBe(new Date('2024-01-04T12:00:00Z').toISOString().split('T')[0]);
+      expect(data.lastWorkoutDate).toBe(new Date('2024-01-04T12:00:00Z').toDateString());
+    });
+  });
+
+  describe('storage failure handling', () => {
+    it('returns defaults when localStorage contains corrupt JSON', () => {
+      localStorage.setItem(STORAGE_KEY, '{not valid json');
+      const data = getWorkoutStreak();
+      expect(data).toEqual({
+        currentStreak: 0,
+        longestStreak: 0,
+        lastWorkoutDate: null,
+      });
+    });
+
+    it('returns defaults when the parsed value is not an object', () => {
+      localStorage.setItem(STORAGE_KEY, '42');
+      const data = getWorkoutStreak();
+      expect(data).toEqual({
+        currentStreak: 0,
+        longestStreak: 0,
+        lastWorkoutDate: null,
+      });
+    });
+
+    it('returns defaults when localStorage.getItem itself throws', () => {
+      const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('storage disabled');
+      });
+      try {
+        const data = getWorkoutStreak();
+        expect(data).toEqual({
+          currentStreak: 0,
+          longestStreak: 0,
+          lastWorkoutDate: null,
+        });
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('does not throw when localStorage.setItem throws (Safari private mode)', () => {
+      vi.setSystemTime(new Date('2024-01-01T12:00:00Z'));
+      const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+      try {
+        expect(() => updateWorkoutStreak()).not.toThrow();
+        const data = updateWorkoutStreak();
+        expect(data.currentStreak).toBe(1);
+        expect(data.lastWorkoutDate).toBe(new Date('2024-01-01T12:00:00Z').toDateString());
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 });

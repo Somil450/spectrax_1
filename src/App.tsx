@@ -1,9 +1,6 @@
-import { useState, useRef, useEffect, Suspense, useCallback } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { CalibrationScreen } from "./components/CalibrationScreen";
-import { WorkoutScreen } from "./components/WorkoutScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
-import { ReplayScreen } from "./components/ReplayScreen";
 import { TrophyRoom } from "./components/TrophyRoom";
 import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
@@ -13,12 +10,15 @@ import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
+import { GridSkeleton } from "./components/CardSkeleton";
 import { useAuth } from "./context/AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { SignUpScreen } from "./components/SignUpScreen";
 import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
+import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
+import PrivacyPage from "./pages/PrivacyPage";
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
@@ -26,9 +26,20 @@ import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
-import { FitnessCalculator } from "./components/FitnessCalculator";
-import React from "react";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+const WelcomeScreen = lazy(() => import("./components/WelcomeScreen").then(m => ({ default: m.WelcomeScreen })));
+const SummaryScreen = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
+const TrophyRoom = lazy(() => import("./components/TrophyRoom").then(m => ({ default: m.TrophyRoom })));
+const UserProfileScreen = lazy(() => import("./components/UserProfileScreen").then(m => ({ default: m.UserProfileScreen })));
+const HistoryPage = lazy(() => import("./HistoryPage"));
+const LoginScreen = lazy(() => import("./components/LoginScreen").then(m => ({ default: m.LoginScreen })));
+const SignUpScreen = lazy(() => import("./components/SignUpScreen").then(m => ({ default: m.SignUpScreen })));
+const ForgotPasswordScreen = lazy(() => import("./components/ForgotPasswordScreen").then(m => ({ default: m.ForgotPasswordScreen })));
+const FitnessCalculator = lazy(() => import("./components/FitnessCalculator").then(m => ({ default: m.FitnessCalculator })));
+
+const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
+const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
+const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 
 type Screen =
   | "welcome"
@@ -37,6 +48,8 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
+  | "about"
+  | "contact"
   | "login"
   | "signup"
   | "forgot-password"
@@ -47,7 +60,7 @@ type Screen =
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -59,6 +72,8 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   trophy: ["welcome", "login"],
   profile: ["welcome", "login"],
   fitness: ["welcome"],
+  about: ["welcome"],
+  contact: ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -110,6 +125,7 @@ function App() {
     exercises.squat,
   );
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
+  const [adaptiveFactor, setAdaptiveFactor] = useState<number>(1.0);
   const [showExitModal, setShowExitModal] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
@@ -122,6 +138,39 @@ function App() {
     mistakes: {},
     bestStreak: 0,
   });
+  const [pendingRecovery, setPendingRecovery] = useState<{ stats: WorkoutStats; exerciseKey: string } | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const cacheKey = `spectrax_telemetry_snapshot_${user.uid}`;
+    const rawCache = localStorage.getItem(cacheKey);
+    if (rawCache) {
+      try {
+        const parsed = JSON.parse(rawCache);
+        if (parsed && parsed.stats && parsed.stats.totalReps > 0) {
+          setPendingRecovery(parsed);
+        }
+      } catch (e) {
+        console.error("Failed parsing telemetry cache:", e);
+      }
+    }
+  }, [user?.uid, currentScreen]);
+
+  const handleApplyRecovery = () => {
+    if (!pendingRecovery) return;
+    setStats(pendingRecovery.stats);
+    if (exercises[pendingRecovery.exerciseKey]) {
+      setSelectedExercise(exercises[pendingRecovery.exerciseKey]);
+    }
+    setPendingRecovery(null);
+    navigateTo("summary");
+  };
+
+  const handleDiscardRecovery = () => {
+    if (!user?.uid) return;
+    localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+    setPendingRecovery(null);
+  };
 
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
   const { addWorkout } = useWorkoutSync();
@@ -136,7 +185,7 @@ function App() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
+    onRegistered() {
     },
     onRegisterError(error) {
       console.error("SW registration error", error);
@@ -180,6 +229,9 @@ function App() {
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
     setStatsLoading(true);
+    if (user?.uid) {
+      localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+    }
     const gainedXp = leveling.addXpFromReps(finalStats.reps);
     const calorieResult = estimateCalories({
       exerciseName: selectedExercise.name,
@@ -290,6 +342,7 @@ function App() {
     >
       {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
+      <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <div
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
@@ -331,49 +384,62 @@ function App() {
           onViewProfile={user ? () => navigateTo("profile") : undefined}
           onViewFitnessCalculator={() => navigateTo("fitness")}
           leveling={leveling}
+          pendingRecovery={pendingRecovery}
+          onApplyRecovery={handleApplyRecovery}
+          onDiscardRecovery={handleDiscardRecovery}
         />
       )}
 
-      <Suspense
-        fallback={
-          <div className="loading-container">
-            <div className="spinner" />
-          </div>
-        }
-      >
+      <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
-          <CalibrationScreen
-            selectedExercise={selectedExercise}
-            onSelectExercise={handleSelectExercise}
-            onNext={() => navigateTo("workout")}
-            onBack={() => setShowExitModal(true)}
-            onBodyTypeDetected={setBodyType}
-          />
+          <PageErrorBoundary fallbackMessage="Failed to load calibration. Please try again.">
+            <CalibrationScreen
+              selectedExercise={selectedExercise}
+              onSelectExercise={handleSelectExercise}
+              onNext={() => navigateTo("workout")}
+              onBack={() => setShowExitModal(true)}
+              onBodyTypeDetected={(type, factor) => { setBodyType(type); setAdaptiveFactor(factor); }}
+            />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "workout" && (
-          <WorkoutScreen
-            exercise={selectedExercise}
-            onEnd={handleWorkoutEnd}
-            onAutoDetect={handleAutoDetect}
-            bodyType={bodyType}
-          />
+          <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
+            <WorkoutScreen
+              exercise={selectedExercise}
+              onEnd={handleWorkoutEnd}
+              onAutoDetect={handleAutoDetect}
+              bodyType={bodyType}
+              onSnapshotUpdate={(liveStats: any) => {
+                if (!user?.uid) return;
+                const fullStats = { ...liveStats, exerciseName: selectedExercise.name };
+                localStorage.setItem(
+                  `spectrax_telemetry_snapshot_${user.uid}`,
+                  JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
+                );
+              }}
+            />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "summary" &&
           (statsLoading ? (
             <SummaryScreenSkeleton />
           ) : (
-            <SummaryScreen
-              stats={stats}
-              leveling={leveling}
-              onRestart={() => navigateTo("welcome")}
-              onViewReplay={() => navigateTo("replay")}
-            />
+            <PageErrorBoundary fallbackMessage="Failed to load workout summary. Please try again.">
+              <SummaryScreen
+                stats={stats}
+                leveling={leveling}
+                onRestart={() => navigateTo("welcome")}
+                onViewReplay={() => navigateTo("replay")}
+              />
+            </PageErrorBoundary>
           ))}
 
         {currentScreen === "replay" && (
-          <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+          <PageErrorBoundary fallbackMessage="Failed to load replay. Please try again.">
+            <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "history" && (
@@ -397,9 +463,18 @@ function App() {
         )}
       </Suspense>
 
+      {currentScreen === "about" && (
+        <About />
+      )}
+
+      {currentScreen === "contact" && (
+        <Contact />
+      )}
+
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
+      <ScrollToTopButton />
 
       {(offlineReady || needRefresh) && (
         <div className="pwa-toast glass animate-in" role="alert">
@@ -482,28 +557,33 @@ function App() {
                 Stay
               </button>
 
-              <button
-                onClick={() => {
-                  setShowExitModal(false);
-                  navigateTo("welcome");
-                }}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: "10px",
-                  border: "none",
-                  cursor: "pointer",
-                  background: "#ff4d4f",
-                  color: "white",
-                }}
-              >
-                Exit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <button
+          onClick={() => {
+            setShowExitModal(false);
+            if (user?.uid) {
+              localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+            }
+            navigateTo('welcome');
+          }}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer',
+            background: '#ff4d4f',
+            color: 'white'
+          }}
+        >
+          Exit
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }
 
 export default App;
+
+// TODO: Consider adding more comprehensive JSDoc comments

@@ -42,6 +42,53 @@ export interface ReplayFrame {
   repCount?: number;
 }
 
+function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * (
+    (2 * p1) +
+    (-p0 + p2) * t +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+  );
+}
+
+function getInterpolatedLandmarks(
+  frames: ReplayFrame[],
+  floatIdx: number,
+): { x: number; y: number; z: number; visibility?: number }[] | null {
+  const n = frames.length;
+  if (n === 0) return null;
+  const idx = Math.floor(floatIdx);
+  const frac = floatIdx - idx;
+  if (idx < 0 || idx >= n) return frames[idx]?.landmarks ?? null;
+  if (frac < 0.001) return frames[idx].landmarks;
+  const i0 = Math.max(0, idx - 1);
+  const i1 = idx;
+  const i2 = Math.min(n - 1, idx + 1);
+  const i3 = Math.min(n - 1, idx + 2);
+  const f0 = frames[i0].landmarks;
+  const f1 = frames[i1].landmarks;
+  const f2 = frames[i2].landmarks;
+  const f3 = frames[i3].landmarks;
+  const count = Math.min(f1.length, f2.length, 33);
+  const result: { x: number; y: number; z: number; visibility?: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const lm1 = f1[i];
+    const lm2 = f2[i];
+    if (!lm1 || !lm2) { result.push(lm1 || lm2 || { x: 0, y: 0, z: 0 }); continue; }
+    const lm0 = f0[i] || lm1;
+    const lm3 = f3[i] || lm2;
+    result.push({
+      x: catmullRom(lm0.x, lm1.x, lm2.x, lm3.x, frac),
+      y: catmullRom(lm0.y, lm1.y, lm2.y, lm3.y, frac),
+      z: catmullRom(lm0.z, lm1.z, lm2.z, lm3.z, frac),
+      visibility: lm1.visibility ?? lm2.visibility,
+    });
+  }
+  return result;
+}
+
 export interface Replay3DModelProps {
   frames: ReplayFrame[];
   modelUrl?: string;
@@ -51,6 +98,7 @@ export interface Replay3DModelProps {
   onPlayToggle?: () => void;
   hideControls?: boolean;
   skin?: string;
+  exerciseName?: string;
 }
 
 type HudLabel = {
@@ -63,41 +111,11 @@ type HudLabel = {
 
 
 
-const createdStressVectors: StressVectorRig[] = [];
-STRESS_VECTOR_ATTACHMENTS.forEach(({ jointIdx, parentIdx, muscleGroup }) => {
-  const geometry = new THREE.CylinderGeometry(0.05, 0.015, 1, 10, 1, false);
-  geometry.translate(0, 0.5, 0);
-  const material = createStressVectorMaterial();
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.visible = false;
-  mesh.frustumCulled = false;
-  mesh.renderOrder = 4;
-  scene.add(mesh);
-  createdStressVectors.push({
-    mesh,
-    material,
-    geometry,
-    jointIdx,
-    parentIdx,
-    muscleGroup,
-  });
-});
-stressVectorsRef.current = createdStressVectors;
-previousJointPositionsRef.current = new Array(33).fill(null);
-type StressVectorRig = {
-  mesh: THREE.Mesh;
-  material: THREE.ShaderMaterial;
-  geometry: THREE.BufferGeometry;
-  jointIdx: number;
-  parentIdx: number;
-  muscleGroup: keyof typeof MUSCLE_JOINT_GROUPS;
-
 type RippleEvent = {
   origin: THREE.Vector2;
   startTime: number;
   speed: number;
   strength: number;
-
 };
 
 
@@ -341,6 +359,28 @@ const MUSCLE_JOINT_GROUPS: Record<string, number[]> = {
   core: [11, 12, 23, 24],
   legs: [23, 24, 25, 26, 27, 28],
 };
+
+export type StressVectorRig = {
+  mesh: THREE.Mesh;
+  material: THREE.ShaderMaterial;
+  geometry: THREE.BufferGeometry;
+  jointIdx: number;
+  parentIdx: number;
+  muscleGroup: keyof typeof MUSCLE_JOINT_GROUPS;
+};
+
+const STRESS_VECTOR_ATTACHMENTS: { jointIdx: number; parentIdx: number; muscleGroup: keyof typeof MUSCLE_JOINT_GROUPS }[] = [
+  { jointIdx: 13, parentIdx: 11, muscleGroup: 'arms' },
+  { jointIdx: 14, parentIdx: 12, muscleGroup: 'arms' },
+  { jointIdx: 15, parentIdx: 13, muscleGroup: 'arms' },
+  { jointIdx: 16, parentIdx: 14, muscleGroup: 'arms' },
+  { jointIdx: 25, parentIdx: 23, muscleGroup: 'legs' },
+  { jointIdx: 26, parentIdx: 24, muscleGroup: 'legs' },
+  { jointIdx: 27, parentIdx: 25, muscleGroup: 'legs' },
+  { jointIdx: 28, parentIdx: 26, muscleGroup: 'legs' },
+  { jointIdx: 23, parentIdx: 11, muscleGroup: 'core' },
+  { jointIdx: 24, parentIdx: 12, muscleGroup: 'core' },
+];
 
 
 
@@ -704,6 +744,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   onPlayToggle,
   hideControls = false,
   skin = "Standard Human",
+  exerciseName = "squat",
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying] = useState(false);
@@ -719,8 +760,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const graphicsPresetRef = useRef<GraphicsPreset>("high");
   const autoAdaptRef = useRef(true);
   const fpsMonitor = useRef(new AdaptiveFPSMonitor());
+  const frameFloatRef = useRef(0);
 
   // Keep refs in sync with state for use inside animation loop
+
+  const isPlaying = externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
+  const currentFrameIdx = externalFrameIdx !== undefined ? externalFrameIdx : _currentFrameIdx;
+  const setIsPlaying = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
+  const setCurrentFrameIdx = onFrameChange ? onFrameChange : _setCurrentFrameIdx;
 
   useEffect(() => {
     graphicsPresetRef.current = graphicsPreset;
@@ -811,6 +858,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
   const bonesRef  = useRef<{ line: THREE.Line; startIdx: number; endIdx: number }[]>([]);
   const axesRef   = useRef<THREE.AxesHelper[]>([]);
+  const gridRef = useRef<THREE.GridHelper | null>(null);
+  const gridTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
   // GLTF refs
 
@@ -984,7 +1033,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           float glow = mix(0.35, 0.95, vStress);
           float alpha = mix(0.24, 0.92, shaft) * glow;
           gl_FragColor = vec4(color, alpha);
-
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
   const createRippleGridMaterial = useCallback(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -1166,7 +1221,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       });
     },
     [],
-
+  );
   const syncRippleUniforms = useCallback((timeSeconds: number) => {
     const material = rippleMaterialRef.current;
     if (!material) return;
@@ -1217,6 +1272,15 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     [syncRippleUniforms],
 
   );
+
+  const updateGridPosition = useCallback((bodyCenter: THREE.Vector3 | null) => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const targetX = bodyCenter ? bodyCenter.x : 0;
+    const targetZ = bodyCenter ? bodyCenter.z : 0;
+    gridTargetRef.current.set(targetX, -1.01, targetZ);
+    grid.position.lerp(gridTargetRef.current, 0.08);
+  }, []);
 
   const orbitPelvisTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const hasOrbitPelvisTargetRef = useRef(false);
@@ -1463,6 +1527,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
 
     scene.add(grid);
+    gridRef.current = grid;
 
 
     // Floor
@@ -1557,7 +1622,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
         new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 }),
       );
-
       line.userData.isOverlay = true;
 
       geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
@@ -1924,6 +1988,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       stressVectorsRef.current = [];
       previousJointPositionsRef.current = [];
 
+      if (gridRef.current) {
+        gridRef.current.geometry.dispose();
+        (gridRef.current.material as THREE.Material).dispose();
+        sceneRef.current?.remove(gridRef.current);
+        gridRef.current = null;
+      }
+
       if (modelGroupRef.current) {
         modelGroupRef.current.traverse((obj) => {
           const mesh = obj as THREE.Mesh;
@@ -2022,16 +2093,19 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         }
       }
 
-      // Frame advance
+      // Frame advance with spline-interpolated float index
       const cfg = GRAPHICS_PRESETS[graphicsPresetRef.current];
       if (isPlaying && time - lastTimeRef.current > 1000 / 8) {
-        const nextIdx = (currentFrameIdx + 1) % frames.length;
+        const nextFloat = ((frameFloatRef.current ?? currentFrameIdx) + 1) % frames.length;
+        frameFloatRef.current = nextFloat;
+        const nextIdx = Math.round(nextFloat) % frames.length;
         setCurrentFrameIdx(nextIdx);
         lastTimeRef.current = time;
       }
 
-      const frame = frames[currentFrameIdx];
-      if (!frame || !frame.landmarks) {
+      const renderFloat = isPlaying ? (frameFloatRef.current ?? currentFrameIdx) : currentFrameIdx;
+      const interpolatedLm = getInterpolatedLandmarks(frames, renderFloat);
+      if (!interpolatedLm) {
         rendererRef.current?.render(sceneRef.current!, cameraRef.current!);
         return;
       }
@@ -2049,11 +2123,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
       const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
       const timeSeconds = time * 0.001;
-
-      const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
-      const timeSeconds = time * 0.001;
-
-      const { baseColor, badJoints, mistakeColor } = parseFeedback(frame.feedback);
 
 
 
@@ -2073,7 +2142,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       const getLm = (idx: number) => {
-        const lm = frame.landmarks[idx];
+        const lm = interpolatedLm[idx];
         if (!lm) return null;
         return new THREE.Vector3(
           -(lm.x - 0.5) * 2,
@@ -2083,14 +2152,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       };
 
 
-      const lShoulder = getLm(11),
-        rShoulder = getLm(12);
-      const lHip = getLm(23),
-        rHip = getLm(24);
-      const lAnkle = getLm(27),
-        rAnkle = getLm(28);
 
+      const lShoulder = getLm(11), rShoulder = getLm(12);
+      const lHip = getLm(23), rHip = getLm(24);
+      const lAnkle = getLm(27), rAnkle = getLm(28);
 
+      const shoulderCenter = lShoulder && rShoulder ? new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5) : new THREE.Vector3();
+      const hipCenter      = lHip && rHip ? new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5) : new THREE.Vector3();
+      const bodyCenter     = new THREE.Vector3().addVectors(shoulderCenter, hipCenter).multiplyScalar(0.5);
 
 
       if (modelLoaded) {
@@ -2110,10 +2179,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
               ? new THREE.Vector2(rAnkle.x, rAnkle.z)
               : null;
 
-
-      const lShoulder = getLm(11), rShoulder = getLm(12);
-      const lHip = getLm(23), rHip = getLm(24);
-      const lAnkle = getLm(27), rAnkle = getLm(28);
 
 
 

@@ -110,3 +110,5 @@ export function getJointVisibility(landmarks: any): Record<string, number> {
 
   return _visibility;
 }
+
+// TODO: Consider adding more comprehensive JSDoc comments

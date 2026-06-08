@@ -369,9 +369,7 @@ export async function syncWorkoutsFromFirestore(userId: string): Promise<void> {
   try {
     const firestoreWorkouts = await getFirestoreWorkouts();
     await updateLocalWorkoutsFromFirestore(userId, firestoreWorkouts);
-    console.log(
-      `Downloaded ${firestoreWorkouts.length} workouts from Firestore`,
-    );
+    // Downloaded workouts from Firestore
   } catch (error) {
     console.error("Error syncing workouts from Firestore:", error);
     throw error;
@@ -425,27 +423,55 @@ let syncInProgress = false;
 /**
  * Start auto-sync when connection is restored
  */
-export function initializeAutoSync(userId: string): void {
-  // Listen for online event
-  window.addEventListener("online", async () => {
-    try {
-      if (!syncInProgress) {
-        syncInProgress = true;
-        await fullSyncWorkouts(userId);
-        syncInProgress = false;
-      }
-    } catch (error) {
-      syncInProgress = false;
-      console.error("Auto-sync failed:", error);
-    }
-  });
+let onlineHandler: (() => void) | null = null;
+let offlineHandler: (() => void) | null = null;
 
-  // Listen for offline event
-  window.addEventListener("offline", () => {
-    console.log(
-      "Network connection lost. Workouts will sync when back online.",
-    );
-  });
+export function initializeAutoSync(userId: string): void {
+  cleanupAutoSync();
+
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    navigator.serviceWorker.ready.then((reg) => {
+      if ('sync' in reg) {
+        return (reg as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('workout-sync');
+      }
+    }).then(() => {
+      console.log('Background Sync registered successfully.');
+    }).catch((err) => {
+      console.error('Failed to register Background Sync:', err);
+    });
+  }
+
+  // Fallback to standard online/offline event handlers
+  onlineHandler = async () => {
+    if (syncInProgress) return;
+    try {
+      syncInProgress = true;
+      const syncedCount = await syncWorkoutsToFirestore(userId);
+      console.log(`Successfully synced ${syncedCount} workouts.`);
+    } catch (err) {
+      console.error("Auto-sync failed:", err);
+    } finally {
+      syncInProgress = false;
+    }
+  };
+
+  offlineHandler = () => {
+    // Network connection lost, sync when online
+  };
+
+  window.addEventListener("online", onlineHandler);
+  window.addEventListener("offline", offlineHandler);
+}
+
+export function cleanupAutoSync(): void {
+  if (onlineHandler) {
+    window.removeEventListener("online", onlineHandler);
+    onlineHandler = null;
+  }
+  if (offlineHandler) {
+    window.removeEventListener("offline", offlineHandler);
+    offlineHandler = null;
+  }
 }
 
 /**
@@ -630,6 +656,7 @@ export default {
   syncWorkoutsFromFirestore,
   fullSyncWorkouts,
   initializeAutoSync,
+  cleanupAutoSync,
   isOnline,
   getSyncStatus,
   bulkUploadWorkouts,
