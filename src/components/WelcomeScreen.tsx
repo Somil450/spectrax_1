@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star } from "lucide-react";
+import { Play, Sparkles, History, Trophy, User, Camera, Activity, BarChart3, Github, FileText, GitFork, Star, Scale } from "lucide-react";
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
+import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from '../context/ThemeContext';
@@ -33,7 +34,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
-  onViewProfile,
+  onViewFitnessCalculator,
   leveling,
   pendingRecovery,
   onApplyRecovery,
@@ -46,6 +47,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [userWeight, setUserWeight] = useState<string>(
     String(getSavedUserWeight() ?? "")
   );
+  const [userHeight, setUserHeight] = useState<string>("");
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -211,35 +213,122 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     <Trophy size={15} />
     Trophies
   </button>
+
+  {onViewFitnessCalculator && (
+    <button
+      onClick={onViewFitnessCalculator}
+      className="welcome-btn-secondary welcome-btn-secondary--green"
+      aria-label="View BMI Calculator"
+      tabIndex={0}
+    >
+      <Scale size={15} />
+      BMI
+    </button>
+  )}
 </div>
 
-{/* Weight input for calorie estimation */}
+{/* BMI Calculator Section */}
 <div
   style={{
     display: "flex",
-    alignItems: "center",
-    gap: "8px",
+    flexDirection: "column",
+    gap: "12px",
     marginTop: "12px",
-    background: "rgba(0,255,100,0.04)",
-    border: "1px solid rgba(0,255,100,0.2)",
+    background: "rgba(0,255,200,0.05)",
+    border: "1px solid rgba(0,255,200,0.2)",
     borderRadius: "10px",
-    padding: "10px 14px",
+    padding: "14px",
   }}
 >
-                  <span>⚖️</span>
-                  <span style={{ fontSize:'0.7rem', color:'var(--neon-green)', letterSpacing:'1px', textTransform:'uppercase' }}>Weight:</span>
-                  <input
-                    type="number" min="30" max="200" placeholder="70"
-                    value={userWeight}
-                    onChange={(e) => {
-                      setUserWeight(e.target.value);
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
-                    }}
-                    style={{ background:'transparent', border:'none', outline:'none', color:'#fff', fontSize:'1rem', fontWeight:700, width:'50px' }}
-                  />
-                  <span style={{ color:'var(--text-dim)', fontSize:'0.8rem' }}>kg</span>
-                </div>
+  {/* Weight and Height Input Row */}
+  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+    <div style={{ flex: 1 }}>
+      <label style={{ fontSize: "0.7rem", color: "var(--neon-cyan)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Weight (kg)</label>
+      <input
+        type="number"
+        min="30"
+        max="200"
+        placeholder="70"
+        value={userWeight}
+        aria-label="User weight in kilograms"
+        onChange={(e) => {
+          setUserWeight(e.target.value);
+          const val = parseFloat(e.target.value);
+          if (!isNaN(val) && val >= 30 && val <= 200) saveUserWeight(val);
+        }}
+        style={{ 
+          background: "rgba(0,255,200,0.1)", 
+          border: "1px solid rgba(0,255,200,0.3)",
+          outline: "none", 
+          color: "#fff", 
+          fontSize: "0.9rem", 
+          fontWeight: 700, 
+          width: "100%",
+          padding: "6px 8px",
+          borderRadius: "6px",
+          boxSizing: "border-box"
+        }}
+      />
+    </div>
+
+    <div style={{ flex: 1 }}>
+      <label style={{ fontSize: "0.7rem", color: "var(--neon-green)", letterSpacing: "1px", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Height (cm)</label>
+      <input
+        type="number"
+        min="100"
+        max="250"
+        placeholder="175"
+        value={userHeight}
+        aria-label="User height in centimeters"
+        onChange={(e) => setUserHeight(e.target.value)}
+        style={{ 
+          background: "rgba(0,255,200,0.1)", 
+          border: "1px solid rgba(0,255,200,0.3)",
+          outline: "none", 
+          color: "#fff", 
+          fontSize: "0.9rem", 
+          fontWeight: 700, 
+          width: "100%",
+          padding: "6px 8px",
+          borderRadius: "6px",
+          boxSizing: "border-box"
+        }}
+      />
+    </div>
+  </div>
+
+  {/* BMI Display Section */}
+  {userWeight && userHeight && (
+    (() => {
+      const weight = parseFloat(userWeight);
+      const height = parseFloat(userHeight);
+      if (weight > 0 && height > 0 && weight >= 30 && weight <= 200 && height >= 100 && height <= 250) {
+        const bmiResult = calculateBMI(weight, height);
+        const categoryColor = bmiCategoryColor(bmiResult.category);
+        return (
+          <div style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "12px",
+            padding: "10px",
+            background: `${categoryColor}15`,
+            border: `1px solid ${categoryColor}40`,
+            borderRadius: "8px",
+            marginTop: "4px"
+          }}>
+            <Scale size={18} style={{ color: categoryColor }} />
+            <div>
+              <span style={{ fontSize: "0.7rem", color: "var(--text-dim)", letterSpacing: "1px", textTransform: "uppercase" }}>BMI:</span>
+              <span style={{ fontSize: "1.2rem", fontWeight: 700, color: categoryColor, marginLeft: "6px" }}>{bmiResult.bmi}</span>
+              <span style={{ fontSize: "0.85rem", color: categoryColor, marginLeft: "10px" }}>({bmiResult.category})</span>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    })()
+  )}
+</div>
 
               </div>
             </div>

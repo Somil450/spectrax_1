@@ -71,6 +71,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [countdownSeconds, setCountdownSeconds] = useState(3);
   
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
+  const[expandedExercise, setExpandedExercise] = useState<string | null>(null);
   
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
@@ -471,7 +472,29 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         alignItems: 'center'
                       }}
                     >
-                      <span>{ex.name.toUpperCase()}</span>
+                      <div
+                        style = {{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        >
+                          <span>{ex.name.toUpperCase()}</span>
+                          <span
+                          title = "view guide"
+                          onClick = {(e) =>{
+                            e.stopPropagation();
+                            setExpandedExercise(expandedExercise === ex.key ? null : ex.key);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 'bold',
+                          }}
+                          >{expandedExercise === ex.key ? '▲' : '▼'}
+                          </span>
+                      </div>
+        
                       <span style={{ 
                         fontSize: '0.65rem', 
                         opacity: 0.8,
@@ -482,6 +505,53 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
                       </span>
                     </button>
+                    {expandedExercise === ex.key &&  ex.guide &&(
+                      <div 
+                      style = {{
+                        marginTop: '6px',
+                        padding: '16px',
+                        borderRadius: '12px',
+                        background: 'rgba(168,85,247,0.08)',
+                        border: '1px solid rgba(168,85,247,0.2)',
+                        fontSize: '0.75rem',
+                        color:'var(--text-secondary)',
+                      }} >
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Instructions</h4>
+                        <ul style = {{
+                          marginLeft: '16px',
+                          marginBottom: '12px',
+                        }}>
+                          {ex.guide?.instructions.map((item,idx) =>(
+                            <li key = {idx}>{item}</li>
+                          ))}
+                        </ul>
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Common Mistakes</h4>
+                        <ul style = {{
+                          marginLeft: '16px',
+                          marginBottom: '12px',
+                        }}>
+                          {ex.guide?.commonMistakes.map((item,idx) =>(
+                            <li key = {idx}>{item}</li>
+                          ))}
+                        </ul>
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Target Muscles</h4>
+                        <div>
+                          {ex.guide?.targetMuscles.join(',')}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Video Overlay */}
                     { (hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)) && ex.demoUrl && (
@@ -489,7 +559,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         className="animate-in"
                         style={{
                           position: 'absolute',
-                          right: '105%', // Pop out to the left
+                          right: 'calc(100% + 24px)', // Clear the panel's 16px padding + 8px gap
                           top: '50%',
                           transform: 'translateY(-50%)',
                           width: '240px', /* <--- INCREASED SIZE HERE */
@@ -517,7 +587,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
              </div>
 
              {/* Total Reps Lifetime Stats - Small Section */}
-             <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+             <div style={{ marginTop: '20px', paddingTop: '16px', paddingBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {Object.values(exercises).map(ex => {
@@ -552,7 +622,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
             </div>
           ) : (
             <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
-               <p style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44` }}>
+               <p className="pb-4" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44`, paddingBottom: '16px' }}>
                 {result.message.toUpperCase()}
                </p>
                <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
@@ -618,7 +688,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                     hidden live region at the top of the JSX, which covers ALL states
                     (calibrating, ready, pose lost, countdown, error) — not just this one.
                   */}
-                  <div style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem' }}>
+                  <div className="pb-4" style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem', paddingBottom: '16px' }}>
                     {result.message}
                   </div>
               </div>
