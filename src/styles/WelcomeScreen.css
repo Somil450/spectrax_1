@@ -998,6 +998,52 @@
   transform: translateY(-2px);
 }
 
+/* =============================================
+   BMI Calculator button — green variant
+   ============================================= */
+.welcome-btn-secondary--green {
+  background: rgba(0, 255, 100, 0.08);
+  border: 1.5px solid rgba(0, 255, 100, 0.35);
+  color: var(--neon-green);
+  box-shadow: 0 2px 8px rgba(0, 255, 100, 0.1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  padding: 12px 28px;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  backdrop-filter: blur(5px);
+}
+
+.welcome-btn-secondary--green:hover {
+  background: rgba(0, 255, 100, 0.15);
+  border-color: var(--neon-green);
+  box-shadow: 0 4px 16px rgba(0, 255, 100, 0.25);
+  transform: translateY(-2px);
+}
+
+.welcome-btn-secondary--green:active {
+  transform: translateY(0);
+}
+
+/* Light-mode scoped override for green */
+.welcome-container[data-theme="light"] .welcome-btn-secondary--green {
+  background: rgba(0, 102, 204, 0.08);
+  border-color: rgba(0, 102, 204, 0.35);
+  color: var(--neon-cyan);
+}
+
+.welcome-container[data-theme="light"] .welcome-btn-secondary--green:hover {
+  background: rgba(0, 102, 204, 0.16);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.2);
+}
+
 
 .welcome-container[data-theme-style="retro"] {
   background: radial-gradient(

@@ -3,7 +3,10 @@ import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  GLTFLoader,
+  type GLTF,
+} from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
@@ -233,7 +236,13 @@ const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsConfig> = {
 };
 
 // Ordered from worst to best for adaptive stepping
-const PRESET_ORDER: GraphicsPreset[] = ["potato", "low", "medium", "high", "ultra"];
+const PRESET_ORDER: GraphicsPreset[] = [
+  "potato",
+  "low",
+  "medium",
+  "high",
+  "ultra",
+];
 
 // ─── Adaptive FPS Monitor ─────────────────────────────────────────────────────
 
@@ -320,17 +329,24 @@ class AdaptiveFPSMonitor {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BONES_CONNECTIONS = [
-  [11, 12], [12, 24], [24, 23], [23, 11],
-  [11, 13], [13, 15],
-  [12, 14], [14, 16],
-  [23, 25], [25, 27],
-  [24, 26], [26, 28],
+  [11, 12],
+  [12, 24],
+  [24, 23],
+  [23, 11],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
+  [23, 25],
+  [25, 27],
+  [24, 26],
+  [26, 28],
 ];
 
-const COLOR_GREEN  = new THREE.Color(0x00ff00);
+const COLOR_GREEN = new THREE.Color(0x00ff00);
 const COLOR_YELLOW = new THREE.Color(0xffff00);
 const COLOR_ORANGE = new THREE.Color(0xff8c00);
-const COLOR_RED    = new THREE.Color(0xff0000);
+const COLOR_RED = new THREE.Color(0xff0000);
 
 const getStrainColor = (repCount = 0) => {
   const n = Math.min(repCount / 20, 1);
@@ -461,13 +477,23 @@ const parseFeedback = (feedback: string) => {
     baseColor = COLOR_RED;
     [11, 12, 23, 24].forEach((j) => badJoints.add(j));
   }
-  if (feedback.includes("Go lower for full range")) [13, 14].forEach((j) => badJoints.add(j));
-  if (feedback.includes("over-bend knees")) [25, 26].forEach((j) => badJoints.add(j));
-  if (feedback.includes("hips lower") || feedback.includes("Drop your hips") || feedback.includes("Hips too high"))
+  if (feedback.includes("Go lower for full range"))
+    [13, 14].forEach((j) => badJoints.add(j));
+  if (feedback.includes("over-bend knees"))
+    [25, 26].forEach((j) => badJoints.add(j));
+  if (
+    feedback.includes("hips lower") ||
+    feedback.includes("Drop your hips") ||
+    feedback.includes("Hips too high")
+  )
     [23, 24].forEach((j) => badJoints.add(j));
-  if (feedback.includes("Squeeze at the top") || feedback.includes("Keep elbows at side"))
+  if (
+    feedback.includes("Squeeze at the top") ||
+    feedback.includes("Keep elbows at side")
+  )
     [11, 12, 13, 14].forEach((j) => badJoints.add(j));
-  if (feedback.includes("Raise arms higher")) [11, 12].forEach((j) => badJoints.add(j));
+  if (feedback.includes("Raise arms higher"))
+    [11, 12].forEach((j) => badJoints.add(j));
 
   return { baseColor, badJoints, mistakeColor };
 };
@@ -507,7 +533,12 @@ const GraphicsPanel: React.FC<GraphicsPanelProps> = ({
     >
       {/* FPS Badge + Toggle */}
       <div
-        style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          justifyContent: "flex-end",
+        }}
       >
         <div
           style={{
@@ -555,23 +586,42 @@ const GraphicsPanel: React.FC<GraphicsPanelProps> = ({
             boxShadow: "0 4px 24px rgba(0,0,0,0.7)",
           }}
         >
-          <div style={{ fontSize: "0.65rem", color: "#888", letterSpacing: 2, marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: "0.65rem",
+              color: "#888",
+              letterSpacing: 2,
+              marginBottom: 8,
+            }}
+          >
             GRAPHICS QUALITY
           </div>
 
           {/* Preset buttons */}
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 4,
+              flexWrap: "wrap",
+              marginBottom: 10,
+            }}
+          >
             {(PRESET_ORDER.slice().reverse() as GraphicsPreset[]).map((p) => (
               <button
                 key={p}
                 disabled={autoAdapt}
-                onClick={() => { onPresetChange(p); }}
+                onClick={() => {
+                  onPresetChange(p);
+                }}
                 style={{
                   padding: "4px 9px",
                   fontSize: "0.65rem",
                   borderRadius: 3,
                   border: `1px solid ${preset === p ? "#00ffcc" : "#333"}`,
-                  background: preset === p ? "rgba(0,255,204,0.12)" : "rgba(255,255,255,0.04)",
+                  background:
+                    preset === p
+                      ? "rgba(0,255,204,0.12)"
+                      : "rgba(255,255,255,0.04)",
                   color: preset === p ? "#00ffcc" : "#888",
                   cursor: autoAdapt ? "not-allowed" : "pointer",
                   opacity: autoAdapt ? 0.5 : 1,
@@ -619,7 +669,13 @@ const GraphicsPanel: React.FC<GraphicsPanelProps> = ({
                 }}
               />
             </div>
-            <span style={{ fontSize: "0.65rem", color: autoAdapt ? "#00ffcc" : "#888", letterSpacing: 1 }}>
+            <span
+              style={{
+                fontSize: "0.65rem",
+                color: autoAdapt ? "#00ffcc" : "#888",
+                letterSpacing: 1,
+              }}
+            >
               AUTO-ADAPT
             </span>
           </label>
@@ -627,12 +683,16 @@ const GraphicsPanel: React.FC<GraphicsPanelProps> = ({
           {/* Current config indicators */}
           <div style={{ borderTop: "1px solid #1e1e1e", paddingTop: 8 }}>
             {[
-              ["SMAA",    cfg.smaa         ? "ON"  : "OFF",  cfg.smaa],
-              ["SSAO",    cfg.ssao         ? "ON"  : "OFF",  cfg.ssao],
-              ["BLOOM",   cfg.bloom        ? "ON"  : "OFF",  cfg.bloom],
-              ["SHADOWS", cfg.shadowMapEnabled ? `${cfg.shadowMapSize}px` : "OFF", cfg.shadowMapEnabled],
-              ["DPR",     `×${cfg.pixelRatio.toFixed(2)}`,   cfg.pixelRatio >= 1.0],
-              ["TARGET",  `${cfg.targetFPS} FPS`,             true],
+              ["SMAA", cfg.smaa ? "ON" : "OFF", cfg.smaa],
+              ["SSAO", cfg.ssao ? "ON" : "OFF", cfg.ssao],
+              ["BLOOM", cfg.bloom ? "ON" : "OFF", cfg.bloom],
+              [
+                "SHADOWS",
+                cfg.shadowMapEnabled ? `${cfg.shadowMapSize}px` : "OFF",
+                cfg.shadowMapEnabled,
+              ],
+              ["DPR", `×${cfg.pixelRatio.toFixed(2)}`, cfg.pixelRatio >= 1.0],
+              ["TARGET", `${cfg.targetFPS} FPS`, true],
             ].map(([key, val, good]) => (
               <div
                 key={key as string}
@@ -646,7 +706,9 @@ const GraphicsPanel: React.FC<GraphicsPanelProps> = ({
                 }}
               >
                 <span>{key as string}</span>
-                <span style={{ color: good ? "#00ffcc" : "#666" }}>{val as string}</span>
+                <span style={{ color: good ? "#00ffcc" : "#666" }}>
+                  {val as string}
+                </span>
               </div>
             ))}
           </div>
@@ -661,7 +723,8 @@ const GraphicsPanel: React.FC<GraphicsPanelProps> = ({
                 lineHeight: 1.5,
               }}
             >
-              Auto-adapt monitors FPS and steps quality up/down to maintain target frame rate.
+              Auto-adapt monitors FPS and steps quality up/down to maintain
+              target frame rate.
             </div>
           )}
         </div>
@@ -712,22 +775,87 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => {
     autoAdaptRef.current = autoAdapt;
   }, [autoAdapt]);
-  useEffect(() => {
-    if (!isPlaying) frameFloatRef.current = currentFrameIdx;
-  }, [currentFrameIdx, isPlaying]);
+
+
+
+
+  syncRippleUniforms(timeSeconds);
+
+  if (lastRepCountRef.current === null) {
+    lastRepCountRef.current = repCount;
+  } else if (repCount !== lastRepCountRef.current) {
+    if (repCount > lastRepCountRef.current && footCenter) {
+      const lastCompletion = lastRippleCompletionTimeRef.current;
+      const intervalSeconds = lastCompletion
+        ? timeSeconds - lastCompletion
+        : 1.0;
+      const tempo = THREE.MathUtils.clamp(
+        1.8 / Math.max(intervalSeconds, 0.25),
+        0.7,
+        1.6,
+      );
+      const rippleOrigin = new THREE.Vector2(
+        THREE.MathUtils.clamp(footCenter.x / GRID_SIZE + 0.5, 0.05, 0.95),
+        THREE.MathUtils.clamp(footCenter.y / GRID_SIZE + 0.5, 0.05, 0.95),
+      );
+      emitRipple(
+        rippleOrigin,
+        0.5 + tempo * 0.55,
+        0.65 + tempo * 0.35,
+        timeSeconds,
+      );
+    }
+    lastRepCountRef.current = repCount;
+  }
+
+
+  const isPlaying =
+    externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
+  const currentFrameIdx =
+    externalFrameIdx !== undefined ? externalFrameIdx : _currentFrameIdx;
+  const setIsPlaying = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
+  const setCurrentFrameIdx = onFrameChange
+    ? onFrameChange
+    : _setCurrentFrameIdx;
+
+
+  useEffect(() => { graphicsPresetRef.current = graphicsPreset; }, [graphicsPreset]);
+  useEffect(() => { autoAdaptRef.current = autoAdapt; }, [autoAdapt]);
+
+
+  const isPlaying       = externalIsPlaying    !== undefined ? externalIsPlaying    : _isPlaying;
+  const currentFrameIdx = externalFrameIdx     !== undefined ? externalFrameIdx     : _currentFrameIdx;
+  const setIsPlaying    = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
+  const setCurrentFrameIdx = onFrameChange ? onFrameChange : _setCurrentFrameIdx;
+
+
+
+  useEffect(() => { graphicsPresetRef.current = graphicsPreset; }, [graphicsPreset]);
+  useEffect(() => { autoAdaptRef.current = autoAdapt; }, [autoAdapt]);
+
 
   // Three.js refs
-  const sceneRef    = useRef<THREE.Scene | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const composerRef = useRef<EffectComposer | null>(null);
   const bloomPassRef = useRef<UnrealBloomPass | null>(null);
-  const smaaPassRef  = useRef<SMAAPass | null>(null);
-  const ssaoPassRef  = useRef<SSAOPass | null>(null);
-  const cameraRef   = useRef<THREE.PerspectiveCamera | null>(null);
+  const smaaPassRef = useRef<SMAAPass | null>(null);
+  const ssaoPassRef = useRef<SSAOPass | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
 
   // Fallback skeleton refs
   const jointsRef = useRef<THREE.Mesh[]>([]);
+
+  const bonesRef = useRef<
+    { line: THREE.Line; startIdx: number; endIdx: number }[]
+  >([]);
+
+  // GLTF refs
+  const modelGroupRef = useRef<THREE.Group | null>(null);
+  const boneMapRef = useRef<Record<string, THREE.Bone>>({});
+  const skinnedMeshesRef = useRef<THREE.SkinnedMesh[]>([]);
+
   const bonesRef  = useRef<{ line: THREE.Line; startIdx: number; endIdx: number }[]>([]);
   const axesRef   = useRef<THREE.AxesHelper[]>([]);
   const gridRef = useRef<THREE.GridHelper | null>(null);
@@ -751,6 +879,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   >({});
   const rootOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
+  const occluderMeshesRef = useRef<THREE.Mesh[]>([]);
+  const depthRaycasterRef = useRef(new THREE.Raycaster());
+
   const restSegmentLengthsRef = useRef<
     Partial<Record<BoneProportionKey, number>>
   >({});
@@ -764,18 +895,95 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const lastRepCountRef = useRef<number | null>(null);
   const lastRippleCompletionTimeRef = useRef<number | null>(null);
 
-  const stressVectorsRef = useRef<StressVectorRig[]>([]);
-  const previousJointPositionsRef = useRef<(THREE.Vector3 | null)[]>(new Array(33).fill(null));
+  const modelGroupRef     = useRef<THREE.Group | null>(null);
+  const boneMapRef        = useRef<Record<string, THREE.Bone>>({});
+  const skinnedMeshesRef  = useRef<THREE.SkinnedMesh[]>([]);
+  const restDataRef       = useRef<Record<string, { worldQuat: THREE.Quaternion; localQuat: THREE.Quaternion; dir: THREE.Vector3 }>>({});
+  const rootOffsetRef     = useRef<THREE.Vector3>(new THREE.Vector3());
+
+
+  const restDataRef = useRef<Record<string, { worldQuat: THREE.Quaternion; localQuat: THREE.Quaternion; dir: THREE.Vector3 }>>({});
+  const rootOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
 
 
 
 
   const [hudLabels, setHudLabels] = useState<HudLabel[]>([]);
-  const reqIdRef           = useRef<number>(0);
-  const lastTimeRef        = useRef<number>(0);
+  const reqIdRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
   const recoveryTimeoutRef = useRef<number | null>(null);
   const rendererPipelineCleanupRef = useRef<(() => void) | null>(null);
+  const refreshOccluderMeshes = useCallback((scene: THREE.Scene) => {
+    const occluders: THREE.Mesh[] = [];
+
+    scene.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      if (jointsRef.current.includes(mesh)) return;
+      occluders.push(mesh);
+    });
+
+    occluderMeshesRef.current = occluders;
+  }, []);
+
+  const isPointOccluded = useCallback(
+    (worldPoint: THREE.Vector3, camera: THREE.Camera) => {
+      if (occluderMeshesRef.current.length === 0) return false;
+
+      const origin = new THREE.Vector3();
+      camera.getWorldPosition(origin);
+
+      const toPoint = worldPoint.clone().sub(origin);
+      const distance = toPoint.length();
+      if (distance <= 0.0001) return false;
+
+      const raycaster = depthRaycasterRef.current;
+      raycaster.set(origin, toPoint.normalize());
+      raycaster.near = 0.0001;
+      raycaster.far = distance - 0.002;
+
+      const intersections = raycaster.intersectObjects(
+        occluderMeshesRef.current,
+        true,
+      );
+      return (
+        intersections.length > 0 && intersections[0].distance < distance - 0.002
+      );
+    },
+    [],
+  );
+
+  const updateFallbackSkeletonOcclusion = useCallback(() => {
+    if (!cameraRef.current) return;
+
+    const camera = cameraRef.current;
+    const jointVisibility = new Array(33).fill(true);
+
+    jointsRef.current.forEach((joint, index) => {
+      const worldPosition = joint.getWorldPosition(new THREE.Vector3());
+      const visible = !isPointOccluded(worldPosition, camera);
+      joint.visible = visible;
+      jointVisibility[index] = visible;
+    });
+
+    bonesRef.current.forEach((bone) => {
+      const startMesh = jointsRef.current[bone.startIdx];
+      const endMesh = jointsRef.current[bone.endIdx];
+      if (!startMesh || !endMesh) return;
+
+      const startPoint = startMesh.getWorldPosition(new THREE.Vector3());
+      const endPoint = endMesh.getWorldPosition(new THREE.Vector3());
+      const midpoint = new THREE.Vector3()
+        .addVectors(startPoint, endPoint)
+        .multiplyScalar(0.5);
+
+      bone.line.visible =
+        jointVisibility[bone.startIdx] ||
+        jointVisibility[bone.endIdx] ||
+        !isPointOccluded(midpoint, camera);
+    });
+  }, [isPointOccluded]);
 
 
 
@@ -1081,37 +1289,39 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   // ─── Rebuild post-processing passes when preset changes ───────────────────
   const rebuildPasses = useCallback(
     (preset: GraphicsPreset, forceWidth?: number, forceHeight?: number) => {
-      const renderer  = rendererRef.current;
-      const composer  = composerRef.current;
-      const scene     = sceneRef.current;
-      const camera    = cameraRef.current;
-      const mount     = mountRef.current;
+      const renderer = rendererRef.current;
+      const composer = composerRef.current;
+      const scene = sceneRef.current;
+      const camera = cameraRef.current;
+      const mount = mountRef.current;
       if (!renderer || !composer || !scene || !camera || !mount) return;
 
       const cfg = GRAPHICS_PRESETS[preset];
-      const w = forceWidth  ?? mount.clientWidth;
+      const w = forceWidth ?? mount.clientWidth;
       const h = forceHeight ?? mount.clientHeight;
 
       // Update DPR
-      renderer.setPixelRatio(Math.min(cfg.pixelRatio, window.devicePixelRatio ?? 1));
+      renderer.setPixelRatio(
+        Math.min(cfg.pixelRatio, window.devicePixelRatio ?? 1),
+      );
 
       // Shadow settings
-      renderer.shadowMap.enabled  = cfg.shadowMapEnabled;
-      renderer.shadowMap.type     = cfg.shadowMapType;
+      renderer.shadowMap.enabled = cfg.shadowMapEnabled;
+      renderer.shadowMap.type = cfg.shadowMapType;
 
       // Remove existing effect passes (keep RenderPass at index 0)
       while (composer.passes.length > 1) composer.passes.pop();
-      smaaPassRef.current  = null;
-      ssaoPassRef.current  = null;
+      smaaPassRef.current = null;
+      ssaoPassRef.current = null;
       bloomPassRef.current = null;
 
       // SSAO — must come before SMAA/bloom
       if (cfg.ssao) {
         const ssao = new SSAOPass(scene, camera, w, h);
-        ssao.kernelRadius   = cfg.ssaoRadius;
-        ssao.minDistance    = cfg.ssaoMinDistance;
-        ssao.maxDistance    = cfg.ssaoMaxDistance;
-        ssao.output         = SSAOPass.OUTPUT.Default;
+        ssao.kernelRadius = cfg.ssaoRadius;
+        ssao.minDistance = cfg.ssaoMinDistance;
+        ssao.maxDistance = cfg.ssaoMaxDistance;
+        ssao.output = SSAOPass.OUTPUT.Default;
         composer.addPass(ssao);
         ssaoPassRef.current = ssao;
       }
@@ -1156,7 +1366,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     if (modelLoaded && skinnedMeshesRef.current.length > 0) {
       skinnedMeshesRef.current.forEach((mesh) => {
         if (mesh.material) {
-          if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose());
+          if (Array.isArray(mesh.material))
+            mesh.material.forEach((m) => m.dispose());
           else mesh.material.dispose();
         }
         mesh.material = createBaseMaterialForSkin(skin);
@@ -1253,7 +1464,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     if (!frames || frames.length === 0) return;
     if (!mountRef.current) return;
 
-    const width  = mountRef.current.clientWidth;
+    const width = mountRef.current.clientWidth;
     const height = mountRef.current.clientHeight;
 
     const scene = new THREE.Scene();
@@ -1271,20 +1482,20 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const keyLight = new THREE.DirectionalLight(0x00ffff, 1.2);
     keyLight.position.set(2, 4, 3);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width  = 1024;
+    keyLight.shadow.mapSize.width = 1024;
     keyLight.shadow.mapSize.height = 1024;
-    keyLight.shadow.camera.left   = -5;
-    keyLight.shadow.camera.right  = 5;
-    keyLight.shadow.camera.top    = 5;
+    keyLight.shadow.camera.left = -5;
+    keyLight.shadow.camera.right = 5;
+    keyLight.shadow.camera.top = 5;
     keyLight.shadow.camera.bottom = -5;
-    keyLight.shadow.camera.near   = 0.1;
-    keyLight.shadow.camera.far    = 50;
+    keyLight.shadow.camera.near = 0.1;
+    keyLight.shadow.camera.far = 50;
     scene.add(keyLight);
 
     const fillLight = new THREE.DirectionalLight(0x9d4edd, 0.7);
     fillLight.position.set(-2, 2, 2);
     fillLight.castShadow = true;
-    fillLight.shadow.mapSize.width  = 512;
+    fillLight.shadow.mapSize.width = 512;
     fillLight.shadow.mapSize.height = 512;
     scene.add(fillLight);
 
@@ -1298,7 +1509,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x222222);
     grid.position.y = -1.01;
     (grid.material as THREE.LineBasicMaterial).transparent = true;
+
     (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
+
+
+    (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
+    scene.add(grid);
+
+
+
+    (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
+
+    scene.add(grid);
+
+
+    (grid.material as THREE.LineBasicMaterial).opacity     = 0.2;
+
+
     scene.add(grid);
     gridRef.current = grid;
 
@@ -1320,15 +1547,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     // Fallback skeleton
     const jointGeometry = new THREE.SphereGeometry(0.04, 16, 16);
-    const jointMaterial  = new THREE.MeshStandardMaterial({
-      color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.5,
+    const jointMaterial = new THREE.MeshStandardMaterial({
+      color: 0x00ff00,
+      emissive: 0x00ff00,
+      emissiveIntensity: 0.5,
+      depthTest: true,
+      depthWrite: false,
     });
     const createdJoints: THREE.Mesh[] = [];
     for (let i = 0; i < 33; i++) {
       const sphere = new THREE.Mesh(jointGeometry, jointMaterial.clone());
       sphere.castShadow = true;
       sphere.receiveShadow = true;
+
+      sphere.renderOrder = 2;
+
       sphere.userData.isOverlay = true;
+
       scene.add(sphere);
       createdJoints.push(sphere);
     }
@@ -1347,24 +1582,59 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     axesRef.current = createdAxes;
 
 
+    const createdBones: { mesh: THREE.Mesh; startIdx: number; endIdx: number }[] = [];
+    const boneRadius = 0.015;
+    const boneGeometry = new THREE.CylinderGeometry(boneRadius, boneRadius, 1, 8);
+    boneGeometry.rotateX(Math.PI / 2);
+    boneGeometry.translate(0, 0, 0.5);
+
+
+    const createdBones: {
+      line: THREE.Line;
+      startIdx: number;
+      endIdx: number;
+    }[] = [];
+
+    BONES_CONNECTIONS.forEach(([startIdx, endIdx]) => {
+      const geometry = new THREE.BufferGeometry();
+
     const createdBones: { line: THREE.Line; startIdx: number; endIdx: number }[] = [];
 
     BONES_CONNECTIONS.forEach(([startIdx, endIdx]) => {
       const geometry = new THREE.BufferGeometry();
+
+
       geometry.setAttribute(
         "position",
         new THREE.BufferAttribute(new Float32Array(6), 3),
       );
       const line = new THREE.Line(
         geometry,
+
+        new THREE.LineBasicMaterial({
+          color: 0x00ff00,
+          linewidth: 2,
+          depthTest: true,
+          depthWrite: false,
+        }),
+      );
+      line.renderOrder = 2;
+
         new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 }),
       );
       line.userData.isOverlay = true;
+
+      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+      const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 }));
+
 
       scene.add(line);
       createdBones.push({ line, startIdx, endIdx });
     });
     bonesRef.current = createdBones;
+
+
+    refreshOccluderMeshes(scene);
 
     const createdStressVectors: StressVectorRig[] = [];
     STRESS_VECTOR_ATTACHMENTS.forEach(
@@ -1398,6 +1668,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     stressVectorsRef.current = createdStressVectors;
     previousJointPositionsRef.current = new Array(33).fill(null);
 
+
     // GLTF model — cache-first loading
     setModelLoading(true);
     setModelError(null);
@@ -1415,24 +1686,38 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       model.traverse((o) => {
         if (o.type === "Bone") {
           const name = o.name.toLowerCase();
-          if (name.includes("leftarm")  && !name.includes("fore")) bones.leftShoulder  = o as THREE.Bone;
-          if (name.includes("leftforearm"))                         bones.leftElbow     = o as THREE.Bone;
-          if (name.includes("lefthand")  || name.includes("leftwrist"))  bones.leftWrist  = o as THREE.Bone;
-          if (name.includes("rightarm") && !name.includes("fore")) bones.rightShoulder = o as THREE.Bone;
-          if (name.includes("rightforearm"))                        bones.rightElbow    = o as THREE.Bone;
-          if (name.includes("righthand") || name.includes("rightwrist")) bones.rightWrist = o as THREE.Bone;
-          if (name.includes("leftupleg")  || name.includes("lefthip"))   bones.leftHip   = o as THREE.Bone;
-          if (name.includes("leftleg")    || name.includes("leftknee"))  bones.leftKnee  = o as THREE.Bone;
-          if (name.includes("leftfoot")   || name.includes("leftankle")) bones.leftAnkle = o as THREE.Bone;
-          if (name.includes("rightupleg") || name.includes("righthip"))  bones.rightHip  = o as THREE.Bone;
-          if (name.includes("rightleg")   || name.includes("rightknee")) bones.rightKnee = o as THREE.Bone;
-          if (name.includes("rightfoot")  || name.includes("rightankle"))bones.rightAnkle= o as THREE.Bone;
+          if (name.includes("leftarm") && !name.includes("fore"))
+            bones.leftShoulder = o as THREE.Bone;
+          if (name.includes("leftforearm")) bones.leftElbow = o as THREE.Bone;
+          if (name.includes("lefthand") || name.includes("leftwrist"))
+            bones.leftWrist = o as THREE.Bone;
+          if (name.includes("rightarm") && !name.includes("fore"))
+            bones.rightShoulder = o as THREE.Bone;
+          if (name.includes("rightforearm")) bones.rightElbow = o as THREE.Bone;
+          if (name.includes("righthand") || name.includes("rightwrist"))
+            bones.rightWrist = o as THREE.Bone;
+          if (name.includes("leftupleg") || name.includes("lefthip"))
+            bones.leftHip = o as THREE.Bone;
+          if (name.includes("leftleg") || name.includes("leftknee"))
+            bones.leftKnee = o as THREE.Bone;
+          if (name.includes("leftfoot") || name.includes("leftankle"))
+            bones.leftAnkle = o as THREE.Bone;
+          if (name.includes("rightupleg") || name.includes("righthip"))
+            bones.rightHip = o as THREE.Bone;
+          if (name.includes("rightleg") || name.includes("rightknee"))
+            bones.rightKnee = o as THREE.Bone;
+          if (name.includes("rightfoot") || name.includes("rightankle"))
+            bones.rightAnkle = o as THREE.Bone;
           if (name.includes("spine")) {
             if (name.includes("1")) bones.spine1 = o as THREE.Bone;
             else if (name.includes("2")) bones.spine2 = o as THREE.Bone;
             else bones.spine = o as THREE.Bone;
           }
-          if (name.includes("hips") && !name.includes("left") && !name.includes("right"))
+          if (
+            name.includes("hips") &&
+            !name.includes("left") &&
+            !name.includes("right")
+          )
             bones.hips = o as THREE.Bone;
           if (name.includes("neck")) bones.neck = o as THREE.Bone;
           if (name.includes("head")) bones.head = o as THREE.Bone;
@@ -1440,8 +1725,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
           const mesh = o as THREE.SkinnedMesh;
           skinnedMeshesRef.current.push(mesh);
-          mesh.material     = createBaseMaterialForSkin(skin);
-          mesh.castShadow   = true;
+          mesh.material = createBaseMaterialForSkin(skin);
+          mesh.castShadow = true;
           mesh.receiveShadow = true;
         }
       });
@@ -1455,9 +1740,11 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       const recordRest = (boneKey: string, childKey: string) => {
-        const bone = bones[boneKey], childBone = bones[childKey];
+        const bone = bones[boneKey],
+          childBone = bones[childKey];
         if (!bone || !childBone) return;
-        const pPos = new THREE.Vector3(), cPos = new THREE.Vector3();
+        const pPos = new THREE.Vector3(),
+          cPos = new THREE.Vector3();
         bone.getWorldPosition(pPos);
         childBone.getWorldPosition(cPos);
         restSegmentLengthsRef.current[boneKey as BoneProportionKey] =
@@ -1466,19 +1753,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         if (dir.lengthSq() < 0.001) return;
         const worldQ = new THREE.Quaternion();
         bone.getWorldQuaternion(worldQ);
-        restDataRef.current[boneKey] = { worldQuat: worldQ.clone(), localQuat: bone.quaternion.clone(), dir: dir.clone() };
+        restDataRef.current[boneKey] = {
+          worldQuat: worldQ.clone(),
+          localQuat: bone.quaternion.clone(),
+          dir: dir.clone(),
+        };
       };
 
       recordRest("leftShoulder", "leftElbow");
-      recordRest("leftElbow",    "leftWrist");
-      recordRest("rightShoulder","rightElbow");
-      recordRest("rightElbow",   "rightWrist");
-      recordRest("leftHip",      "leftKnee");
-      recordRest("leftKnee",     "leftAnkle");
-      recordRest("rightHip",     "rightKnee");
-      recordRest("rightKnee",    "rightAnkle");
+      recordRest("leftElbow", "leftWrist");
+      recordRest("rightShoulder", "rightElbow");
+      recordRest("rightElbow", "rightWrist");
+      recordRest("leftHip", "leftKnee");
+      recordRest("leftKnee", "leftAnkle");
+      recordRest("rightHip", "rightKnee");
+      recordRest("rightKnee", "rightAnkle");
       if (bones.spine && bones.spine1) recordRest("spine", "spine1");
-      if (bones.neck  && bones.head)   recordRest("neck",  "head");
+      if (bones.neck && bones.head) recordRest("neck", "head");
 
       setModelLoaded(true);
       setModelLoading(false);
@@ -1500,7 +1791,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         },
         undefined,
         (err) => {
-          console.warn("Replay3DModel: Failed to load GLTF, falling back to skeleton.", err);
+          console.warn(
+            "Replay3DModel: Failed to load GLTF, falling back to skeleton.",
+            err,
+          );
           setModelLoaded(false);
           setModelLoading(false);
           setModelError("Failed to load 3D model. Using skeleton fallback.");
@@ -1518,19 +1812,27 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     };
 
     const createRendererPipeline = () => {
-      if (cancelled || !mountRef.current || !sceneRef.current || !cameraRef.current) return;
+      if (
+        cancelled ||
+        !mountRef.current ||
+        !sceneRef.current ||
+        !cameraRef.current
+      )
+        return;
       disposeRendererPipeline();
 
       const cfg = GRAPHICS_PRESETS[graphicsPresetRef.current];
       const renderer = new THREE.WebGLRenderer({ antialias: cfg.antialias });
-      renderer.setPixelRatio(Math.min(cfg.pixelRatio, window.devicePixelRatio ?? 1));
+      renderer.setPixelRatio(
+        Math.min(cfg.pixelRatio, window.devicePixelRatio ?? 1),
+      );
       renderer.setSize(width, height);
-      renderer.outputColorSpace    = THREE.SRGBColorSpace;
-      renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.2;
-      renderer.shadowMap.enabled   = cfg.shadowMapEnabled;
-      renderer.shadowMap.type      = cfg.shadowMapType;
-      renderer.shadowMap.autoUpdate= true;
+      renderer.shadowMap.enabled = cfg.shadowMapEnabled;
+      renderer.shadowMap.type = cfg.shadowMapType;
+      renderer.shadowMap.autoUpdate = true;
       mountRef.current.appendChild(renderer.domElement);
       rendererRef.current = renderer;
 
@@ -1558,9 +1860,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
       controls.maxPolarAngle = Math.PI / 2 + 0.1;
-      controls.minDistance   = 1.0;
-      controls.maxDistance   = 10.0;
-      controlsRef.current    = controls;
+      controls.minDistance = 1.0;
+      controls.maxDistance = 10.0;
+      controlsRef.current = controls;
 
       const handleContextLost = (event: Event) => {
         event.preventDefault();
@@ -1577,7 +1879,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           window.clearTimeout(recoveryTimeoutRef.current);
           recoveryTimeoutRef.current = null;
         }
-        if (cancelled || !sceneRef.current || !cameraRef.current || rendererRef.current !== renderer) return;
+        if (
+          cancelled ||
+          !sceneRef.current ||
+          !cameraRef.current ||
+          rendererRef.current !== renderer
+        )
+          return;
         composer.render();
       };
 
@@ -1604,30 +1912,49 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         resizeObserver.observe(mountRef.current);
       }
 
-      renderer.domElement.addEventListener("webglcontextlost",     handleContextLost);
-      renderer.domElement.addEventListener("webglcontextrestored", handleContextRestored);
+      renderer.domElement.addEventListener(
+        "webglcontextlost",
+        handleContextLost,
+      );
+      renderer.domElement.addEventListener(
+        "webglcontextrestored",
+        handleContextRestored,
+      );
 
       rendererPipelineCleanupRef.current = () => {
         resizeObserver.disconnect();
 
-        renderer.domElement.removeEventListener("webglcontextlost",     handleContextLost);
-        renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
+        renderer.domElement.removeEventListener(
+          "webglcontextlost",
+          handleContextLost,
+        );
+        renderer.domElement.removeEventListener(
+          "webglcontextrestored",
+          handleContextRestored,
+        );
 
         controls.dispose();
         composer.dispose();
-        composerRef.current  = null;
+        composerRef.current = null;
         bloomPassRef.current = null;
-        smaaPassRef.current  = null;
-        ssaoPassRef.current  = null;
-        if (mountRef.current?.contains(renderer.domElement)) mountRef.current.removeChild(renderer.domElement);
+        smaaPassRef.current = null;
+        ssaoPassRef.current = null;
+        if (mountRef.current?.contains(renderer.domElement))
+          mountRef.current.removeChild(renderer.domElement);
         renderer.dispose();
         renderer.forceContextLoss();
-        if (rendererRef.current  === renderer) rendererRef.current  = null;
-        if (controlsRef.current  === controls) controlsRef.current  = null;
+        if (rendererRef.current === renderer) rendererRef.current = null;
+        if (controlsRef.current === controls) controlsRef.current = null;
       };
 
       requestAnimationFrame(() => {
-        if (cancelled || !sceneRef.current || !cameraRef.current || rendererRef.current !== renderer) return;
+        if (
+          cancelled ||
+          !sceneRef.current ||
+          !cameraRef.current ||
+          rendererRef.current !== renderer
+        )
+          return;
         composer.render();
       });
     };
@@ -1673,7 +2000,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const mesh = obj as THREE.Mesh;
           if (mesh.isMesh) {
             mesh.geometry.dispose();
-            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            const materials = Array.isArray(mesh.material)
+              ? mesh.material
+              : [mesh.material];
             for (const mat of materials) {
               // Dispose all mapped textures
               Object.values(mat).forEach((value) => {
@@ -1690,8 +2019,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       skinnedMeshesRef.current = [];
-      boneMapRef.current       = {};
-      restDataRef.current      = {};
+      boneMapRef.current = {};
+      restDataRef.current = {};
 
 
       restSegmentLengthsRef.current = {};
@@ -1707,7 +2036,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const mesh = obj as THREE.Mesh;
           if (mesh.isMesh) {
             mesh.geometry?.dispose();
-            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            const materials = Array.isArray(mesh.material)
+              ? mesh.material
+              : [mesh.material];
             for (const mat of materials) {
               if (mat) {
                 Object.values(mat).forEach((value) => {
@@ -1750,7 +2081,11 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       // Adaptive quality stepping
       if (autoAdaptRef.current) {
         const cfg = GRAPHICS_PRESETS[graphicsPresetRef.current];
-        const suggestion = fpsMonitor.current.evaluate(graphicsPresetRef.current, cfg.targetFPS, time);
+        const suggestion = fpsMonitor.current.evaluate(
+          graphicsPresetRef.current,
+          cfg.targetFPS,
+          time,
+        );
         if (suggestion !== 0) {
           const idx = PRESET_ORDER.indexOf(graphicsPresetRef.current);
           const nextPreset = PRESET_ORDER[idx + suggestion];
@@ -1775,7 +2110,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         return;
       }
 
-      const frame = frames[Math.round(renderFloat) % frames.length] || frames[0];
+
+      const { baseColor, badJoints, mistakeColor } = parseFeedback(
+        frame.feedback,
+      );
+
+
+
       const { baseColor, badJoints, mistakeColor } = parseFeedback(
         frame.feedback,
       );
@@ -1786,12 +2127,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
 
 
+
       // Helper
       let depthScale = 2.0;
-      const rawLS = interpolatedLm[11], rawRS = interpolatedLm[12];
-      const rawLH = interpolatedLm[23], rawRH = interpolatedLm[24];
+      const rawLS = frame.landmarks[11],
+        rawRS = frame.landmarks[12];
+      const rawLH = frame.landmarks[23],
+        rawRH = frame.landmarks[24];
       if (rawLS && rawRS && rawLH && rawRH) {
-        const dx = rawLS.x - rawRH.x, dy = rawLS.y - rawRH.y;
+        const dx = rawLS.x - rawRH.x,
+          dy = rawLS.y - rawRH.y;
         const torsoSize = Math.sqrt(dx * dx + dy * dy);
         if (torsoSize > 0.1) depthScale = (0.5 / torsoSize) * 3.0;
       }
@@ -1799,7 +2144,11 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       const getLm = (idx: number) => {
         const lm = interpolatedLm[idx];
         if (!lm) return null;
-        return new THREE.Vector3(-(lm.x - 0.5) * 2, -(lm.y - 0.5) * 2, -lm.z * depthScale);
+        return new THREE.Vector3(
+          -(lm.x - 0.5) * 2,
+          -(lm.y - 0.5) * 2,
+          -lm.z * depthScale,
+        );
       };
 
 
@@ -1811,6 +2160,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       const shoulderCenter = lShoulder && rShoulder ? new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5) : new THREE.Vector3();
       const hipCenter      = lHip && rHip ? new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5) : new THREE.Vector3();
       const bodyCenter     = new THREE.Vector3().addVectors(shoulderCenter, hipCenter).multiplyScalar(0.5);
+
 
       if (modelLoaded) {
         updateSegmentScaleAdaptor(frame.landmarks, getLm);
@@ -1828,6 +2178,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             : rAnkle
               ? new THREE.Vector2(rAnkle.x, rAnkle.z)
               : null;
+
 
 
 
@@ -1855,18 +2206,38 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             .crossVectors(right, up)
             .normalize();
 
+
+          const shoulderCenter = new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5);
+          const hipCenter      = new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5);
+          const up      = new THREE.Vector3().subVectors(shoulderCenter, hipCenter).normalize();
+          const right   = new THREE.Vector3().subVectors(lShoulder, rShoulder).normalize();
+          const forward = new THREE.Vector3().crossVectors(right, up).normalize();
+
+
           right.crossVectors(up, forward).normalize();
-          const mat       = new THREE.Matrix4();
+          const mat = new THREE.Matrix4();
           mat.makeBasis(right, up, forward);
           const torsoQuat = new THREE.Quaternion().setFromRotationMatrix(mat);
           modelGroupRef.current.quaternion.slerp(torsoQuat, 0.05);
 
-          const rotatedOffset = rootOffsetRef.current.clone().applyQuaternion(modelGroupRef.current.quaternion);
-          const targetPos     = hipCenter.clone().add(rotatedOffset);
-          const minAnkleY     = Math.min(lAnkle?.y || 0, rAnkle?.y || 0);
-          targetPos.y         = -1.0 - minAnkleY;
+          const rotatedOffset = rootOffsetRef.current
+            .clone()
+            .applyQuaternion(modelGroupRef.current.quaternion);
+          const targetPos = hipCenter.clone().add(rotatedOffset);
+          const minAnkleY = Math.min(lAnkle?.y || 0, rAnkle?.y || 0);
+          targetPos.y = -1.0 - minAnkleY;
           modelGroupRef.current.position.lerp(targetPos, 0.05);
           modelGroupRef.current.updateMatrixWorld(true);
+
+
+          const lookTarget = new THREE.Vector3().lerpVectors(
+            hipCenter,
+            shoulderCenter,
+            0.5,
+          );
+          if (controlsRef.current)
+            controlsRef.current.target.lerp(lookTarget, 0.05);
+          else if (cameraRef.current) cameraRef.current.lookAt(lookTarget);
 
 
 
@@ -1896,61 +2267,96 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             cameraRef.current.lookAt(lookTarget);
           }
 
+
         }
 
-        const applyPose = (boneKey: string, startIdx: number, endIdx: number) => {
+        const applyPose = (
+          boneKey: string,
+          startIdx: number,
+          endIdx: number,
+        ) => {
           if (!boneMapRef.current || !restDataRef.current) return;
           const bone = boneMapRef.current[boneKey];
           const rest = restDataRef.current[boneKey];
           if (!bone || !rest) return;
-          const startV = getLm(startIdx), endV = getLm(endIdx);
+          const startV = getLm(startIdx),
+            endV = getLm(endIdx);
           if (!startV || !endV) return;
-          const targetDir = new THREE.Vector3().subVectors(endV, startV).normalize();
+          const targetDir = new THREE.Vector3()
+            .subVectors(endV, startV)
+            .normalize();
           if (targetDir.lengthSq() < 0.0001) return;
-          const deltaQ        = new THREE.Quaternion().setFromUnitVectors(rest.dir, targetDir);
-          const targetWorldQ  = rest.worldQuat.clone().premultiply(deltaQ);
-          const parentWorldQ  = new THREE.Quaternion();
+          const deltaQ = new THREE.Quaternion().setFromUnitVectors(
+            rest.dir,
+            targetDir,
+          );
+          const targetWorldQ = rest.worldQuat.clone().premultiply(deltaQ);
+          const parentWorldQ = new THREE.Quaternion();
           if (bone.parent) bone.parent.getWorldQuaternion(parentWorldQ);
-          const targetLocalQ  = targetWorldQ.clone().premultiply(parentWorldQ.invert());
+          const targetLocalQ = targetWorldQ
+            .clone()
+            .premultiply(parentWorldQ.invert());
           bone.quaternion.slerp(targetLocalQ, 0.05);
         };
 
         const bMap = boneMapRef.current;
         if (bMap && bMap.spine) {
-          const hC = lHip && rHip ? new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5) : null;
-          const sC = lShoulder && rShoulder ? new THREE.Vector3().addVectors(lShoulder, rShoulder).multiplyScalar(0.5) : null;
+          const hC =
+            lHip && rHip
+              ? new THREE.Vector3().addVectors(lHip, rHip).multiplyScalar(0.5)
+              : null;
+          const sC =
+            lShoulder && rShoulder
+              ? new THREE.Vector3()
+                  .addVectors(lShoulder, rShoulder)
+                  .multiplyScalar(0.5)
+              : null;
           if (hC && sC) {
             const spineDir = new THREE.Vector3().subVectors(sC, hC).normalize();
             const rest = restDataRef.current["spine"];
             if (rest) {
-              const deltaQ       = new THREE.Quaternion().setFromUnitVectors(rest.dir, spineDir);
+              const deltaQ = new THREE.Quaternion().setFromUnitVectors(
+                rest.dir,
+                spineDir,
+              );
               const targetWorldQ = rest.worldQuat.clone().premultiply(deltaQ);
               const parentWorldQ = new THREE.Quaternion();
-              if (bMap.spine.parent) bMap.spine.parent.getWorldQuaternion(parentWorldQ);
-              bMap.spine.quaternion.slerp(targetWorldQ.premultiply(parentWorldQ.invert()), 0.05);
+              if (bMap.spine.parent)
+                bMap.spine.parent.getWorldQuaternion(parentWorldQ);
+              bMap.spine.quaternion.slerp(
+                targetWorldQ.premultiply(parentWorldQ.invert()),
+                0.05,
+              );
             }
           }
         }
 
-        applyPose("leftShoulder",  11, 13);
-        applyPose("leftElbow",     13, 15);
+        applyPose("leftShoulder", 11, 13);
+        applyPose("leftElbow", 13, 15);
         applyPose("rightShoulder", 12, 14);
-        applyPose("rightElbow",    14, 16);
-        applyPose("leftHip",       23, 25);
-        applyPose("leftKnee",      25, 27);
-        applyPose("leftAnkle",     27, 29);
-        applyPose("rightHip",      24, 26);
-        applyPose("rightKnee",     26, 28);
-        applyPose("rightAnkle",    28, 30);
+        applyPose("rightElbow", 14, 16);
+        applyPose("leftHip", 23, 25);
+        applyPose("leftKnee", 25, 27);
+        applyPose("leftAnkle", 27, 29);
+        applyPose("rightHip", 24, 26);
+        applyPose("rightKnee", 26, 28);
+        applyPose("rightAnkle", 28, 30);
 
         // HUD projection
         const newLabels: HudLabel[] = [];
         const projectJoint = (
-          idx: number, boneKey: string, label: string,
-          p1: number, p2: number, p3: number,
+          idx: number,
+          boneKey: string,
+          label: string,
+          p1: number,
+          p2: number,
+          p3: number,
         ) => {
-          if (!cameraRef.current || !rendererRef.current || !mountRef.current) return;
-          const a = getLm(p1), b = getLm(p2), c = getLm(p3);
+          if (!cameraRef.current || !rendererRef.current || !mountRef.current)
+            return;
+          const a = getLm(p1),
+            b = getLm(p2),
+            c = getLm(p3);
           let angle = 0;
           if (a && b && c) {
             const v1 = new THREE.Vector3().subVectors(a, b);
@@ -1959,7 +2365,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           }
           const bone = boneMapRef.current[boneKey];
           if (!bone) return;
-          const pos    = new THREE.Vector3();
+          const pos = new THREE.Vector3();
           bone.getWorldPosition(pos);
           const vector = pos.project(cameraRef.current);
           const x = (vector.x * 0.5 + 0.5) * mountRef.current.clientWidth;
@@ -1967,39 +2373,49 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           newLabels.push({ x, y, angle, label, id: idx });
         };
 
-        projectJoint(13, "leftElbow",  "L ELBOW", 11, 13, 15);
+        projectJoint(13, "leftElbow", "L ELBOW", 11, 13, 15);
         projectJoint(14, "rightElbow", "R ELBOW", 12, 14, 16);
-        projectJoint(25, "leftKnee",   "L KNEE",  23, 25, 27);
-        projectJoint(26, "rightKnee",  "R KNEE",  24, 26, 28);
-        projectJoint(23, "leftHip",    "L HIP",   11, 23, 25);
-        projectJoint(24, "rightHip",   "R HIP",   12, 24, 26);
+        projectJoint(25, "leftKnee", "L KNEE", 23, 25, 27);
+        projectJoint(26, "rightKnee", "R KNEE", 24, 26, 28);
+        projectJoint(23, "leftHip", "L HIP", 11, 23, 25);
+        projectJoint(24, "rightHip", "R HIP", 12, 24, 26);
         setHudLabels(newLabels);
 
         // Material error highlight
         skinnedMeshesRef.current.forEach((mesh) => {
           if (!mesh.material) return;
-          const mat       = mesh.material as THREE.MeshStandardMaterial;
-          const hasError  = badJoints.size > 0;
+          const mat = mesh.material as THREE.MeshStandardMaterial;
+          const hasError = badJoints.size > 0;
           const targetColor = hasError ? mistakeColor || COLOR_RED : baseColor;
 
           if (skin === "Cyberpunk Neon") {
-            const neonColor = hasError ? (mistakeColor || new THREE.Color(0xff00ff)) : targetColor;
-            if (mat.color)   mat.color.lerp(new THREE.Color(0x050505), 0.2);
-            if (mat.emissive)mat.emissive.lerp(neonColor, 0.2);
+            const neonColor = hasError
+              ? mistakeColor || new THREE.Color(0xff00ff)
+              : targetColor;
+            if (mat.color) mat.color.lerp(new THREE.Color(0x050505), 0.2);
+            if (mat.emissive) mat.emissive.lerp(neonColor, 0.2);
             mat.emissiveIntensity = hasError ? 1.5 : 1.2;
           } else if (skin === "Robot") {
-            if (mat.color)   mat.color.lerp(new THREE.Color(0xd0d0d0), 0.2);
-            if (mat.emissive)mat.emissive.lerp(targetColor, 0.2);
-            mat.emissiveIntensity = hasError ? 1.0 : (baseColor.equals(COLOR_GREEN) ? 0.3 : 0.6);
+            if (mat.color) mat.color.lerp(new THREE.Color(0xd0d0d0), 0.2);
+            if (mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+            mat.emissiveIntensity = hasError
+              ? 1.0
+              : baseColor.equals(COLOR_GREEN)
+                ? 0.3
+                : 0.6;
           } else {
-            if (mat.color)   mat.color.lerp(new THREE.Color(0xe0a080), 0.2);
-            if (mat.emissive)mat.emissive.lerp(targetColor, 0.2);
-            mat.emissiveIntensity = hasError ? 0.4 : (baseColor.equals(COLOR_GREEN) ? 0.05 : 0.1);
+            if (mat.color) mat.color.lerp(new THREE.Color(0xe0a080), 0.2);
+            if (mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+            mat.emissiveIntensity = hasError
+              ? 0.4
+              : baseColor.equals(COLOR_GREEN)
+                ? 0.05
+                : 0.1;
           }
         });
       } else {
         // Fallback skeleton rendering
-        const repCount   = frame.repCount ?? Math.floor(currentFrameIdx / 30);
+        const repCount = frame.repCount ?? Math.floor(currentFrameIdx / 30);
         const strainColor = getStrainColor(repCount);
         const jointTargetColors = new Array(33).fill(baseColor);
         const activeMuscleGroups = exerciseName.includes("squat")
@@ -2008,16 +2424,31 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             ? MUSCLE_JOINT_GROUPS.core
             : exerciseName.includes("curl") || exerciseName.includes("push")
               ? MUSCLE_JOINT_GROUPS.arms
-              : [...MUSCLE_JOINT_GROUPS.arms, ...MUSCLE_JOINT_GROUPS.core, ...MUSCLE_JOINT_GROUPS.legs];
+              : [
+                  ...MUSCLE_JOINT_GROUPS.arms,
+                  ...MUSCLE_JOINT_GROUPS.core,
+                  ...MUSCLE_JOINT_GROUPS.legs,
+                ];
 
-        activeMuscleGroups.forEach((j) => { jointTargetColors[j] = strainColor; });
-        badJoints.forEach((j)         => { jointTargetColors[j] = mistakeColor || COLOR_RED; });
+        activeMuscleGroups.forEach((j) => {
+          jointTargetColors[j] = strainColor;
+        });
+        badJoints.forEach((j) => {
+          jointTargetColors[j] = mistakeColor || COLOR_RED;
+        });
 
         for (let i = 0; i < 33; i++) {
           const landmark = frame.landmarks[i];
           if (!landmark || !jointsRef.current[i]) continue;
           const mesh = jointsRef.current[i];
-          mesh.position.lerp(new THREE.Vector3(-(landmark.x - 0.5) * 2, -(landmark.y - 0.5) * 2, -landmark.z * 2), 0.1);
+          mesh.position.lerp(
+            new THREE.Vector3(
+              -(landmark.x - 0.5) * 2,
+              -(landmark.y - 0.5) * 2,
+              -landmark.z * 2,
+            ),
+            0.1,
+          );
           const jMat = mesh.material as THREE.MeshStandardMaterial;
           if (jMat?.color) {
             jMat.color.lerp(jointTargetColors[i], 0.2);
@@ -2028,17 +2459,26 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
         bonesRef.current.forEach((bone) => {
           const startMesh = jointsRef.current[bone.startIdx];
-          const endMesh   = jointsRef.current[bone.endIdx];
+          const endMesh = jointsRef.current[bone.endIdx];
           if (!startMesh || !endMesh) return;
-          const positions = bone.line.geometry.attributes.position.array as Float32Array;
-          positions[0] = startMesh.position.x; positions[1] = startMesh.position.y; positions[2] = startMesh.position.z;
-          positions[3] = endMesh.position.x;   positions[4] = endMesh.position.y;   positions[5] = endMesh.position.z;
+          const positions = bone.line.geometry.attributes.position
+            .array as Float32Array;
+          positions[0] = startMesh.position.x;
+          positions[1] = startMesh.position.y;
+          positions[2] = startMesh.position.z;
+          positions[3] = endMesh.position.x;
+          positions[4] = endMesh.position.y;
+          positions[5] = endMesh.position.z;
           bone.line.geometry.attributes.position.needsUpdate = true;
-          const isBadBone = badJoints.has(bone.startIdx) || badJoints.has(bone.endIdx);
+          const isBadBone =
+            badJoints.has(bone.startIdx) || badJoints.has(bone.endIdx);
           (bone.line.material as THREE.LineBasicMaterial).color.lerp(
-            isBadBone ? mistakeColor || COLOR_RED : strainColor, 0.2,
+            isBadBone ? mistakeColor || COLOR_RED : strainColor,
+            0.2,
           );
         });
+
+        updateFallbackSkeletonOcclusion();
       }
 
       updateStressVectors(
@@ -2058,22 +2498,53 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx, skin, applyPreset]);
+  }, [
+    frames,
+    currentFrameIdx,
+    isPlaying,
+    modelLoaded,
+    setCurrentFrameIdx,
+    skin,
+    applyPreset,
+  ]);
 
   // ─── No frames guard ─────────────────────────────────────────────────────
   if (!frames || frames.length === 0) {
     return (
-      <div style={{ padding: 20, textAlign: "center", color: "#fff", background: "#111", borderRadius: 8 }}>
+      <div
+        style={{
+          padding: 20,
+          textAlign: "center",
+          color: "#fff",
+          background: "#111",
+          borderRadius: 8,
+        }}
+      >
         No session data available
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", position: "relative" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        height: "100%",
+        position: "relative",
+      }}
+    >
       <div
         ref={mountRef}
-        style={{ flex: 1, minHeight: "400px", width: "100%", height: "100%", borderRadius: "8px", overflow: "hidden" }}
+        style={{
+          flex: 1,
+          minHeight: "400px",
+          width: "100%",
+          height: "100%",
+          borderRadius: "8px",
+          overflow: "hidden",
+        }}
       />
 
       {/* Loading Spinner Overlay */}
@@ -2102,7 +2573,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
                 margin: "0 auto 12px",
               }}
             />
-            <span style={{ fontSize: "0.8rem", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1 }}>
+            <span
+              style={{
+                fontSize: "0.8rem",
+                fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: 1,
+              }}
+            >
               Loading 3D model...
             </span>
           </div>
@@ -2145,7 +2622,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       />
 
       {/* 3D HUD Labels */}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          overflow: "hidden",
+        }}
+      >
         {hudLabels.map((node) => (
           <div
             key={node.id}
@@ -2166,8 +2650,20 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
               transition: "all 0.1s linear",
             }}
           >
-            <span style={{ fontSize: "0.6rem", color: "#aaa", letterSpacing: "1px" }}>{node.label}</span>
-            <span style={{ fontSize: "0.85rem", color: "#fff", fontWeight: 800 }}>{node.angle}°</span>
+            <span
+              style={{
+                fontSize: "0.6rem",
+                color: "#aaa",
+                letterSpacing: "1px",
+              }}
+            >
+              {node.label}
+            </span>
+            <span
+              style={{ fontSize: "0.85rem", color: "#fff", fontWeight: 800 }}
+            >
+              {node.angle}°
+            </span>
           </div>
         ))}
       </div>
@@ -2210,7 +2706,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
             }}
             style={{ flex: 1, cursor: "pointer" }}
           />
-          <span style={{ color: "#aaa", fontSize: "0.85rem", minWidth: "80px", textAlign: "right" }}>
+          <span
+            style={{
+              color: "#aaa",
+              fontSize: "0.85rem",
+              minWidth: "80px",
+              textAlign: "right",
+            }}
+          >
             {currentFrameIdx} / {frames.length - 1}
           </span>
         </div>
