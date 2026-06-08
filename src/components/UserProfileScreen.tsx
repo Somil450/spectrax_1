@@ -101,3 +101,5 @@ export function UserProfileScreen({ onLogout }: UserProfileScreenProps) {
     </div>
   );
 }
+
+export default UserProfileScreen;

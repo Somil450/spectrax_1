@@ -709,6 +709,16 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => {
     graphicsPresetRef.current = graphicsPreset;
   }, [graphicsPreset]);
+  
+  const isPlaying =
+    externalIsPlaying !== undefined ? externalIsPlaying : _isPlaying;
+  const currentFrameIdx =
+    externalFrameIdx !== undefined ? externalFrameIdx : _currentFrameIdx;
+  const setIsPlaying = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
+  const setCurrentFrameIdx = onFrameChange
+    ? onFrameChange
+    : _setCurrentFrameIdx;
+
   useEffect(() => {
     autoAdaptRef.current = autoAdapt;
   }, [autoAdapt]);
