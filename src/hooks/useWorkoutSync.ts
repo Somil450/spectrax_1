@@ -79,10 +79,10 @@ export function useWorkoutSync() {
 
     // Set up auto-sync listener for when connection is restored
     initializeAutoSync(user.uid);
-  
-  return () => {
-    cleanupAutoSync();
-  };
+
+    return () => {
+      cleanupAutoSync();
+    };
   },[user?.uid]);
 
   // Add new workout
