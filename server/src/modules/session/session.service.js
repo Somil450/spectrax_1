@@ -10,6 +10,7 @@ const CLEANUP_INTERVAL_HOURS = parseInt(process.env.CLEANUP_INTERVAL_HOURS || '2
 
 function createSessionService({ sessionStore, sessionPath, maxSessionFrames, logger }) {
   let cleanupIntervalId = null;
+  const finalizedSessions = new Set();
 
   function appendFrame(socketId, frame) {
     const sessionFrames = sessionStore.getSessionFrames(socketId);
