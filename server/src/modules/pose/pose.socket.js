@@ -7,9 +7,9 @@ const {
 } = require("./pose.validator");
 const { MAX_FRAMES_PER_SEC } = require("../../config/constants");
 
-const frameTimestamps = new Map();
-
 function registerPoseSocketHandlers({ socket, sessionService }) {
+  // Move frameTimestamps to function scope for test isolation
+  const frameTimestamps = new Map();
   frameTimestamps.set(socket.id, []);
 
   socket.on("frame", (data) => {

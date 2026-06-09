@@ -1,5 +1,12 @@
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import { gpuAngleCalculator } from './gpuAngleUtils';
+
+// MediaPipe Pose Landmarker wrapper support
+export const mediaPipePoseLandmarkerConfig = {
+  runningMode: 'VIDEO' as const,
+  numPoses: 1,
+};
+
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
 
@@ -618,6 +625,9 @@ export class PoseService {
     new ArrayBuffer(BUF_BYTES),
   ];
   private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
+  private interpolationEngine: FrameInterpolationEngine = frameInterpolationEngine;
+  private interpolationEnabled: boolean = true;
+  private userCallback: ((results: Results) => void) | null = null;
 
   constructor() {
     this.init();
@@ -800,15 +810,49 @@ export class PoseService {
     }
   }
 
+  setInterpolationEnabled(enabled: boolean) {
+    this.interpolationEnabled = enabled;
+    if (!enabled) {
+      this.interpolationEngine.reset();
+    }
+  }
+
+  getInterpolationEnabled(): boolean {
+    return this.interpolationEnabled;
+  }
+
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
+    this.userCallback = callback;
 
     this.pose.onResults((results: Results) => {
       this.inProgress = false;
       this.errorCount = 0;
 
-      if (results) {
-        callback(this.preprocessResults(results));
+      if (!results) return;
+
+      const processed = this.preprocessResults(results);
+
+      if (!this.interpolationEnabled || !processed.poseLandmarks) {
+        callback(processed);
+        return;
+      }
+
+      const frames = this.interpolationEngine.feedConfirmedFrame(
+        processed.poseLandmarks,
+        performance.now(),
+      );
+
+      // Emit all frames: confirmed + any ghosts
+      for (const frame of frames) {
+        const frameResults: Results = {
+          ...processed,
+          poseLandmarks: frame.landmarks as any,
+          // Tag ghost frames so downstream can react
+          // @ts-ignore — extending Results type for internal use
+          __isGhostFrame: frame.isGhost,
+        };
+        callback(frameResults);
       }
     });
   }
@@ -843,6 +887,7 @@ export class PoseService {
       this.pose = null;
       this.isLoaded = false;
     }
+    this.interpolationEngine.reset();
     gpuAngleCalculator.destroy();
   }
 

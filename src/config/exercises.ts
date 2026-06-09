@@ -4,6 +4,12 @@
  * Defines thresholds, key joints, and feedback rules for each movement.
  */
 
+
+export interface ExerciseGuide{
+  instructions: string[];
+  commonMistakes: string[];
+  targetMuscles: string[];
+}
 export interface ExerciseConfig {
   key: string;
   name: string;
@@ -18,6 +24,8 @@ export interface ExerciseConfig {
   }[];
   demoUrl?: string;
   isStatic?: boolean;
+
+  guide?: ExerciseGuide;
 }
 
 export const exercises: Record<string, ExerciseConfig> = {
@@ -40,7 +48,25 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Drive your hips lower 👇",
         type: 'warning'
       }
-    ]
+    ],
+    guide:{
+      instructions:[
+        "Stand with feet shoulder-width apart.",
+        "Engage your chest upright",
+        "Lower until thighs are parallel to the floor",
+        "Push through your heels to stand up"
+      ],
+      commonMistakes:[
+        "Knees collapsing inward",
+        "Rounding the lower back",
+        "Lifting heels off the ground"
+      ],
+      targetMuscles:[
+        "Quadriceps",
+        "Glutes",
+        "Hamstrings"
+      ]
+    },
   },
 
   pushup: {
@@ -72,7 +98,25 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Go lower for full range ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+      guide:{
+        instructions:[
+          "Place hands slightly wider than shoulder-width apart.",
+          "Keep your body in a straight line.",
+          "Lower your chest towards the floor",
+          "Push back up until arms are fully extended"
+        ],
+        commonMistakes:[
+          "Sagging hips",
+          "Flaring elbows out too wide",
+          "Incomplete range of motion"
+        ],
+        targetMuscles:[
+          "Chest",
+          "Triceps",
+          "Shoulders",
+        ]
+      }
   },
 
   bicepCurl: {
@@ -94,7 +138,24 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Keep elbows at side ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+     guide:{
+        instructions:[
+          "Stand upright with arms fully extended",
+          "Keep elbows close to your body",
+          "Curl the weight towards your shoulders",
+          "Lower slowly under control"
+        ],
+        commonMistakes:[
+          "Swinging the body",
+          "Moving elbows forward",
+          "Using body movement to lift the weight"
+        ],
+        targetMuscles:[
+          "Biceps",
+          "Forearms"
+        ]
+      }
   },
 
   jumpingJack: {
@@ -111,7 +172,25 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Raise arms higher ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+    guide: {
+  instructions: [
+    "Stand with your feet together",
+    "Jump while spreading your arms and legs",
+    "Raise your hands above your head",
+    "Jump back to the starting position"
+  ],
+  commonMistakes: [
+    "Not raising arms fully",
+    "Landing too hard on the floor",
+    "Moving too fast and losing rhythm"
+  ],
+  targetMuscles: [
+    "Shoulders",
+    "Legs",
+    "Calves"
+  ]
+}
   },
 
   plank: {
@@ -134,7 +213,25 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Hips too high ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+      guide: {
+  instructions: [
+    "Place your forearms on the ground",
+    "Keep your body in a straight line",
+    "Tighten your stomach muscles",
+    "Hold the position steadily"
+  ],
+  commonMistakes: [
+    "Letting hips drop too low",
+    "Lifting hips too high",
+    "Holding your breath"
+  ],
+  targetMuscles: [
+    "Core",
+    "Shoulders",
+    "Lower Back"
+   ]
+ }
   },
 
   lunge: {
@@ -161,7 +258,25 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Bend your back knee more ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+    guide: {
+  instructions: [
+    "Step forward with one leg",
+    "Lower your body until both knees bend",
+    "Keep your chest upright",
+    "Push back to the starting position"
+  ],
+  commonMistakes: [
+    "Leaning forward too much",
+    "Taking very short steps",
+    "Letting the front knee move too far forward"
+  ],
+  targetMuscles: [
+    "Quadriceps",
+    "Glutes",
+    "Hamstrings"
+  ]
+}
   },
 
   flutterKicks: {
@@ -183,7 +298,24 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Keep legs lower for core engagement ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+    guide: {
+  instructions: [
+    "Lie flat on your back",
+    "Lift your legs slightly off the floor",
+    "Kick your legs up and down alternately",
+    "Keep your stomach muscles tight"
+  ],
+  commonMistakes: [
+    "Arching the lower back",
+    "Kicking too high",
+    "Moving too fast without control"
+  ],
+  targetMuscles: [
+    "Lower Abs",
+    "Hip Muscles"
+  ]
+}
   },
 
   shoulderPress: {
@@ -205,7 +337,24 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Keep elbows up ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+    guide: {
+  instructions: [
+    "Hold the weights at shoulder level",
+    "Push the weights upward",
+    "Straighten your arms overhead",
+    "Lower the weights slowly"
+  ],
+  commonMistakes: [
+    "Arching the lower back",
+    "Moving too quickly",
+    "Not lowering the weights fully"
+  ],
+  targetMuscles: [
+    "Shoulders",
+    "Triceps"
+  ]
+}
   },
 
   chestPressPunches: {
@@ -232,7 +381,25 @@ export const exercises: Record<string, ExerciseConfig> = {
         message: "Bring hands all the way back to chest ⚠️",
         type: 'warning'
       }
-    ]
+    ],
+    guide: {
+  instructions: [
+    "Secure the resistance band behind you",
+    "Stand upright with your core tight",
+    "Push or punch forward",
+    "Return slowly to the starting position"
+  ],
+  commonMistakes: [
+    "Leaning forward too much",
+    "Moving too quickly",
+    "Not controlling the return movement"
+  ],
+  targetMuscles: [
+    "Chest",
+    "Shoulders",
+    "Triceps"
+  ]
+}
   }
 };
 
