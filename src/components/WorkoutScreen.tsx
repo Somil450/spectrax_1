@@ -355,7 +355,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const workerAnglesRef = useRef<Record<string, number>>({});
   const offscreenEnabledRef = useRef<boolean>(false);
   const { initOffscreenCanvas } = useOffscreenCanvas();
-  const wsSocketRef = useWorkoutWebSocket();
+  useWorkoutWebSocket();
 
 
   const handlePoseResults = useCallback(async (results: any) => {
