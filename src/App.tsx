@@ -7,6 +7,7 @@ import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
+import { cameraService } from "./services/cameraService";
 import { useTheme } from "./context/ThemeContext";
 import HistoryPage from "./HistoryPage";
 import { useLeveling } from "./hooks/useLeveling";
@@ -92,6 +93,8 @@ interface WorkoutStats {
   exerciseName: string;
   mistakes: Record<string, number>;
   bestStreak: number;
+  leftRepCount?: number;
+  rightRepCount?: number;
   jumpingJackSync?: {
     score: number | null;
     lagMs: number | null;
@@ -229,6 +232,7 @@ function App() {
   const handleWorkoutEnd = (
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
   ) => {
+    cameraService.releaseCamera();
     setStatsLoading(true);
     if (user?.uid) {
       localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
@@ -558,6 +562,27 @@ function App() {
                 Stay
               </button>
 
+              <button
+                onClick={() => {
+                  setShowExitModal(false);
+                  cameraService.releaseCamera();
+                  navigateTo("welcome");
+                }}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  cursor: "pointer",
+                  background: "#ff4d4f",
+                  color: "white",
+                }}
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         <button
           onClick={() => {
             setShowExitModal(false);

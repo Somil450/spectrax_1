@@ -173,6 +173,14 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     }
   }, [countdownSeconds, countdownActive]);
 
+  // ── Announce camera errors ─────────────────────────────────────────────────────
+useEffect(() => {
+  if (error) {
+    setAnnouncement(
+      "Camera error. Please verify camera access and refresh the page."
+    );
+  }
+}, [error]); 
 
 
 

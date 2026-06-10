@@ -141,4 +141,3 @@ describe("getJointVisibility - lunge fields", () => {
     expect(vis.lungeKnee).toBeCloseTo(0.4, 5);
     expect(vis.backKnee).toBeCloseTo(0.85, 5);
   });
-});

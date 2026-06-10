@@ -19,7 +19,7 @@ struct Landmark {
 }
 
 @group(0) @binding(0) var<storage, read>       landmarks : array<Landmark, 33>;
-@group(0) @binding(1) var<storage, read_write>  angles    : array<f32, 9>;
+@group(0) @binding(1) var<storage, read_write>  angles    : array<f32, 11>;
 
 fn angle3(a: Landmark, b: Landmark, c: Landmark) -> f32 {
   let radians = atan2(c.y - b.y, c.x - b.x) - atan2(a.y - b.y, a.x - b.x);
@@ -73,6 +73,11 @@ fn main() {
   let hipWidth = abs(landmarks[23].x - landmarks[24].x);
   let safeHipWidth = select(0.1, hipWidth, hipWidth > 0.0001);
   angles[8] = min(300.0, (abs(landmarks[27].x - landmarks[28].x) / safeHipWidth) * 100.0);
+
+  // angles[9] = elbowLeft
+  angles[9] = angle3(landmarks[11], landmarks[13], landmarks[15]);
+  // angles[10] = elbowRight
+  angles[10] = angle3(landmarks[12], landmarks[14], landmarks[16]);
 }
 `;
 
@@ -81,6 +86,7 @@ const ANGLE_KEYS = [
   'knee', 'elbow', 'shoulder', 'bodyLine',
   'hipDepth', 'lateralScore', 'horizontalStretch',
   'jumpingJackArmOpen', 'jumpingJackLegSpread',
+  'elbowLeft', 'elbowRight',
 ] as const;
 
 const LM_COUNT  = 33;

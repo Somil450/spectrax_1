@@ -14,8 +14,8 @@ import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
-import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
+import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, TutPanel } from './WorkoutPanels';
 import { ghostService } from '../services/ghostService';
@@ -47,6 +47,8 @@ interface WorkoutScreenProps {
     bestStreak: number;
     jumpingJackSync?: EngineState["jumpingJackSync"];
     tags?: string[];
+    leftRepCount?: number;
+    rightRepCount?: number;
   }) => void;
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
@@ -265,7 +267,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     isCalibrated: false,
     history: [],
     stageStartTime: 0,
-    frameScore: 0,
+    frameScore: 100,
     totalScore: 0,
     totalFrames: 0,
     allowRep: false,
@@ -342,7 +344,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     isCalibrated: false,
     history: [],
     stageStartTime: 0,
-    frameScore: 0,
+    frameScore: 100,
     totalScore: 0,
     totalFrames: 0,
     allowRep: false,
@@ -591,23 +593,36 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     if (gestureResult.command) {
       const cmd = gestureResult.command;
-      setLastGestureCommand(cmd);
 
-      // Show HUD flash for 3 seconds
-      setGestureHudVisible(true);
-      if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
-      gestureHudTimerRef.current = setTimeout(() => setGestureHudVisible(false), 3000);
+      // Grace period: ignore all gesture commands for the first 3 seconds
+      // to let MediaPipe pose detection stabilize (noisy first frames).
+      if (Date.now() - startTimeRef.current < 3000) {
+        console.warn(`Gesture "${cmd}" ignored during 3s startup grace period`);
+      } else {
+        setLastGestureCommand(cmd);
 
-      if (cmd === 'STOP') {
-        // Trigger the existing end-session flow
-        handleEnd();
-        return;
-      } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
-        workoutControlRef.current = 'paused';
-        setWorkoutControlState('paused');
-      } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
-        workoutControlRef.current = 'running';
-        setWorkoutControlState('running');
+        // Show HUD flash for 3 seconds
+        setGestureHudVisible(true);
+        if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
+        gestureHudTimerRef.current = setTimeout(() => setGestureHudVisible(false), 3000);
+
+        if (cmd === 'STOP') {
+          // For bilateral exercises (bicep curls), STOP gesture is disabled
+          // because curling arms up looks identical to crossed arms (STOP).
+          if (exercise.bilateral) {
+            console.warn("STOP gesture disabled for bilateral exercises — use FINISH SESSION button");
+          } else if (mutableState.current.reps > 0) {
+            handleEnd();
+            return;
+          }
+          console.warn("STOP gesture ignored — no reps counted yet");
+        } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
+          workoutControlRef.current = 'paused';
+          setWorkoutControlState('paused');
+        } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
+          workoutControlRef.current = 'running';
+          setWorkoutControlState('running');
+        }
       }
     }
 
@@ -756,11 +771,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     onResults: handlePoseResults,
     onFrame: handleFrameTick,
     onCameraError: (err: any) => {
-      console.error("Workout camera error callback:", err);
+      const errorMsg = err?.message || err?.name || String(err);
+      console.error("Workout camera error callback:", errorMsg, err);
       if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setCameraError('CAMERA_PERMISSION_DENIED');
+      } else if (err.message === 'NO_CAMERA_FOUND' || err.name === 'NotFoundError') {
+        setCameraError('NO_CAMERA');
       } else {
-        setCameraError('UNKNOWN_ERROR');
+        setCameraError(errorMsg);
       }
     }
   });
@@ -798,6 +816,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     const startWorkout = async () => {
       if (!videoRef.current || !canvasRef.current) return;
 
+      // Step 1: Setup canvas/worker (non-critical errors)
       try {
         const canvasEl = canvasRef.current as any;
         initOffscreenCanvas(canvasEl, worker);
@@ -808,7 +827,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         if (ctx) overlayRenderer.setContext(ctx);
 
         sessionRecorder.start();
+      } catch (err: any) {
+        console.error("Workout setup error (non-fatal):", err);
+      }
+
+      // Step 2: Init clip engine (non-critical, swallows errors)
+      try {
         await clipEngine.init();
+      } catch (err: any) {
+        console.warn("Clip engine init failed (non-fatal):", err);
+      }
+
+      // Step 3: Start camera (critical — shows error UI if fails)
+      try {
         await startSystem();
       } catch (err: any) {
         console.error("Workout camera error:", err);
@@ -824,7 +855,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     const timerRef = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-
+      console.log("[timer] elapsed:", elapsed, "startTime:", startTimeRef.current);
       setSeconds(elapsed);
     }, 1000);
 
@@ -884,25 +915,31 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       }
     }
 
+    const actualDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
     onEnd({
       reps: mutableState.current.reps,
       totalReps: mutableState.current.totalReps,
       correctReps: mutableState.current.correctReps,
       repScores: mutableState.current.repScores,
       repDeviations: mutableState.current.repDeviations,
-      duration: seconds,
+      duration: actualDuration,
       accuracy: accuracy,
       mistakes: finalMistakes,
       bestStreak: mutableState.current.bestStreak,
+      leftRepCount: mutableState.current.leftRepCount,
+      rightRepCount: mutableState.current.rightRepCount,
       jumpingJackSync: mutableState.current.jumpingJackSync,
       tutMetrics: mutableState.current.tutMetrics,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
         mistakes: Object.keys(finalMistakes),
+        duration: actualDuration,
         duration: seconds,
       }),
     });
+    console.log("[handleEnd] sending onEnd with duration:", actualDuration, "startTime was:", startTimeRef.current);
   };
 
   const formatTime = (s: number) => {
@@ -967,20 +1004,44 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       className="screen-container"
       style={{ background: "var(--bg-primary)" }}
     >
-      {cameraError === 'CAMERA_PERMISSION_DENIED' && (
+      {(cameraError === 'CAMERA_PERMISSION_DENIED' || cameraError === 'NO_CAMERA' || (cameraError && cameraError !== 'NONE')) && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)' }}>
           <div style={{ fontSize: '48px', marginBottom: '20px' }}>📷</div>
-          <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>Camera Access Required</h2>
+          <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>
+            {cameraError === 'CAMERA_PERMISSION_DENIED' ? 'Camera Access Required' : 'Camera Error'}
+          </h2>
           <p style={{ maxWidth: '400px', color: '#94a3b8', lineHeight: 1.6 }}>
-            You have denied camera permissions. SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
+            {cameraError === 'CAMERA_PERMISSION_DENIED'
+              ? 'You have denied camera permissions. SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.'
+              : cameraError === 'NO_CAMERA'
+              ? 'No camera device found. Please connect a camera and refresh the page.'
+              : `Camera error: ${cameraError}. Please try refreshing the page.`}
           </p>
+          <button
+            onClick={() => { setCameraError(null); window.location.reload(); }}
+            style={{
+              marginTop: '20px',
+              background: 'transparent',
+              border: '1px solid #00ffff',
+              color: '#00ffff',
+              padding: '10px 24px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '0.75rem',
+              letterSpacing: '1px',
+            }}
+          >
+            REFRESH PAGE
+          </button>
         </div>
       )}
       <CameraErrorBoundary>
+      <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Background Video Layer */}
       <div
         className="camera-viewport"
-        style={{ position: "absolute", inset: 0 }}
+        style={{ position: "absolute", inset: 0, zIndex: 0 }}
       >
         <video
           ref={videoRef}
@@ -990,7 +1051,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            opacity: 0.4,
+            opacity: 0.8,
             transform: "scaleX(-1)",
           }}
         />
@@ -1222,13 +1283,23 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         >
           {displayConfig.fpsDisplay ? 'Hide FPS' : 'Show FPS'}
         </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle is-unlocked`}
+          onClick={() => {
+            localStorage.removeItem('spectrax.workoutPanelPositions.v1');
+            setPanelPositions(getDefaultPanelPositions());
+          }}
+        >
+          Reset Layout
+        </button>
       </div>
 
       <div className="workout-panel-layer">
         {renderDraggablePanel('focus', '', <FocusPanel exerciseName={exercise.name} />)}
         {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
-        {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
-        {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
+        {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} leftRepCount={engineState.leftRepCount} rightRepCount={engineState.rightRepCount} />)}
+        {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} reps={engineState.reps} stage={engineState.stage} frameScore={engineState.frameScore} />)}
         {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
         {renderDraggablePanel('dial', '', <AngleDialPanel angle={currentAngle} label={exercise.primaryJoint} statusColor={statusColor} />)}
         {renderDraggablePanel('tut', '', <TutPanel tutMetrics={engineState.tutMetrics} statusColor={statusColor} />)}
@@ -1834,6 +1905,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
         </div>
       )}
+      </div>
       </CameraErrorBoundary>
     </div>
   );

@@ -24,38 +24,68 @@ export const TimerPanel = ({ seconds }: { seconds: number }) => {
   );
 };
 
-export const RepsPanel = ({ reps, statusColor, isStatic, holdTime }: { reps: number, statusColor: string, isStatic?: boolean, holdTime?: number }) => (
+export const RepsPanel = ({ reps, statusColor, isStatic, holdTime, leftRepCount, rightRepCount }: { reps: number, statusColor: string, isStatic?: boolean, holdTime?: number, leftRepCount?: number, rightRepCount?: number }) => (
   <div className="rep-counter workout-reps-panel animate-in" style={{ textAlign: 'center' }}>
-    <div
-      aria-live="polite"
-      aria-atomic="true"
-      style={{
-        fontFamily: 'var(--font-heading)',
-        fontSize: '7rem',
-        fontWeight: 900,
-        lineHeight: 1,
-        color: '#fff',
-        textShadow: `0 0 40px ${statusColor}44`
-      }}
-    >
-      {isStatic ? (
-        <span className="sr-only">Hold Time: {Math.floor(holdTime || 0)} seconds</span>
-      ) : (
-        <span className="sr-only">Rep Count: {reps}</span>
-      )}
-      <span aria-hidden="true">{isStatic ? `${Math.floor(holdTime || 0)}s` : reps}</span>
-    </div>
-    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '4px', textTransform: 'uppercase' }}>
-      {isStatic ? "HOLD TIME" : "REPETITIONS"}
-    </div>
+    {leftRepCount !== undefined && rightRepCount !== undefined ? (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '48px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div aria-live="polite" aria-atomic="true" style={{ fontFamily: 'var(--font-heading)', fontSize: '3.5rem', fontWeight: 900, lineHeight: 1, color: '#fff', textShadow: `0 0 40px ${statusColor}44` }}>{leftRepCount}</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', textTransform: 'uppercase' }}>LEFT</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div aria-live="polite" aria-atomic="true" style={{ fontFamily: 'var(--font-heading)', fontSize: '3.5rem', fontWeight: 900, lineHeight: 1, color: '#fff', textShadow: `0 0 40px ${statusColor}44` }}>{rightRepCount}</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', textTransform: 'uppercase' }}>RIGHT</div>
+          </div>
+        </div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '4px', textTransform: 'uppercase', marginTop: '8px' }}>REPETITIONS</div>
+      </>
+    ) : (
+      <>
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '7rem',
+            fontWeight: 900,
+            lineHeight: 1,
+            color: '#fff',
+            textShadow: `0 0 40px ${statusColor}44`
+          }}
+        >
+          {isStatic ? (
+            <span className="sr-only">Hold Time: {Math.floor(holdTime || 0)} seconds</span>
+          ) : (
+            <span className="sr-only">Rep Count: {reps}</span>
+          )}
+          <span aria-hidden="true">{isStatic ? `${Math.floor(holdTime || 0)}s` : reps}</span>
+        </div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '4px', textTransform: 'uppercase' }}>
+          {isStatic ? "HOLD TIME" : "REPETITIONS"}
+        </div>
+      </>
+    )}
   </div>
 );
 
-export const EnginePanel = ({ status, statusColor }: { status: string, statusColor: string }) => (
-  <div className="glass workout-stat-card animate-in" style={{ borderLeft: `3px solid ${statusColor}` }}>
+interface EnginePanelProps {
+  status: string;
+  statusColor: string;
+  reps?: number;
+  stage?: string;
+  frameScore?: number;
+}
+export const EnginePanel = ({ status, statusColor, reps, stage, frameScore }: EnginePanelProps) => (
+  <div className="glass workout-stat-card animate-in" style={{ borderLeft: `3px solid ${statusColor}`, minWidth: '200px' }}>
     <div style={{ fontSize: '0.75rem', color: statusColor, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
       <Activity size={14} /> AI ENGINE: {status === 'green' ? 'STABLE' : 'CORRECTION REQUIRED'}
     </div>
+    {reps !== undefined && (
+      <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginTop: '6px', fontFamily: 'monospace', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <span>REPS: {reps} | STAGE: {stage} | FORM: {frameScore}%</span>
+      </div>
+    )}
   </div>
 );
 

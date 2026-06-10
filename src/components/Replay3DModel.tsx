@@ -1933,6 +1933,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           handleContextRestored,
         );
 
+        controlsRef.current?.dispose();
+
+   
+     
         controls.dispose();
         composer.dispose();
         composerRef.current = null;
