@@ -1,6 +1,12 @@
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import { gpuAngleCalculator } from './gpuAngleUtils';
-import { frameInterpolationEngine, FrameInterpolationEngine } from './frameInterpolationEngine';
+
+// MediaPipe Pose Landmarker wrapper support
+export const mediaPipePoseLandmarkerConfig = {
+  runningMode: 'VIDEO' as const,
+  numPoses: 1,
+};
+
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
 

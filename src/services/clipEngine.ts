@@ -10,7 +10,12 @@
  * clipEngine.ts
  * A lightweight Vision-Language Model (CLIP) module for intelligent fitness analysis.
  * Features: Auto-classification, Confidence Scoring, and Session Tagging.
+ *
+ * Audio alerts are generated dynamically via the Web Audio API (see audioAlertService.ts).
+ * No external MP3 assets are loaded, keeping the bundle lean.
  */
+
+import { playAlert, isAudioSupported, AudioAlertOptions } from './audioAlertService';
 
 export interface ClipResult {
   label: string;
@@ -38,6 +43,63 @@ class ClipEngine {
 
   private helperCanvas: HTMLCanvasElement | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Audio alert options (can be updated at runtime, e.g. from SettingsContext)
+  // ---------------------------------------------------------------------------
+
+  /** Global audio options forwarded to every playAlert() call. */
+  private audioOptions: AudioAlertOptions = { muted: false, volume: 1 };
+
+  /**
+   * Returns true when the Web Audio API is available in the current browser.
+   * Components may call this to decide whether to show a mute toggle.
+   */
+  public hasAudioSupport(): boolean {
+    return isAudioSupported();
+  }
+
+  /**
+   * Updates audio-alert options (volume, mute state).
+   * @example clipEngine.setAudioOptions({ muted: true });
+   * @example clipEngine.setAudioOptions({ volume: 0.5 });
+   */
+  public setAudioOptions(opts: Partial<AudioAlertOptions>): void {
+    this.audioOptions = { ...this.audioOptions, ...opts };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Convenience wrappers that components can call directly
+  // ---------------------------------------------------------------------------
+
+  /** Plays a rep-complete beep. Call after each successful repetition. */
+  public alertRepComplete(): void {
+    playAlert('rep_complete', this.audioOptions);
+  }
+
+  /** Plays a form-warning double-pulse. Call when posture feedback is 'red'. */
+  public alertFormWarning(): void {
+    playAlert('form_warning', this.audioOptions);
+  }
+
+  /** Plays a milestone ascending chord. Call on badge / streak achievements. */
+  public alertMilestone(): void {
+    playAlert('milestone', this.audioOptions);
+  }
+
+  /** Plays a session-end descending sweep. Call when the workout finishes. */
+  public alertSessionEnd(): void {
+    playAlert('session_end', this.audioOptions);
+  }
+
+  /** Plays a countdown tick. Call on each countdown timer decrement. */
+  public alertCountdown(): void {
+    playAlert('countdown', this.audioOptions);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Existing ClipEngine API (unchanged)
+  // ---------------------------------------------------------------------------
+
   public isReady() {
     return !!this.classifier;
   }
@@ -58,7 +120,7 @@ class ClipEngine {
   private workerReady = false;
 
   /**
-   * Initializes the CLIP model. 
+   * Initializes the CLIP model.
    * Uses quantized INT8 weights for ~150MB download size.
    */
   public async init() {

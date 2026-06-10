@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX } from 'lucide-react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
@@ -17,23 +17,15 @@ import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
-import { useThrottleLevel } from '../services/performanceThrottleService';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { CameraErrorBoundary } from './CameraErrorBoundary';
-import { ghostService, type GhostStats } from '../services/ghostService';
-import type { FrameData } from '../services/sessionRecorder';
-import { FpsMonitor } from './FpsMonitor';
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel } from './WorkoutPanels';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, TutPanel } from './WorkoutPanels';
 import { ghostService } from '../services/ghostService';
 import type { GhostStats } from '../services/ghostService';
 import { useThrottleLevel } from '../services/performanceThrottleService';
 import { FpsMonitor } from './FpsMonitor';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
-import { gestureService, type GestureCommand } from "../services/gestureService";
+import { gestureService, GestureCommand } from '../services/gestureService';
+import { debounce } from '../utils/debounce';
+import { useSettings } from '../context/SettingsContext';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -65,7 +57,7 @@ interface WorkoutScreenProps {
   onCancel?: () => void;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "tut";
 
 type PanelPosition = {
   x: number;
@@ -170,7 +162,69 @@ const extrapolateLandmarks = (
   });
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, onCancel }) => {
+const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
+  const cleanMsg = rawMsg.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, "").trim();
+  const lowerMsg = cleanMsg.toLowerCase();
+  
+  let errorType: "depth" | "back" | "knee" | "elbow" | "generic" = "generic";
+  if (lowerMsg.includes("lower") || lowerMsg.includes("deeper") || lowerMsg.includes("depth") || lowerMsg.includes("deep")) {
+    errorType = "depth";
+  } else if (lowerMsg.includes("back") || lowerMsg.includes("spine") || lowerMsg.includes("sag")) {
+    errorType = "back";
+  } else if (lowerMsg.includes("toe") || lowerMsg.includes("knee past")) {
+    errorType = "knee";
+  } else if (lowerMsg.includes("elbow")) {
+    errorType = "elbow";
+  }
+
+  if (durationMs < 15000) {
+    switch (errorType) {
+      case "depth": return "Go lower.";
+      case "back": return "Keep your back straight.";
+      case "knee": return "Knee past toes. Shift weight back.";
+      case "elbow": return "Keep elbows at side.";
+      default: return cleanMsg;
+    }
+  } else if (durationMs < 30000) {
+    switch (errorType) {
+      case "depth": return "Go a little deeper.";
+      case "back": return "Keep a neutral spine.";
+      case "knee": return "Watch your front knee alignment.";
+      case "elbow": return "Tuck your elbows in.";
+      default: return `${cleanMsg}, focus on technique.`;
+    }
+  } else if (durationMs < 60000) {
+    switch (errorType) {
+      case "depth": return "You're close. Keep pushing.";
+      case "back": return "Back straight. Keep pushing.";
+      case "knee": return "Keep weight back. Stay strong.";
+      case "elbow": return "Keep elbows locked in place.";
+      default: return `${cleanMsg}. Keep pushing.`;
+    }
+  } else if (durationMs < 90000) {
+    switch (errorType) {
+      case "depth": return "Still not reaching full depth.";
+      case "back": return "Still sagging your back. Core tight.";
+      case "knee": return "Knee is still past toes.";
+      case "elbow": return "Elbows flaring. Focus on form.";
+      default: return `Still committing form error. Focus up.`;
+    }
+  } else {
+    return "Take a short reset and focus on form.";
+  }
+};
+
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+  const { settings, updateSetting } = useSettings();
+  const voiceFeedbackEnabled = settings.voiceFeedback;
+  const lastSpokenFeedbackRef = useRef<string>("");
+  const lastSpokenTimeRef = useRef<number>(0);
+  const lastMotivationTimeRef = useRef<number>(0);
+  const consecutiveMistakeStartRef = useRef<number>(0);
+  const lastDownStruggleSpokenRef = useRef<boolean>(false);
+  const lastUpPauseSpokenRef = useRef<boolean>(false);
+  const lastErrorCategoryRef = useRef<string>("none");
+
   const bodyTypeRef = useRef(bodyType);
   bodyTypeRef.current = bodyType;
   const onAutoDetectRef = useRef(onAutoDetect);
@@ -203,17 +257,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
   const throttleLevel = useThrottleLevel();
-  const srOnly: React.CSSProperties = {
-    position: 'absolute',
-    width: '1px',
-    height: '1px',
-    padding: 0,
-    margin: '-1px',
-    overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
-    whiteSpace: 'nowrap',
-    borderWidth: 0,
-  };
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -336,34 +379,185 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   // for comparison — it doesn't need to cause a re-render on its own.
   const prevRepsRef = useRef(0);
 
-  // ── Announce pose correction feedback ─────────────────────────────────────────
-  // useEffect runs ONLY when engineState.feedback changes to a different string.
-  // React's dependency comparison handles deduplication automatically — the same
-  // message repeated across frames will NOT re-trigger this effect.
+  // ── Unified Virtual Trainer Voice Coaching System ──────────────────────────────
   useEffect(() => {
+    // 1. Maintain ARIA accessibility announcements first
     setFeedbackAnnouncement(engineState.feedback);
-  }, [engineState.feedback]);
-
-  // ── Announce rep count on each increment ─────────────────────────────────────
-  // We check prevRepsRef so we only announce when reps actually go up.
-  // This prevents announcing "Rep 0" on first render.
-  useEffect(() => {
-    if (engineState.reps > 0 && engineState.reps > prevRepsRef.current) {
-      // Announce the number for screen readers
+    
+    const repCompleted = engineState.reps > prevRepsRef.current && engineState.reps > 0;
+    if (repCompleted) {
       setRepAnnouncement(engineState.reps.toString());
-      
-      // Voice Coach feature: Physically speak the rep count out loud
+    }
+    
+    // Update the ref so we don't double-trigger rep announcements
+    prevRepsRef.current = engineState.reps;
+
+    // Reset struggle/pause triggers on stage transitions
+    if (engineState.stage === "up") {
+      lastDownStruggleSpokenRef.current = false;
+    } else if (engineState.stage === "down") {
+      lastUpPauseSpokenRef.current = false;
+    }
+
+    // 2. Guard for voice output settings (Immediate Mute Guard)
+    if (!voiceFeedbackEnabled) {
       if ('speechSynthesis' in window) {
-        // Cancel any ongoing speech to prioritize the current rep count
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(engineState.reps.toString());
-        // Optional: you can tune rate and pitch here
-        utterance.rate = 1.1; 
-        window.speechSynthesis.speak(utterance);
+      }
+      return;
+    }
+
+    if (!('speechSynthesis' in window)) {
+      return;
+    }
+
+    const msg = engineState.feedback.trim();
+    const cleanMsg = msg.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, "").trim();
+
+    // Setup / non-coaching messages ignore list
+    const ignoreList = [
+      "establishing posture...",
+      "get into position...",
+      "ready 🟢",
+      "sensors blurred — position body",
+      "good form ✅"
+    ];
+    const isSetupOrNeutral = ignoreList.some(item => msg.toLowerCase().includes(item)) || !msg;
+
+    // Completed rep praise depth outcomes (these are spoken on rep complete, not mid-rep)
+    const praiseList = [
+      "deep squat ✅",
+      "parallel depth ✅",
+      "deep pushup ✅",
+      "good depth ✅"
+    ];
+    const isRepPraiseMessage = praiseList.some(item => msg.toLowerCase().includes(item));
+
+    // Active correction/guidance cue (not setup/neutral, not rep praise)
+    const isCoachingCue = !isSetupOrNeutral && !isRepPraiseMessage;
+
+    // Update mistake start ref by tracking correction categories
+    const lowerMsg = cleanMsg.toLowerCase();
+    let currentCategory: "depth" | "back" | "knee" | "elbow" | "generic" | "none" = "none";
+    if (isCoachingCue) {
+      if (lowerMsg.includes("lower") || lowerMsg.includes("deeper") || lowerMsg.includes("depth") || lowerMsg.includes("deep")) {
+        currentCategory = "depth";
+      } else if (lowerMsg.includes("back") || lowerMsg.includes("spine") || lowerMsg.includes("sag")) {
+        currentCategory = "back";
+      } else if (lowerMsg.includes("toe") || lowerMsg.includes("knee past")) {
+        currentCategory = "knee";
+      } else if (lowerMsg.includes("elbow")) {
+        currentCategory = "elbow";
+      } else {
+        currentCategory = "generic";
       }
     }
-    prevRepsRef.current = engineState.reps;
-  }, [engineState.reps]);
+
+    if (currentCategory !== "none") {
+      if (consecutiveMistakeStartRef.current === 0 || currentCategory !== lastErrorCategoryRef.current) {
+        consecutiveMistakeStartRef.current = Date.now();
+      }
+      lastErrorCategoryRef.current = currentCategory;
+    } else {
+      consecutiveMistakeStartRef.current = 0;
+      lastErrorCategoryRef.current = "none";
+    }
+
+    const now = Date.now();
+    const MISTAKE_COOLDOWN = 8000;       // 8.0s persistent mistake rate limiter (target: 10-15 prompts / 2 mins)
+    const MOTIVATION_COOLDOWN = 8000;   // 8.0s between motivational speech events
+
+    const isSafetyWarning = !!mismatchError || (isCoachingCue && (engineState.status === "red" || cleanMsg.toLowerCase().includes("back straight") || cleanMsg.toLowerCase().includes("knee past toes")));
+
+    // Decide what the trainer should say
+    let speechCandidate = "";
+    let shouldSpeak = false;
+    let isMotivationalPhraseUsed = false;
+
+    // A list of encouragement phrases
+    const motivations = ["You've got this!", "Keep pushing!", "Stay strong!", "Almost there!", "Stay with it!"];
+    const getRandomMotivation = () => motivations[Math.floor(Math.random() * motivations.length)];
+
+    if (mismatchError) {
+      const candidate = `Exercise mismatch. You appear to be doing ${mismatchError.toLowerCase()}`;
+      const isNewMessage = candidate !== lastSpokenFeedbackRef.current;
+      const cooldownElapsed = now - lastSpokenTimeRef.current > MISTAKE_COOLDOWN;
+      if (isNewMessage || cooldownElapsed) {
+        speechCandidate = candidate;
+        shouldSpeak = true;
+      }
+    } else if (repCompleted) {
+      // Prioritize correction message if the completed rep was faulty
+      if (isCoachingCue) {
+        speechCandidate = getProgressiveSpeech(msg, now - consecutiveMistakeStartRef.current);
+        shouldSpeak = true;
+      } else {
+        // Correct rep completed with green form: speak rep count + positive praise
+        const praises = [
+          "Great rep!",
+          "Excellent posture!",
+          "Good form!",
+          "Nice job!"
+        ];
+        const randomPraise = praises[Math.floor(Math.random() * praises.length)];
+        speechCandidate = `${engineState.reps}. ${randomPraise}`;
+        shouldSpeak = true;
+      }
+    } else {
+      // 1. Struggle Trigger: holding the load phase (down stage) for too long (> 3.0s) and NO active mistakes
+      if (engineState.stage === "down" && (now - engineState.stageStartTime > 3000) && !lastDownStruggleSpokenRef.current && !isCoachingCue) {
+        if (now - lastMotivationTimeRef.current > MOTIVATION_COOLDOWN) {
+          const strugglePraises = ["Almost there, stay strong!", "Stay strong, you've got this!", "Keep holding!"];
+          speechCandidate = strugglePraises[Math.floor(Math.random() * strugglePraises.length)];
+          shouldSpeak = true;
+          lastDownStruggleSpokenRef.current = true;
+          isMotivationalPhraseUsed = true;
+        }
+      }
+      
+      // 2. Inactivity Trigger: paused at the top (up stage) for too long (> 10.0s) and NO active mistakes
+      else if (engineState.stage === "up" && engineState.reps > 0 && (now - engineState.lastRepTime > 10000) && !lastUpPauseSpokenRef.current && !isCoachingCue) {
+        if (now - lastMotivationTimeRef.current > MOTIVATION_COOLDOWN) {
+          speechCandidate = `Let's go, ${getRandomMotivation().toLowerCase()}`;
+          shouldSpeak = true;
+          lastUpPauseSpokenRef.current = true;
+          isMotivationalPhraseUsed = true;
+        }
+      }
+
+      // 3. Standard Coaching Cues (Escalating & Progressive)
+      else if (isCoachingCue) {
+        const candidate = getProgressiveSpeech(msg, now - consecutiveMistakeStartRef.current);
+        const isNewMessage = candidate !== lastSpokenFeedbackRef.current;
+        const cooldownElapsed = now - lastSpokenTimeRef.current > MISTAKE_COOLDOWN;
+
+        if (isSafetyWarning) {
+          if (isNewMessage || cooldownElapsed) {
+            speechCandidate = candidate;
+            shouldSpeak = true;
+          }
+        } else if (isNewMessage && cooldownElapsed) {
+          speechCandidate = candidate;
+          shouldSpeak = true;
+        }
+      }
+    }
+
+    // Execute speech
+    if (shouldSpeak && speechCandidate) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(speechCandidate);
+      utterance.rate = 1.05; // Slightly faster for responsiveness
+      window.speechSynthesis.speak(utterance);
+
+      lastSpokenFeedbackRef.current = speechCandidate; // Store actual spoken candidate
+      lastSpokenTimeRef.current = now;
+
+      if (isMotivationalPhraseUsed) {
+        lastMotivationTimeRef.current = now;
+      }
+    }
+  }, [engineState.feedback, engineState.reps, engineState.stage, voiceFeedbackEnabled, mismatchError]);
 
   // ── Announce exercise mismatch errors ─────────────────────────────────────────
   // role="alert" with aria-live="assertive" will interrupt the screen reader
@@ -376,9 +570,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
 
   const workerAnglesRef = useRef<Record<string, number>>({});
-  const wsSocketRef = useWorkoutWebSocket();
   const offscreenEnabledRef = useRef<boolean>(false);
   const { initOffscreenCanvas } = useOffscreenCanvas();
+  useWorkoutWebSocket();
+
 
   const handlePoseResults = useCallback(async (results: any) => {
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
@@ -591,6 +786,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   useEffect(() => {
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
+    exerciseEngine.reset();
 
     // Load Ghost Data
     const ghostData = ghostService.loadGhost(exercise.key);
@@ -604,11 +800,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       setHasGhost(false);
     }
 
-    // ── WebSocket connection to backend (optional, non-blocking) ─────────────
-
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent) => {
+      const { angles } = event.data;
+      if (angles) {
+        workerAnglesRef.current = angles;
+      }
+    };
 
     
   
@@ -664,6 +865,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       worker.terminate();
       clearInterval(timerRef);
       gestureService.reset();
+      exerciseEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
   }, [exercise, startSystem, stopSystem]);
@@ -728,6 +930,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       leftRepCount: mutableState.current.leftRepCount,
       rightRepCount: mutableState.current.rightRepCount,
       jumpingJackSync: mutableState.current.jumpingJackSync,
+      tutMetrics: mutableState.current.tutMetrics,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
@@ -1053,6 +1256,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </button>
         <button
           type="button"
+          className={`workout-lock-toggle ${voiceFeedbackEnabled ? 'is-locked' : 'is-unlocked'}`}
+          onClick={() => updateSetting('voiceFeedback', !voiceFeedbackEnabled)}
+        >
+          {voiceFeedbackEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          {voiceFeedbackEnabled ? 'Voice Coach: ON' : 'Voice Coach: OFF'}
+        </button>
+        <button
+          type="button"
           className={`workout-lock-toggle is-unlocked`}
           onClick={() => updateDisplayConfig({ skeletonWires: !displayConfig.skeletonWires })}
         >
@@ -1091,6 +1302,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} reps={engineState.reps} stage={engineState.stage} frameScore={engineState.frameScore} />)}
         {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
         {renderDraggablePanel('dial', '', <AngleDialPanel angle={currentAngle} label={exercise.primaryJoint} statusColor={statusColor} />)}
+        {renderDraggablePanel('tut', '', <TutPanel tutMetrics={engineState.tutMetrics} statusColor={statusColor} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
