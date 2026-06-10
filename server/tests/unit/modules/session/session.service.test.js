@@ -1,8 +1,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { createSessionService } = require('../../../../src/modules/session/session.service');
-const { createSessionStore } = require('../../../../src/modules/session/session.store');
+const { createSessionService } = require('../../../../src/services/session.service');
+const { createSessionStore } = require('../../../../src/services/session.store');
 
 describe('session.service', () => {
   it('maintains a rolling buffer of frames per socket', () => {

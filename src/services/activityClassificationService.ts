@@ -40,11 +40,8 @@ export class ActivityClassificationService {
       
       if (data.type === 'ready') {
         this.isReady = true;
-        console.log(`[ActivityService] Worker is ready. (quantized=${data.quantized})`);
       } else if (data.type === 'model-loaded') {
-        console.log(`[ActivityService] Model loaded. Quantized: ${data.quantized}, Fallback: ${data.fallback}`);
       } else if (data.type === 'prediction') {
-        console.log(`[ActivityService] Inference completed in ${data.inferenceTimeMs.toFixed(2)} ms (quantized=${data.quantized})`);
         if (this.onActivityDetected) {
           this.onActivityDetected(data.results);
         }
@@ -85,7 +82,7 @@ export class ActivityClassificationService {
             { 
               type: 'analyze', 
               image: bitmap, 
-              labels: ['squat', 'pushup', 'plank', 'bicep curl', 'jumping jack'], 
+              labels: ['squat', 'pushup', 'plank', 'bicep curl', 'jumping jack', 'shoulder press'], 
               frameId: Date.now() 
             },
             [bitmap] // Transferable objects

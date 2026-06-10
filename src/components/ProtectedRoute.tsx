@@ -1,26 +1,34 @@
-import React from "react";
-import { useAuth } from "../context/AuthContext";
+/**
+ * ProtectedRoute  (fix for issue #673)
+ *
+ * Wraps any route that requires authentication.
+ * If no auth token is found, redirects to /login immediately.
+ *
+ * Usage in App.tsx:
+ *   <Route path="/workout" element={<ProtectedRoute><WorkoutPage /></ProtectedRoute>} />
+ */
+
+import { Navigate } from "react-router-dom";
+import type { ReactNode } from "react";
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
+  children: ReactNode;
 }
 
-export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+/**
+ * Returns true if the user has a valid session.
+ * Extend this to verify JWT expiry or call an auth context as needed.
+ */
+function isAuthenticated(): boolean {
+  return (
+    Boolean(localStorage.getItem("authToken")) ||
+    Boolean(sessionStorage.getItem("authToken"))
+  );
+}
 
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="spinner"></div>
-        <p>Loading...</p>
-      </div>
-    );
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />;
   }
-
-  if (!user) {
-    return fallback || null;
-  }
-
   return <>{children}</>;
 }

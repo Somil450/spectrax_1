@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+
 /**
  * calibrationVisualRenderer.test.ts
  *

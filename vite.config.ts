@@ -137,5 +137,12 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    exclude: ["server/**", "node_modules/**"],
+    setupFiles: ["src/setupTests.ts"],
+    server: {
+      deps: {
+        inline: [/@exodus\/bytes/],
+      },
+    },
   },
-});
+} as any);

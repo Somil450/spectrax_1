@@ -1,6 +1,6 @@
 const {
   generateFeedback,
-} = require("../../../../src/modules/pose/feedback.service");
+} = require("../../../../src/services/feedback.service");
 
 describe("feedback.service", () => {
   it("returns acquisition feedback when no angles are available", () => {

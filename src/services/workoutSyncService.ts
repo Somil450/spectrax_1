@@ -9,9 +9,7 @@ import {
   collection,
   addDoc,
   query,
-  where,
   getDocs,
-  updateDoc,
   deleteDoc,
   doc,
   serverTimestamp,
@@ -53,7 +51,9 @@ const DB_VERSION = 3; // Incremented for sync fields and localId keyPath upgrade
 const WORKOUTS_STORE = "workout_sessions";
 const SYNC_STATUS_STORE = "sync_status";
 
-async function openDB(): Promise<IDBDatabase> {
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function createDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -79,9 +79,31 @@ async function openDB(): Promise<IDBDatabase> {
       }
     };
 
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
+}
+
+async function openDB(): Promise<IDBDatabase> {
+  if (!dbPromise) {
+    dbPromise = createDB();
+  }
+  try {
+    return await dbPromise;
+  } catch (error) {
+    dbPromise = null;
+    throw error;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,20 +179,19 @@ async function markWorkoutAsSynced(localId: number, firestoreId: string): Promis
     const getReq = store.get(localId);
 
     getReq.onsuccess = () => {
-      const workout = getReq.result as WorkoutRecord;
-      if (workout) {
-        // Delete the record with numeric ID to prevent duplication
-        store.delete(localId);
-        // Save the record with the new Firestore string ID
-        store.put({
-          ...workout,
-          id: firestoreId,
-          synced: true,
-        });
-      }
-      resolve();
-    };
-    getReq.onerror = () => reject(getReq.error);
+  const workout = getReq.result as WorkoutRecord;
+  if (workout) {
+    store.delete(localId);
+    store.put({ ...workout, id: firestoreId, synced: true });
+  }
+  // ✅ Do NOT resolve here
+};
+
+getReq.onerror = () => reject(getReq.error);
+
+tx.oncomplete = () => resolve();           // ✅ resolve only after commit
+tx.onerror    = () => reject(tx.error);    // ✅ surface transaction errors
+tx.onabort    = () => reject(new Error(`Transaction aborted for localId ${localId}`));
   });
 }
 
@@ -334,7 +355,6 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
       }
     }
 
-    console.log(`Successfully synced ${syncedCount} workouts to Firestore`);
     return syncedCount;
   } catch (error) {
     console.error("Error syncing workouts to Firestore:", error);
@@ -349,9 +369,7 @@ export async function syncWorkoutsFromFirestore(userId: string): Promise<void> {
   try {
     const firestoreWorkouts = await getFirestoreWorkouts();
     await updateLocalWorkoutsFromFirestore(userId, firestoreWorkouts);
-    console.log(
-      `Downloaded ${firestoreWorkouts.length} workouts from Firestore`,
-    );
+    // Downloaded workouts from Firestore
   } catch (error) {
     console.error("Error syncing workouts from Firestore:", error);
     throw error;
@@ -405,29 +423,55 @@ let syncInProgress = false;
 /**
  * Start auto-sync when connection is restored
  */
-export function initializeAutoSync(userId: string): void {
-  // Listen for online event
-  window.addEventListener("online", async () => {
-    console.log("Network connection restored. Starting workout sync...");
-    try {
-      if (!syncInProgress) {
-        syncInProgress = true;
-        await fullSyncWorkouts(userId);
-        syncInProgress = false;
-        console.log("Workout sync completed");
-      }
-    } catch (error) {
-      syncInProgress = false;
-      console.error("Auto-sync failed:", error);
-    }
-  });
+let onlineHandler: (() => void) | null = null;
+let offlineHandler: (() => void) | null = null;
 
-  // Listen for offline event
-  window.addEventListener("offline", () => {
-    console.log(
-      "Network connection lost. Workouts will sync when back online.",
-    );
-  });
+export function initializeAutoSync(userId: string): void {
+  cleanupAutoSync();
+
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    navigator.serviceWorker.ready.then((reg) => {
+      if ('sync' in reg) {
+        return (reg as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('workout-sync');
+      }
+    }).then(() => {
+      console.log('Background Sync registered successfully.');
+    }).catch((err) => {
+      console.error('Failed to register Background Sync:', err);
+    });
+  }
+
+  // Fallback to standard online/offline event handlers
+  onlineHandler = async () => {
+    if (syncInProgress) return;
+    try {
+      syncInProgress = true;
+      const syncedCount = await syncWorkoutsToFirestore(userId);
+      console.log(`Successfully synced ${syncedCount} workouts.`);
+    } catch (err) {
+      console.error("Auto-sync failed:", err);
+    } finally {
+      syncInProgress = false;
+    }
+  };
+
+  offlineHandler = () => {
+    // Network connection lost, sync when online
+  };
+
+  window.addEventListener("online", onlineHandler);
+  window.addEventListener("offline", offlineHandler);
+}
+
+export function cleanupAutoSync(): void {
+  if (onlineHandler) {
+    window.removeEventListener("online", onlineHandler);
+    onlineHandler = null;
+  }
+  if (offlineHandler) {
+    window.removeEventListener("offline", offlineHandler);
+    offlineHandler = null;
+  }
 }
 
 /**
@@ -506,6 +550,30 @@ export async function bulkUploadWorkouts(
     });
 
     await batch.commit();
+
+    // Mark each uploaded workout as synced in IndexedDB so subsequent
+    // calls to getUnsyncedWorkouts do not find them again and re-upload them.
+    for (let i = 0; i < workouts.length; i++) {
+      const workout = workouts[i];
+      const firestoreId = uploadedIds[i];
+      const localKey =
+        workout.localId !== undefined
+          ? workout.localId
+          : typeof workout.id === "number"
+            ? workout.id
+            : undefined;
+      if (localKey !== undefined) {
+        try {
+          await markWorkoutAsSynced(localKey, firestoreId);
+        } catch (syncError) {
+          console.error(
+            `[SpectraX] Failed to mark workout ${localKey} as synced locally:`,
+            syncError,
+          );
+        }
+      }
+    }
+
     return uploadedIds;
   } catch (error) {
     console.error("Error in bulk upload:", error);
@@ -545,9 +613,19 @@ export async function deleteWorkout(
  * Clear all workouts for a user locally and from Firestore
  */
 export async function clearAllWorkouts(userId: string): Promise<void> {
-  const db = await openDB();
+  // Phase 1: delete from Firestore first.
+  // If this throws (network error, permission denied) the local records are
+  // left intact and the error propagates to the caller so the UI can surface
+  // a meaningful message instead of falsely reporting success.
+  const remoteWorkouts = await getFirestoreWorkouts();
+  for (const w of remoteWorkouts) {
+    if (w.id) {
+      await deleteWorkoutFromFirestore(w.id as string);
+    }
+  }
 
-  // 1. Delete all user records locally from IndexedDB
+  // Phase 2: wipe IndexedDB only after remote deletion is confirmed.
+  const db = await openDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readwrite");
     const store = tx.objectStore(WORKOUTS_STORE);
@@ -559,24 +637,12 @@ export async function clearAllWorkouts(userId: string): Promise<void> {
       if (cursor) {
         cursor.delete();
         cursor.continue();
-      } else {
-        resolve();
       }
     };
     req.onerror = () => reject(req.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
-
-  // 2. Get and delete all workouts from Firestore for this user
-  try {
-    const workouts = await getFirestoreWorkouts();
-    for (const w of workouts) {
-      if (w.id) {
-        await deleteWorkoutFromFirestore(w.id as string);
-      }
-    }
-  } catch (error) {
-    console.error("Failed to clear workouts from Firestore:", error);
-  }
 }
 
 export default {
@@ -590,6 +656,7 @@ export default {
   syncWorkoutsFromFirestore,
   fullSyncWorkouts,
   initializeAutoSync,
+  cleanupAutoSync,
   isOnline,
   getSyncStatus,
   bulkUploadWorkouts,

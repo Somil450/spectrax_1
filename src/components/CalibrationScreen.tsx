@@ -1,20 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { cameraService } from '../services/cameraService';
-import { poseService } from '../services/poseService';
+import React, { useEffect, useRef, useState , useCallback } from 'react';
+import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
-import { Camera, AlertCircle, Dumbbell, Hand } from 'lucide-react';
+import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity } from 'lucide-react';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
+import { cameraService } from "../services/cameraService";
+import { poseService } from "../services/poseService";
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
   onSelectExercise: (key: string) => void;
   onNext: () => void;
   onBack: () => void;
-  onBodyTypeDetected: (type: BodyType) => void;
+  onBodyTypeDetected: (type: BodyType, factor: number) => void;
 }
 
 // ── Visually-hidden style (sr-only) ──────────────────────────────────────────
@@ -36,16 +37,21 @@ const srOnly: React.CSSProperties = {
 export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({ 
   selectedExercise, onSelectExercise, onNext, onBack, onBodyTypeDetected
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // -- State variables --
+  const { sessions, fetchHistory } = useWorkoutHistory();
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   const [result, setResult] = useState<CalibrationResult>({
     status: 'red',
     message: 'Initializing system...',
     isReady: false,
     visibleCount: 0,
     totalCount: 8,
+    adaptiveFactor: 1.0,
   });
   const [error, setError] = useState<string | null>(null);
   const [bodyTypeRes, setBodyTypeRes] = useState<BodyTypeResult | null>(null);
@@ -57,22 +63,73 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isPoseLost: false,
     isThumbsUp: false,
     isCrossedArms: false,
+    isSingleHandRaised: false,
+    command: null,
+    gestureConfidences: { START: 0, PAUSE: 0, STOP: 0 },
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
   
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
-  
-  const { sessions, fetchHistory } = useWorkoutHistory();
-  
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+  const[expandedExercise, setExpandedExercise] = useState<string | null>(null);
   
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
   const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
+
+
+  const handleResults = useCallback((results: any) => {
+    let adaptiveFactor = 1.0;
+    
+    if (results.poseLandmarks) {
+      const bt = bodyTypeEngine.analyze(results.poseLandmarks);
+      setBodyTypeRes(bt);
+      adaptiveFactor = bt.adaptiveFactor;
+      if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
+        onBodyTypeDetected(bt.bodyType, bt.adaptiveFactor);
+      }
+
+      const gesture = gestureService.analyze(results.poseLandmarks);
+      setGestureResult(gesture);
+    }
+
+    const evaluation = calibrationLogic.evaluate(results, adaptiveFactor);
+    setResult(evaluation);
+
+    const primaryJoints = selectedExercise.joints?.flat() || [];
+    overlayRenderer.draw(results, evaluation.status, primaryJoints);
+  }, [onBodyTypeDetected, selectedExercise]);
+
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
+      setError('CAMERA_PERMISSION_DENIED');
+    } else {
+      let msg = "Something went wrong starting the camera. Try refreshing the page.";
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = "No camera found on this device. Plug in a webcam and try again.";
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = "Your camera is being used by another app. Close it and try again.";
+      }
+      setError(msg);
+    }
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
+
+  const {
+    videoRef,
+    canvasRef,
+    startSystem,
+    stopSystem,
+  } = useCameraPose({
+    initialFpsLimit: 15,
+    minFpsLimit: 8,
+    fpsDecrementStep: 3,
+    setupContext: true,
+    onResults: handleResults,
+    onCameraError: handleCameraError,
+  });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
   // One string that the hidden live region will announce to screen readers.
@@ -83,11 +140,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   // actually transitions (e.g., isReady going false → true), not on every frame.
   const prevIsReadyRef = useRef(false);
   const prevPoseLostRef = useRef(false);
-
-  // ── Announce calibration status messages ──────────────────────────────────────
-  // This runs whenever result.message changes to a new string.
-  // React's dependency check means the same message repeated across pose frames
-  // will NOT re-trigger this — only genuine new messages will.
   useEffect(() => {
     if (result.isReady && !prevIsReadyRef.current) {
       // Only announce "ready" once when we first become ready
@@ -121,90 +173,22 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     }
   }, [countdownSeconds, countdownActive]);
 
-  // ── Announce camera errors ─────────────────────────────────────────────────────
-  useEffect(() => {
-    if (error) {
-      setAnnouncement('Camera error. Please verify camera access and refresh the page.');
-    }
-  }, [error]);
+
 
 
   useEffect(() => {
-    let isMounted = true;
-
-    const startSystem = async () => {
-      if (!videoRef.current || !canvasRef.current) return;
-
-      try {
-        setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
-        
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) overlayRenderer.setContext(ctx);
-
-        await cameraService.startCamera(videoRef.current);
-        
-        poseService.onResults((results) => {
-          if (!isMounted) return;
-          const evaluation = calibrationLogic.evaluate(results);
-          setResult(evaluation);
-          
-          if (results.poseLandmarks) {
-            const bt = bodyTypeEngine.analyze(results.poseLandmarks);
-            setBodyTypeRes(bt);
-            if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-              onBodyTypeDetected(bt.bodyType);
-            }
-
-            const gesture = gestureService.analyze(results.poseLandmarks);
-            setGestureResult(gesture);
-          }
-
-          const primaryJoints = selectedExercise.joints?.flat() || [];
-          overlayRenderer.draw(results, evaluation.status, primaryJoints);
-        });
-
-        const processLoop = (timestamp: number) => {
-          if (!isMounted) return;
-          const elapsed = timestamp - lastProcessTime.current;
-          if (elapsed > (1000 / FPS_LIMIT)) {
-            if (videoRef.current && videoRef.current.readyState >= 2 && !videoRef.current.paused) {
-              poseService.send(videoRef.current);
-            }
-            lastProcessTime.current = timestamp;
-          }
-          frameId.current = requestAnimationFrame(processLoop);
-        };
-        frameId.current = requestAnimationFrame(processLoop);
-      } catch (err: unknown) {
-        if (isMounted) {
-          const name = (err instanceof Error) ? err.name : '';
-          let msg = "Something went wrong starting the camera. Try refreshing the page.";
-          if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-            msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
-          } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-            msg = "No camera found on this device. Plug in a webcam and try again.";
-          } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-            msg = "Your camera is being used by another app. Close it and try again.";
-          }
-          setError(msg);
-          setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
-        }
-      }
-    };
-
+    setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
     startSystem();
 
     return () => {
-      isMounted = false;
-      cancelAnimationFrame(frameId.current);
-      cameraService.stopCamera();
+      stopSystem();
       bodyTypeEngine.reset();
       gestureService.reset();
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, [selectedExercise, onBodyTypeDetected]);
+  }, [selectedExercise, onBodyTypeDetected, startSystem, stopSystem]);
 
   useEffect(() => {
     const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
@@ -251,9 +235,9 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
-      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack'],
-      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank'],
-      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl']
+      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress', 'chestPressPunches'],
+      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress', 'chestPressPunches'],
+      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress', 'chestPressPunches']
     };
     
     const order = orderMap[type] || [];
@@ -316,17 +300,143 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         
         {/* Header & Exercise Selector */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'all' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
-              <Camera color="var(--neon-cyan)" size={24} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="calib-header">
+              <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
+                <Camera color="var(--neon-cyan)" size={24} />
+              </div>
+              <div>
+                <h2 className="calib-title">Camera Calibration</h2>
+                <p className="calib-subtitle">Step into frame and hold still</p>
+              </div>
             </div>
-            <div>
-              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>Camera Calibration</h2>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '0.5px' }}>Step into frame and hold still</p>
+
+            {/* Quick Start Panel */}
+            <div className="glass calib-onboarding-panel" style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
+              padding: '24px',
+              width: '320px',
+              border: '1px solid var(--glass-border)',
+              boxShadow: 'var(--glass-shadow)',
+              background: 'var(--glass-bg)',
+              pointerEvents: 'all'
+            }}>
+              {/* Header: QUICK START */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+                <Activity size={24} color="var(--neon-cyan)" />
+                <span style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '1.2rem',
+                  fontWeight: 800,
+                  letterSpacing: '2px',
+                  color: 'var(--neon-cyan)',
+                  textTransform: 'uppercase'
+                }}>
+                  ⚡ QUICK START
+                </span>
+              </div>
+
+              {/* Step 1: FULL BODY VISIBLE */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px' }}>
+                  <User size={32} color="var(--text-primary)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    FULL BODY VISIBLE
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: START */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <Hand size={32} color="var(--neon-green)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    START
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Raise both hands
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: PAUSE */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <Hand size={32} color="var(--neon-yellow)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    PAUSE
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Raise one hand
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4: STOP */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <StopCircle size={32} color="var(--neon-red)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    STOP
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Cross arms
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="glass" style={{ padding: '16px', minWidth: '240px' }}>
+          <div className="glass calib-panel">
              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Dumbbell size={14} color="var(--neon-purple)" />
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>
@@ -362,7 +472,29 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         alignItems: 'center'
                       }}
                     >
-                      <span>{ex.name.toUpperCase()}</span>
+                      <div
+                        style = {{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        >
+                          <span>{ex.name.toUpperCase()}</span>
+                          <span
+                          title = "view guide"
+                          onClick = {(e) =>{
+                            e.stopPropagation();
+                            setExpandedExercise(expandedExercise === ex.key ? null : ex.key);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 'bold',
+                          }}
+                          >{expandedExercise === ex.key ? '▲' : '▼'}
+                          </span>
+                      </div>
+        
                       <span style={{ 
                         fontSize: '0.65rem', 
                         opacity: 0.8,
@@ -373,6 +505,53 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
                       </span>
                     </button>
+                    {expandedExercise === ex.key &&  ex.guide &&(
+                      <div 
+                      style = {{
+                        marginTop: '6px',
+                        padding: '16px',
+                        borderRadius: '12px',
+                        background: 'rgba(168,85,247,0.08)',
+                        border: '1px solid rgba(168,85,247,0.2)',
+                        fontSize: '0.75rem',
+                        color:'var(--text-secondary)',
+                      }} >
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Instructions</h4>
+                        <ul style = {{
+                          marginLeft: '16px',
+                          marginBottom: '12px',
+                        }}>
+                          {ex.guide?.instructions.map((item,idx) =>(
+                            <li key = {idx}>{item}</li>
+                          ))}
+                        </ul>
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Common Mistakes</h4>
+                        <ul style = {{
+                          marginLeft: '16px',
+                          marginBottom: '12px',
+                        }}>
+                          {ex.guide?.commonMistakes.map((item,idx) =>(
+                            <li key = {idx}>{item}</li>
+                          ))}
+                        </ul>
+                        <h4 style = {{
+                          color: 'var(--neon-purple)',
+                          marginBottom: '8px',
+                          marginTop:'12px'
+                        }}>Target Muscles</h4>
+                        <div>
+                          {ex.guide?.targetMuscles.join(',')}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Video Overlay */}
                     { (hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)) && ex.demoUrl && (
@@ -380,7 +559,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                         className="animate-in"
                         style={{
                           position: 'absolute',
-                          right: '105%', // Pop out to the left
+                          right: 'calc(100% + 24px)', // Clear the panel's 16px padding + 8px gap
                           top: '50%',
                           transform: 'translateY(-50%)',
                           width: '240px', /* <--- INCREASED SIZE HERE */
@@ -408,7 +587,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
              </div>
 
              {/* Total Reps Lifetime Stats - Small Section */}
-             <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+             <div style={{ marginTop: '20px', paddingTop: '16px', paddingBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {Object.values(exercises).map(ex => {
@@ -427,19 +606,23 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
         {/* Center Feedback Area */}
         <div style={{ alignSelf: 'center', textAlign: 'center' }}>
-          {error ? (
-            <div className="glass animate-in" style={{ padding: '32px 40px', border: '1px solid rgba(255,59,92,0.4)', background: 'rgba(255, 59, 92, 0.07)', maxWidth: '480px', pointerEvents: 'all', borderRadius: '18px' }}>
-              <AlertCircle color="var(--neon-red)" size={36} style={{ display: 'block', margin: '0 auto 16px' }} />
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '10px', fontSize: '1rem', letterSpacing: '1px' }}>Camera unavailable</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: '24px' }}>{error}</p>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                <button onClick={onBack} className="btn-outline" style={{ padding: '10px 22px', fontSize: '0.78rem' }}>Go back</button>
-                <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '10px 22px', fontSize: '0.78rem' }}>Try again</button>
-              </div>
+          {error === 'CAMERA_PERMISSION_DENIED' ? (
+            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>CAMERA ACCESS DENIED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>RELOAD</button>
+            </div>
+          ) : error ? (
+            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>{error}</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>REINITIALIZE</button>
             </div>
           ) : (
             <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
-               <p style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44` }}>
+               <p className="pb-4" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44`, paddingBottom: '16px' }}>
                 {result.message.toUpperCase()}
                </p>
                <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
@@ -505,7 +688,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                     hidden live region at the top of the JSX, which covers ALL states
                     (calibrating, ready, pose lost, countdown, error) — not just this one.
                   */}
-                  <div style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem' }}>
+                  <div className="pb-4" style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem', paddingBottom: '16px' }}>
                     {result.message}
                   </div>
               </div>
@@ -540,6 +723,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         }
         .radar-ping.loading::after {
           animation: radar-pulse 1s infinite;
+        }
+        @media (max-width: 1024px) {
+          .calib-onboarding-panel {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

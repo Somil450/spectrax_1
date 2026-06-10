@@ -1,4 +1,4 @@
-const { registerSessionSocketHandlers } = require('../../../../src/modules/session/session.socket');
+const { registerSessionSocketHandlers } = require('../../../../src/socket/session.socket');
 
 function createSocket(id) {
   const listeners = new Map();

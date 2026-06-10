@@ -1,6 +1,6 @@
 const request = require('supertest');
 const { createApp } = require('../../src/app/createApp');
-const { createSessionStore } = require('../../src/modules/session/session.store');
+const { createSessionStore } = require('../../src/services/session.store');
 
 describe('health route', () => {
   it('returns backend health details', async () => {

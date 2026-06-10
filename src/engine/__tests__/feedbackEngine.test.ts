@@ -57,3 +57,79 @@ describe("getFeedback", () => {
     expect(afterReset.color).toBe("yellow");
   });
 });
+
+describe("getFeedback – flutterKicks", () => {
+  it("returns green when flutter kick form is correct", () => {
+    // knee >= 155 and bodyLine >= 120 → no rules fire → perfect score
+    const result = getFeedback({ knee: 170, bodyLine: 150, stage: "up" }, "flutterKicks");
+    expect(result.color).toBe("green");
+    expect(result.message).toBe("Good form ✅");
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it("fires knee-bend warning when legs are not straight (knee < 155)", () => {
+    const result = getFeedback({ knee: 140, bodyLine: 150, stage: "up" }, "flutterKicks");
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Keep your legs straight ⚠️");
+    // rawScore = 100 – 30 = 70 → yellow
+    expect(result.color).toBe("yellow");
+  });
+
+  it("fires leg-height warning when legs are raised too high (bodyLine < 120)", () => {
+    const result = getFeedback({ knee: 170, bodyLine: 100, stage: "up" }, "flutterKicks");
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Keep legs lower for core engagement ⚠️");
+    // rawScore = 100 – 25 = 75 → yellow
+    expect(result.color).toBe("yellow");
+  });
+
+  it("returns red when both knee-bend and leg-height rules fire", () => {
+    // knee < 155 (–30) + bodyLine < 120 (–25) → rawScore = 45 → red
+    const result = getFeedback({ knee: 130, bodyLine: 100, stage: "up" }, "flutterKicks");
+    expect(result.issues).toHaveLength(2);
+    expect(result.color).toBe("red");
+    expect(result.score).toBeLessThanOrEqual(60);
+  });
+});
+
+describe("getFeedback – chestPressPunches", () => {
+  it("returns green when chest press form is correct", () => {
+    const result = getFeedback(
+      { shoulder: 80, bodyLine: 165, stage: "down", downAngleReached: 80 },
+      "chestPressPunches"
+    );
+    expect(result.color).toBe("green");
+    expect(result.message).toBe("Good form ✅");
+    expect(result.issues).toHaveLength(0);
+  });
+
+  it("fires arm level warning when arms are too low (shoulder < 65)", () => {
+    const result = getFeedback(
+      { shoulder: 50, bodyLine: 165, stage: "up" },
+      "chestPressPunches"
+    );
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Keep arms at shoulder level ⚠️");
+    expect(result.color).toBe("yellow");
+  });
+
+  it("fires back straight error when body line sag is detected (bodyLine < 155)", () => {
+    const result = getFeedback(
+      { shoulder: 80, bodyLine: 140, stage: "up" },
+      "chestPressPunches"
+    );
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Keep your back straight ❌");
+    expect(result.color).toBe("yellow");
+  });
+
+  it("fires range-of-motion warning when user fails to bring hands back to chest in down stage (downAngleReached > 110)", () => {
+    const result = getFeedback(
+      { shoulder: 80, bodyLine: 165, stage: "down", downAngleReached: 120 },
+      "chestPressPunches"
+    );
+    expect(result.issues).toHaveLength(1);
+    expect(result.message).toBe("Bring hands all the way back to chest ⚠️");
+    expect(result.color).toBe("yellow");
+  });
+});

@@ -1,7 +1,7 @@
 const {
   hasSessionFrames,
   hasSocketId,
-} = require('../../../../src/modules/session/session.validator');
+} = require('../../../../src/validators/session.validator');
 
 describe('session.validator', () => {
   it('checks whether a session contains frames', () => {

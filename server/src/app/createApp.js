@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { getConfig } = require("../config/env");
 const { createCorsOptions } = require("../config/cors");
-const { createHealthRouter } = require("../modules/health/health.routes");
+const { createHealthRouter } = require("../routes/health.routes");
 
 function createApp({ sessionStore, config = getConfig() }) {
   const app = express();

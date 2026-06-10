@@ -5,7 +5,7 @@ import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { exerciseEngine, EngineState,createPlankCalibration } from '../services/exerciseEngine';
+import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -187,9 +187,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
-    plankSpline: createPlankCalibration(),
-    hipSplineDeviation: 0,
-
+    repDeviations: [],
+    lastDepthResult: null,
+    depthStats: {
+      deepCount: 0,
+      parallelCount: 0,
+      halfCount: 0,
+      totalClassified: 0,
+      depthScore: 100,
+    },
+    liveDepthFeedback: "",
   });
 
   const frameId = useRef<number>(0);
@@ -246,8 +253,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     minScoreInRep: 100,
     repScores: [],
     accuracy: 100,
-    plankSpline: createPlankCalibration(),
-    hipSplineDeviation: 0,
+    repDeviations: [],
+    lastDepthResult: null,
+    depthStats: {
+      deepCount: 0,
+      parallelCount: 0,
+      halfCount: 0,
+      totalClassified: 0,
+      depthScore: 100,
+    },
+    liveDepthFeedback: "",
   });
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────

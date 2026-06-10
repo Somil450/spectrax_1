@@ -26,8 +26,12 @@ let db: ReturnType<typeof getFirestore>;
 let app: ReturnType<typeof initializeApp>;
 
 try {
-  if (!firebaseConfig.apiKey) throw new Error("Missing Firebase config");
-  app = initializeApp(firebaseConfig);
+if (!firebaseConfig || !firebaseConfig.apiKey) {
+  console.warn("Firebase not configured — running offline mode");
+  
+}
+
+const app = initializeApp(firebaseConfig);
 
   const appCheckSiteKey = import.meta.env.VITE_APPCHECK_RECAPTCHA_KEY;
   if (appCheckSiteKey) {
@@ -45,7 +49,6 @@ try {
     console.warn("Failed to set Firebase persistence:", error);
   });
 
-  console.log("✅ Firebase initialized");
 } catch (e) {
   console.warn("⚠️ Firebase not configured — running in offline/demo mode", e);
   // Create a minimal app stub so imports don't crash

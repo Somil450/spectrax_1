@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+
 /**
  * calibrationStateEngine.test.ts
  *
