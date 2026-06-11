@@ -45,7 +45,7 @@ export class FrameInterpolationEngine {
   private ghostFramesEmitted: number = 0;
   private isRunning: boolean = false;
 
-  constructor(config: Partial<<InterpolationConfig> = {}) {
+  constructor(config: Partial<InterpolationConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
