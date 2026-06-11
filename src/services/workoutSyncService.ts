@@ -434,8 +434,6 @@ export function initializeAutoSync(userId: string): void {
       if ('sync' in reg) {
         return (reg as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('workout-sync');
       }
-    }).then(() => {
-      console.log('Background Sync registered successfully.');
     }).catch((err) => {
       console.error('Failed to register Background Sync:', err);
     });
@@ -447,7 +445,6 @@ export function initializeAutoSync(userId: string): void {
     try {
       syncInProgress = true;
       const syncedCount = await syncWorkoutsToFirestore(userId);
-      console.log(`Successfully synced ${syncedCount} workouts.`);
     } catch (err) {
       console.error("Auto-sync failed:", err);
     } finally {
