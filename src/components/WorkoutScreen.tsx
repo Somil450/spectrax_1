@@ -47,6 +47,7 @@ interface WorkoutScreenProps {
     bestStreak: number;
     jumpingJackSync?: { score: number | null, lagMs: number | null, confidence: number, samples: number };
     tags?: string[];
+    tutMetrics?: any;
   }) => void;
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
