@@ -20,6 +20,9 @@ import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
 import PrivacyPage from "./pages/PrivacyPage";
+import NavBar from "./components/NavBar";
+import About from "./components/About";
+import Contact from "./components/Contact";
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
