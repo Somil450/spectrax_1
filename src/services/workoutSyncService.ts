@@ -47,7 +47,7 @@ export interface SyncStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME = "spectrax_db";
-const DB_VERSION = 3; // Incremented for sync fields and localId keyPath upgrade
+const DB_VERSION = 4; // Added synced_userId composite index for privacy-safe queries
 const WORKOUTS_STORE = "workout_sessions";
 const SYNC_STATUS_STORE = "sync_status";
 
@@ -60,18 +60,24 @@ function createDB(): Promise<IDBDatabase> {
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result;
 
-      // Recreate workouts store to change keyPath from "id" to "localId"
-      if (db.objectStoreNames.contains(WORKOUTS_STORE)) {
-        db.deleteObjectStore(WORKOUTS_STORE);
+      if (!db.objectStoreNames.contains(WORKOUTS_STORE)) {
+        const workoutStore = db.createObjectStore(WORKOUTS_STORE, {
+          keyPath: "localId",
+          autoIncrement: true,
+        });
+        workoutStore.createIndex("timestamp", "timestamp", { unique: false });
+        workoutStore.createIndex("userId", "userId", { unique: false });
+        workoutStore.createIndex("synced", "synced", { unique: false });
+        workoutStore.createIndex("synced_userId", ["synced", "userId"], { unique: false });
       }
 
-      const workoutStore = db.createObjectStore(WORKOUTS_STORE, {
-        keyPath: "localId",
-        autoIncrement: true,
-      });
-      workoutStore.createIndex("timestamp", "timestamp", { unique: false });
-      workoutStore.createIndex("userId", "userId", { unique: false });
-      workoutStore.createIndex("synced", "synced", { unique: false });
+      const tx = (e.target as IDBOpenDBRequest).transaction;
+      if (tx && e.oldVersion < 4) {
+        const store = tx.objectStore(WORKOUTS_STORE);
+        if (!store.indexNames.contains("synced_userId")) {
+          store.createIndex("synced_userId", ["synced", "userId"], { unique: false });
+        }
+      }
 
       // Create sync status store
       if (!db.objectStoreNames.contains(SYNC_STATUS_STORE)) {
@@ -150,19 +156,15 @@ export async function getLocalWorkouts(
 export async function getUnsyncedWorkouts(
   userId: string,
 ): Promise<WorkoutRecord[]> {
-
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WORKOUTS_STORE, "readonly");
     const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index("synced");
-    const req = index.getAll(false as any);
+    const index = store.index("synced_userId");
+    const req = index.getAll(IDBKeyRange.only([false, userId]));
 
     req.onsuccess = () => {
-      const allUnsynced = req.result as WorkoutRecord[];
-      // Filter for current user
-      const userUnsynced = allUnsynced.filter((w) => w.userId === userId);
-      resolve(userUnsynced);
+      resolve(req.result as WorkoutRecord[]);
     };
     req.onerror = () => reject(req.error);
   });

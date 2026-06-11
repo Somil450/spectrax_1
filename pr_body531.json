@@ -1,0 +1,6 @@
+{
+    "title":  "fix: remove leftover console.log statements",
+    "body":  "Closes #531",
+    "head":  "singhanurag0317-bit:fix/issue-531-remove-console-logs",
+    "base":  "main"
+}
