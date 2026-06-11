@@ -343,6 +343,7 @@ class SessionRecorder {
     telemetryBroker.logState("SessionRecorder_Start");
   }
   recordFrame(frame: FrameData) {
+    // Evict the oldest entry from the rolling buffer when full.
     if (this._frameCount >= MAX_FRAMES) {
       const first = this.compressedFrames[0];
       if (first && first.runLength > 1) {
@@ -354,34 +355,26 @@ class SessionRecorder {
       this._frameCount--;
     }
 
+    // Track centroid displacement for the stability report.
     if (this.displacements.length >= MAX_FRAMES - 1) {
       this.displacements.shift();
     }
-
     const centroid = this.getCentroid(frame.landmarks);
     if (centroid && this.lastCentroid) {
       const dx = centroid.x - this.lastCentroid.x;
       const dy = centroid.y - this.lastCentroid.y;
-      const distance = Math.hypot(dx, dy);
-      this.displacements.push(distance);
+      this.displacements.push(Math.hypot(dx, dy));
     }
     this.lastCentroid = centroid;
 
-    if (
-      this.lastRawFrame &&
-      RLDCompressionDriver.isStationary(this.lastRawFrame, frame)
-    ) {
-      const lastCompressed = this.compressedFrames[this.compressedFrames.length - 1];
-      lastCompressed.runLength++;
-      lastCompressed.timestampDelta =
-        frame.timestamp - this.lastRawFrame.timestamp;
+    // Bug fix for #743: compress via proper delta encoding and handle stationary frames.
+    const last = this.compressedFrames[this.compressedFrames.length - 1];
+    if (this.lastRawFrame && last && RLDCompressionDriver.isStationary(this.lastRawFrame, frame)) {
+      last.runLength++;
     } else {
-      this.compressedFrames.push({
-        ...frame,
-        kind: "base",
-        timestampDelta: this.lastRawFrame ? frame.timestamp - this.lastRawFrame.timestamp : 33,
-        runLength: 1,
-      });
+      // New distinct frame — compress via proper delta encoding.
+      const chunk = RLDCompressionDriver.createChunk(this.lastRawFrame, frame);
+      this.compressedFrames.push(chunk);
     }
 
     this.lastRawFrame = frame;
