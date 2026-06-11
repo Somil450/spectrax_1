@@ -645,7 +645,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         </div>
 
         {/* Bottom Controls */}
-        <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'all' }}>
+        <div className="bottom-controls animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'all' }}>
           <button onClick={onBack} className="btn-outline">CANCEL</button>
           {countdownActive && countdownSeconds > 0 ? (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid var(--neon-cyan)', background: 'rgba(0, 240, 255, 0.05)', boxShadow: '0 0 20px rgba(0, 240, 255, 0.3)' }}>
@@ -699,6 +699,34 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       </div>
 
       <style>{`
+        .bottom-controls {
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        @media (max-height: 700px) {
+          .ui-layer {
+            padding: 20px !important;
+          }
+          .bottom-controls {
+            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+          }
+          .bottom-controls button {
+            font-size: 0.75rem !important;
+            padding: 8px 16px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .ui-layer {
+            padding: 16px !important;
+          }
+          .bottom-controls button {
+            font-size: 0.7rem !important;
+            padding: 6px 12px !important;
+          }
+          .calib-onboarding-panel {
+            width: 100% !important;
+            min-width: auto !important;
+          }
+        }
         @keyframes pulse {
           0% { opacity: 0.4; transform: scale(0.9); }
           50% { opacity: 1; transform: scale(1.1); }

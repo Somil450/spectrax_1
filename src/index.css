@@ -406,7 +406,7 @@ body {
 /* ── Screen Container ─────────────────────────────────────────── */
 .screen-container {
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   position: relative;
   overflow-y:auto;
   overflow-x:hidden;
@@ -571,6 +571,7 @@ body {
   bottom: 40px;
   z-index: 30;
   pointer-events: all;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @media (max-width: 640px) {
