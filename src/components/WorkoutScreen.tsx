@@ -81,6 +81,7 @@ const getDefaultPanelPositions = (): PanelPositions => {
     engine: { x: 40, y: Math.max(height - 110, 30) },
     sense: { x: 280, y: Math.max(height - 110, 30) },
     dial: { x: Math.max(width - 230, 30), y: 150 },
+    tut: { x: Math.max(width - 230, 30), y: 300 },
   };
 };
 
@@ -212,7 +213,7 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, onCancel }) => {
   const { settings, updateSetting } = useSettings();
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const lastSpokenFeedbackRef = useRef<string>("");
@@ -239,7 +240,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
       sense: React.createRef<HTMLDivElement>(),
-      dial: React.createRef<HTMLDivElement>()
+      dial: React.createRef<HTMLDivElement>(),
+      tut: React.createRef<HTMLDivElement>()
     };
   }
 
@@ -768,7 +770,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   useEffect(() => {
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
-    exerciseEngine.reset();
 
     // Load Ghost Data
     const ghostData = ghostService.loadGhost(exercise.key);
@@ -834,7 +835,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       worker.terminate();
       clearInterval(timerRef);
       gestureService.reset();
-      exerciseEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
   }, [exercise, startSystem, stopSystem]);
