@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Play, Pause, CheckCircle2, AlertTriangle, Palette } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { LayoutDashboard, Play, Pause, CheckCircle2, AlertTriangle, Palette, Download } from 'lucide-react';
 import { Replay3DModel } from './Replay3DModel';
 import { sessionRecorder } from '../services/sessionRecorder';
 import { AVATAR_SKINS } from '../utils/avatarSkins';
@@ -21,6 +21,62 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedSkin, setSelectedSkin] = useState<string>(AVATAR_SKINS.STANDARD_HUMAN);
+
+  const [recording, setRecording] = useState(false);
+  const [recordingProgress, setRecordingProgress] = useState(0);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+
+  const handleExportHighlight = useCallback(async () => {
+    const canvas = document.querySelector<HTMLCanvasElement>('canvas');
+    if (!canvas) return;
+
+    if (typeof canvas.captureStream !== 'function') {
+      console.warn('captureStream not supported in this browser');
+      return;
+    }
+
+    const stream = canvas.captureStream(30);
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9'
+      : 'video/webm';
+
+    recordingChunksRef.current = [];
+    setRecording(true);
+    setRecordingProgress(0);
+
+    const recorder = new MediaRecorder(stream, { mimeType });
+    recorderRef.current = recorder;
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordingChunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      const blob = new Blob(recordingChunksRef.current, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `spectrax-replay-${Date.now()}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setRecording(false);
+      setRecordingProgress(0);
+      recorderRef.current = null;
+    };
+
+    recorder.start(100);
+
+    const startTime = Date.now();
+    const interval = window.setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      setRecordingProgress(Math.min(elapsed / 5000, 1));
+      if (elapsed >= 5000) {
+        clearInterval(interval);
+        recorder.stop();
+      }
+    }, 100);
+  }, []);
 
   // Stable session ID (was Math.random() inline in JSX — wrong)
   const [sessionId] = useState(() =>
@@ -513,6 +569,44 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           {isPlaying ? <Pause size={16} fill="#fff" color="#fff" /> : <Play size={16} fill="#fff" color="#fff" />}
         </button>
 
+        {/* Export Highlight */}
+        <button
+          onClick={handleExportHighlight}
+          disabled={recording}
+          style={{
+            padding: '8px 14px',
+            borderRadius: '8px',
+            border: recording ? '1px solid var(--neon-cyan)' : '1px solid rgba(0,255,255,0.3)',
+            background: recording ? 'rgba(0,255,255,0.15)' : 'rgba(0,255,255,0.06)',
+            color: recording ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.7)',
+            cursor: recording ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            letterSpacing: '1px',
+            fontFamily: 'inherit',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => { if (!recording) e.currentTarget.style.background = 'rgba(0,255,255,0.15)'; }}
+          onMouseLeave={(e) => { if (!recording) e.currentTarget.style.background = 'rgba(0,255,255,0.06)'; }}
+        >
+          {recording ? (
+            <>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--neon-red)', animation: 'pulse-dot 0.6s ease-in-out infinite' }} />
+              {Math.round(recordingProgress * 100)}%
+            </>
+          ) : (
+            <>
+              <Download size={14} />
+              EXPORT
+            </>
+          )}
+        </button>
+
         {/* Scrubber */}
         <div style={{ flex: 1, position: 'relative', height: '4px' }}>
           <input
@@ -588,6 +682,10 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
         }
         input[type=range]::-webkit-slider-runnable-track {
           background: transparent;
+        }
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.8); }
         }
       `}</style>
     </div>
