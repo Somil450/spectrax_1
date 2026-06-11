@@ -45,7 +45,7 @@ interface WorkoutScreenProps {
     accuracy: number;
     mistakes: Record<string, number>;
     bestStreak: number;
-    jumpingJackSync?: EngineState["jumpingJackSync"];
+    jumpingJackSync?: { score: number | null, lagMs: number | null, confidence: number, samples: number };
     tags?: string[];
   }) => void;
   onAutoDetect?: (key: string) => void;
