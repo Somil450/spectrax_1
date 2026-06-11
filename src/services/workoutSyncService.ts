@@ -47,7 +47,7 @@ export interface SyncStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME = "spectrax_db";
-const DB_VERSION = 3; // Incremented for sync fields and localId keyPath upgrade
+const DB_VERSION = 4; // v4: added composite 'synced_userId' index (fix #741)
 const WORKOUTS_STORE = "workout_sessions";
 const SYNC_STATUS_STORE = "sync_status";
 
@@ -69,9 +69,13 @@ function createDB(): Promise<IDBDatabase> {
         keyPath: "localId",
         autoIncrement: true,
       });
-      workoutStore.createIndex("timestamp", "timestamp", { unique: false });
-      workoutStore.createIndex("userId", "userId", { unique: false });
-      workoutStore.createIndex("synced", "synced", { unique: false });
+      workoutStore.createIndex('timestamp', 'timestamp', { unique: false });
+      workoutStore.createIndex('userId', 'userId', { unique: false });
+      workoutStore.createIndex('synced', 'synced', { unique: false });
+      // Composite index for efficient per-user unsynced queries (fix #741).
+      // Enables filtering at DB level via IDBKeyRange instead of loading every
+      // user's records into JS memory and filtering afterwards.
+      workoutStore.createIndex('synced_userId', ['synced', 'userId'], { unique: false });
 
       // Create sync status store
       if (!db.objectStoreNames.contains(SYNC_STATUS_STORE)) {
@@ -145,25 +149,30 @@ export async function getLocalWorkouts(
 }
 
 /**
- * Get unsynced workouts from IndexedDB
+ * Get unsynced workouts for a specific user from IndexedDB.
+ *
+ * Bug fix for #741: previously this queried the single-field 'synced' index
+ * with getAll(false), which loaded EVERY unsynced record across ALL users on
+ * the device into memory and then filtered by userId in JavaScript.
+ * On a shared device this means User B can read and sync User A's private
+ * workout data — a data isolation failure and privacy vulnerability.
+ *
+ * Fix: use the new composite 'synced_userId' index with IDBKeyRange.only() so
+ * that IndexedDB itself filters records — only the current user's unsynced
+ * workouts are ever loaded into memory.
  */
 export async function getUnsyncedWorkouts(
   userId: string,
 ): Promise<WorkoutRecord[]> {
-
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(WORKOUTS_STORE, "readonly");
+    const tx = db.transaction(WORKOUTS_STORE, 'readonly');
     const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index("synced");
-    const req = index.getAll(false as any);
-
-    req.onsuccess = () => {
-      const allUnsynced = req.result as WorkoutRecord[];
-      // Filter for current user
-      const userUnsynced = allUnsynced.filter((w) => w.userId === userId);
-      resolve(userUnsynced);
-    };
+    const index = store.index('synced_userId');
+    // [false, userId] matches records where synced === false AND userId === <current user>.
+    const range = IDBKeyRange.only([false, userId]);
+    const req = index.getAll(range);
+    req.onsuccess = () => resolve(req.result as WorkoutRecord[]);
     req.onerror = () => reject(req.error);
   });
 }
