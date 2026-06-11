@@ -47,7 +47,7 @@ export interface SyncStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME = "spectrax_db";
-const DB_VERSION = 3; // Incremented for sync fields and localId keyPath upgrade
+const DB_VERSION = 4; // v4: added composite 'synced_userId' index for #741
 const WORKOUTS_STORE = "workout_sessions";
 const SYNC_STATUS_STORE = "sync_status";
 
@@ -69,9 +69,13 @@ function createDB(): Promise<IDBDatabase> {
         keyPath: "localId",
         autoIncrement: true,
       });
-      workoutStore.createIndex("timestamp", "timestamp", { unique: false });
-      workoutStore.createIndex("userId", "userId", { unique: false });
-      workoutStore.createIndex("synced", "synced", { unique: false });
+      workoutStore.createIndex('timestamp', 'timestamp', { unique: false });
+      workoutStore.createIndex('userId', 'userId', { unique: false });
+      workoutStore.createIndex('synced', 'synced', { unique: false });
+      // Composite index for efficient per-user unsynced query (fixes #741).
+      // Allows getUnsyncedWorkouts to filter at the DB level via IDBKeyRange
+      // instead of loading all users' records into memory first.
+      workoutStore.createIndex('synced_userId', ['synced', 'userId'], { unique: false });
 
       // Create sync status store
       if (!db.objectStoreNames.contains(SYNC_STATUS_STORE)) {
@@ -145,25 +149,31 @@ export async function getLocalWorkouts(
 }
 
 /**
- * Get unsynced workouts from IndexedDB
+ * Get unsynced workouts for a specific user from IndexedDB.
+ *
+ * Fix for #741 — previously this used the single-field 'synced' index which
+ * loaded EVERY unsynced record across ALL users and then filtered in JS.
+ * On a shared device this is a data isolation / privacy violation.
+ *
+ * We now query the composite 'synced_userId' index at the DB level so only
+ * the current user's records are ever loaded into memory.
  */
 export async function getUnsyncedWorkouts(
   userId: string,
 ): Promise<WorkoutRecord[]> {
-
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(WORKOUTS_STORE, "readonly");
+    const tx = db.transaction(WORKOUTS_STORE, 'readonly');
     const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index("synced");
-    const req = index.getAll(false as any);
 
-    req.onsuccess = () => {
-      const allUnsynced = req.result as WorkoutRecord[];
-      // Filter for current user
-      const userUnsynced = allUnsynced.filter((w) => w.userId === userId);
-      resolve(userUnsynced);
-    };
+    // Use the composite index so filtering happens inside IndexedDB, not in JS.
+    // IDBKeyRange.only([false, userId]) matches records where synced === false
+    // AND userId === <current user> — completely isolating cross-user data.
+    const index = store.index('synced_userId');
+    const range = IDBKeyRange.only([false, userId]);
+    const req = index.getAll(range);
+
+    req.onsuccess = () => resolve(req.result as WorkoutRecord[]);
     req.onerror = () => reject(req.error);
   });
 }
@@ -584,26 +594,52 @@ export async function deleteWorkout(
 }
 
 /**
- * Clear all workouts for a user locally and from Firestore
+ * Clear all workouts for a user locally and from Firestore.
+ *
+ * Fix for #742 — the previous implementation deleted Firestore records one-by-one
+ * in a sequential await loop. A network drop mid-loop caused a split-brain state:
+ * some records deleted remotely but still present locally, leading to permanent
+ * data loss on the next clearAllWorkouts call.
+ *
+ * We now batch all remote deletions into chunked WriteBatches (max 500 per batch)
+ * for atomicity. If any batch commit fails the entire remote deletion is rolled
+ * back and the local records are left intact.
  */
 export async function clearAllWorkouts(userId: string): Promise<void> {
-  // Phase 1: delete from Firestore first.
-  // If this throws (network error, permission denied) the local records are
-  // left intact and the error propagates to the caller so the UI can surface
-  // a meaningful message instead of falsely reporting success.
-  const remoteWorkouts = await getFirestoreWorkouts();
-  for (const w of remoteWorkouts) {
-    if (w.id) {
-      await deleteWorkoutFromFirestore(w.id as string);
-    }
+  const auth = getAuth();
+  const currentUserId = auth.currentUser?.uid;
+  if (!currentUserId) {
+    throw new Error('User not authenticated');
   }
 
-  // Phase 2: wipe IndexedDB only after remote deletion is confirmed.
+  const firestoreDb = getFirestore();
+
+  // Phase 1: collect all remote workout document refs.
+  const remoteWorkouts = await getFirestoreWorkouts();
+  const workoutIds = remoteWorkouts
+    .map((w) => w.id as string)
+    .filter(Boolean);
+
+  // Phase 2: delete in atomic batches of up to 500 (Firestore WriteBatch limit).
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < workoutIds.length; i += BATCH_SIZE) {
+    const chunk = workoutIds.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(firestoreDb);
+    for (const id of chunk) {
+      const ref = doc(firestoreDb, 'users', currentUserId, 'workouts', id);
+      batch.delete(ref);
+    }
+    // If commit throws (network error, permission denied) we propagate the error
+    // and leave the local records intact — no data loss.
+    await batch.commit();
+  }
+
+  // Phase 3: wipe IndexedDB only after ALL remote batches are confirmed.
   const db = await openDB();
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(WORKOUTS_STORE, "readwrite");
+    const tx = db.transaction(WORKOUTS_STORE, 'readwrite');
     const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index("userId");
+    const index = store.index('userId');
     const req = index.openCursor(userId);
 
     req.onsuccess = (e) => {

@@ -397,6 +397,7 @@ class SessionRecorder {
   }
 
   recordFrame(frame: FrameData) {
+    // Evict the oldest entry from the rolling buffer when full.
     if (this._frameCount >= MAX_FRAMES) {
       const first = this.compressedFrames[0];
       if (first && first.runLength > 1) {
@@ -407,39 +408,45 @@ class SessionRecorder {
       }
       this._frameCount--;
     }
-    this._frameCount--;
 
+    // Track centroid displacement for the stability report.
     if (this.displacements.length >= MAX_FRAMES - 1) {
       this.displacements.shift();
     }
-  }
+    const centroid = this.getCentroid(frame.landmarks);
+    if (centroid && this.lastCentroid) {
+      const dx = centroid.x - this.lastCentroid.x;
+      const dy = centroid.y - this.lastCentroid.y;
+      this.displacements.push(Math.hypot(dx, dy));
+    }
+    this.lastCentroid = centroid;
 
-  const centroid = this.getCentroid(frame.landmarks);
-  if (centroid && this.lastCentroid) {
-    const dx = centroid.x - this.lastCentroid.x;
-    const dy = centroid.y - this.lastCentroid.y;
-    const distance = Math.hypot(dx, dy);
-    this.displacements.push(distance);
-  }
-  this.lastCentroid = centroid;
-
-  const lastCompressed =
-      this.compressedFrames[this.compressedFrames.length - 1];
-
+    // Fix for #743: use RLDCompressionDriver.createChunk() to produce a
+    // properly compressed delta chunk instead of spreading raw FrameData.
+    //
+    // The previous code did:
+    //   this.compressedFrames.push({ ...frame, kind: 'base', timestampDelta: ..., runLength: 1 })
+    // which stored full uncompressed 33-landmark arrays on every frame,
+    // completely bypassing the delta compression pipeline. The `compressedFrames`
+    // array is typed as CompressedFrameChunk[] and must contain normalized,
+    // delta-encoded entries produced by createChunk().
+    //
+    // Additionally, stationary frames are collapsed into the run-length of
+    // the previous chunk rather than being pushed as new entries.
     const last = this.compressedFrames[this.compressedFrames.length - 1];
-    if (this.lastRawFrame && RLDCompressionDriver.isStationary(this.lastRawFrame, frame)) {
+    if (this.lastRawFrame && last && RLDCompressionDriver.isStationary(this.lastRawFrame, frame)) {
+      // Frame is identical to the previous one — increment run-length only.
       last.runLength++;
     } else {
-      this.compressedFrames.push({
-        ...frame,
-        timestampDelta: this.lastRawFrame ? frame.timestamp - this.lastRawFrame.timestamp : 33,
-        runLength: 1,
-      });
+      // New distinct frame — compress it as a proper delta chunk.
+      const chunk = RLDCompressionDriver.createChunk(this.lastRawFrame, frame);
+      this.compressedFrames.push(chunk);
     }
 
     this.lastRawFrame = frame;
     this._frameCount++;
   }
+
 
   get frames(): FrameData[] {
     return RLDCompressionDriver.decompress(this.compressedFrames);

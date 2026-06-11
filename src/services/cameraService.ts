@@ -116,7 +116,17 @@ export class CameraService {
           }
         }
 
-        this.frameCallback(sourceToProcess);
+        // Fix for #744: wrap the callback in try/catch so that a synchronous
+        // exception can never leave isProcessing permanently set to true.
+        // Without this guard, any throw inside frameCallback (or a MediaPipe
+        // send() rejection that never calls onResults) permanently freezes the
+        // camera feed — the RAF loop keeps running but no new frames are sent.
+        try {
+          this.frameCallback(sourceToProcess);
+        } catch (err) {
+          console.error('[CameraService] frameCallback threw synchronously:', err);
+          this.isProcessing = false; // release the lock so the loop can recover
+        }
       }
 
       // Schedule next tick synchronized with browser repaint
