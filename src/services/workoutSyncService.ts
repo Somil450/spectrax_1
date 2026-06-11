@@ -610,26 +610,57 @@ export async function deleteWorkout(
 }
 
 /**
- * Clear all workouts for a user locally and from Firestore
+ * Clear all workouts for a user locally and from Firestore.
+ *
+ * Bug fix for #742: the previous implementation deleted Firestore records
+ * one-by-one inside a sequential `await` loop:
+ *
+ *   for (const w of remoteWorkouts) {
+ *     await deleteWorkoutFromFirestore(w.id);
+ *   }
+ *
+ * A network drop mid-loop (e.g., after 5 of 20 deletes succeed) causes the
+ * function to throw. The caller sees an error and assumes nothing was deleted,
+ * but the first 5 records are already gone from Firestore permanently.
+ * On the next clearAllWorkouts call the local copy is wiped too, resulting in
+ * irrecoverable data loss for those 5 workouts.
+ *
+ * Fix: batch all Firestore deletions into chunked WriteBatches (Firestore caps
+ * batches at 500 operations). If any batch.commit() fails the error propagates
+ * and the local IndexedDB records are left completely intact — no partial state,
+ * no data loss.
  */
 export async function clearAllWorkouts(userId: string): Promise<void> {
-  // Phase 1: delete from Firestore first.
-  // If this throws (network error, permission denied) the local records are
-  // left intact and the error propagates to the caller so the UI can surface
-  // a meaningful message instead of falsely reporting success.
-  const remoteWorkouts = await getFirestoreWorkouts();
-  for (const w of remoteWorkouts) {
-    if (w.id) {
-      await deleteWorkoutFromFirestore(w.id as string);
-    }
+  const auth = getAuth();
+  const currentUserId = auth.currentUser?.uid;
+  if (!currentUserId) {
+    throw new Error('User not authenticated');
   }
 
-  // Phase 2: wipe IndexedDB only after remote deletion is confirmed.
+  const firestoreDb = getFirestore();
+
+  // Phase 1: collect all remote workout document IDs.
+  const remoteWorkouts = await getFirestoreWorkouts();
+  const workoutIds = remoteWorkouts.map((w) => w.id as string).filter(Boolean);
+
+  // Phase 2: delete atomically in chunks of up to 500 (Firestore WriteBatch limit).
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < workoutIds.length; i += BATCH_SIZE) {
+    const chunk = workoutIds.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(firestoreDb);
+    for (const id of chunk) {
+      batch.delete(doc(firestoreDb, 'users', currentUserId, 'workouts', id));
+    }
+    // Any failure here rolls back the entire batch and leaves local records intact.
+    await batch.commit();
+  }
+
+  // Phase 3: wipe IndexedDB only after ALL remote batches are confirmed.
   const db = await openDB();
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(WORKOUTS_STORE, "readwrite");
+    const tx = db.transaction(WORKOUTS_STORE, 'readwrite');
     const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index("userId");
+    const index = store.index('userId');
     const req = index.openCursor(userId);
 
     req.onsuccess = (e) => {
