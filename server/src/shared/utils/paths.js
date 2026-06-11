@@ -1,9 +1,14 @@
+const fs = require("fs");
 const path = require("path");
 
 const SERVER_ROOT = path.resolve(__dirname, "..", "..", "..");
+const SESSIONS_DIR = path.join(SERVER_ROOT, "sessions");
 
 function resolveSessionPath(fileName = "session.json") {
-  return path.join(SERVER_ROOT, fileName);
+  if (!fs.existsSync(SESSIONS_DIR)) {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  }
+  return path.join(SESSIONS_DIR, fileName);
 }
 
 function buildSessionFilePath(sessionPath, socketId) {

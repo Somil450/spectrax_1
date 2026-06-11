@@ -58,6 +58,13 @@ function generateFeedback(angles, exercise) {
       }
       break;
 
+    case "flutterKicks":
+      if (hasValue(angles.knee) && angles.knee < 155)
+        corrections.push("Keep your legs straight");
+      if (hasValue(angles.bodyLine) && angles.bodyLine < 120)
+        corrections.push("Keep legs lower for core engagement");
+      break;
+
     default:
       break;
   }

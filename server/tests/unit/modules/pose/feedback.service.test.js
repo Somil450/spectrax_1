@@ -53,6 +53,39 @@ describe("feedback.service", () => {
     });
   });
 
+  it("returns green feedback for a clean flutterKicks frame", () => {
+    expect(
+      generateFeedback(
+        { knee: 160, elbow: 170, shoulder: 10, bodyLine: 130 },
+        "flutterKicks",
+      ),
+    ).toEqual({
+      status: "green",
+      message: "Good form ✅",
+      corrections: [],
+    });
+  });
+
+  it("returns warnings for bent knees in flutterKicks", () => {
+    expect(
+      generateFeedback({ knee: 140, bodyLine: 130 }, "flutterKicks"),
+    ).toEqual({
+      status: "yellow",
+      message: "Keep your legs straight",
+      corrections: ["Keep your legs straight"],
+    });
+  });
+
+  it("returns red status when both flutterKicks thresholds are violated", () => {
+    expect(
+      generateFeedback({ knee: 140, bodyLine: 110 }, "flutterKicks"),
+    ).toEqual({
+      status: "red",
+      message: "Keep your legs straight",
+      corrections: ["Keep your legs straight", "Keep legs lower for core engagement"],
+    });
+  });
+
   it("skips correction checks for missing angle entries", () => {
     expect(
       generateFeedback(
