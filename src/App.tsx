@@ -1,25 +1,16 @@
 import { ProgressChart } from "./components/ProgressChart";
 import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
-import { WelcomeScreen } from "./components/WelcomeScreen";
-import { SummaryScreen } from "./components/SummaryScreen";
-import { TrophyRoom } from "./components/TrophyRoom";
-import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
-import HistoryPage from "./HistoryPage";
 import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { GridSkeleton } from "./components/CardSkeleton";
 import { useAuth } from "./context/AuthContext";
-import { LoginScreen } from "./components/LoginScreen";
-import { SignUpScreen } from "./components/SignUpScreen";
-import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
-import PrivacyPage from "./pages/PrivacyPage";
 import NavBar from "./components/NavBar";
 import About from "./components/About";
 import Contact from "./components/Contact";
@@ -104,6 +95,7 @@ interface WorkoutStats {
   tags?: string[];
   gainedXp?: number;
   calories?: number;
+  tutMetrics?: any;
 }
 
 // Derived from build-time env — safe to compute outside or at the top of the component
@@ -387,6 +379,7 @@ function App() {
           onViewTrophies={() => navigateTo("trophy")}
           onViewProfile={user ? () => navigateTo("profile") : undefined}
           onViewFitnessCalculator={() => navigateTo("fitness")}
+          onViewWorkoutPlans={() => {}}
           leveling={leveling}
           pendingRecovery={pendingRecovery}
           onApplyRecovery={handleApplyRecovery}
