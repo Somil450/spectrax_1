@@ -553,11 +553,12 @@ export class ExerciseEngine {
       nextJumpingJackSync = nextCustomState.jumpingJackSync;
     }
 
+    let tut: ReturnType<KinematicEngine['getLastRepTUT']> | undefined;
     if (repJustCounted) {
       this.kinematicEngine.onRepComplete();
 
       // ── TUT Metrics for the completed rep ──────────────────────────────
-      const tut = this.kinematicEngine.getLastRepTUT();
+      tut = this.kinematicEngine.getLastRepTUT();
 
       // ── Classify depth for the completed rep ─────────────────────────────
       let depthScoreModifier = 0;
