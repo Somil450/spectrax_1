@@ -116,7 +116,23 @@ export class CameraService {
           }
         }
 
-        this.frameCallback(sourceToProcess);
+        // Bug fix for #744: wrap frameCallback in a try/catch so a synchronous
+        // exception can never leave isProcessing permanently set to true.
+        //
+        // Previously, isProcessing was set to true before the callback and only
+        // reset inside onFrameComplete(), which is called externally after
+        // MediaPipe finishes. If frameCallback threw synchronously — or if the
+        // MediaPipe pose.send() promise rejected without triggering onResults —
+        // onFrameComplete() was never called, leaving isProcessing = true forever.
+        //
+        // Impact without this fix: the camera feed silently freezes, the RAF loop
+        // keeps burning CPU, and the only recovery is a full page reload.
+        try {
+          this.frameCallback(sourceToProcess);
+        } catch (err) {
+          console.error('[CameraService] frameCallback threw synchronously:', err);
+          this.isProcessing = false; // release the lock so the loop self-recovers
+        }
       }
 
       // Schedule next tick synchronized with browser repaint

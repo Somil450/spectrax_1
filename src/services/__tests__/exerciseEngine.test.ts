@@ -239,7 +239,6 @@ describe("ExerciseEngine", () => {
     expect(resetMetrics.baselineVelocity).toBe(0);
     expect(resetMetrics.velocitiesSession).toHaveLength(0);
   });
-
   it("resets kinematicEngine state on reset() of ExerciseEngine", async () => {
     const mockLandmarks = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0.1, visibility: 0.9 }));
     mockLandmarks[24].y = 0.5;

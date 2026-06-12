@@ -13,6 +13,7 @@ interface UseCameraPoseOptions {
   onFrame?: (count: number) => void;
   onCameraError?: (error: any) => void;
   setupContext?: boolean;
+  enableFrameInterpolation?: boolean;
 }
 
 export function useCameraPose({
@@ -25,6 +26,7 @@ export function useCameraPose({
   onFrame,
   onCameraError,
   setupContext = true,
+  enableFrameInterpolation = true,
 }: UseCameraPoseOptions) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,7 +36,6 @@ export function useCameraPose({
   const isMountedRef = useRef<boolean>(true);
   const frameIndexRef = useRef<number>(0);
 
-  // Use refs for callbacks to avoid re-triggering closures and effects
   const onResultsRef = useRef(onResults);
   onResultsRef.current = onResults;
 
@@ -54,6 +55,8 @@ export function useCameraPose({
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) overlayRenderer.setContext(ctx);
       }
+
+      poseService.setInterpolationEnabled(enableFrameInterpolation);
 
       await cameraService.startCamera(videoRef.current);
 
@@ -83,11 +86,12 @@ export function useCameraPose({
         throw err;
       }
     }
-  }, [videoRef, canvasRef, setupContext, initialFpsLimit, minFpsLimit, fpsDecrementStep]);
+  }, [videoRef, canvasRef, setupContext, initialFpsLimit, minFpsLimit, fpsDecrementStep, enableFrameInterpolation]);
 
   const stopSystem = useCallback(() => {
     isMountedRef.current = false;
     cameraService.stopCamera();
+    poseService.setInterpolationEnabled(false);
   }, []);
 
   useEffect(() => {

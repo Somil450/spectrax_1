@@ -25,6 +25,13 @@ interface SummaryScreenProps {
       confidence: number;
       samples: number;
     };
+    tutMetrics?: {
+      eccentricMs: number;
+      concentricMs: number;
+      isometricMs: number;
+      tempoRatio: string;
+      totalRepMs: number;
+    };
   };
   leveling?: {
     xp: number;
@@ -400,6 +407,127 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           </div>
         </div>
       </div>
+
+      {/* TUT Metrics */}
+      {stats.tutMetrics && (
+        <div
+          className="glass animate-in"
+          style={{
+            width: "100%",
+            maxWidth: "600px",
+            padding: "20px",
+            marginBottom: "20px",
+            borderTop: "2px solid var(--neon-cyan)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.65rem",
+              color: "var(--neon-cyan)",
+              letterSpacing: "2px",
+              textTransform: "uppercase",
+              marginBottom: "16px",
+              fontWeight: 700,
+              textAlign: "left",
+            }}
+          >
+            TIME UNDER TENSION (LAST REP)
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "12px",
+              textAlign: "center",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: "var(--neon-yellow)",
+                  fontSize: "1.6rem",
+                  fontWeight: 900,
+                }}
+              >
+                {Math.round(stats.tutMetrics.eccentricMs / 1000)}s
+              </div>
+              <div
+                style={{
+                  fontSize: "0.55rem",
+                  color: "var(--text-dim)",
+                  letterSpacing: "1px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Eccentric
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  color: "var(--text-dim)",
+                  fontSize: "1.6rem",
+                  fontWeight: 900,
+                }}
+              >
+                {Math.round(stats.tutMetrics.isometricMs / 1000)}s
+              </div>
+              <div
+                style={{
+                  fontSize: "0.55rem",
+                  color: "var(--text-dim)",
+                  letterSpacing: "1px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Isometric
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  color: "var(--neon-green)",
+                  fontSize: "1.6rem",
+                  fontWeight: 900,
+                }}
+              >
+                {Math.round(stats.tutMetrics.concentricMs / 1000)}s
+              </div>
+              <div
+                style={{
+                  fontSize: "0.55rem",
+                  color: "var(--text-dim)",
+                  letterSpacing: "1px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Concentric
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  color: "#fff",
+                  fontSize: "1.6rem",
+                  fontWeight: 900,
+                }}
+              >
+                {stats.tutMetrics.tempoRatio}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.55rem",
+                  color: "var(--text-dim)",
+                  letterSpacing: "1px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Tempo
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rep Quality Insights */}
       <div

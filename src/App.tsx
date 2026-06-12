@@ -1,23 +1,19 @@
+import { ProgressChart } from "./components/ProgressChart";
 import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
-import { WelcomeScreen } from "./components/WelcomeScreen";
-import { SummaryScreen } from "./components/SummaryScreen";
-import { TrophyRoom } from "./components/TrophyRoom";
-import { UserProfileScreen } from "./components/UserProfileScreen";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
 import { useTheme } from "./context/ThemeContext";
-import HistoryPage from "./HistoryPage";
 import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { GridSkeleton } from "./components/CardSkeleton";
 import { useAuth } from "./context/AuthContext";
-import { LoginScreen } from "./components/LoginScreen";
-import { SignUpScreen } from "./components/SignUpScreen";
-import { ForgotPasswordScreen } from "./components/ForgotPasswordScreen";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
+import NavBar from "./components/NavBar";
+import About from "./components/About";
+import Contact from "./components/Contact";
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
@@ -25,8 +21,16 @@ import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
-import { FitnessCalculator } from "./components/FitnessCalculator";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+const WelcomeScreen = lazy(() => import("./components/WelcomeScreen").then(m => ({ default: m.WelcomeScreen })));
+const SummaryScreen = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
+const TrophyRoom = lazy(() => import("./components/TrophyRoom").then(m => ({ default: m.TrophyRoom })));
+const UserProfileScreen = lazy(() => import("./components/UserProfileScreen").then(m => ({ default: m.UserProfileScreen })));
+const HistoryPage = lazy(() => import("./HistoryPage"));
+const LoginScreen = lazy(() => import("./components/LoginScreen").then(m => ({ default: m.LoginScreen })));
+const SignUpScreen = lazy(() => import("./components/SignUpScreen").then(m => ({ default: m.SignUpScreen })));
+const ForgotPasswordScreen = lazy(() => import("./components/ForgotPasswordScreen").then(m => ({ default: m.ForgotPasswordScreen })));
+const FitnessCalculator = lazy(() => import("./components/FitnessCalculator").then(m => ({ default: m.FitnessCalculator })));
 
 const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
@@ -39,6 +43,8 @@ type Screen =
   | "summary"
   | "replay"
   | "history"
+  | "about"
+  | "contact"
   | "login"
   | "signup"
   | "forgot-password"
@@ -49,7 +55,7 @@ type Screen =
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -61,6 +67,8 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   trophy: ["welcome", "login"],
   profile: ["welcome", "login"],
   fitness: ["welcome"],
+  about: ["welcome"],
+  contact: ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -87,6 +95,7 @@ interface WorkoutStats {
   tags?: string[];
   gainedXp?: number;
   calories?: number;
+  tutMetrics?: any;
 }
 
 // Derived from build-time env — safe to compute outside or at the top of the component
@@ -329,6 +338,7 @@ function App() {
     >
       {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
+      <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <div
         className={`theme-selector-segmented ${
           currentScreen === "workout" ? "workout-active" : ""
@@ -369,6 +379,7 @@ function App() {
           onViewTrophies={() => navigateTo("trophy")}
           onViewProfile={user ? () => navigateTo("profile") : undefined}
           onViewFitnessCalculator={() => navigateTo("fitness")}
+          onViewWorkoutPlans={() => {}}
           leveling={leveling}
           pendingRecovery={pendingRecovery}
           onApplyRecovery={handleApplyRecovery}
@@ -378,46 +389,54 @@ function App() {
 
       <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
-          <CalibrationScreen
-            selectedExercise={selectedExercise}
-            onSelectExercise={handleSelectExercise}
-            onNext={() => navigateTo("workout")}
-            onBack={() => setShowExitModal(true)}
-            onBodyTypeDetected={(type, factor) => { setBodyType(type); setAdaptiveFactor(factor); }}
-          />
+          <PageErrorBoundary fallbackMessage="Failed to load calibration. Please try again.">
+            <CalibrationScreen
+              selectedExercise={selectedExercise}
+              onSelectExercise={handleSelectExercise}
+              onNext={() => navigateTo("workout")}
+              onBack={() => setShowExitModal(true)}
+              onBodyTypeDetected={(type, factor) => { setBodyType(type); setAdaptiveFactor(factor); }}
+            />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "workout" && (
-          <WorkoutScreen
-            exercise={selectedExercise}
-            onEnd={handleWorkoutEnd}
-            onAutoDetect={handleAutoDetect}
-            bodyType={bodyType}
-            onSnapshotUpdate={(liveStats: any) => {
-              if (!user?.uid) return;
-              const fullStats = { ...liveStats, exerciseName: selectedExercise.name };
-              localStorage.setItem(
-                `spectrax_telemetry_snapshot_${user.uid}`,
-                JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
-              );
-            }}
-          />
+          <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
+            <WorkoutScreen
+              exercise={selectedExercise}
+              onEnd={handleWorkoutEnd}
+              onAutoDetect={handleAutoDetect}
+              bodyType={bodyType}
+              onSnapshotUpdate={(liveStats: any) => {
+                if (!user?.uid) return;
+                const fullStats = { ...liveStats, exerciseName: selectedExercise.name };
+                localStorage.setItem(
+                  `spectrax_telemetry_snapshot_${user.uid}`,
+                  JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
+                );
+              }}
+            />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "summary" &&
           (statsLoading ? (
             <SummaryScreenSkeleton />
           ) : (
-            <SummaryScreen
-              stats={stats}
-              leveling={leveling}
-              onRestart={() => navigateTo("welcome")}
-              onViewReplay={() => navigateTo("replay")}
-            />
+            <PageErrorBoundary fallbackMessage="Failed to load workout summary. Please try again.">
+              <SummaryScreen
+                stats={stats}
+                leveling={leveling}
+                onRestart={() => navigateTo("welcome")}
+                onViewReplay={() => navigateTo("replay")}
+              />
+            </PageErrorBoundary>
           ))}
 
         {currentScreen === "replay" && (
-          <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+          <PageErrorBoundary fallbackMessage="Failed to load replay. Please try again.">
+            <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "history" && (
@@ -440,6 +459,14 @@ function App() {
           <FitnessCalculator onBack={() => navigateTo("welcome")} />
         )}
       </Suspense>
+
+      {currentScreen === "about" && (
+        <About />
+      )}
+
+      {currentScreen === "contact" && (
+        <Contact />
+      )}
 
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
