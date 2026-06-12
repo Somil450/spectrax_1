@@ -220,6 +220,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
 
       {/* ── RIGHT SETTINGS PANEL ── */}
       <div
+        className="replay-panel-right"
         style={{
           position: 'absolute',
           top: '90px',
@@ -322,6 +323,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
 
       {/* ── LEFT ANALYTICS PANEL ── */}
       <div
+        className="replay-panel-left"
         style={{
           position: 'absolute',
           top: '90px',
@@ -493,24 +495,29 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
         {/* Play/Pause */}
         <button
           onClick={() => setIsPlaying((p) => !p)}
+          aria-label={isPlaying ? 'Pause replay' : 'Play replay'}
           style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
+            padding: '8px 16px',
+            borderRadius: '20px',
             background: 'var(--neon-purple, #9D4EDD)',
             border: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: '8px',
             boxShadow: '0 0 20px rgba(157,78,221,0.5)',
             transition: 'transform 0.1s ease',
             flexShrink: 0,
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: '0.75rem',
+            letterSpacing: '1.5px',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.1)')}
           onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         >
           {isPlaying ? <Pause size={16} fill="#fff" color="#fff" /> : <Play size={16} fill="#fff" color="#fff" />}
+          {isPlaying ? 'PAUSE' : 'PLAY'}
         </button>
 
         {/* Scrubber */}
@@ -588,6 +595,33 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
         }
         input[type=range]::-webkit-slider-runnable-track {
           background: transparent;
+        }
+
+        /* Responsive: collapse side panels on narrow screens */
+        @media (max-width: 900px) {
+          .replay-panel-left,
+          .replay-panel-right {
+            width: 200px !important;
+          }
+        }
+        @media (max-width: 700px) {
+          .replay-panel-left,
+          .replay-panel-right {
+            width: 160px !important;
+            padding: 12px !important;
+            font-size: 0.65rem !important;
+          }
+        }
+        @media (max-width: 580px) {
+          .replay-panel-right {
+            display: none !important;
+          }
+          .replay-panel-left {
+            width: 140px !important;
+            left: 8px !important;
+            top: 80px !important;
+            padding: 10px !important;
+          }
         }
       `}</style>
     </div>
