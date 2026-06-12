@@ -249,7 +249,7 @@ export class ExerciseEngine {
   private readonly MIN_DOWN_DURATION = 150;
 
   public reset(): void {
-    this.kinematicEngine.reset();
+    this.kinematicEngine = new KinematicEngine();
   }
 
   private repParams(key: string): RepParams {
