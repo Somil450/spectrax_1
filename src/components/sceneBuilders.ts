@@ -416,7 +416,152 @@ export function buildStressVectors(scene: THREE.Scene): StressVectorRig[] {
   return rigs;
 }
 
-// ─── Internal: stress vector shader ──────────────────────────────────────────
+// ─── 7. buildCyberpunkGymScenery ──────────────────────────────────────────────
+
+/**
+ * Return value of buildCyberpunkGymScenery.
+ * Provides references to all created objects for disposal or updates.
+ */
+export interface GymSceneryAssets {
+  gymGroup: THREE.Group;
+  neonLights: THREE.Mesh[];
+  equipment: THREE.Group;
+  wallPanels: THREE.Mesh[];
+}
+
+/**
+ * Populates the scene with a low-poly cyberpunk gym environment:
+ *
+ *  - Atmospheric fog
+ *  - Neon tube lights on both sides
+ *  - Procedural gym equipment (barbell, dumbbell, bench)
+ *  - Wall panels with grid texture
+ *
+ * All objects are added to a single group so they can be hidden/disposed
+ * as a unit.  Returns references to sub-groups for finer control.
+ */
+export function buildCyberpunkGymScenery(scene: THREE.Scene): GymSceneryAssets {
+  const gymGroup = new THREE.Group();
+  scene.add(gymGroup);
+
+  // ── Fog ───────────────────────────────────────────────────────────────────
+  scene.fog = new THREE.FogExp2(0x0a0a1a, 0.035);
+
+  // ── Neon tube lights ──────────────────────────────────────────────────────
+  const neonLights: THREE.Mesh[] = [];
+  const tubeMat = new THREE.MeshStandardMaterial({
+    color: 0x00ffff,
+    emissive: 0x00ffff,
+    emissiveIntensity: 1.5,
+    transparent: true,
+    opacity: 0.9,
+  });
+
+  for (let i = 0; i < 4; i++) {
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), tubeMat);
+    const xPos = i < 2 ? -3.5 : 3.5;
+    const zPos = i % 2 === 0 ? -1.5 : 1.5;
+    tube.position.set(xPos, 1.2, zPos);
+    tube.rotation.z = Math.PI / 2;
+    gymGroup.add(tube);
+    neonLights.push(tube);
+
+    const glow = new THREE.PointLight(0x00ffff, 0.3, 4);
+    glow.position.copy(tube.position);
+    gymGroup.add(glow);
+  }
+
+  // ── Wall panels ────────────────────────────────────────────────────────────
+  const wallPanels: THREE.Mesh[] = [];
+  const panelMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1a2e,
+    emissive: 0x0a0a1a,
+    metalness: 0.6,
+    roughness: 0.4,
+    side: THREE.DoubleSide,
+  });
+
+  const panelPositions = [
+    { x: -4.5, y: 0.5, z: 0, rx: 0 },
+    { x: 4.5, y: 0.5, z: 0, rx: 0 },
+    { x: 0, y: 0.5, z: -3, rx: Math.PI / 2 },
+  ];
+
+  for (const pos of panelPositions) {
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), panelMat);
+    panel.position.set(pos.x, pos.y, pos.z);
+    panel.rotation.y = pos.rx;
+    gymGroup.add(panel);
+    wallPanels.push(panel);
+
+    const gridLines = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.6, 2.6),
+      new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.15,
+      }),
+    );
+    gridLines.position.copy(panel.position);
+    gridLines.rotation.copy(panel.rotation);
+    gridLines.position.z += 0.01;
+    gymGroup.add(gridLines);
+  }
+
+  // ── Gym equipment group ────────────────────────────────────────────────────
+  const equipment = new THREE.Group();
+  gymGroup.add(equipment);
+
+  // Barbell
+  const barMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8, roughness: 0.3 });
+  const weightMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.5, roughness: 0.6 });
+
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.8, 8), barMat);
+  bar.position.set(-0.8, 0.2, -1.8);
+  bar.rotation.x = Math.PI / 2;
+  equipment.add(bar);
+
+  for (const side of [-1, 1]) {
+    const weight = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.1, 12), weightMat);
+    weight.position.set(bar.position.x + side * 0.7, 0.2, -1.8);
+    weight.rotation.x = Math.PI / 2;
+    equipment.add(weight);
+  }
+
+  // Dumbbell
+  const handleMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.7, roughness: 0.3 });
+  const dbHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.3, 8), handleMat);
+  dbHandle.position.set(1.2, 0.15, -1.5);
+  dbHandle.rotation.z = Math.PI / 2;
+  equipment.add(dbHandle);
+
+  for (const side of [-1, 1]) {
+    const dbWeight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.08), weightMat);
+    dbWeight.position.set(1.2 + side * 0.18, 0.15, -1.5);
+    equipment.add(dbWeight);
+  }
+
+  // Workout bench
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3e, roughness: 0.7 });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.3), benchMat);
+  seat.position.set(-0.5, 0.25, 1.2);
+  equipment.add(seat);
+
+  const backrest = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.08), benchMat);
+  backrest.position.set(-0.5, 0.45, 1.35);
+  equipment.add(backrest);
+
+  for (const legX of [-0.55, -0.45]) {
+    for (const legZ of [1.1, 1.3]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.2, 6), handleMat);
+      leg.position.set(legX, 0.1, legZ);
+      equipment.add(leg);
+    }
+  }
+
+  return { gymGroup, neonLights, equipment, wallPanels };
+}
 
 /**
  * Creates the ShaderMaterial used by each stress-vector mesh.

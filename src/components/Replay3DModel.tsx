@@ -20,6 +20,7 @@ import {
   buildSkyboxEnvironment,
   buildRippleGridPlane,
   buildStressVectors,
+  buildCyberpunkGymScenery,
   MUSCLE_JOINT_GROUPS,
   type BoneEntry,
   type StressVectorRig,
@@ -854,6 +855,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     // Built by the dedicated helper — keeps this useEffect focused on wiring
     const skybox = buildSkyboxEnvironment(scene);
     gridRef.current = skybox.grid;
+
+    // ── Cyberpunk gym environment scenery ─────────────────────────────────
+    buildCyberpunkGymScenery(scene);
 
     // ── Ripple-grid animated ground plane ─────────────────────────────────
     const ripple = buildRippleGridPlane(scene);
