@@ -89,6 +89,7 @@ export interface StressVectorRig {
 /** Return value of buildSkyboxEnvironment. */
 export interface SkyboxAssets {
   grid: THREE.GridHelper;
+  glowGrid: THREE.GridHelper;
   floor: THREE.Mesh;
   ambientLight: THREE.AmbientLight;
   keyLight: THREE.DirectionalLight;
@@ -223,17 +224,19 @@ export function buildSkyboxEnvironment(scene: THREE.Scene): SkyboxAssets {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
   scene.add(ambientLight);
 
-  const keyLight = new THREE.DirectionalLight(0x00ffff, 1.2);
-  keyLight.position.set(2, 4, 3);
+  const keyLight = new THREE.DirectionalLight(0x00ffff, 1.5);
+  keyLight.position.set(2, 6, 4);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.width = 1024;
-  keyLight.shadow.mapSize.height = 1024;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
   keyLight.shadow.camera.left = -5;
   keyLight.shadow.camera.right = 5;
   keyLight.shadow.camera.top = 5;
   keyLight.shadow.camera.bottom = -5;
   keyLight.shadow.camera.near = 0.1;
   keyLight.shadow.camera.far = 50;
+  keyLight.shadow.bias = -0.001;
+  keyLight.shadow.normalBias = 0.02;
   scene.add(keyLight);
 
   const fillLight = new THREE.DirectionalLight(0x9d4edd, 0.7);
@@ -249,20 +252,28 @@ export function buildSkyboxEnvironment(scene: THREE.Scene): SkyboxAssets {
   scene.add(rimLight);
 
   // ── Grid ─────────────────────────────────────────────────────────────────
-  const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x222222);
+  const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x00aaaa);
   grid.position.y = -1.01;
   (grid.material as THREE.LineBasicMaterial).transparent = true;
-  (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
+  (grid.material as THREE.LineBasicMaterial).opacity = 0.6;
   scene.add(grid);
 
+  // Secondary glow grid (rotated 45 degrees for cyberpunk diamond pattern)
+  const glowGrid = new THREE.GridHelper(12, 16, 0x00ffff, 0x0088ff);
+  glowGrid.position.y = -1.015;
+  glowGrid.rotation.y = Math.PI / 4;
+  (glowGrid.material as THREE.LineBasicMaterial).transparent = true;
+  (glowGrid.material as THREE.LineBasicMaterial).opacity = 0.15;
+  scene.add(glowGrid);
+
   // ── Floor plane ───────────────────────────────────────────────────────────
-  const floorGeo = new THREE.PlaneGeometry(10, 10);
+  const floorGeo = new THREE.PlaneGeometry(20, 20);
   const floorMat = new THREE.MeshPhongMaterial({
-    color: 0x000000,
+    color: 0x050510,
     emissive: 0x00ffff,
-    emissiveIntensity: 0.05,
+    emissiveIntensity: 0.08,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.6,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
