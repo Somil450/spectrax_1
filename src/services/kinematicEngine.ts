@@ -159,6 +159,9 @@ export class KinematicEngine {
     this.sessionPeakVelocities = [];
     this.emaVelocity = 0;
     this.boundingBoxHeight = 1;
+    this.phaseStartTime = 0;
+    this.currentRepTUT = { eccentric: 0, concentric: 0, isometric: 0 };
+    this.lastRepTUT = null;
   }
 
   public getMetrics(): VBTMetrics {

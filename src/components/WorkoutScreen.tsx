@@ -257,6 +257,17 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
+  const srOnly: React.CSSProperties = {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  };
   const throttleLevel = useThrottleLevel();
 
   const [engineState, setEngineState] = useState<EngineState>({
@@ -969,12 +980,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       style={{ background: "var(--bg-primary)" }}
     >
       {cameraError === 'CAMERA_PERMISSION_DENIED' && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)' }}>
-          <div style={{ fontSize: '48px', marginBottom: '20px' }}>📷</div>
-          <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>Camera Access Required</h2>
-          <p style={{ maxWidth: '400px', color: '#94a3b8', lineHeight: 1.6 }}>
-            You have denied camera permissions. SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
-          </p>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)', boxSizing: 'border-box' }}>
+          <div style={{ margin: 'auto', width: '100%', maxWidth: '500px', padding: '24px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', borderRadius: '16px', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
+            <h2 style={{ fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', marginBottom: '12px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>CAMERA ACCESS REQUIRED</h2>
+            <p style={{ color: '#94a3b8', lineHeight: 1.5, marginBottom: '24px', fontSize: '0.9rem' }}>
+              SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
+            </p>
+            <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px' }}>RELOAD PAGE</button>
+          </div>
         </div>
       )}
       <CameraErrorBoundary>

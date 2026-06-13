@@ -311,12 +311,12 @@ function App() {
         {(currentScreen === "login" ||
           (currentScreen !== "signup" &&
             currentScreen !== "forgot-password")) && (
-          <LoginScreen
-            onLoginSuccess={() => navigateTo("welcome")}
-            onSignUpClick={() => navigateTo("signup")}
-            onForgotPasswordClick={() => navigateTo("forgot-password")}
-          />
-        )}
+            <LoginScreen
+              onLoginSuccess={() => navigateTo("welcome")}
+              onSignUpClick={() => navigateTo("signup")}
+              onForgotPasswordClick={() => navigateTo("forgot-password")}
+            />
+          )}
         {activeAuthScreen === "signup" && (
           <SignUpScreen
             onSignUpSuccess={() => navigateTo("welcome")}
@@ -340,13 +340,11 @@ function App() {
       <CursorGlow />
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <div
-        className={`theme-selector-segmented ${
-          currentScreen === "workout" ? "workout-active" : ""
-        } ${
-          ["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
+        className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""
+          } ${["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
             ? "is-hidden"
             : ""
-        }`}
+          }`}
       >
         <div className={`selector-indicator theme-${theme}`} />
         <button
@@ -554,29 +552,29 @@ function App() {
                 Stay
               </button>
 
-        <button
-          onClick={() => {
-            setShowExitModal(false);
-            if (user?.uid) {
-              localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
-            }
-            navigateTo('welcome');
-          }}
-          style={{
-            padding: '10px 20px',
-            borderRadius: '10px',
-            border: 'none',
-            cursor: 'pointer',
-            background: '#ff4d4f',
-            color: 'white'
-          }}
-        >
-          Exit
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+              <button
+                onClick={() => {
+                  setShowExitModal(false);
+                  if (user?.uid) {
+                    localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+                  }
+                  navigateTo('welcome');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#ff4d4f',
+                  color: 'white'
+                }}
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
