@@ -411,6 +411,7 @@ function detectExercise(landmarks: any[], angles: Record<string, number>) {
 let offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
 let scanY = 0;
 let scanDirection = 1;
+let workerFrameCount = 0;
 
 function drawSkeleton(
   landmarks: any[],
@@ -423,6 +424,7 @@ function drawSkeleton(
   const { width, height } = ctx.canvas;
 
   ctx.clearRect(0, 0, width, height);
+  workerFrameCount++;
 
   const color =
     status === "green"
@@ -431,14 +433,28 @@ function drawSkeleton(
         ? "#ffd600"
         : "#ff3b5c";
 
+  const pulse = 0.7 + 0.3 * Math.sin(workerFrameCount * 0.08);
+
   scanY += 3 * scanDirection;
   if (scanY > height || scanY < 0) scanDirection *= -1;
+
+  ctx.save();
+  ctx.shadowBlur = 10 * pulse;
+  ctx.shadowColor = "rgba(0, 240, 255, 0.6)";
+
   ctx.beginPath();
   ctx.moveTo(0, scanY);
   ctx.lineTo(width, scanY);
-  ctx.strokeStyle = "rgba(0, 240, 255, 0.3)";
+  ctx.strokeStyle = `rgba(0, 240, 255, ${0.2 + 0.2 * pulse})`;
   ctx.lineWidth = 1.5;
   ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(width * 0.5, scanY, 20, 0, 2 * Math.PI);
+  ctx.fillStyle = `rgba(0, 240, 255, ${0.03 * pulse})`;
+  ctx.fill();
+
+  ctx.restore();
 
   const connections = [
     [11, 12],

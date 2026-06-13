@@ -394,11 +394,32 @@ body {
   border-style: solid;
   border-width: 0;
   opacity: 0.6;
+  animation: bracketPulse 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px var(--neon-cyan));
 }
 #camera-screen .corner-bracket.tl { top: 12px; left: 12px; border-top-width: 2px; border-left-width: 2px; border-radius: 4px 0 0 0; }
 #camera-screen .corner-bracket.tr { top: 12px; right: 12px; border-top-width: 2px; border-right-width: 2px; border-radius: 0 4px 0 0; }
 #camera-screen .corner-bracket.bl { bottom: 12px; left: 12px; border-bottom-width: 2px; border-left-width: 2px; border-radius: 0 0 0 4px; }
 #camera-screen .corner-bracket.br { bottom: 12px; right: 12px; border-bottom-width: 2px; border-right-width: 2px; border-radius: 0 0 4px 0; }
+
+@keyframes bracketPulse {
+  0%, 100% { opacity: 0.4; filter: drop-shadow(0 0 2px var(--neon-cyan)); }
+  50%      { opacity: 0.9; filter: drop-shadow(0 0 10px var(--neon-cyan)); }
+}
+
+#camera-screen .detection-border {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 16px;
+  pointer-events: none;
+  animation: borderPulse 3s ease-in-out infinite;
+}
+
+@keyframes borderPulse {
+  0%, 100% { border-color: rgba(0, 240, 255, 0.1); box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.03); }
+  50%      { border-color: rgba(0, 240, 255, 0.25); box-shadow: inset 0 0 40px rgba(0, 240, 255, 0.07); }
+}
 
 #camera-screen .scan-line {
   position: absolute;
@@ -406,7 +427,7 @@ body {
   width: 90%;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-  animation: scanMove 3s ease-in-out infinite;
+  animation: scanMove 3s ease-in-out infinite, glowPulse 1.5s ease-in-out infinite alternate;
   box-shadow: 0 0 12px var(--neon-cyan);
 }
 
@@ -415,18 +436,47 @@ body {
   50%      { top: 82%; }
 }
 
+@keyframes glowPulse {
+  0%   { box-shadow: 0 0 6px var(--neon-cyan); }
+  100% { box-shadow: 0 0 20px var(--neon-cyan), 0 0 40px rgba(0, 240, 255, 0.3); }
+}
+
 #camera-screen .camera-instruction {
   margin-top: 28px;
   font-size: 1rem;
   color: var(--text-secondary);
   letter-spacing: 1px;
   text-align: center;
+  transition: color 0.3s ease, transform 0.3s ease, text-shadow 0.3s ease;
+}
+
+#camera-screen .camera-instruction.warning {
+  color: #ffd600;
+  text-shadow: 0 0 12px rgba(255, 214, 0, 0.3);
+  transform: scale(1.02);
+}
+
+#camera-screen .camera-instruction.error {
+  color: #ff3b5c;
+  text-shadow: 0 0 12px rgba(255, 59, 92, 0.3);
+  transform: scale(1.02);
+}
+
+#camera-screen .camera-instruction.success {
+  color: #00ff88;
+  text-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
 }
 
 #camera-screen .camera-actions {
   margin-top: 20px;
   display: flex;
   gap: 12px;
+  animation: fadeInUp 0.4s ease-out;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ══════════════════════════════════════════════════════════════
