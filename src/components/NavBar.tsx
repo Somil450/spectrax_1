@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/NavBar.css';
-import { Home, Activity, Award, SunMedium, Menu } from 'lucide-react';
+import { Home, Activity, Award, SunMedium, Menu, Scale} from 'lucide-react';
 
 interface NavBarProps {
   navigateTo: (screen: string) => void;
@@ -150,7 +150,7 @@ export const NavBar: React.FC<NavBarProps> = ({ navigateTo, theme, setTheme }) =
       </div>
 
       <nav className={`nav-center ${open ? 'open' : ''}`} aria-hidden={!open}>
-        {navItem('BMI', () => navigateTo('fitness'))}
+        {navItem('BMI', () => navigateTo('fitness'), Scale)}
         {navItem('History', () => navigateTo('history'), Activity)}
         {navItem('Trophies', () => navigateTo('trophy'), Award)}
       </nav>
