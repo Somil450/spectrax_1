@@ -1,5 +1,6 @@
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import { gpuAngleCalculator } from './gpuAngleUtils';
+import { FrameInterpolationEngine, frameInterpolationEngine } from './frameInterpolationEngine';
 
 // MediaPipe Pose Landmarker wrapper support
 export const mediaPipePoseLandmarkerConfig = {

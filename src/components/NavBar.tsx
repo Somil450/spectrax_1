@@ -161,7 +161,7 @@ export const NavBar: React.FC<NavBarProps> = ({ navigateTo, theme, setTheme }) =
           <span className="nav-label">{theme.replace('-', ' ')}</span>
         </button>
 
-        <button className="mobile-menu" onClick={() => setOpen((s) => !s)} aria-label="Toggle menu">
+        <button className="mobile-menu has-tooltip tooltip-bottom" data-tooltip="Toggle menu" onClick={() => setOpen((s) => !s)} aria-label="Toggle menu">
           <Menu />
         </button>
       </div>

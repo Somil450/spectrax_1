@@ -1390,3 +1390,91 @@ body {
   /* Slightly lighter on hover for good UX */
   background-color: #475569; 
 }
+
+/* ==========================================================================
+   ACCESSIBLE GLASSMORPHISM TOOLTIPS (Icon-Only Buttons)
+   ========================================================================== */
+
+.has-tooltip {
+  position: relative;
+}
+
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out), visibility 0.22s var(--ease-out);
+  box-shadow: var(--glass-shadow);
+  z-index: 99999;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Default position: top */
+.has-tooltip.tooltip-top::after {
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px) scale(0.95);
+}
+.has-tooltip.tooltip-top:hover::after,
+.has-tooltip.tooltip-top:focus-visible::after,
+.has-tooltip.tooltip-top:focus::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+/* Position: bottom */
+.has-tooltip.tooltip-bottom::after {
+  top: 130%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px) scale(0.95);
+}
+.has-tooltip.tooltip-bottom:hover::after,
+.has-tooltip.tooltip-bottom:focus-visible::after,
+.has-tooltip.tooltip-bottom:focus::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+/* Position: left */
+.has-tooltip.tooltip-left::after {
+  right: 130%;
+  top: 50%;
+  transform: translateY(-50%) translateX(6px) scale(0.95);
+}
+.has-tooltip.tooltip-left:hover::after,
+.has-tooltip.tooltip-left:focus-visible::after,
+.has-tooltip.tooltip-left:focus::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0) scale(1);
+}
+
+/* Position: right */
+.has-tooltip.tooltip-right::after {
+  left: 130%;
+  top: 50%;
+  transform: translateY(-50%) translateX(-6px) scale(0.95);
+}
+.has-tooltip.tooltip-right:hover::after,
+.has-tooltip.tooltip-right:focus-visible::after,
+.has-tooltip.tooltip-right:focus::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0) scale(1);
+}

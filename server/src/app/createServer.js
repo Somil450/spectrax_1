@@ -12,9 +12,10 @@ const {
 const { createApp } = require("./createApp");
 const { logger: defaultLogger } = require("../shared/utils/logger");
 
-const ipConnectionCount = new Map();
-
 function createServer(overrides = {}) {
+  // Move ipConnectionCount to function scope for multi-instance safety
+  const ipConnectionCount = new Map();
+
   const config = getConfig(overrides);
   const logger = overrides.logger || defaultLogger;
   const sessionStore = createSessionStore();

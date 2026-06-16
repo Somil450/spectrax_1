@@ -239,4 +239,33 @@ describe("ExerciseEngine", () => {
     expect(resetMetrics.baselineVelocity).toBe(0);
     expect(resetMetrics.velocitiesSession).toHaveLength(0);
   });
+  it("resets kinematicEngine state on reset() of ExerciseEngine", async () => {
+    const mockLandmarks = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0.1, visibility: 0.9 }));
+    mockLandmarks[24].y = 0.5;
+    
+    const res1 = await engine.process(
+      squatConfig,
+      { knee: 170 },
+      goodVis,
+      makeState(),
+      undefined,
+      mockLandmarks
+    );
+    
+    expect(res1.vbtMetrics).toBeDefined();
+    
+    engine.reset();
+    
+    const res2 = await engine.process(
+      squatConfig,
+      { knee: 170 },
+      goodVis,
+      makeState(),
+      undefined,
+      mockLandmarks
+    );
+    
+    expect(res2.vbtMetrics?.baselineVelocity).toBe(0);
+    expect(res2.vbtMetrics?.velocitiesSession).toHaveLength(0);
+  });
 });

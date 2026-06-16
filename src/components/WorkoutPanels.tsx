@@ -77,6 +77,145 @@ export const SensePanel = ({ clipEngine, clipResult }: { clipEngine: any, clipRe
   )
 );
 
+export const RiskPanel = ({
+  riskIndex,
+  fatigueIndex,
+  asymmetryScore,
+  recommendedStopRep,
+}: {
+  riskIndex: number;
+  fatigueIndex: number;
+  asymmetryScore: number;
+  recommendedStopRep: number | null;
+}) => {
+  const riskColor = riskIndex >= 75 ? "var(--neon-red)" : riskIndex >= 50 ? "var(--neon-yellow)" : "var(--neon-green)";
+  const riskLabel = riskIndex >= 75 ? "HIGH RISK" : riskIndex >= 50 ? "ELEVATED" : "LOW RISK";
+
+  return (
+    <div className="glass workout-stat-card workout-risk-panel animate-in" style={{ borderLeft: `3px solid ${riskColor}` }}>
+      <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>
+        Injury Risk Index
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
+        <span style={{ fontFamily: 'var(--font-heading)', color: riskColor, fontSize: '2rem', fontWeight: 900 }}>
+          {riskIndex}
+        </span>
+        <span style={{ fontSize: '0.75rem', color: riskColor, fontWeight: 700 }}>/ 100</span>
+      </div>
+      <div style={{ fontSize: '0.7rem', color: riskColor, fontWeight: 700, marginBottom: '8px' }}>
+        {riskLabel}
+      </div>
+      <div style={{ display: 'flex', gap: '12px', fontSize: '0.65rem', color: 'var(--text-dim)' }}>
+        <span>FATIGUE: {fatigueIndex}</span>
+        <span>ASYM: {asymmetryScore}</span>
+      </div>
+      {recommendedStopRep !== null && (
+        <div style={{ marginTop: '8px', fontSize: '0.7rem', color: 'var(--neon-red)', fontWeight: 700, background: 'rgba(255,34,85,0.1)', padding: '4px 8px', borderRadius: '4px' }}>
+          STOP AT REP {recommendedStopRep}
+        </div>
+      )}
+export const TutPanel = ({
+  tutMetrics,
+  statusColor,
+}: {
+  tutMetrics?: {
+    eccentricMs: number;
+    concentricMs: number;
+    isometricMs: number;
+    tempoRatio: string;
+    totalRepMs: number;
+  };
+  statusColor: string;
+}) => {
+  if (!tutMetrics) return null;
+
+  const eccSec = Math.round(tutMetrics.eccentricMs / 1000);
+  const conSec = Math.round(tutMetrics.concentricMs / 1000);
+  const isoSec = Math.round(tutMetrics.isometricMs / 1000);
+  const total = eccSec + conSec + isoSec || 1;
+
+  const eccPct = (eccSec / total) * 100;
+  const conPct = (conSec / total) * 100;
+  const isoPct = (isoSec / total) * 100;
+
+  return (
+    <div
+      className="glass workout-stat-card workout-tut-panel animate-in"
+      style={{
+        padding: "12px 16px",
+        minWidth: "200px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.65rem",
+          color: "var(--text-dim)",
+          letterSpacing: "2px",
+          textTransform: "uppercase",
+          marginBottom: "8px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span>TEMPO</span>
+        <span style={{ color: statusColor, fontWeight: 700 }}>{tutMetrics.tempoRatio}</span>
+      </div>
+
+      {/* Stacked bar: Eccentric (down) | Isometric (hold) | Concentric (up) */}
+      <div
+        style={{
+          display: "flex",
+          height: "8px",
+          borderRadius: "4px",
+          overflow: "hidden",
+          background: "rgba(255,255,255,0.05)",
+          marginBottom: "6px",
+        }}
+      >
+        <div
+          style={{
+            width: `${eccPct}%`,
+            background: "var(--neon-yellow)",
+            transition: "width 0.3s ease",
+          }}
+          title="Eccentric (lowering)"
+        />
+        <div
+          style={{
+            width: `${isoPct}%`,
+            background: "var(--text-dim)",
+            transition: "width 0.3s ease",
+          }}
+          title="Isometric (hold)"
+        />
+        <div
+          style={{
+            width: `${conPct}%`,
+            background: statusColor,
+            transition: "width 0.3s ease",
+          }}
+          title="Concentric (lifting)"
+        />
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: "0.6rem",
+          color: "var(--text-dim)",
+          letterSpacing: "1px",
+        }}
+      >
+        <span style={{ color: "var(--neon-yellow)" }}>{eccSec}s ↓</span>
+        <span>{isoSec}s ◆</span>
+        <span style={{ color: statusColor }}>{conSec}s ↑</span>
+      </div>
+    </div>
+  );
+};
+
 export const AngleDialPanel = ({
   angle,
   label,

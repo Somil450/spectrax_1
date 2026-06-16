@@ -17,7 +17,8 @@ import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel } from './WorkoutPanels';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, RiskPanel } from './WorkoutPanels';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, TutPanel } from './WorkoutPanels';
 import { ghostService } from '../services/ghostService';
 import type { GhostStats } from '../services/ghostService';
 import { useThrottleLevel } from '../services/performanceThrottleService';
@@ -47,8 +48,9 @@ interface WorkoutScreenProps {
     accuracy: number;
     mistakes: Record<string, number>;
     bestStreak: number;
-    jumpingJackSync?: EngineState["jumpingJackSync"];
+    jumpingJackSync?: { score: number | null, lagMs: number | null, confidence: number, samples: number };
     tags?: string[];
+    tutMetrics?: any;
   }) => void;
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
@@ -57,7 +59,8 @@ interface WorkoutScreenProps {
   onCancel?: () => void;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "risk";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "tut";
 
 type PanelPosition = {
   x: number;
@@ -83,6 +86,8 @@ const getDefaultPanelPositions = (): PanelPositions => {
     engine: { x: 40, y: Math.max(height - 110, 30) },
     sense: { x: 280, y: Math.max(height - 110, 30) },
     dial: { x: Math.max(width - 230, 30), y: 150 },
+    risk: { x: Math.max(width - 230, 30), y: 290 },
+    tut: { x: Math.max(width - 230, 30), y: 300 },
   };
 };
 
@@ -214,7 +219,7 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, onCancel }) => {
   const { settings, updateSetting } = useSettings();
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const lastSpokenFeedbackRef = useRef<string>("");
@@ -241,7 +246,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       reps: React.createRef<HTMLDivElement>(),
       engine: React.createRef<HTMLDivElement>(),
       sense: React.createRef<HTMLDivElement>(),
-      dial: React.createRef<HTMLDivElement>()
+      dial: React.createRef<HTMLDivElement>(),
+      tut: React.createRef<HTMLDivElement>()
     };
   }
 
@@ -249,6 +255,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [currentAngle, setCurrentAngle] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [riskMetrics, setRiskMetrics] = useState({
+    riskIndex: 0,
+    fatigueIndex: 0,
+    asymmetryScore: 0,
+    recommendedStopRep: null as number | null,
+  });
   const [panelPositions, setPanelPositions] = useState<PanelPositions>(() => getStoredPanelPositions());
   const [showExitModal, setShowExitModal] = useState(false);
   const [depth3DEnabled, setDepth3DEnabled] = useState(false);
@@ -268,6 +280,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     whiteSpace: 'nowrap',
     borderWidth: 0,
   };
+  const throttleLevel = useThrottleLevel();
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -581,9 +594,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
 
   const workerAnglesRef = useRef<Record<string, number>>({});
-  const wsSocketRef = useWorkoutWebSocket();
   const offscreenEnabledRef = useRef<boolean>(false);
   const { initOffscreenCanvas } = useOffscreenCanvas();
+  useWorkoutWebSocket();
+
 
   const depthEngineRef = useRef<DepthEstimationEngine | null>(null);
   const lastDepthMapRef = useRef<any>(null);
@@ -742,12 +756,32 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     mutableState.current = nextState;
     setEngineState(nextState);
 
+    let riskSnapshot: ReturnType<<typeof injuryRiskEngine.computeRisk> | undefined;
+    if (nextState.vbtMetrics) {
+      riskSnapshot = injuryRiskEngine.computeRisk(nextState.vbtMetrics, nextState.reps);
+      setRiskMetrics({
+        riskIndex: riskSnapshot.riskIndex,
+        fatigueIndex: riskSnapshot.fatigueIndex,
+        asymmetryScore: riskSnapshot.asymmetryScore,
+        recommendedStopRep: riskSnapshot.recommendedStopRep,
+      });
+      sessionRecorder.recordRisk({
+        timestamp: Date.now(),
+        riskIndex: riskSnapshot.riskIndex,
+        fatigueIndex: riskSnapshot.fatigueIndex,
+        asymmetryScore: riskSnapshot.asymmetryScore,
+      });
+    }
+
     sessionRecorder.recordFrame({
       timestamp: Date.now(),
       landmarks: results.poseLandmarks,
       angles,
       feedback: nextState.feedback,
       exercise: exercise.key,
+      riskScore: riskSnapshot?.riskIndex,
+      fatigueIndex: riskSnapshot?.fatigueIndex,
+      asymmetryScore: riskSnapshot?.asymmetryScore,
     });
 
     // 5. Rendering (Main thread fallback if OffscreenCanvas disabled)
@@ -807,6 +841,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
     exerciseEngine.reset();
+    injuryRiskEngine.reset();
 
     // Load Ghost Data
     const ghostData = ghostService.loadGhost(exercise.key);
@@ -819,6 +854,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       ghostStatsRef.current = null;
       setHasGhost(false);
     }
+
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
     workerRef.current = worker;
@@ -878,6 +914,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       clearInterval(timerRef);
       gestureService.reset();
       exerciseEngine.reset();
+      injuryRiskEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
   }, [exercise, startSystem, stopSystem]);
@@ -938,6 +975,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       mistakes: finalMistakes,
       bestStreak: mutableState.current.bestStreak,
       jumpingJackSync: mutableState.current.jumpingJackSync,
+      tutMetrics: mutableState.current.tutMetrics,
       tags: clipEngine.generateSessionTags({
         accuracy: accuracy,
         avgConfidence: clipResult?.confidence || 0.8,
@@ -1010,12 +1048,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       style={{ background: "var(--bg-primary)" }}
     >
       {cameraError === 'CAMERA_PERMISSION_DENIED' && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)' }}>
-          <div style={{ fontSize: '48px', marginBottom: '20px' }}>📷</div>
-          <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>Camera Access Required</h2>
-          <p style={{ maxWidth: '400px', color: '#94a3b8', lineHeight: 1.6 }}>
-            You have denied camera permissions. SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
-          </p>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)', boxSizing: 'border-box' }}>
+          <div style={{ margin: 'auto', width: '100%', maxWidth: '500px', padding: '24px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', borderRadius: '16px', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
+            <h2 style={{ fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', marginBottom: '12px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>CAMERA ACCESS REQUIRED</h2>
+            <p style={{ color: '#94a3b8', lineHeight: 1.5, marginBottom: '24px', fontSize: '0.9rem' }}>
+              SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
+            </p>
+            <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px' }}>RELOAD PAGE</button>
+          </div>
         </div>
       )}
       <CameraErrorBoundary>
@@ -1280,6 +1321,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
         {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
         {renderDraggablePanel('dial', '', <AngleDialPanel angle={currentAngle} label={exercise.primaryJoint} statusColor={statusColor} />)}
+        {renderDraggablePanel('risk', '', <RiskPanel 
+          riskIndex={riskMetrics.riskIndex} 
+          fatigueIndex={riskMetrics.fatigueIndex} 
+          asymmetryScore={riskMetrics.asymmetryScore} 
+          recommendedStopRep={riskMetrics.recommendedStopRep} 
+        />)}
+        {renderDraggablePanel('tut', '', <TutPanel tutMetrics={engineState.tutMetrics} statusColor={statusColor} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}

@@ -5,8 +5,8 @@ import { overlayRenderer } from '../services/overlayRenderer';
 import { depthEstimationEngine } from '../services/depthEstimationEngine';
 
 interface UseCameraPoseOptions {
-  videoRef?: React.RefObject<<HTMLVideoElement>;
-  canvasRef?: React.RefObject<<HTMLCanvasElement>;
+  videoRef?: React.RefObject<HTMLVideoElement>;
+  canvasRef?: React.RefObject<HTMLCanvasElement>;
   initialFpsLimit?: number;
   minFpsLimit?: number;
   fpsDecrementStep?: number;
@@ -29,8 +29,8 @@ export function useCameraPose({
   setupContext = true,
   enableFrameInterpolation = true,
 }: UseCameraPoseOptions) {
-  const localVideoRef = useRef<<HTMLVideoElement>(null);
-  const localCanvasRef = useRef<<HTMLCanvasElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const videoRef = customVideoRef || localVideoRef;
   const canvasRef = customCanvasRef || localCanvasRef;
