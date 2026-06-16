@@ -891,7 +891,21 @@ export class PoseService {
     gpuAngleCalculator.destroy();
   }
 
+  private depthLandmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null = null;
+
+  setDepthLandmarks(landmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null) {
+    this.depthLandmarks = landmarks;
+  }
+
+  getDepthLandmarks() {
+    return this.depthLandmarks;
+  }
+
   private preprocessResults(results: Results): Results {
+    if (this.depthLandmarks && results.poseLandmarks) {
+      (results as any).__depthLandmarks = this.depthLandmarks;
+    }
+
     if (this.smoothingFilters.length === 0) {
       if (results.poseLandmarks) {
         jointConfidenceHash.process(results.poseLandmarks);

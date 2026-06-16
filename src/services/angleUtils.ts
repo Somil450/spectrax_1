@@ -43,6 +43,36 @@ export function calculateAngle(
   return _angle;
 }
 
+let _a3x = 0, _a3y = 0, _a3z = 0;
+let _b3x = 0, _b3y = 0, _b3z = 0;
+let _c3x = 0, _c3y = 0, _c3z = 0;
+
+export function calculateAngle3D(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+  c: { x: number; y: number; z: number }
+): number {
+  if (!a || !b || !c) return 0;
+
+  _a3x = a.x - b.x;
+  _a3y = a.y - b.y;
+  _a3z = a.z - b.z;
+
+  _b3x = c.x - b.x;
+  _b3y = c.y - b.y;
+  _b3z = c.z - b.z;
+
+  const magA = Math.sqrt(_a3x * _a3x + _a3y * _a3y + _a3z * _a3z);
+  const magB = Math.sqrt(_b3x * _b3x + _b3y * _b3y + _b3z * _b3z);
+
+  if (magA < 1e-8 || magB < 1e-8) return 0;
+
+  const dot = _a3x * _b3x + _a3y * _b3y + _a3z * _b3z;
+  const cosAngle = dot / (magA * magB);
+  const clamped = Math.max(-1, Math.min(1, cosAngle));
+  return Math.acos(clamped) * (180 / Math.PI);
+}
+
 function getBestSide(landmarks: any): 'left' | 'right' {
   const leftVis =
     ((landmarks[11]?.visibility || 0) +

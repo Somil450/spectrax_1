@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
+import { depthEstimationEngine } from '../services/depthEstimationEngine';
 
 interface UseCameraPoseOptions {
   videoRef?: React.RefObject<<HTMLVideoElement>;
@@ -58,6 +59,8 @@ export function useCameraPose({
 
       poseService.setInterpolationEnabled(enableFrameInterpolation);
 
+      await depthEstimationEngine.init();
+
       await cameraService.startCamera(videoRef.current);
 
       poseService.onResults((results) => {
@@ -92,6 +95,7 @@ export function useCameraPose({
     isMountedRef.current = false;
     cameraService.stopCamera();
     poseService.setInterpolationEnabled(false);
+    depthEstimationEngine.destroy();
   }, []);
 
   useEffect(() => {
