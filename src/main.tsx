@@ -6,6 +6,7 @@ import { AuthProvider } from "./context/AuthContext.tsx";
 import { SettingsProvider } from "./context/SettingsContext.tsx";
 import "./index.css";
 import { registerSW } from 'virtual:pwa-register';
+import { SmoothScroller } from "./components/SmoothScroller";
 
 // Register PWA Service Worker for offline support
 registerSW({
@@ -20,7 +21,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <AuthProvider>
       <SettingsProvider>
         <ThemeProvider>
-          <App />
+          <SmoothScroller>
+            <App />
+          </SmoothScroller>
         </ThemeProvider>
       </SettingsProvider>
     </AuthProvider>

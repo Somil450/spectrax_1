@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState , useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
@@ -34,10 +34,10 @@ const srOnly: React.CSSProperties = {
   border: 0,
 };
 
-export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({ 
+export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   selectedExercise, onSelectExercise, onNext, onBack, onBodyTypeDetected
 }) => {
-  
+
   // -- State variables --
   const { sessions, fetchHistory } = useWorkoutHistory();
 
@@ -69,10 +69,10 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
-  
+
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
-  const[expandedExercise, setExpandedExercise] = useState<string | null>(null);
-  
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+
   const frameId = useRef<number>(0);
   const lastProcessTime = useRef<number>(0);
   const FPS_LIMIT = 15;
@@ -81,7 +81,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   const handleResults = useCallback((results: any) => {
     let adaptiveFactor = 1.0;
-    
+
     if (results.poseLandmarks) {
       const bt = bodyTypeEngine.analyze(results.poseLandmarks);
       setBodyTypeRes(bt);
@@ -232,14 +232,14 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const getSortedExercises = () => {
     const all = Object.values(exercises);
     if (!bodyTypeRes || bodyTypeRes.bodyType === 'scanning') return all;
-    
+
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
       ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress', 'chestPressPunches'],
       meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress', 'chestPressPunches'],
       endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress', 'chestPressPunches']
     };
-    
+
     const order = orderMap[type] || [];
     return all.sort((a, b) => {
       const idxA = order.indexOf(a.key);
@@ -250,24 +250,36 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   return (
     <div className="screen-container" style={{ background: 'var(--bg-primary)' }}>
+      {error === 'CAMERA_PERMISSION_DENIED' && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)', boxSizing: 'border-box' }}>
+          <div style={{ margin: 'auto', width: '100%', maxWidth: '500px', padding: '24px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', borderRadius: '16px', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
+            <h2 style={{ fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', marginBottom: '12px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>CAMERA ACCESS REQUIRED</h2>
+            <p style={{ color: '#94a3b8', lineHeight: 1.5, marginBottom: '24px', fontSize: '0.9rem' }}>
+              SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
+            </p>
+            <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px' }}>RELOAD PAGE</button>
+          </div>
+        </div>
+      )}
 
-      <div className="camera-viewport" style={{ 
+      <div className="camera-viewport" style={{
         position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'radial-gradient(circle at center, #111a3d 0%, #0a0a1a 100%)'
       }}>
-        <video 
-          ref={videoRef} 
-          playsInline 
-          muted 
-          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6, transform: 'scaleX(-1)' }} 
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6, transform: 'scaleX(-1)' }}
         />
-        <canvas 
-          ref={canvasRef} 
+        <canvas
+          ref={canvasRef}
           width={1280}
           height={720}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }} 
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }}
         />
-        
+
         {/* Silhouette Guide Overlay Removed as per user request */}
       </div>
 
@@ -296,8 +308,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         {announcement}
       </div>
 
-      <div className="ui-layer" style={{ position: 'relative', zIndex: 10, height: '100%', padding: '40px', pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        
+      <div className="ui-layer" style={{ position: 'relative', zIndex: 10, flex: 1, padding: 'clamp(16px, 4vw, 40px)', paddingBottom: '120px', boxSizing: 'border-box', pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: '32px', overflowY: 'auto' }}>
+
         {/* Header & Exercise Selector */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'all' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -437,215 +449,208 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           </div>
 
           <div className="glass calib-panel">
-             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <Dumbbell size={14} color="var(--neon-purple)" />
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>
-             </div>
-             
-             {/* Exercise Grid with Video Tooltips */}
-             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {getSortedExercises().map((ex) => (
-                  <div 
-                    key={ex.key} 
-                    style={{ position: 'relative' }}
-                    onMouseEnter={() => setHoveredExercise(ex.key)}
-                    onMouseLeave={() => setHoveredExercise(null)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <Dumbbell size={14} color="var(--neon-purple)" />
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>
+            </div>
+
+            {/* Exercise Grid with Video Tooltips */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {getSortedExercises().map((ex) => (
+                <div
+                  key={ex.key}
+                  style={{ position: 'relative' }}
+                  onMouseEnter={() => setHoveredExercise(ex.key)}
+                  onMouseLeave={() => setHoveredExercise(null)}
+                >
+                  <button
+                    onClick={() => onSelectExercise(ex.key)}
+                    style={{
+                      background: selectedExercise.key === ex.key ? 'var(--neon-purple)' : 'transparent',
+                      color: selectedExercise.key === ex.key ? '#fff' : 'var(--text-secondary)',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.3s ease',
+                      width: '100%',
+                      position: 'relative',
+                      zIndex: 2,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
                   >
-                    <button 
-                      onClick={() => onSelectExercise(ex.key)}
+                    <div
                       style={{
-                        background: selectedExercise.key === ex.key ? 'var(--neon-purple)' : 'transparent',
-                        color: selectedExercise.key === ex.key ? '#fff' : 'var(--text-secondary)',
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        border: '1px solid rgba(168, 85, 247, 0.3)',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.3s ease',
-                        width: '100%',
-                        position: 'relative',
-                        zIndex: 2,
                         display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
+                        alignItems: 'center',
+                        gap: '8px'
                       }}
                     >
-                      <div
-                        style = {{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
+                      <span>{ex.name.toUpperCase()}</span>
+                      <span
+                        title="view guide"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedExercise(expandedExercise === ex.key ? null : ex.key);
                         }}
-                        >
-                          <span>{ex.name.toUpperCase()}</span>
-                          <span
-                          title = "view guide"
-                          onClick = {(e) =>{
-                            e.stopPropagation();
-                            setExpandedExercise(expandedExercise === ex.key ? null : ex.key);
-                          }}
-                          style={{
-                            cursor: 'pointer',
-                            fontSize: '0.8rem',
-                            fontWeight: 'bold',
-                          }}
-                          >{expandedExercise === ex.key ? '▲' : '▼'}
-                          </span>
-                      </div>
-        
-                      <span style={{ 
-                        fontSize: '0.65rem', 
-                        opacity: 0.8,
-                        background: selectedExercise.key === ex.key ? 'rgba(0,0,0,0.2)' : 'rgba(168, 85, 247, 0.1)',
-                        padding: '2px 6px',
-                        borderRadius: '4px'
-                      }}>
-                        {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
+                        style={{
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          fontWeight: 'bold',
+                        }}
+                      >{expandedExercise === ex.key ? '▲' : '▼'}
                       </span>
-                    </button>
-                    {expandedExercise === ex.key &&  ex.guide &&(
-                      <div 
-                      style = {{
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.65rem',
+                      opacity: 0.8,
+                      background: selectedExercise.key === ex.key ? 'rgba(0,0,0,0.2)' : 'rgba(168, 85, 247, 0.1)',
+                      padding: '2px 6px',
+                      borderRadius: '4px'
+                    }}>
+                      {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
+                    </span>
+                  </button>
+                  {expandedExercise === ex.key && ex.guide && (
+                    <div
+                      style={{
                         marginTop: '6px',
                         padding: '16px',
                         borderRadius: '12px',
                         background: 'rgba(168,85,247,0.08)',
                         border: '1px solid rgba(168,85,247,0.2)',
                         fontSize: '0.75rem',
-                        color:'var(--text-secondary)',
+                        color: 'var(--text-secondary)',
                       }} >
-                        <h4 style = {{
-                          color: 'var(--neon-purple)',
-                          marginBottom: '8px',
-                          marginTop:'12px'
-                        }}>Instructions</h4>
-                        <ul style = {{
-                          marginLeft: '16px',
-                          marginBottom: '12px',
-                        }}>
-                          {ex.guide?.instructions.map((item,idx) =>(
-                            <li key = {idx}>{item}</li>
-                          ))}
-                        </ul>
-                        <h4 style = {{
-                          color: 'var(--neon-purple)',
-                          marginBottom: '8px',
-                          marginTop:'12px'
-                        }}>Common Mistakes</h4>
-                        <ul style = {{
-                          marginLeft: '16px',
-                          marginBottom: '12px',
-                        }}>
-                          {ex.guide?.commonMistakes.map((item,idx) =>(
-                            <li key = {idx}>{item}</li>
-                          ))}
-                        </ul>
-                        <h4 style = {{
-                          color: 'var(--neon-purple)',
-                          marginBottom: '8px',
-                          marginTop:'12px'
-                        }}>Target Muscles</h4>
-                        <div>
-                          {ex.guide?.targetMuscles.join(',')}
-                        </div>
+                      <h4 style={{
+                        color: 'var(--neon-purple)',
+                        marginBottom: '8px',
+                        marginTop: '12px'
+                      }}>Instructions</h4>
+                      <ul style={{
+                        marginLeft: '16px',
+                        marginBottom: '12px',
+                      }}>
+                        {ex.guide?.instructions.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                      <h4 style={{
+                        color: 'var(--neon-purple)',
+                        marginBottom: '8px',
+                        marginTop: '12px'
+                      }}>Common Mistakes</h4>
+                      <ul style={{
+                        marginLeft: '16px',
+                        marginBottom: '12px',
+                      }}>
+                        {ex.guide?.commonMistakes.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                      <h4 style={{
+                        color: 'var(--neon-purple)',
+                        marginBottom: '8px',
+                        marginTop: '12px'
+                      }}>Target Muscles</h4>
+                      <div>
+                        {ex.guide?.targetMuscles.join(',')}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Video Overlay */}
-                    { (hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)) && ex.demoUrl && (
-                      <div 
-                        className="animate-in"
-                        style={{
-                          position: 'absolute',
-                          right: 'calc(100% + 24px)', // Clear the panel's 16px padding + 8px gap
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: '240px', /* <--- INCREASED SIZE HERE */
-                          borderRadius: '12px', /* Slightly softer corners for larger video */
-                          overflow: 'hidden',
-                          border: '2px solid var(--neon-cyan)',
-                          boxShadow: '0 0 25px rgba(0, 240, 255, 0.3)', /* Stronger glow */
-                          backgroundColor: '#000',
-                          zIndex: 20,
-                          pointerEvents: 'none'
-                        }}
-                      >
-                        <video 
-                          src={ex.demoUrl} 
-                          autoPlay 
-                          loop 
-                          muted 
-                          playsInline 
-                          style={{ width: '100%', display: 'block', objectFit: 'cover' }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-             </div>
+                  {/* Video Overlay */}
+                  {(hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)) && ex.demoUrl && (
+                    <div
+                      className="animate-in"
+                      style={{
+                        position: 'absolute',
+                        right: 'calc(100% + 24px)', // Clear the panel's 16px padding + 8px gap
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: '240px', /* <--- INCREASED SIZE HERE */
+                        borderRadius: '12px', /* Slightly softer corners for larger video */
+                        overflow: 'hidden',
+                        border: '2px solid var(--neon-cyan)',
+                        boxShadow: '0 0 25px rgba(0, 240, 255, 0.3)', /* Stronger glow */
+                        backgroundColor: '#000',
+                        zIndex: 20,
+                        pointerEvents: 'none'
+                      }}
+                    >
+                      <video
+                        src={ex.demoUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        style={{ width: '100%', display: 'block', objectFit: 'cover' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
 
-             {/* Total Reps Lifetime Stats - Small Section */}
-             <div style={{ marginTop: '20px', paddingTop: '16px', paddingBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-               <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {Object.values(exercises).map(ex => {
-                    const reps = sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0);
-                    return (
-                      <div key={`stat-${ex.key}`} style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                        <span>{ex.name}</span>
-                        <span style={{ color: reps > 0 ? 'var(--neon-purple)' : 'var(--text-dim)', fontWeight: 'bold' }}>{reps}</span>
-                      </div>
-                    );
-                  })}
-               </div>
-             </div>
+            {/* Total Reps Lifetime Stats - Small Section */}
+            <div style={{ marginTop: '20px', paddingTop: '16px', paddingBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {Object.values(exercises).map(ex => {
+                  const reps = sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0);
+                  return (
+                    <div key={`stat-${ex.key}`} style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                      <span>{ex.name}</span>
+                      <span style={{ color: reps > 0 ? 'var(--neon-purple)' : 'var(--text-dim)', fontWeight: 'bold' }}>{reps}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Center Feedback Area */}
         <div style={{ alignSelf: 'center', textAlign: 'center' }}>
-          {error === 'CAMERA_PERMISSION_DENIED' ? (
-            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
-              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>CAMERA ACCESS DENIED</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.</p>
-              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>RELOAD</button>
-            </div>
-          ) : error ? (
-            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
-              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>{error}</p>
-              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>REINITIALIZE</button>
+          {error ? (
+            <div className="glass animate-in" style={{ padding: '24px', margin: '0 16px', width: '100%', maxWidth: '500px', maxHeight: '80vh', overflowY: 'auto', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', pointerEvents: 'all', boxSizing: 'border-box' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto', flexShrink: 0 }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '12px', fontSize: 'clamp(1.2rem, 4vw, 1.5rem)' }}>HARDWARE SYNC FAILED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '24px' }}>{error}</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px', flexShrink: 0 }}>REINITIALIZE</button>
             </div>
           ) : (
-            <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
-               <p className="pb-4" style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44`, paddingBottom: '16px' }}>
+            <div className="glass animate-in" style={{ padding: '24px clamp(16px, 4vw, 40px)', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', width: '100%', maxWidth: '500px', boxSizing: 'border-box' }}>
+              <p className="pb-4" style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1rem, 3vw, 1.4rem)', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44`, paddingBottom: '16px' }}>
                 {result.message.toUpperCase()}
-               </p>
-               <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
-                  <div style={{ 
-                    position: 'absolute', 
-                    inset: 0, 
-                    width: `${result.isReady ? 100 : (result.totalCount > 0 ? (result.visibleCount / result.totalCount) * 100 : 0)}%`, 
-                    background: statusColor, 
-                    transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease', 
-                    boxShadow: `0 0 12px ${statusColor}` 
-                  }} />
-               </div>
-               <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px' }}>
-                 {result.isReady 
-                   ? 'OPTIMAL POSITION ACHIEVED' 
-                   : `ACQUIRING BODY LANDMARKS... (${result.visibleCount || 0}/${result.totalCount || 8})`}
-               </p>
+              </p>
+              <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: `${result.isReady ? 100 : (result.totalCount > 0 ? (result.visibleCount / result.totalCount) * 100 : 0)}%`,
+                  background: statusColor,
+                  transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease',
+                  boxShadow: `0 0 12px ${statusColor}`
+                }} />
+              </div>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px' }}>
+                {result.isReady
+                  ? 'OPTIMAL POSITION ACHIEVED'
+                  : `ACQUIRING BODY LANDMARKS... (${result.visibleCount || 0}/${result.totalCount || 8})`}
+              </p>
             </div>
           )}
         </div>
 
         {/* Bottom Controls */}
-        <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'all' }}>
+        <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'all', marginTop: 'auto', paddingBottom: '80px' }}>
           <button onClick={onBack} className="btn-outline">CANCEL</button>
           {countdownActive && countdownSeconds > 0 ? (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid var(--neon-cyan)', background: 'rgba(0, 240, 255, 0.05)', boxShadow: '0 0 20px rgba(0, 240, 255, 0.3)' }}>
@@ -678,19 +683,19 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           ) : (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div style={{ position: 'relative', width: '12px', height: '12px' }}>
-                  <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--neon-yellow)', boxShadow: `0 0 10px var(--neon-yellow)` }} />
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--neon-yellow)', boxShadow: `0 0 10px var(--neon-yellow)` }} />
               </div>
               <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{selectedExercise.name} mode</div>
-                  {/*
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{selectedExercise.name} mode</div>
+                {/*
                     NOTE: aria-live / role / aria-atomic have been removed from this
                     visible element. Announcements are now handled by the dedicated
                     hidden live region at the top of the JSX, which covers ALL states
                     (calibrating, ready, pose lost, countdown, error) — not just this one.
                   */}
-                  <div className="pb-4" style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem', paddingBottom: '16px' }}>
-                    {result.message}
-                  </div>
+                <div className="pb-4" style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem', paddingBottom: '16px' }}>
+                  {result.message}
+                </div>
               </div>
             </div>
           )}

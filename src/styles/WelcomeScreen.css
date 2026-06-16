@@ -17,11 +17,9 @@
    Container & Layout
    ============================================= */
 .welcome-container {
-  height: 100vh;
-  overflow-y: auto;
+  min-height: 100vh;
   overflow-x: hidden;
   background: var(--bg-hero);
-  scroll-behavior: smooth;
 }
 
 /* =============================================
@@ -58,8 +56,11 @@
 }
 
 .particle-canvas {
-  position: absolute;
-  inset: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   opacity: 0.6;
   pointer-events: none;
 }
@@ -1009,7 +1010,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border-radius: 14px;
   cursor: pointer;
   padding: 12px 28px;
   font-size: 0.75rem;
