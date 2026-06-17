@@ -1,6 +1,5 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 interface EmptyStateProps {
   title: string;
@@ -17,14 +16,8 @@ export function EmptyState({
   actionText = "Start Workout", 
   onAction 
 }: EmptyStateProps) {
-  const navigate = useNavigate();
-
   const handleAction = () => {
-    if (onAction) {
-      onAction();
-    } else {
-      navigate('/workout');
-    }
+    onAction?.();
   };
 
   return (
