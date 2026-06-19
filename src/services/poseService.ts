@@ -170,10 +170,6 @@ export function readLandmark(index: LandmarkIndex): Readonly<Vec3> {
 
 // ─── Internal Types ───────────────────────────────────────────────────────────
 
-type MediaPipePoseConstructor = new (options: {
-  locateFile: (file: string) => string;
-}) => PoseType;
-
 type LandmarkCoordinate = "x" | "y" | "z" | "visibility";
 
 type LandmarkStream = "poseLandmarks" | "poseWorldLandmarks";
@@ -224,12 +220,6 @@ interface LandmarkFilter {
   toConfig(): PoseSmoothingFilterConfig;
 }
 
-const LANDMARK_COORDINATES: LandmarkCoordinate[] = [
-  "x",
-  "y",
-  "z",
-  "visibility",
-];
 
 const DEFAULT_FILTERS: PoseSmoothingFilterConfig[] = [
   {
@@ -652,10 +642,6 @@ export class PoseService {
       });
 
       this.isLoaded = true;
-
-
-      if (this.sharedLandmarkFrame) {
-      }
     } catch (e) {
       console.error("PoseService init failed:", e);
     }
@@ -850,7 +836,7 @@ export class PoseService {
           ...processed,
           poseLandmarks: frame.landmarks as any,
           // Tag ghost frames so downstream can react
-          // @ts-ignore — extending Results type for internal use
+          // @ts-expect-error — extending Results type for internal use
           __isGhostFrame: frame.isGhost,
         };
         callback(frameResults);
@@ -884,7 +870,7 @@ export class PoseService {
     if (this.pose) {
       try {
         await this.pose.close();
-      } catch {}
+      } catch { /* ignore */ }
       this.pose = null;
       this.isLoaded = false;
     }

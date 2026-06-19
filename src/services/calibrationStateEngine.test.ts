@@ -8,7 +8,6 @@
 
 import {
   CalibrationStateEngine,
-  CalibrationState,
   REQUIRED_LANDMARK_INDICES,
   DEFAULT_CALIBRATION_CONFIG,
 } from "./calibrationStateEngine";

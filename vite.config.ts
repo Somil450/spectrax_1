@@ -32,8 +32,16 @@ const sharedArrayBufferHeaders = () => ({
 });
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@msgpack/msgpack": "@msgpack/msgpack/dist.cjs/index.cjs",
+    },
+  },
   esbuild: {
     target: "es2020",
+  },
+  optimizeDeps: {
+    include: ["@msgpack/msgpack"],
   },
   plugins: [
     sharedArrayBufferHeaders(),

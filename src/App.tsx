@@ -1,4 +1,3 @@
-import { ProgressChart } from "./components/ProgressChart";
 import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
@@ -8,7 +7,7 @@ import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { GridSkeleton } from "./components/CardSkeleton";
 import { useAuth } from "./context/AuthContext";
-import { ScrollToTopButton } from "./components/ScrollToTopButton";
+import { BackToTopButton } from "./components/BackToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
 import NavBar from "./components/NavBar";
@@ -95,7 +94,13 @@ interface WorkoutStats {
   tags?: string[];
   gainedXp?: number;
   calories?: number;
-  tutMetrics?: any;
+  tutMetrics?: {
+    eccentricMs: number;
+    concentricMs: number;
+    isometricMs: number;
+    tempoRatio: string;
+    totalRepMs: number;
+  };
 }
 
 // Derived from build-time env — safe to compute outside or at the top of the component
@@ -121,7 +126,7 @@ function App() {
     exercises.squat,
   );
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
-  const [adaptiveFactor, setAdaptiveFactor] = useState<number>(1.0);
+  const setAdaptiveFactor = useState<number>(1.0)[1];
   const [showExitModal, setShowExitModal] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
@@ -134,40 +139,6 @@ function App() {
     mistakes: {},
     bestStreak: 0,
   });
-  const [pendingRecovery, setPendingRecovery] = useState<{ stats: WorkoutStats; exerciseKey: string } | null>(null);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    const cacheKey = `spectrax_telemetry_snapshot_${user.uid}`;
-    const rawCache = localStorage.getItem(cacheKey);
-    if (rawCache) {
-      try {
-        const parsed = JSON.parse(rawCache);
-        if (parsed && parsed.stats && parsed.stats.totalReps > 0) {
-          setPendingRecovery(parsed);
-        }
-      } catch (e) {
-        console.error("Failed parsing telemetry cache:", e);
-      }
-    }
-  }, [user?.uid, currentScreen]);
-
-  const handleApplyRecovery = () => {
-    if (!pendingRecovery) return;
-    setStats(pendingRecovery.stats);
-    if (exercises[pendingRecovery.exerciseKey]) {
-      setSelectedExercise(exercises[pendingRecovery.exerciseKey]);
-    }
-    setPendingRecovery(null);
-    navigateTo("summary");
-  };
-
-  const handleDiscardRecovery = () => {
-    if (!user?.uid) return;
-    localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
-    setPendingRecovery(null);
-  };
-
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
   const { addWorkout } = useWorkoutSync();
 
@@ -241,7 +212,8 @@ function App() {
       ...finalStats,
       exerciseName: selectedExercise.name,
       gainedXp,
-      calories: calorieResult.calories, // ADD THIS
+      calories: calorieResult.calories,
+      tutMetrics: finalStats.tutMetrics,
     };
     setStats(fullStats);
     navigateTo("summary");
@@ -379,9 +351,6 @@ function App() {
           onViewFitnessCalculator={() => navigateTo("fitness")}
           onViewWorkoutPlans={() => {}}
           leveling={leveling}
-          pendingRecovery={pendingRecovery}
-          onApplyRecovery={handleApplyRecovery}
-          onDiscardRecovery={handleDiscardRecovery}
         />
       )}
 
@@ -405,14 +374,6 @@ function App() {
               onEnd={handleWorkoutEnd}
               onAutoDetect={handleAutoDetect}
               bodyType={bodyType}
-              onSnapshotUpdate={(liveStats: any) => {
-                if (!user?.uid) return;
-                const fullStats = { ...liveStats, exerciseName: selectedExercise.name };
-                localStorage.setItem(
-                  `spectrax_telemetry_snapshot_${user.uid}`,
-                  JSON.stringify({ stats: fullStats, exerciseKey: selectedExercise.key })
-                );
-              }}
             />
           </PageErrorBoundary>
         )}
@@ -469,7 +430,7 @@ function App() {
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
-      <ScrollToTopButton />
+      <BackToTopButton />
 
       {(offlineReady || needRefresh) && (
         <div className="pwa-toast glass animate-in" role="alert">

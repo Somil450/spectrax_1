@@ -13,8 +13,8 @@ export default function TermsAndConditions() {
             1. Acceptance of Terms
           </h2>
           <p>
-            By accessing or using Spectrax ("the Service"), you agree to be
-            bound by these Terms and Conditions. If you do not agree with any
+            By accessing or using Spectrax (&quot;the Service&quot;), you agree to
+            be bound by these Terms and Conditions. If you do not agree with any
             part of these terms, you must not use the Service.
           </p>
         </div>

@@ -20,7 +20,7 @@ import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from "../context/ThemeContext";
-import { debounce } from "../utils/debounce";
+
 
 const STATS = [
   { value: "30+", label: "FPS tracking" },
@@ -51,9 +51,6 @@ interface WelcomeScreenProps {
     progress: number;
     nextLevelXp: number;
   };
-  pendingRecovery?: { stats: any; exerciseKey: string } | null;
-  onApplyRecovery?: () => void;
-  onDiscardRecovery?: () => void;
   activePlan?: ActivePlan | null;
   onStartWorkout?: (exerciseKey: string) => void;
 }
@@ -65,9 +62,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewFitnessCalculator,
   onViewWorkoutPlans,
   leveling,
-  pendingRecovery,
-  onApplyRecovery,
-  onDiscardRecovery,
   activePlan,
   onStartWorkout,
 }) => {
@@ -466,6 +460,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
           </div>
 
+          {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">
             {STATS.map(({ value, label }, i) => (
               <React.Fragment key={label}>
