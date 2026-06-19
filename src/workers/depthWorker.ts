@@ -22,7 +22,7 @@ let gpuUniformBuffer: GPUBuffer | null = null;
 let gpuInputBuffer: GPUBuffer | null = null;
 let gpuOutputBuffer: GPUBuffer | null = null;
 let gpuStagingBuffer: GPUBuffer | null = null;
-let gpuWorkgroupSize = 8;
+const gpuWorkgroupSize = 8;
 
 async function initWebGPUCompute(): Promise<boolean> {
   if (gpuDevice) return true;
