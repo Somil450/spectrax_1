@@ -21,15 +21,11 @@ import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPa
 import { ghostService } from '../services/ghostService';
 import type { GhostStats } from '../services/ghostService';
 import { injuryRiskEngine } from '../services/injuryRiskEngine';
-import { useThrottleLevel } from '../services/performanceThrottleService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
 import { reconstruct3DMesh } from '../services/mesh3DEngine';
-import { FpsMonitor } from './FpsMonitor';
-import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { gestureService, GestureCommand } from '../services/gestureService';
-import { debounce } from '../utils/debounce';
+import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
-import QRCode from 'qrcode';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -117,55 +113,6 @@ const getStoredPanelPositions = (): PanelPositions => {
   }
 };
 
-const srOnly: React.CSSProperties = {
-  position: "absolute",
-  width: "1px",
-  height: "1px",
-  padding: 0,
-  margin: "-1px",
-  overflow: "hidden",
-  clip: "rect(0, 0, 0, 0)",
-  whiteSpace: "nowrap",
-  border: "0",
-};
-
-const MAX_EXTRAPOLATED_FRAMES = 5;
-
-type PoseLandmark = {
-  x: number;
-  y: number;
-  z: number;
-  visibility: number;
-};
-
-const cloneLandmarks = (landmarks: PoseLandmark[]) =>
-  landmarks.map((landmark) => ({ ...landmark }));
-
-const extrapolateLandmarks = (
-  latest: PoseLandmark[] | null,
-  previous: PoseLandmark[] | null,
-  dropoutFrames: number,
-): PoseLandmark[] | null => {
-  if (!latest || !previous) return null;
-
-  const step = dropoutFrames + 1;
-  if (step > MAX_EXTRAPOLATED_FRAMES) return null;
-
-  return latest.map((landmark, index) => {
-    const prior = previous[index] ?? landmark;
-    const dx = landmark.x - prior.x;
-    const dy = landmark.y - prior.y;
-    const dz = landmark.z - prior.z;
-
-    return {
-      x: Math.min(Math.max(landmark.x + dx * step, 0), 1),
-      y: Math.min(Math.max(landmark.y + dy * step, 0), 1),
-      z: landmark.z + dz * step,
-      visibility: Math.max(0.5, Math.min(landmark.visibility, 1)),
-    };
-  });
-};
-
 const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
   const cleanMsg = rawMsg.replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDC00-\uDFFF]/g, "").trim();
   const lowerMsg = cleanMsg.toLowerCase();
@@ -218,7 +165,7 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, onCancel }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const { settings, updateSetting } = useSettings();
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const lastSpokenFeedbackRef = useRef<string>("");
@@ -268,7 +215,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [seconds, setSeconds] = useState(0);
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
-  const { isOnline } = useWorkoutSync();
   const srOnly: React.CSSProperties = {
     position: 'absolute',
     width: '1px',
@@ -280,7 +226,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     whiteSpace: 'nowrap',
     borderWidth: 0,
   };
-  const throttleLevel = useThrottleLevel();
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -317,14 +262,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const frameSkipRef = useRef<number>(0); // frame-skip counter
   const workerRef = useRef<Worker | null>(null); // pose worker
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
-  const lastObservedLandmarksRef = useRef<any[] | null>(null);
-  const previousObservedLandmarksRef = useRef<any[] | null>(null);
-  const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
 
-  const [showHandoffModal, setShowHandoffModal] = useState(false);
-  const [handoffQRData, setHandoffQRData] = useState<string | null>(null);
   const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
   const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
   const [gestureHudVisible, setGestureHudVisible] = useState(false);
@@ -349,7 +288,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       };
       return nextPositions;
     }, {} as PanelPositions);
-  }, []);
+  }, [panelRefsById]);
 
 
   useEffect(() => {
@@ -583,7 +522,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         lastMotivationTimeRef.current = now;
       }
     }
-  }, [engineState.feedback, engineState.reps, engineState.stage, voiceFeedbackEnabled, mismatchError]);
+  }, [engineState.feedback, engineState.reps, engineState.stage, engineState.lastRepTime, engineState.stageStartTime, engineState.status, voiceFeedbackEnabled, mismatchError]);
 
   // ── Announce exercise mismatch errors ─────────────────────────────────────────
   // role="alert" with aria-live="assertive" will interrupt the screen reader
@@ -603,6 +542,57 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
   const depthEngineRef = useRef<DepthEstimationEngine | null>(null);
   const lastDepthMapRef = useRef<any>(null);
+  const endSessionRef = useRef<() => Promise<number | null>>();
+
+  const handleEnd = useCallback(async () => {
+    await endSessionRef.current?.();
+
+    const accuracy =
+      mutableState.current.totalReps > 0
+        ? Math.round(
+            (mutableState.current.correctReps /
+              mutableState.current.totalReps) *
+              100,
+          )
+        : 100;
+
+    const archive = sessionRecorder.getArchive();
+    ghostService.saveBestGhost(exercise.key, {
+      reps: mutableState.current.reps,
+      accuracy: accuracy,
+      totalReps: mutableState.current.totalReps
+    }, archive);
+
+    sessionRecorder.download();
+
+    const gmmCategories = getPostureErrorCategories();
+    const finalMistakes = { ...mutableState.current.mistakes };
+    for (const [cat, count] of Object.entries(gmmCategories)) {
+      if (count > 0) {
+        finalMistakes[cat] = (finalMistakes[cat] || 0) + count;
+      }
+    }
+
+    onEnd({
+      reps: mutableState.current.reps,
+      totalReps: mutableState.current.totalReps,
+      correctReps: mutableState.current.correctReps,
+      repScores: mutableState.current.repScores,
+      repDeviations: mutableState.current.repDeviations,
+      duration: seconds,
+      accuracy: accuracy,
+      mistakes: finalMistakes,
+      bestStreak: mutableState.current.bestStreak,
+      jumpingJackSync: mutableState.current.jumpingJackSync,
+      tutMetrics: mutableState.current.tutMetrics,
+      tags: clipEngine.generateSessionTags({
+        accuracy: accuracy,
+        avgConfidence: clipResult?.confidence || 0.8,
+        mistakes: Object.keys(finalMistakes),
+        duration: seconds,
+      }),
+    });
+  }, [exercise.key, onEnd, seconds, clipResult]);
 
   const handlePoseResults = useCallback(async (results: any) => {
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
@@ -747,7 +737,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     }
 
     // 2. Process through multi-exercise engine (stays on main thread — manages state)
-    const prevReps = mutableState.current.reps;
     const nextState = await exerciseEngine.process(
       activeConfig,
       angles,
@@ -805,7 +794,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       }
       overlayRenderer.draw(results, nextState.status, primaryJoints);
     }
-  }, [exercise]);
+  }, [exercise, depth3DEnabled, handleEnd]);
 
   const handleFrameTick = useCallback((count: number) => {
     setVlmProgress(clipEngine.getProgress());
@@ -820,11 +809,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
   const {
     startSession,
-    recordRep,
-    updateSessionState,
-    getSessionForHandoff,
     endSession,
   } = useWorkoutSync();
+  endSessionRef.current = endSession;
 
   const {
     startSystem,
@@ -929,7 +916,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       injuryRiskEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
-  }, [exercise, startSystem, stopSystem]);
+  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession]);
 
   useEffect(() => {
     setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
@@ -948,75 +935,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   useEffect(() => {
     window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(panelPositions));
   }, [panelPositions]);
-
-  const handleHandoff = async () => {
-    const sessionData = getSessionForHandoff();
-    if (!sessionData) return;
-    try {
-      let binary = '';
-      const len = sessionData.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(sessionData[i]);
-      }
-      const base64 = btoa(binary);
-      const qrDataUrl = await QRCode.toDataURL(base64, { width: 256, margin: 2, color: { dark: '#00f0ff', light: '#000000' } });
-      setHandoffQRData(qrDataUrl);
-      setShowHandoffModal(true);
-    } catch (err) {
-      console.error('Failed to generate handoff QR:', err);
-    }
-  };
-
-  const handleEnd = async () => {
-    // End CRDT session first
-    await endSession();
-
-    const accuracy =
-      mutableState.current.totalReps > 0
-        ? Math.round(
-            (mutableState.current.correctReps /
-              mutableState.current.totalReps) *
-              100,
-          )
-        : 100;
-
-    const archive = sessionRecorder.getArchive();
-    ghostService.saveBestGhost(exercise.key, {
-      reps: mutableState.current.reps,
-      accuracy: accuracy,
-      totalReps: mutableState.current.totalReps
-    }, archive);
-
-    sessionRecorder.download();
-
-    const gmmCategories = getPostureErrorCategories();
-    const finalMistakes = { ...mutableState.current.mistakes };
-    for (const [cat, count] of Object.entries(gmmCategories)) {
-      if (count > 0) {
-        finalMistakes[cat] = (finalMistakes[cat] || 0) + count;
-      }
-    }
-
-    onEnd({
-      reps: mutableState.current.reps,
-      totalReps: mutableState.current.totalReps,
-      correctReps: mutableState.current.correctReps,
-      repScores: mutableState.current.repScores,
-      repDeviations: mutableState.current.repDeviations,
-      duration: seconds,
-      accuracy: accuracy,
-      mistakes: finalMistakes,
-      bestStreak: mutableState.current.bestStreak,
-      jumpingJackSync: mutableState.current.jumpingJackSync,
-      tutMetrics: mutableState.current.tutMetrics,
-      tags: clipEngine.generateSessionTags({
-        accuracy: accuracy,
-        avgConfidence: clipResult?.confidence || 0.8,
-        mistakes: Object.keys(finalMistakes),
-        duration: seconds,
-      }),
-    });
-  };
 
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60)
@@ -1907,41 +1825,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           75% { transform: translateX(-48%); }
         }
       `}</style>
-
-      {/* Handoff QR Modal */}
-      {showHandoffModal && handoffQRData && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            background: 'rgba(0,0,0,0.85)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 999,
-            backdropFilter: 'blur(12px)',
-            gap: '20px',
-          }}
-        >
-          <h2 style={{ color: '#fff', fontFamily: 'var(--font-heading)', letterSpacing: '2px' }}>
-            SCAN TO HANDOFF
-          </h2>
-          <img src={handoffQRData} alt="Session handoff QR" style={{ borderRadius: '12px' }} />
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', maxWidth: '300px', textAlign: 'center' }}>
-            Scan this code on another device to continue your session instantly.
-          </p>
-          <button
-            className="btn-neon"
-            onClick={() => setShowHandoffModal(false)}
-          >
-            Close
-          </button>
-        </div>
-      )}
 
       {showExitModal && (
         <div

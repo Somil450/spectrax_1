@@ -232,7 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Email and password are required");
       }
 
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);

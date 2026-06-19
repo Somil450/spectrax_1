@@ -6,7 +6,6 @@
  */
 
 import * as Y from "yjs";
-import { encode, decode } from "@msgpack/msgpack";
 import { nowHLC, compareHLC, updateHLC, hlcToString, hlcFromString, type HLCTimestamp } from "../utils/hybridLogicalClock";
 import type { EngineState } from "./exerciseEngine";
 
@@ -42,7 +41,6 @@ export interface SessionSnapshot {
 
 // ─── Yjs Document Structure ──────────────────────────────────────────────────
 
-const YJS_DOC_NAME = "spectrax_session";
 const YJS_STORE = "yjs_updates";
 const DB_NAME = "spectrax_db";
 const DB_VERSION = 4; // Bumped for Yjs store

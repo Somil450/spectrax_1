@@ -85,7 +85,6 @@ export function classifyPushupDepth(
   }
 
   // Half pushup — did not reach parallel
-  const deficit = Math.round(zDepth - config.parallelMax);
   return {
     classification: 'half',
     depth: zDepth,

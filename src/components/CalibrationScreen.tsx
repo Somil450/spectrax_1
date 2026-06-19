@@ -7,8 +7,6 @@ import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
@@ -73,9 +71,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
 
-  const frameId = useRef<number>(0);
-  const lastProcessTime = useRef<number>(0);
-  const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
 
 

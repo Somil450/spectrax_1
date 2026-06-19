@@ -6,7 +6,7 @@ export const Contact: React.FC = () => {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)' }}>Contact Us</h2>
         <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          We'd love to hear from you — feedback, bug reports, and feature
+          We&apos;d love to hear from you — feedback, bug reports, and feature
           requests help us improve SpectraX.
         </p>
 

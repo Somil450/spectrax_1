@@ -1,4 +1,3 @@
-import { ProgressChart } from "./components/ProgressChart";
 import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
@@ -127,7 +126,7 @@ function App() {
     exercises.squat,
   );
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
-  const [adaptiveFactor, setAdaptiveFactor] = useState<number>(1.0);
+  const setAdaptiveFactor = useState<number>(1.0)[1];
   const [showExitModal, setShowExitModal] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
@@ -140,82 +139,6 @@ function App() {
     mistakes: {},
     bestStreak: 0,
   });
-  const [pendingRecovery, setPendingRecovery] = useState<{ stats: WorkoutStats; exerciseKey: string } | null>(null);
-  const crdtEngineRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-
-    // Try CRDT first, then fall back to legacy localStorage
-    const loadRecovery = async () => {
-      const { listActiveSessions, loadSessionFromDB, CRDTSessionEngine } = await import("./services/crdtSessionEngine");
-      const sessions = await listActiveSessions();
-      const activeSession = sessions
-        .filter((s) => Date.now() - s.lastUpdate < 30 * 60 * 1000) // 30 min threshold
-        .sort((a, b) => b.lastUpdate - a.lastUpdate)[0];
-
-      if (activeSession) {
-        const state = await loadSessionFromDB(activeSession.sessionId);
-        if (state) {
-          const engine = CRDTSessionEngine.fromState(state);
-          const snapshot = engine.getSnapshot();
-          if (snapshot.state && (snapshot.repOps.length > 0 || snapshot.state.totalReps > 0)) {
-            setPendingRecovery({
-              stats: snapshot.state as WorkoutStats,
-              exerciseKey: snapshot.exerciseKey,
-            });
-            crdtEngineRef.current = engine;
-            return;
-          }
-        }
-      }
-
-      // Legacy fallback
-      const cacheKey = `spectrax_telemetry_snapshot_${user.uid}`;
-      const rawCache = localStorage.getItem(cacheKey);
-      if (rawCache) {
-        try {
-          const parsed = JSON.parse(rawCache);
-          if (parsed && parsed.stats && parsed.stats.totalReps > 0) {
-            setPendingRecovery(parsed);
-          }
-        } catch (e) {
-          console.error("Failed parsing telemetry cache:", e);
-        }
-      }
-    };
-
-    loadRecovery();
-  }, [user?.uid, currentScreen]);
-
-  const handleApplyRecovery = async () => {
-    if (!pendingRecovery) return;
-    setStats(pendingRecovery.stats);
-    if (exercises[pendingRecovery.exerciseKey]) {
-      setSelectedExercise(exercises[pendingRecovery.exerciseKey]);
-    }
-    setPendingRecovery(null);
-    if (crdtEngineRef.current) {
-      navigateTo("workout");
-    } else {
-      navigateTo("summary");
-    }
-  };
-
-  const handleDiscardRecovery = async () => {
-    if (!user?.uid) return;
-    localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
-
-    // Clear CRDT session too
-    if (crdtEngineRef.current) {
-      const { clearSession } = await import("./services/crdtSessionEngine");
-      await clearSession(crdtEngineRef.current.sessionId);
-      crdtEngineRef.current = null;
-    }
-
-    setPendingRecovery(null);
-  };
-
   const { newlyEarned, clearNewlyEarned, checkAndAwardBadges } = useBadges();
   const { addWorkout } = useWorkoutSync();
 
@@ -428,9 +351,6 @@ function App() {
           onViewFitnessCalculator={() => navigateTo("fitness")}
           onViewWorkoutPlans={() => {}}
           leveling={leveling}
-          pendingRecovery={pendingRecovery}
-          onApplyRecovery={handleApplyRecovery}
-          onDiscardRecovery={handleDiscardRecovery}
         />
       )}
 

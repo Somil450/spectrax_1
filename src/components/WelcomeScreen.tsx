@@ -20,7 +20,7 @@ import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from "../context/ThemeContext";
-import { debounce } from "../utils/debounce";
+
 
 const STATS = [
   { value: "30+", label: "FPS tracking" },
@@ -51,9 +51,6 @@ interface WelcomeScreenProps {
     progress: number;
     nextLevelXp: number;
   };
-  pendingRecovery?: { stats: any; exerciseKey: string } | null;
-  onApplyRecovery?: () => void;
-  onDiscardRecovery?: () => void;
   activePlan?: ActivePlan | null;
   onStartWorkout?: (exerciseKey: string) => void;
 }
@@ -65,9 +62,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onViewFitnessCalculator,
   onViewWorkoutPlans,
   leveling,
-  pendingRecovery,
-  onApplyRecovery,
-  onDiscardRecovery,
   activePlan,
   onStartWorkout,
 }) => {
@@ -465,25 +459,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 })()}
             </div>
           </div>
-
-          {pendingRecovery && (
-            <div className="glass animate-in" style={{ margin: '20px auto', maxWidth: '500px', padding: '16px 20px', border: '1px solid var(--neon-yellow)', borderRadius: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>
-                ⚡ Active Session Recovery
-              </div>
-              <div style={{ fontSize: '0.9rem', color: '#fff', marginBottom: '12px' }}>
-                {pendingRecovery.stats.exerciseName || 'Workout'} — {pendingRecovery.stats.totalReps} reps, {Math.round(pendingRecovery.stats.accuracy || 0)}% accuracy
-              </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                <button onClick={() => onApplyRecovery?.()} className="btn-neon" style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
-                  Resume Session
-                </button>
-                <button onClick={() => onDiscardRecovery?.()} className="btn-neon" style={{ padding: '8px 16px', fontSize: '0.8rem', background: 'transparent', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>
-                  Discard
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">
