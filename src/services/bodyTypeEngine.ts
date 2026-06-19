@@ -94,7 +94,7 @@ class BodyTypeEngine {
     // When torsoToFemur > reference → shorter femurs → thresholds decrease (factor < 1.0)
     // When torsoToFemur < reference → longer femurs → thresholds increase (factor > 1.0)
     const rawFactor = this.REFERENCE_TORSO_FEMUR_RATIO / torsoToFemur;
-    const adaptiveFactor = Math.min(1.1, Math.max(0.9, rawFactor));
+    Math.min(1.1, Math.max(0.9, rawFactor));
 
     this.history.push({ shoulderToHip, torsoToLeg, torsoToFemur, armToTorso });
     if (this.history.length > this.HISTORY_SIZE) {

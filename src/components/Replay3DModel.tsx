@@ -1083,6 +1083,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     createRendererPipeline();
 
+    const orbitPelvisTarget = orbitPelvisTargetRef.current;
+
     return () => {
       cancelled = true;
       if (recoveryTimeoutRef.current !== null) {
@@ -1168,7 +1170,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       restDataRef.current      = {};
       restSegmentLengthsRef.current    = {};
       smoothedSegmentScalesRef.current = {};
-      orbitPelvisTargetRef.current.set(0, 0, 0);
+      orbitPelvisTarget.set(0, 0, 0);
       hasOrbitPelvisTargetRef.current  = false;
 
       if (sceneRef.current) {
@@ -1471,7 +1473,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx, skin, applyPreset]);
+  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
 
   // ─── No frames guard ─────────────────────────────────────────────────────
   if (!frames || frames.length === 0) {

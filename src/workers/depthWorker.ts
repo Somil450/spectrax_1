@@ -22,7 +22,7 @@ let gpuUniformBuffer: GPUBuffer | null = null;
 let gpuInputBuffer: GPUBuffer | null = null;
 let gpuOutputBuffer: GPUBuffer | null = null;
 let gpuStagingBuffer: GPUBuffer | null = null;
-let gpuWorkgroupSize = 8;
+const gpuWorkgroupSize = 8;
 
 async function initWebGPUCompute(): Promise<boolean> {
   if (gpuDevice) return true;
@@ -128,7 +128,7 @@ async function runWebGPUPreprocess(
     });
   }
 
-  gpuDevice.queue.writeBuffer(gpuInputBuffer, 0, input);
+  gpuDevice.queue.writeBuffer(gpuInputBuffer, 0, input as BufferSource);
   gpuDevice.queue.writeBuffer(
     gpuUniformBuffer,
     0,
@@ -209,9 +209,7 @@ self.onmessage = async (event: MessageEvent) => {
   if (type === "init") {
     config = event.data.config as DepthEstimationConfig;
     try {
-      depthPipeline = await pipeline("depth-estimation", config.modelName, {
-        dtype: "fp16",
-      });
+      depthPipeline = await pipeline("depth-estimation", config.modelName, { dtype: "fp16" } as never);
       (self as any).postMessage({ type: "ready" });
     } catch (err: any) {
       (self as any).postMessage({

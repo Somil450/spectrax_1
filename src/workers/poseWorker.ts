@@ -684,25 +684,4 @@ self.onmessage = (event: MessageEvent) => {
   }
 };
 
-interface WorkerLandmark {
-  x: number;
-  y: number;
-  z: number;
-  visibility?: number;
-}
 
-interface KinematicAnalysisResult {
-  success: boolean;
-  timestamp: number;
-  jointsAnalyzed: number;
-}
-
-// Kinematic computation offload helper (non-exported to support classic web workers safely)
-function performKinematicAnalysisPlaceholder(landmarks: WorkerLandmark[] | null): KinematicAnalysisResult {
-  const count = landmarks ? landmarks.length : 0;
-  return {
-    success: count > 0,
-    timestamp: Date.now(),
-    jointsAnalyzed: count
-  };
-}

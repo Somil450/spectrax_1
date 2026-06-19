@@ -2,8 +2,6 @@ import React, { useState } from "react";
 import {
   ArrowLeft,
   Target,
-  Calendar,
-  Award,
   Play,
   CheckCircle,
 } from "lucide-react";
@@ -129,13 +127,12 @@ export const WorkoutPlansScreen: React.FC<WorkoutPlansScreenProps> = ({
   activePlan,
   setActivePlan,
   addXP,
-  onStartWorkout,
 }) => {
   const { theme } = useTheme();
   const [selectedGoal, setSelectedGoal] = useState<string>("Weight Loss");
   const [selectedLevel, setSelectedLevel] = useState<string>("Beginner");
   const [generatedPlan, setGeneratedPlan] = useState<ActivePlan | null>(null);
-  const [completedWorkouts, setCompletedWorkouts] = useState<string[]>([]);
+
 
   const generatePlan = () => {
     const template = PLAN_TEMPLATES[selectedGoal]?.[selectedLevel];

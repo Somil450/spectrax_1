@@ -621,7 +621,3 @@ class TelemetryBroker {
   }
 }
 export const telemetryBroker = new TelemetryBroker();
-
-if (typeof window !== "undefined") {
-  (window as any).sessionRecorder = sessionRecorder;
-}
