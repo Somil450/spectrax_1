@@ -9,6 +9,7 @@ if (typeof globalThis.crypto === "undefined") {
   globalThis.crypto = webcrypto;
 }
 
+import { resolve } from "path";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
@@ -39,6 +40,14 @@ export default defineConfig({
   },
   esbuild: {
     target: "es2020",
+  },
+  resolve: {
+    alias: {
+      "@msgpack/msgpack": resolve("node_modules/@msgpack/msgpack/dist.cjs/index.cjs"),
+    },
+  },
+  optimizeDeps: {
+    include: ["@msgpack/msgpack"],
   },
   plugins: [
     sharedArrayBufferHeaders(),

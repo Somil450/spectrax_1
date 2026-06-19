@@ -28,6 +28,7 @@ import { FpsMonitor } from './FpsMonitor';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
+import { injuryRiskEngine } from '../services/injuryRiskEngine';
 import { useSettings } from '../context/SettingsContext';
 import QRCode from 'qrcode';
 
