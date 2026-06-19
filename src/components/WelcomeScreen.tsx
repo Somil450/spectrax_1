@@ -466,9 +466,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
           </div>
 
-              </div>
-            </div>
-
           {pendingRecovery && (
             <div className="glass animate-in" style={{ margin: '20px auto', maxWidth: '500px', padding: '16px 20px', border: '1px solid var(--neon-yellow)', borderRadius: '12px', textAlign: 'center' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>
