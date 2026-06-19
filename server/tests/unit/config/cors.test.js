@@ -37,7 +37,7 @@ describe("cors config", () => {
       expect(result).toEqual({ origin: "*" });
     });
 
-    describe("production warning", () => {
+    describe("production enforcement", () => {
       const origEnv = process.env.NODE_ENV;
 
       beforeEach(() => {
@@ -48,18 +48,16 @@ describe("cors config", () => {
         process.env.NODE_ENV = origEnv;
       });
 
-      it("warns when origin is wildcard in production", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        createCorsOptions({ corsOrigin: "*" });
-        expect(warn).toHaveBeenCalledTimes(1);
-        warn.mockRestore();
+      it("throws when origin is wildcard in production", () => {
+        expect(() => createCorsOptions({ corsOrigin: "*" })).toThrow(
+          "CORS_ORIGIN is set to '*' in production",
+        );
       });
 
-      it("does not warn for specific origin in production", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        createCorsOptions({ corsOrigin: "http://example.com" });
-        expect(warn).not.toHaveBeenCalled();
-        warn.mockRestore();
+      it("does not throw for specific origin in production", () => {
+        expect(() =>
+          createCorsOptions({ corsOrigin: "http://example.com" }),
+        ).not.toThrow();
       });
     });
   });
