@@ -2,7 +2,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const { getConfig } = require("../config/env");
 const { createSocketOptions } = require("../config/socket");
-const { SOCKET_AUTH_TOKEN, MAX_CONNECTIONS_PER_IP } = require("../config/constants");
+const { SOCKET_AUTH_TOKEN } = require("../config/constants");
 const { createSessionStore } = require("../modules/session/session.store");
 const { createSessionService } = require("../modules/session/session.service");
 const { registerPoseSocketHandlers } = require("../modules/pose/pose.socket");
@@ -12,10 +12,7 @@ const {
 const { createApp } = require("./createApp");
 const { logger: defaultLogger } = require("../shared/utils/logger");
 
-const ipConnectionCount = new Map();
-
 function createServer(overrides = {}) {
-  // Move ipConnectionCount to function scope for multi-instance safety
   const ipConnectionCount = new Map();
 
   const config = getConfig(overrides);
@@ -31,15 +28,28 @@ function createServer(overrides = {}) {
   const server = http.createServer(app);
   const io = new Server(server, createSocketOptions(config));
 
-  if (SOCKET_AUTH_TOKEN) {
-    io.use((socket, next) => {
-      const token = socket.handshake.auth && socket.handshake.auth.token;
+  io.use((socket, next) => {
+    if (SOCKET_AUTH_TOKEN) {
+      const token =
+        (socket.handshake.auth && socket.handshake.auth.token) ||
+        (socket.handshake.query && socket.handshake.query.token);
       if (token !== SOCKET_AUTH_TOKEN) {
         return next(new Error("Authentication failed: invalid or missing token"));
       }
-      next();
-    });
-  }
+      return next();
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      return next(new Error("Server misconfiguration: SOCKET_AUTH_TOKEN is not set"));
+    }
+
+    console.warn(
+      "[SpectraX] WARNING: SOCKET_AUTH_TOKEN is not set. " +
+      "All WebSocket connections accepted without authentication. " +
+      "Set SOCKET_AUTH_TOKEN in production."
+    );
+    next();
+  });
 
   io.use((socket, next) => {
     const ip = socket.handshake.address;
