@@ -73,9 +73,9 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           <span className="exercise-badge">{formatExerciseName(session.exerciseType)}</span>
 
           <button
-            className={`delete-btn ${confirmDelete ? "confirm" : ""}`}
+            className={`delete-btn ${confirmDelete ? "confirm" : ""} has-tooltip tooltip-left`}
             onClick={handleDeleteClick}
-            title={confirmDelete ? "Click again to confirm" : "Delete session"}
+            data-tooltip={confirmDelete ? "Confirm delete" : "Delete session"}
             aria-label="Delete session"
           >
             <Trash2 size={15} />
@@ -114,7 +114,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           background: var(--glass-bg);
           border: 1px solid var(--glass-border);
           border-radius: 14px;
-          overflow: hidden;
+          overflow: visible;
           transition: transform 0.18s ease, box-shadow 0.18s ease;
           backdrop-filter: blur(12px);
         }

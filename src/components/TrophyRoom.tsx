@@ -228,3 +228,5 @@ export const TrophyRoom: React.FC<TrophyRoomProps> = ({ onBack }) => {
     </div>
   );
 };
+
+export default TrophyRoom;

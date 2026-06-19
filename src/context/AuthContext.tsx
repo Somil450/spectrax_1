@@ -347,18 +347,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Developer / Offline Bypass Login
    */
   const signInAsGuest = async () => {
+    if (!import.meta.env.DEV) return;
     setError(null);
     setLoading(true);
     try {
+      const guestUid = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const mockUser = {
-        uid: "mock-guest-user-id",
+        uid: guestUid,
         email: "guest@spectrax.local",
         displayName: "Guest User",
         photoURL: null,
       } as any;
       setUser(mockUser);
       setUserProfile({
-        uid: "mock-guest-user-id",
+        uid: guestUid,
         email: "guest@spectrax.local",
         displayName: "Guest User",
         photoURL: null,

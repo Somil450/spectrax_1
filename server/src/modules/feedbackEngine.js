@@ -35,6 +35,14 @@ function generateFeedback(angles, exercise) {
       if (angles.shoulder < 70) corrections.push("Raise arms fully overhead");
       break;
 
+    case "flutterKicks":
+      if (angles.knee > 160) corrections.push("Keep your legs straight");
+      if (angles.bodyLine < 130)
+        corrections.push("Keep legs lower for core engagement");
+      if (angles.hip < 150)
+        corrections.push("Keep your torso flat on the ground");
+      break;
+
     default:
       break;
   }

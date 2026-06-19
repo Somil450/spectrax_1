@@ -35,12 +35,7 @@ function getBestSide(landmarks) {
   return leftVisibility >= rightVisibility ? "left" : "right";
 }
 
-function computeAngles(landmarks) {
-  if (!landmarks || landmarks.length < 29) {
-    return {};
-  }
-
-  const side = getBestSide(landmarks);
+function computeSideAngles(landmarks, side) {
   const ids =
     side === "left"
       ? { s: 11, e: 13, w: 15, h: 23, k: 25, a: 27 }
@@ -49,16 +44,8 @@ function computeAngles(landmarks) {
   return {
     knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
     elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
-    shoulder: calculateAngle(
-      landmarks[ids.e],
-      landmarks[ids.s],
-      landmarks[ids.h],
-    ),
-    bodyLine: calculateAngle(
-      landmarks[ids.s],
-      landmarks[ids.h],
-      landmarks[ids.a],
-    ),
+    shoulder: calculateAngle(landmarks[ids.e], landmarks[ids.s], landmarks[ids.h]),
+    bodyLine: calculateAngle(landmarks[ids.s], landmarks[ids.h], landmarks[ids.a]),
     hipDepth:
       landmarks[ids.h] && landmarks[ids.a]
         ? Math.round(Math.abs(landmarks[ids.h].y - landmarks[ids.a].y) * 100)
@@ -66,8 +53,42 @@ function computeAngles(landmarks) {
   };
 }
 
+function averageAngle(a, b) {
+  if (a === null && b === null) return null;
+  if (a === null) return b;
+  if (b === null) return a;
+  return Math.round((a + b) / 2);
+}
+
+function mergeAngles(left, right) {
+  return {
+    knee: averageAngle(left.knee, right.knee),
+    elbow: averageAngle(left.elbow, right.elbow),
+    shoulder: averageAngle(left.shoulder, right.shoulder),
+    bodyLine: averageAngle(left.bodyLine, right.bodyLine),
+    hipDepth: Math.round((left.hipDepth + right.hipDepth) / 2),
+  };
+}
+
+const BILATERAL_EXERCISES = ["squat", "pushup", "plank", "jumpingJack"];
+
+function computeAngles(landmarks, exercise = "squat") {
+  if (!landmarks || landmarks.length < 29) return {};
+
+  if (BILATERAL_EXERCISES.includes(exercise)) {
+    const left = computeSideAngles(landmarks, "left");
+    const right = computeSideAngles(landmarks, "right");
+    return mergeAngles(left, right);
+  }
+
+  const side = getBestSide(landmarks);
+  return computeSideAngles(landmarks, side);
+}
+
 module.exports = {
   calculateAngle,
   getBestSide,
+  computeSideAngles,
   computeAngles,
 };
+ 

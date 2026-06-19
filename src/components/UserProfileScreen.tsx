@@ -8,7 +8,7 @@ interface UserProfileScreenProps {
 }
 
 export function UserProfileScreen({ onLogout }: UserProfileScreenProps) {
-  const { user, userProfile, logout, loading } = useAuth();
+  const { userProfile, logout, loading } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -41,6 +41,7 @@ export function UserProfileScreen({ onLogout }: UserProfileScreenProps) {
                 src={userProfile.photoURL}
                 alt={userProfile.displayName || "User avatar"}
                 className="profile-avatar"
+                loading="lazy"
               />
             )}
 
@@ -100,3 +101,5 @@ export function UserProfileScreen({ onLogout }: UserProfileScreenProps) {
     </div>
   );
 }
+
+export default UserProfileScreen;

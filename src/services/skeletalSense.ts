@@ -3,7 +3,8 @@
  * Offline geometric heuristic engine for exercise detection.
  * Uses joint angles and relative positions for deterministic classification.
  */
-
+const CARDIAC_SPEED_MAX = 50;
+const CARDIAC_MOVEMENT_MAX = 10;
 export interface SkeletalResult {
   label: string;
   confidence: number;
@@ -42,6 +43,12 @@ export interface BSIDashboardSeries {
   riskColors: string[];
 }
 
+export interface CardiacLoadReport {
+  averageLoad: number;
+  peakLoad: number;
+  cardioZone: "low" | "moderate" | "high" | "intense";
+  timeline: number[];
+}
 
 const SPEED_MAX_DEG_S = 500;
 const ROM_MAX_DEG = 180;
@@ -108,6 +115,17 @@ function toRiskTier(bsi: number): "low" | "moderate" | "high" | "critical" {
   return "critical";
 }
 
+function toCardioZone(
+  score: number
+): "low" | "moderate" | "high" | "intense" {
+
+  if (score < 25) return "low";
+  if (score < 50) return "moderate";
+  if (score < 75) return "high";
+
+  return "intense";
+}
+
 function hasValidLandmarks(def: JointDefinition, landmarks: any[]): boolean {
   return [def.proximal, def.vertex, def.distal].every((idx) => {
     const lm = landmarks[idx];
@@ -163,6 +181,24 @@ export class SkeletalSense {
       return { label: "JUMPING JACK", confidence: 0.88 };
     }
 
+    // CHEST PRESS / PUNCHES: Standing with elbows at chest/shoulder height, and arms pressing forward (not wide like jumping jacks)
+    const leftShoulderAngle = this.calculateAngle(lElbow, lShoulder, lHip);
+    const rightShoulderAngle = this.calculateAngle(rElbow, rShoulder, rHip);
+    if (
+      lHip.y > lShoulder.y &&
+      rHip.y > rShoulder.y &&
+      ((leftShoulderAngle > 65 && leftShoulderAngle < 115) || (rightShoulderAngle > 65 && rightShoulderAngle < 115)) &&
+      armWidth < 0.5 &&
+      (leftArmAngle > 70 || rightArmAngle > 70)
+    ) {
+      return { label: "CHEST PRESS / PUNCHES", confidence: 0.85 };
+    }
+
+    // FLUTTER KICKS: lying flat on back with legs kicking
+    if (Math.abs(lShoulder.y - lHip.y) < 0.12 && Math.abs(lShoulder.y - lWrist.y) < 0.15) {
+      return { label: "FLUTTER KICKS", confidence: 0.88 };
+    }
+
     // PLANK: Steady horizontal posture
     if (Math.abs(lShoulder.y - lHip.y) < 0.1 && Math.abs(lHip.y - lAnkle.y) < 0.1) {
       return { label: "PLANK", confidence: 0.82 };
@@ -184,7 +220,6 @@ export class SkeletalSense {
         recommendation: "Not enough data. Ensure pose detection is active.",
       };
     }
-
     const durationSeconds =
       (frames[frames.length - 1].timestamp - frames[0].timestamp) / 1000;
 
@@ -204,6 +239,107 @@ export class SkeletalSense {
       recommendation: RECOMMENDATIONS[sessionRiskTier],
     };
   }
+
+
+
+  analyseCardiacLoad(frames: PoseFrame[]): CardiacLoadReport {
+    if (frames.length < 2) {
+      return {
+        averageLoad: 0,
+        peakLoad: 0,
+        cardioZone: "low",
+        timeline: [],
+      };
+    }
+
+    const timeline: number[] = [];
+
+    for (let i = 1; i < frames.length; i++) {
+      const frameA = frames[i - 1];
+      const frameB = frames[i];
+
+      let totalMovement = 0;
+
+      const landmarkCount = Math.min(
+        frameA.landmarks.length,
+        frameB.landmarks.length
+      );
+
+      for (let j = 0; j < landmarkCount; j++) {
+        const lmA = frameA.landmarks[j];
+        const lmB = frameB.landmarks[j];
+
+        if (!lmA || !lmB) continue;
+
+        const dx = lmB.x - lmA.x;
+        const dy = lmB.y - lmA.y;
+
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        totalMovement += distance;
+      }
+
+      const dt = (frameB.timestamp - frameA.timestamp) / 1000;
+
+      if (dt <= 0) continue;
+
+      const speed = totalMovement / dt;
+
+      const speedScore = normalise(
+        speed,
+        0,
+        CARDIAC_SPEED_MAX
+      );
+
+      const volumeScore = normalise(
+        totalMovement,
+        0,
+        CARDIAC_MOVEMENT_MAX
+      );
+
+      let load =
+        0.6 * speedScore +
+        0.4 * volumeScore;
+
+      load = clamp(load, 0, 100);
+
+      // Smooth sudden spikes caused by pose detection noise
+      if (timeline.length > 0) {
+        load =
+          (timeline[timeline.length - 1] + load) / 2;
+      }
+
+      timeline.push(load);
+    }
+
+    const peakLoad =
+      timeline.length > 0
+        ? Math.max(...timeline)
+        : 0;
+
+    const averageLoad =
+      timeline.length > 0
+        ? timeline.reduce(
+          (sum, value) => sum + value,
+          0
+        ) / timeline.length
+        : 0;
+
+    const cardioZone =
+      toCardioZone(averageLoad);
+
+    return {
+      averageLoad: parseFloat(
+        averageLoad.toFixed(2)
+      ),
+      peakLoad: parseFloat(
+        peakLoad.toFixed(2)
+      ),
+      cardioZone,
+      timeline,
+    };
+  }
+
 
   snapshotBSI(frameA: PoseFrame, frameB: PoseFrame): Record<string, number> {
     const dtSeconds = (frameB.timestamp - frameA.timestamp) / 1000;

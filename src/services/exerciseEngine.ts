@@ -1,34 +1,36 @@
-import { getSupinationScore } from "./wristRotationDetector";
+
 
 /**
  * exerciseEngine.ts  (updated — squat depth classification integrated)
+ *
+ * Changes vs. original:
+ *  1. EngineState gains `lastDepthResult`, `depthStats`, and `liveDepthFeedback`.
+ *  2. After a rep is counted, `classifySquatDepth()` runs on `downAngleReached`
+ *     and the result is stored + merged into session stats.
+ *  3. During the DOWN phase, `getLiveDepthFeedback()` overlays a depth cue
+ *     when no higher-priority form issue is active.
+ *  4. The depth `scoreModifier` adjusts `minScoreInRep` so half-squats can
+ *     fall below the 70-point threshold and be rejected by the accuracy system.
  */
 
 import { ExerciseConfig } from '../config/exercises';
 import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
-import { getSupinationScore } from "./wristRotationDetector";
 // Note: feedbackEngine.ts lives in src/engine/ — path is correct relative to src/services/
 import {
-  classifySquatDepth,
-  getLiveDepthFeedback,
-  accumulateDepthStats,
   initialSquatDepthStats,
   SquatDepthResult,
   SquatDepthStats,
-  DEFAULT_SQUAT_DEPTH_CONFIG,
 } from './Squat_depth_classifier';
 import {
-  classifyPushupDepth,
-  getLivePushupDepthFeedback,
-  accumulatePushupDepthStats,
   initialPushupDepthStats,
   PushupDepthResult,
   PushupDepthStats,
-  DEFAULT_PUSHUP_DEPTH_CONFIG,
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
-import type { NormalizedLandmark } from "@mediapipe/pose";
+
+import { getStrategy } from './strategies/StrategyFactory';
+import { ExerciseContext } from './strategies/ExerciseStrategy';
 
 export interface JumpingJackSyncSample {
   timestamp: number;
@@ -43,7 +45,7 @@ export interface JumpingJackSyncMetrics {
   samples: number;
 }
 
-const JUMPING_JACK_SYNC_WINDOW = 160;
+
 const JUMPING_JACK_SYNC_MAX_LAG_FRAMES = 12;
 const JUMPING_JACK_GOOD_LAG_MS = 350;
 
@@ -177,19 +179,21 @@ export interface EngineState {
    */
   lastDepthResult: SquatDepthResult | null;
   depthStats: SquatDepthStats;
-
-  // 🔥 Static hold time tracking
-  holdTime?: number;
-
-  wristSupinationScore?: number;
-
-  /** Real-time depth coaching string emitted during the DOWN phase. */
   liveDepthFeedback: string;
 
   // VBT Metrics
   vbtMetrics?: VBTMetrics;
 
-  // Pushup depth classification
+  // TUT Metrics
+  tutMetrics?: {
+    eccentricMs: number;
+    concentricMs: number;
+    isometricMs: number;
+    tempoRatio: string;
+    totalRepMs: number;
+  };
+
+  // ── Pushup depth classification ──────────────────────────────
   lastPushupDepthResult?: PushupDepthResult | null;
   pushupDepthStats?: PushupDepthStats;
   livePushupDepthFeedback?: string;
@@ -199,10 +203,13 @@ export interface EngineState {
   visibilityBuffer?: number[];
   trackingLostFrames?: number;
   lastValidAngles?: Record<string, number>;
+  holdTime?: number;
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
 
   wristSupinationScore?: number;
+
+
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -218,92 +225,32 @@ interface RepParams {
   streakMinScore: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
-
-const ENGINE_DEFAULTS: RepParams = {
-  repCooldown: 600,
-  hysteresis: 10,
-  smoothingWindow: 8,
-  minDownDuration: 150,
-  correctRepMinScore: 70,
-  streakMinScore: 80,
-};
-
-// Per-exercise overrides (runtime register-able)
-const layoutOverrides = new Map<string, Partial<RepParams>>();
-
-export function setRepParams(key: string, params: Partial<RepParams>): void {
-  layoutOverrides.set(key, params);
-}
-
-export function clearRepParams(key: string): void {
-  layoutOverrides.delete(key);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
 
 // ─────────────────────────────────────────────
 // ExerciseEngine
 // ─────────────────────────────────────────────
 
-const ENGINE_DEFAULTS: RepParams = {
-  repCooldown: 600,
-  hysteresis: 10,
-  smoothingWindow: 5,
-  minDownDuration: 150,
-  correctRepMinScore: 70,
-  streakMinScore: 80,
-};
 
-const layoutOverrides = new Map<string, Partial<RepParams>>();
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
+
   private readonly BASE_HYSTERESIS = 10;
   private readonly SMOOTHING_WINDOW = 5;
-  private readonly MIN_DOWN_DURATION = 150;
+
   private kinematicEngine = new KinematicEngine();
+  private readonly MIN_DOWN_DURATION = 150;
 
 
-  private repParams(key: string): RepParams {
+
+  private repParams(): RepParams {
     return {
       repCooldown: this.BASE_REP_COOLDOWN,
       hysteresis: this.BASE_HYSTERESIS,
       smoothingWindow: this.SMOOTHING_WINDOW,
       minDownDuration: this.MIN_DOWN_DURATION,
       correctRepMinScore: 70,
-      streakMinScore: 80,
+      streakMinScore: 60,
     };
   }
 
@@ -339,23 +286,16 @@ export class ExerciseEngine {
     landmarks?: any[]
   ): Promise<EngineState> {
     const now = Date.now();
-    const p = this.repParams(config.key);
+    const p = this.repParams();
+    const strategy = getStrategy(config.key);
 
     // ───────── KINEMATICS ENGINE ─────────
     let updatedVbtMetrics = currentState.vbtMetrics;
-    if (landmarks && now !== undefined) {
-      const jointMap: Record<string, number> = {
-        squat: 24, // Right Hip
-        pushup: 11, // Left Shoulder
-        bicepCurl: 15, // Left Wrist
-        jumpingJack: 15, // Left Wrist
-        plank: 24, // Right Hip
-        lunge: 24 // Right Hip
-      };
-      const primaryJointIndex = jointMap[config.key] ?? 24;
+    if (landmarks) {
+      const primaryJointIndex = strategy.getPrimaryJointIndex();
       updatedVbtMetrics = this.kinematicEngine.update(
         landmarks,
-        now,
+        Date.now(),
         primaryJointIndex
       );
     }
@@ -364,7 +304,7 @@ export class ExerciseEngine {
     // Adaptive Difficulty Tuning
     let currentCooldown = this.BASE_REP_COOLDOWN;
     let currentHysteresis = this.BASE_HYSTERESIS;
-
+    
     if (bodyType === 'ecto') {
       currentCooldown = 750; // Longer limbs take more time to complete full ROM
       currentHysteresis = 12; // Ectos need slightly larger movement bands
@@ -424,7 +364,7 @@ export class ExerciseEngine {
       const isUpPosture = smoothedAngle > config.upThreshold - 5;
       const isDownPosture = smoothedAngle < config.downThreshold + 5;
       const fromDown = config.key === "jumpingJack" && isDownPosture;
-      const fromUp = config.key !== "jumpingJack" && isUpPosture;
+
 
       const shouldCalibrateFromDown =
         config.key === "jumpingJack" && isDownPosture;
@@ -480,7 +420,7 @@ export class ExerciseEngine {
       smoothedAngle > (config.upThreshold + currentHysteresis / 2) &&
       stage === 'down'
     ) {
-      const durationInDown = now - stageStartTime;
+
 
       if (
         now - lastRepTime > currentCooldown &&
@@ -512,23 +452,12 @@ export class ExerciseEngine {
       // Usually we want total hold time. We'll keep accumulating.
     }
 
-    let hipSplineDeviation = 0;
-    const nextPlankSpline = { isCalibrated: true };
-    const PLANK_DEVIATION_THRESHOLD = 0.08;
+    // ───────── WRIST ROTATION DETECTION ─────────
+    const wristSupinationScore = strategy.getWristSupinationScore(landmarks);
 
-    if (landmarks && landmarks.length >= 33) {
-      const s = landmarks[11];
-      const h = landmarks[23];
-      const a = landmarks[27];
-      if (s && h && a && Math.abs(a.x - s.x) > 0.1) {
-        const expectedY = s.y + (a.y - s.y) * ((h.x - s.x) / (a.x - s.x));
-        hipSplineDeviation = h.y - expectedY;
-      }
-    }
-
-    const wristSupinationScore = config.key === 'bicepCurl'
-      ? getSupinationScore(landmarks)
-      : NaN;
+    const PLANK_DEVIATION_THRESHOLD = 0.05;
+    const hipSplineDeviation = 0;
+    const nextPlankSpline = { isCalibrated: false };
 
     const context: any = {
       ...angles,
@@ -537,6 +466,10 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
+      hipSplineDeviation,
+      plankSplineCalibrated: nextPlankSpline.isCalibrated,
+      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
+      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
       wristSupinationScore,
     };
 
@@ -564,35 +497,29 @@ export class ExerciseEngine {
       currentDeviation = feedbackResult.deviation || 0;
     }
 
+    const exerciseContext: ExerciseContext = {
+      currentState,
+      activeAngles,
+      landmarks,
+      config,
+      now,
+      downAngleReached,
+      downZReached,
+      isInExercisePosture,
+      nextStage,
+      feedbackResult,
+    };
+
     // ───────── LIVE DEPTH FEEDBACK (during down phase) ────────────────────
-    //
-    // Only inject depth cue when no high-priority form issue is active.
-    // Green status = no critical form error → safe to display depth coaching.
-    // We use downAngleReached (the running minimum this rep) so the cue
-    // reflects the deepest point reached so far, not the current angle.
-    // ───────────────────────────────────────────────────────────────────────
     let liveDepthFeedback = '';
     let livePushupDepthFeedback = '';
 
-    if (nextStage === 'down' && isInExercisePosture) {
+    const liveFeedback = strategy.getLiveFeedback(exerciseContext);
+    if (liveFeedback) {
       if (/squat/i.test(config.key)) {
-        const depthCue = getLiveDepthFeedback(
-          downAngleReached,
-          DEFAULT_SQUAT_DEPTH_CONFIG
-        );
-
-        // Surface depth cue only when form feedback is green (no overriding issue)
-        if (feedbackResult.color === 'green' && depthCue) {
-          liveDepthFeedback = depthCue;
-        }
+        liveDepthFeedback = liveFeedback;
       } else if (/pushup/i.test(config.key)) {
-        const depthCue = getLivePushupDepthFeedback(
-          downZReached,
-          DEFAULT_PUSHUP_DEPTH_CONFIG
-        );
-        if (feedbackResult.color === 'green' && depthCue) {
-          livePushupDepthFeedback = depthCue;
-        }
+        livePushupDepthFeedback = liveFeedback;
       }
     }
 
@@ -619,70 +546,44 @@ export class ExerciseEngine {
       samples: 0,
     };
 
-    if (
-      config.key === 'jumpingJack' &&
-      isInExercisePosture &&
-      Number.isFinite(activeAngles.jumpingJackArmOpen) &&
-      Number.isFinite(activeAngles.jumpingJackLegSpread)
-    ) {
-      nextJumpingJackSyncSamples = [
-        ...nextJumpingJackSyncSamples,
-        {
-          timestamp: now,
-          armOpen: activeAngles.jumpingJackArmOpen,
-          legSpread: activeAngles.jumpingJackLegSpread,
-        },
-      ].slice(-JUMPING_JACK_SYNC_WINDOW);
-      nextJumpingJackSync = calculateJumpingJackSyncMetrics(nextJumpingJackSyncSamples);
+    const nextCustomState: Partial<EngineState> = {};
+    strategy.updateCustomState(exerciseContext, nextCustomState);
+    if (nextCustomState.jumpingJackSyncSamples) {
+      nextJumpingJackSyncSamples = nextCustomState.jumpingJackSyncSamples;
+    }
+    if (nextCustomState.jumpingJackSync) {
+      nextJumpingJackSync = nextCustomState.jumpingJackSync;
     }
 
+    let tut: any = undefined;
     if (repJustCounted) {
       this.kinematicEngine.onRepComplete();
 
+      // ── TUT Metrics for the completed rep ──────────────────────────────
+      tut = this.kinematicEngine.getLastRepTUT();
+
       // ── Classify depth for the completed rep ─────────────────────────────
-      //
-      // `downAngleReached` holds the minimum femur angle for this rep.
-      // If the exercise is NOT a squat, depth classification is skipped and
-      // no score modifier is applied.  Gate on config.key.
-      // ─────────────────────────────────────────────────────────────────────
-      const isSquat = /squat/i.test(config.key);
-      const isPushup = /pushup/i.test(config.key);
-
       let depthScoreModifier = 0;
-
-      if (isSquat) {
-        const depthResult = classifySquatDepth(
-          downAngleReached,
-          DEFAULT_SQUAT_DEPTH_CONFIG
-        );
-
-        nextLastDepthResult = depthResult;
-        nextDepthStats = accumulateDepthStats(nextDepthStats, depthResult);
-        depthScoreModifier = depthResult.scoreModifier;
-        if (!depthResult.isFullDepth) nextMinScoreInRep = 0;
-
-        // Apply depth modifier to the quality score for this rep.
-        // Clamp to [0, 100] so a bonus never exceeds perfect.
-        nextMinScoreInRep = Math.max(
-          0,
-          Math.min(100, nextMinScoreInRep + depthScoreModifier)
-        );
-      } else if (isPushup) {
-        const depthResult = classifyPushupDepth(
-          downZReached,
-          DEFAULT_PUSHUP_DEPTH_CONFIG
-        );
-
-        nextLastPushupDepthResult = depthResult;
-        nextPushupDepthStats = accumulatePushupDepthStats(nextPushupDepthStats, depthResult);
-        depthScoreModifier = depthResult.scoreModifier;
-        if (!depthResult.isFullDepth) nextMinScoreInRep = 0;
-
-        nextMinScoreInRep = Math.max(
-          0,
-          Math.min(100, nextMinScoreInRep + depthScoreModifier)
-        );
+      const repCompletionResult = strategy.onRepComplete(exerciseContext);
+      
+      if (repCompletionResult) {
+        depthScoreModifier = repCompletionResult.depthScoreModifier;
+        if (!repCompletionResult.isFullDepth) nextMinScoreInRep = 0;
+        
+        if (repCompletionResult.nextLastDepthResult) {
+          nextLastDepthResult = repCompletionResult.nextLastDepthResult;
+          nextDepthStats = repCompletionResult.nextDepthStats;
+        }
+        if (repCompletionResult.nextLastPushupDepthResult) {
+          nextLastPushupDepthResult = repCompletionResult.nextLastPushupDepthResult;
+          nextPushupDepthStats = repCompletionResult.nextPushupDepthStats;
+        }
       }
+
+      nextMinScoreInRep = Math.max(
+        0,
+        Math.min(100, nextMinScoreInRep + depthScoreModifier)
+      );
 
       nextTotalReps += 1;
       nextRepScores.push(nextMinScoreInRep);
@@ -786,23 +687,28 @@ export class ExerciseEngine {
       repDeviations: nextRepDeviations,
       accuracy,
 
-      // Depth classification (NEW)
       lastDepthResult: nextLastDepthResult,
       depthStats: nextDepthStats,
       liveDepthFeedback,
-
+      lastPushupDepthResult: nextLastPushupDepthResult,
+      pushupDepthStats: nextPushupDepthStats,
+      livePushupDepthFeedback,
+      downZReached,
+      visibilityBuffer: newVisibilityBuffer,
+      trackingLostFrames: nextTrackingLostFrames,
+      lastValidAngles: nextLastValidAngles,
       jumpingJackSyncSamples: nextJumpingJackSyncSamples,
       jumpingJackSync: nextJumpingJackSync,
-
       vbtMetrics: updatedVbtMetrics,
-
-      // 🔥 Static hold time tracking
+      tutMetrics: tut || undefined,
       holdTime: nextHoldTime,
 
       wristSupinationScore,
-      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
-      jumpingJackSync: nextJumpingJackSync
     };
+  }
+
+  reset(): void {
+    this.kinematicEngine.reset();
   }
 }
 

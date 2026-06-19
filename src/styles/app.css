@@ -275,3 +275,9 @@ button[type="submit"]:not(.theme-toggle):active {
     border-radius: 12px;
   }
 }
+
+/* Calibration Screen Utilities */
+.calib-header { display: flex; align-items: center; gap: 16px; }
+.calib-title { font-family: var(--font-heading); color: var(--neon-cyan); font-size: 1.2rem; letter-spacing: 2px; }
+.calib-subtitle { color: var(--text-dim); font-size: 0.75rem; letter-spacing: 0.5px; }
+.calib-panel { padding: 16px; min-width: 240px; }

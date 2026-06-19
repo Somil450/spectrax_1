@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import React from 'react';
 
 /**
  * CursorGlow — Subtle neon cursor orb + sparkle trail.

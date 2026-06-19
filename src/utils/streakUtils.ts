@@ -6,25 +6,40 @@ export interface WorkoutStreakData {
 
 const STORAGE_KEY = "spectrax_workout_streak";
 
-export function getWorkoutStreak(): WorkoutStreakData {
-  const saved = localStorage.getItem(STORAGE_KEY);
+const DEFAULT_STREAK_DATA: WorkoutStreakData = {
+  currentStreak: 0,
+  longestStreak: 0,
+  lastWorkoutDate: null,
+};
 
-  if (!saved) {
-    return {
-      currentStreak: 0,
-      longestStreak: 0,
-      lastWorkoutDate: null,
-    };
+function safeWrite(data: WorkoutStreakData): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  return JSON.parse(saved);
+export function getWorkoutStreak(): WorkoutStreakData {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return { ...DEFAULT_STREAK_DATA };
+    const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== "object") {
+      return { ...DEFAULT_STREAK_DATA };
+    }
+    return { ...DEFAULT_STREAK_DATA, ...parsed };
+  } catch {
+    return { ...DEFAULT_STREAK_DATA };
+  }
 }
 
 export function updateWorkoutStreak(): WorkoutStreakData {
   const streakData = getWorkoutStreak();
 
   const today = new Date();
-  const todayString = today.toISOString().split('T')[0];
+  const todayString = today.toDateString();
 
   // First workout ever
   if (!streakData.lastWorkoutDate) {
@@ -34,7 +49,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
       lastWorkoutDate: todayString,
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+    safeWrite(newData);
     return newData;
   }
 
@@ -45,7 +60,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
   const lastDate = new Date(lastWorkoutDate);
   let parsedLastString = lastWorkoutDate;
   if (!lastWorkoutDate.match(/^\d{4}-\d{2}-\d{2}$/) && !isNaN(lastDate.getTime())) {
-      parsedLastString = lastDate.toISOString().split('T')[0];
+      parsedLastString = lastDate.toDateString();
   } else if (isNaN(lastDate.getTime())) {
       // Fallback if parsing fails entirely
       parsedLastString = todayString; 
@@ -83,7 +98,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
     lastWorkoutDate: todayString,
   };
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+  safeWrite(updatedData);
 
   return updatedData;
 }
