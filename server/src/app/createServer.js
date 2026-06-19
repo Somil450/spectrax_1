@@ -2,7 +2,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const { getConfig } = require("../config/env");
 const { createSocketOptions } = require("../config/socket");
-const { SOCKET_AUTH_TOKEN, MAX_CONNECTIONS_PER_IP } = require("../config/constants");
+const { SOCKET_AUTH_TOKEN } = require("../config/constants");
 const { createSessionStore } = require("../modules/session/session.store");
 const { createSessionService } = require("../modules/session/session.service");
 const { registerPoseSocketHandlers } = require("../modules/pose/pose.socket");
@@ -12,10 +12,7 @@ const {
 const { createApp } = require("./createApp");
 const { logger: defaultLogger } = require("../shared/utils/logger");
 
-const ipConnectionCount = new Map();
-
 function createServer(overrides = {}) {
-  // Move ipConnectionCount to function scope for multi-instance safety
   const ipConnectionCount = new Map();
 
   const config = getConfig(overrides);

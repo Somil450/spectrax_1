@@ -87,8 +87,9 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     finalizedSessions.add(socketId);
     try {
       const frames = sessionStore.getSessionFrames(socketId);
-      if (frames && frames.length > 0) {
-        await saveSession(frames, socketId);
+      const snapshot = frames ? [...frames] : [];
+      if (snapshot.length > 0) {
+        await saveSession(snapshot, socketId);
       }
       sessionStore.deleteSession(socketId);
       return frames;
