@@ -128,7 +128,7 @@ async function runWebGPUPreprocess(
     });
   }
 
-  gpuDevice.queue.writeBuffer(gpuInputBuffer, 0, input as BufferSource);
+  gpuDevice.queue.writeBuffer(gpuInputBuffer, 0, input.buffer, input.byteOffset, input.byteLength);
   gpuDevice.queue.writeBuffer(
     gpuUniformBuffer,
     0,
@@ -209,7 +209,9 @@ self.onmessage = async (event: MessageEvent) => {
   if (type === "init") {
     config = event.data.config as DepthEstimationConfig;
     try {
-      depthPipeline = await pipeline("depth-estimation", config.modelName, { dtype: "fp16" } as never);
+      depthPipeline = await pipeline("depth-estimation", config.modelName, {
+        dtype: "fp16",
+      } as any);
       (self as any).postMessage({ type: "ready" });
     } catch (err: any) {
       (self as any).postMessage({

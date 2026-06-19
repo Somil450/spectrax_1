@@ -7,7 +7,7 @@ import { useLeveling } from "./hooks/useLeveling";
 import { SummaryScreenSkeleton } from "./components/SummaryScreenSkeleton";
 import { GridSkeleton } from "./components/CardSkeleton";
 import { useAuth } from "./context/AuthContext";
-import { ScrollToTopButton } from "./components/ScrollToTopButton";
+import { BackToTopButton } from "./components/BackToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
 import NavBar from "./components/NavBar";
@@ -430,7 +430,7 @@ function App() {
       {/* Global badge unlock notification — rendered at the app root so it's
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
-      <ScrollToTopButton />
+      <BackToTopButton />
 
       {(offlineReady || needRefresh) && (
         <div className="pwa-toast glass animate-in" role="alert">
