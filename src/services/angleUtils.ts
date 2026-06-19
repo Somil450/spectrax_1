@@ -45,7 +45,7 @@ export function calculateAngle(
 
 let _a3x = 0, _a3y = 0, _a3z = 0;
 let _b3x = 0, _b3y = 0, _b3z = 0;
-let _c3x = 0, _c3y = 0, _c3z = 0;
+const _c3x = 0, _c3y = 0, _c3z = 0;
 
 export function calculateAngle3D(
   a: { x: number; y: number; z: number },
