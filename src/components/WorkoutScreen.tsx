@@ -1657,7 +1657,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
               </div>
             </div>
 
-            {clipEngine.isReady() || clipEngine.getMode() === "cloud" ? (
+            {clipEngine.isReady() ? (
               <div
                 className="glass animate-in"
                 style={{
@@ -1685,13 +1685,9 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
                   }}
                 >
                   VLM SENSE:{" "}
-                  {clipEngine.getMode() === "cloud"
-                    ? clipResult
-                      ? `CLOUD: ${clipResult.label.toUpperCase()}`
-                      : "CLOUD ACTIVATING..."
-                    : clipResult
-                      ? clipResult.label.toUpperCase()
-                      : "SCANNING..."}{" "}
+                  {clipResult
+                    ? clipResult.label.toUpperCase()
+                    : "SCANNING..."}{" "}
                   ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
                 </div>
               </div>

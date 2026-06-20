@@ -60,11 +60,11 @@ export const EnginePanel = ({ status, statusColor }: { status: string, statusCol
 );
 
 export const SensePanel = ({ clipEngine, clipResult }: { clipEngine: any, clipResult: any }) => (
-  clipEngine.isReady() || clipEngine.getMode() === 'cloud' ? (
+  clipEngine.isReady() ? (
     <div className="glass workout-stat-card workout-sense-panel animate-in">
       <div className="radar-ping" style={{ width: '8px', height: '8px', background: '#9D4EDD', borderRadius: '50%' }}></div>
       <div style={{ fontSize: '0.75rem', color: '#9D4EDD', fontWeight: 700 }}>
-        VLM SENSE: {clipEngine.getMode() === 'cloud' ? (clipResult ? `CLOUD: ${clipResult.label.toUpperCase()}` : 'CLOUD ACTIVATING...') : (clipResult ? clipResult.label.toUpperCase() : 'SCANNING...')} ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
+        VLM SENSE: {clipResult ? clipResult.label.toUpperCase() : 'SCANNING...'} ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
       </div>
     </div>
   ) : (
