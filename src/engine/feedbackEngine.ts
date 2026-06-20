@@ -564,6 +564,72 @@ export function getPostureErrorCategories(): Record<string, number> {
   return categories;
 }
 
+import type { NeuralFormPrediction } from '../types/neuralForm';
+
+export function getNeuralFeedback(
+  prediction: NeuralFormPrediction,
+  _exerciseKey: string,
+): FeedbackResult {
+  const overallScore = Math.round(prediction.overallScore * 100);
+
+  let color: 'green' | 'yellow' | 'red' = 'red';
+  if (overallScore > 80) color = 'green';
+  else if (overallScore > 60) color = 'yellow';
+
+  const issues: DetectionIssue[] = [];
+
+  if (prediction.depthScore < 0.65) {
+    issues.push({
+      type: 'depth',
+      severity: 'medium',
+      message: 'Go lower for full range ⚠️',
+      penalty: Math.round((1 - prediction.depthScore) * 45),
+    });
+  }
+
+  if (prediction.postureScore < 0.65) {
+    issues.push({
+      type: 'posture',
+      severity: 'high',
+      message: 'Keep your back straight ❌',
+      penalty: Math.round((1 - prediction.postureScore) * 45),
+    });
+  }
+
+  if (prediction.romScore < 0.65) {
+    issues.push({
+      type: 'rom',
+      severity: 'medium',
+      message: 'Stretch out for full ROM 📏',
+      penalty: Math.round((1 - prediction.romScore) * 40),
+    });
+  }
+
+  if (prediction.stabilityScore < 0.65) {
+    issues.push({
+      type: 'stability',
+      severity: 'low',
+      message: 'Control your movement ⚠️',
+      penalty: Math.round((1 - prediction.stabilityScore) * 30),
+    });
+  }
+
+  const severityWeight = { high: 0, medium: 1, low: 2 };
+  const sortedIssues = [...issues].sort((a, b) =>
+    (severityWeight[a.severity] || 0) - (severityWeight[b.severity] || 0),
+  );
+
+  const message = sortedIssues.length > 0 ? sortedIssues[0].message : 'Good form ✅';
+
+  return {
+    score: overallScore,
+    color,
+    message,
+    issues,
+    deviation: 0,
+  };
+}
+
 /**
  * Resets the smoothing history (call when starting a new session)
  */

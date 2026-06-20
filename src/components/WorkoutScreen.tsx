@@ -26,6 +26,8 @@ import { reconstruct3DMesh } from '../services/mesh3DEngine';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
+import { neuralFormEngine } from '../services/neuralFormEngine';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
@@ -167,6 +169,7 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
 
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const { settings, updateSetting } = useSettings();
+  const { user } = useAuth();
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const lastSpokenFeedbackRef = useRef<string>("");
   const lastSpokenTimeRef = useRef<number>(0);
@@ -882,6 +885,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           : null;
         if (ctx) overlayRenderer.setContext(ctx);
 
+        await neuralFormEngine.init(user?.uid);
         sessionRecorder.start();
         startSession(exercise.key, exercise.name);
         await clipEngine.init();
@@ -1084,6 +1088,68 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           VLM INTELLIGENCE LOADING... {vlmProgress}% (151MB)
         </div>
       )}
+      {/* Neural Calibration Progress */}
+      {engineState.totalReps < 10 && !neuralFormEngine.isCalibrated(exercise.key) && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            background: 'rgba(0,0,0,0.85)',
+            border: '1px solid var(--neon-cyan)',
+            borderRadius: '12px',
+            padding: '12px 20px',
+            textAlign: 'center',
+            backdropFilter: 'blur(8px)',
+            minWidth: '220px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '0.7rem',
+              color: 'var(--neon-cyan)',
+              letterSpacing: '2px',
+              fontWeight: 800,
+              marginBottom: '8px',
+            }}
+          >
+            CALIBRATING NEURAL MODEL…
+          </div>
+          <div
+            style={{
+              width: '100%',
+              height: '6px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '3px',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: `${Math.min((engineState.totalReps / 10) * 100, 100)}%`,
+                height: '100%',
+                background: 'var(--neon-cyan)',
+                borderRadius: '3px',
+                transition: 'width 0.3s ease',
+                boxShadow: '0 0 10px var(--neon-cyan)',
+              }}
+            />
+          </div>
+          <div
+            style={{
+              fontSize: '0.6rem',
+              color: 'var(--text-dim)',
+              marginTop: '6px',
+              letterSpacing: '1px',
+            }}
+          >
+            {engineState.totalReps} / 10 reps collected
+          </div>
+        </div>
+      )}
+
       {/* Offline Indicator */}
       {!navigator.onLine && (
         <div

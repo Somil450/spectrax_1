@@ -30,7 +30,9 @@
     "react-draggable": "^4.5.0",
     "react-router-dom": "^7.15.1",
     "three": "^0.162.0",
-    "yjs": "^13.6.31"
+    "yjs": "^13.6.31",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-layers": "^4.22.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
