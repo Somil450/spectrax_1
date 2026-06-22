@@ -25,7 +25,6 @@ import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { gestureService, GestureCommand } from '../services/gestureService';
 import { debounce } from '../utils/debounce';
 import { useThrottleLevel } from '../services/performanceThrottleService';
-import { CameraErrorBoundary } from './CameraErrorBoundary';
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
 const createPoseWorker = () =>
