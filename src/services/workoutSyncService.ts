@@ -47,7 +47,7 @@ export interface SyncStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME = "spectrax_db";
-const DB_VERSION = 4; // v4: added composite 'synced_userId' index (fix #741)
+const DB_VERSION = 5; // v4: added composite 'synced_userId' index (fix #741)
 const WORKOUTS_STORE = "workout_sessions";
 const SYNC_STATUS_STORE = "sync_status";
 
@@ -58,24 +58,44 @@ function createDB(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
     req.onupgradeneeded = (e) => {
-      const db = (e.target as IDBOpenDBRequest).result;
+      const target = e.target as IDBOpenDBRequest;
+      const db = target.result;
+      const tx = target.transaction as IDBTransaction;
 
-      // Recreate workouts store to change keyPath from "id" to "localId"
+      let workoutStore: IDBObjectStore;
       if (db.objectStoreNames.contains(WORKOUTS_STORE)) {
-        db.deleteObjectStore(WORKOUTS_STORE);
+        if (e.oldVersion < 4) {
+          // Recreate workouts store to change keyPath from "id" to "localId"
+          db.deleteObjectStore(WORKOUTS_STORE);
+          workoutStore = db.createObjectStore(WORKOUTS_STORE, {
+            keyPath: "localId",
+            autoIncrement: true,
+          });
+        } else {
+          workoutStore = tx.objectStore(WORKOUTS_STORE);
+        }
+      } else {
+        workoutStore = db.createObjectStore(WORKOUTS_STORE, {
+          keyPath: "localId",
+          autoIncrement: true,
+        });
       }
 
-      const workoutStore = db.createObjectStore(WORKOUTS_STORE, {
-        keyPath: "localId",
-        autoIncrement: true,
-      });
-      workoutStore.createIndex('timestamp', 'timestamp', { unique: false });
-      workoutStore.createIndex('userId', 'userId', { unique: false });
-      workoutStore.createIndex('synced', 'synced', { unique: false });
+      if (!workoutStore.indexNames.contains('timestamp')) {
+        workoutStore.createIndex('timestamp', 'timestamp', { unique: false });
+      }
+      if (!workoutStore.indexNames.contains('userId')) {
+        workoutStore.createIndex('userId', 'userId', { unique: false });
+      }
+      if (!workoutStore.indexNames.contains('synced')) {
+        workoutStore.createIndex('synced', 'synced', { unique: false });
+      }
       // Composite index for efficient per-user unsynced queries (fix #741).
       // Enables filtering at DB level via IDBKeyRange instead of loading every
       // user's records into JS memory and filtering afterwards.
-      workoutStore.createIndex('synced_userId', ['synced', 'userId'], { unique: false });
+      if (!workoutStore.indexNames.contains('synced_userId')) {
+        workoutStore.createIndex('synced_userId', ['synced', 'userId'], { unique: false });
+      }
 
       // Create sync status store
       if (!db.objectStoreNames.contains(SYNC_STATUS_STORE)) {
@@ -149,32 +169,13 @@ export async function getLocalWorkouts(
 }
 
 /**
- * Get unsynced workouts for a specific user from IndexedDB.
- *
- * Bug fix for #741: previously this queried the single-field 'synced' index
- * with getAll(false), which loaded EVERY unsynced record across ALL users on
- * the device into memory and then filtered by userId in JavaScript.
- * On a shared device this means User B can read and sync User A's private
- * workout data — a data isolation failure and privacy vulnerability.
- *
- * Fix: use the new composite 'synced_userId' index with IDBKeyRange.only() so
- * that IndexedDB itself filters records — only the current user's unsynced
- * workouts are ever loaded into memory.
+ * Get a specific user's unsynced workouts from IndexedDB.
  */
 export async function getUnsyncedWorkouts(
   userId: string,
 ): Promise<WorkoutRecord[]> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(WORKOUTS_STORE, 'readonly');
-    const store = tx.objectStore(WORKOUTS_STORE);
-    const index = store.index('synced_userId');
-    // [false, userId] matches records where synced === false AND userId === <current user>.
-    const range = IDBKeyRange.only([false, userId]);
-    const req = index.getAll(range);
-    req.onsuccess = () => resolve(req.result as WorkoutRecord[]);
-    req.onerror = () => reject(req.error);
-  });
+  const all = await getLocalWorkouts(userId);
+  return all.filter((w) => !w.synced);
 }
 
 /**
@@ -212,31 +213,31 @@ async function updateLocalWorkoutsFromFirestore(
   firestoreWorkouts: WorkoutRecord[],
 ): Promise<void> {
   const db = await openDB();
-  const tx = db.transaction(WORKOUTS_STORE, "readwrite");
-  const store = tx.objectStore(WORKOUTS_STORE);
-
-  // Fetch all existing local records to match by firestore ID
-  const localWorkouts = await new Promise<WorkoutRecord[]>((resolve, reject) => {
-    const req = store.getAll();
-    req.onsuccess = () => resolve(req.result as WorkoutRecord[]);
-    req.onerror = () => reject(req.error);
-  });
 
   return new Promise((resolve, reject) => {
-    firestoreWorkouts.forEach((workout) => {
-      const existing = localWorkouts.find((w) => w.id === workout.id);
-      const recordToStore: WorkoutRecord = {
-        ...workout,
-        synced: true,
-        userId,
-      };
+    const tx = db.transaction(WORKOUTS_STORE, "readwrite");
+    const store = tx.objectStore(WORKOUTS_STORE);
 
-      if (existing && existing.localId) {
-        recordToStore.localId = existing.localId;
-      }
+    // Fetch all existing local records to match by firestore ID
+    const getAllReq = store.getAll();
+    getAllReq.onsuccess = () => {
+      const localWorkouts = getAllReq.result as WorkoutRecord[];
+      firestoreWorkouts.forEach((workout) => {
+        const existing = localWorkouts.find((w) => w.id === workout.id);
+        const recordToStore: WorkoutRecord = {
+          ...workout,
+          synced: true,
+          userId,
+        };
 
-      store.put(recordToStore);
-    });
+        if (existing && existing.localId) {
+          recordToStore.localId = existing.localId;
+        }
+
+        store.put(recordToStore);
+      });
+    };
+    getAllReq.onerror = () => reject(getAllReq.error);
 
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);

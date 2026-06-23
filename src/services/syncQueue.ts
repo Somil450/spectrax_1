@@ -49,11 +49,15 @@ async function uploadReplaySession(session: ReplaySession): Promise<void> {
  * On failure: keeps it in the queue, logs the error, continues with remaining items.
  */
 export async function syncOfflineQueue(): Promise<SyncResult> {
+  const currentUserId = getAuth().currentUser?.uid;
   const queue = getQueue();
   let synced = 0;
   let failed = 0;
 
   for (const session of queue) {
+    if (!currentUserId || session.userId !== currentUserId) {
+      continue;
+    }
     try {
       await uploadReplaySession(session);
       removeFromQueue(session.id);

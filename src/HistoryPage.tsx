@@ -54,7 +54,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
     removeSession,
     clearHistory,
   } = useWorkoutHistory();
-  const { syncStatus, isOnline: workoutIsOnline, manualSync } = useWorkoutSync();
+  const { syncStatus, manualSync } = useWorkoutSync();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Offline replay queue state

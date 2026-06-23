@@ -159,7 +159,7 @@ export function SignUpScreen({
           );
         } else {
           setLocalError(
-            err.message || "Failed to create account. Please try again.",
+            "Could not create your account. If you already have one, please sign in.",
           );
         }
       } else {

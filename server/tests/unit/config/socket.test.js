@@ -37,7 +37,7 @@ describe("socket config", () => {
       expect(result.cors.origin).toBe("*");
     });
 
-    describe("production warning", () => {
+    describe("production enforcement", () => {
       const origEnv = process.env.NODE_ENV;
 
       beforeEach(() => {
@@ -48,21 +48,19 @@ describe("socket config", () => {
         process.env.NODE_ENV = origEnv;
       });
 
-      it("warns when origin is wildcard in production", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        createSocketOptions({ corsOrigin: "*", socketPath: "/socket.io" });
-        expect(warn).toHaveBeenCalledTimes(1);
-        warn.mockRestore();
+      it("throws when origin is wildcard in production", () => {
+        expect(() =>
+          createSocketOptions({ corsOrigin: "*", socketPath: "/socket.io" }),
+        ).toThrow("Socket.IO CORS_ORIGIN is set to '*' in production");
       });
 
-      it("does not warn for specific origin in production", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        createSocketOptions({
-          corsOrigin: "http://example.com",
-          socketPath: "/socket.io",
-        });
-        expect(warn).not.toHaveBeenCalled();
-        warn.mockRestore();
+      it("does not throw for specific origin in production", () => {
+        expect(() =>
+          createSocketOptions({
+            corsOrigin: "http://example.com",
+            socketPath: "/socket.io",
+          }),
+        ).not.toThrow();
       });
     });
   });

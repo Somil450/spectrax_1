@@ -2,7 +2,11 @@ const { resolveSessionPath } = require("../shared/utils/paths");
 
 function getConfig(overrides = {}) {
   const port = overrides.port ?? (process.env.PORT ? process.env.PORT : 3001);
-  const corsOrigin = overrides.corsOrigin ?? process.env.CORS_ORIGIN ?? "*";
+  const corsOrigin = overrides.corsOrigin ?? process.env.CORS_ORIGIN ?? (
+    process.env.NODE_ENV === "production"
+      ? (() => { throw new Error("CORS_ORIGIN must be set in production"); })()
+      : "*"
+  );
   const sessionPath =
     overrides.sessionPath ?? process.env.SESSION_PATH ?? resolveSessionPath();
   const maxSessionFrames =
@@ -11,6 +15,8 @@ function getConfig(overrides = {}) {
     overrides.socketPath ?? process.env.SOCKET_PATH ?? "/socket.io";
   const maxConnectionsPerIp =
     overrides.maxConnectionsPerIp ?? Number(process.env.MAX_CONNECTIONS_PER_IP || 10);
+  const trustProxy =
+    overrides.trustProxy ?? (Number(process.env.TRUST_PROXY) || 0);
 
   return {
     port,
@@ -19,6 +25,7 @@ function getConfig(overrides = {}) {
     maxSessionFrames,
     socketPath,
     maxConnectionsPerIp,
+    trustProxy,
   };
 }
 

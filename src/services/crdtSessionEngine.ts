@@ -6,7 +6,6 @@
  */
 
 import * as Y from "yjs";
-import { encode, decode } from "@msgpack/msgpack";
 import { nowHLC, compareHLC, updateHLC, hlcToString, hlcFromString, type HLCTimestamp } from "../utils/hybridLogicalClock";
 import type { EngineState } from "./exerciseEngine";
 
@@ -42,9 +41,8 @@ export interface SessionSnapshot {
 
 // ─── Yjs Document Structure ──────────────────────────────────────────────────
 
-const YJS_DOC_NAME = "spectrax_session";
 const YJS_STORE = "yjs_updates";
-const DB_NAME = "spectrax_db";
+const DB_NAME = "spectrax_crdt_db";
 const DB_VERSION = 4; // Bumped for Yjs store
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -178,8 +176,8 @@ export class CRDTSessionEngine {
 
     const yState = doc.getMap("state");
     const engine = new CRDTSessionEngine(
-      yState.get("exerciseKey") || "unknown",
-      yState.get("exerciseName") || "Unknown"
+      (yState.get("exerciseKey") as string) || "unknown",
+      (yState.get("exerciseName") as string) || "Unknown"
     );
 
     // Replace the new doc with the received state
@@ -187,11 +185,11 @@ export class CRDTSessionEngine {
     engine.doc = doc;
     engine.yState = yState;
     engine.yReps = doc.getArray("reps");
-    engine.sessionId = yState.get("sessionId") || engine.sessionId;
-    engine.startTime = yState.get("startTime") || engine.startTime;
+    engine.sessionId = (yState.get("sessionId") as string) || engine.sessionId;
+    engine.startTime = (yState.get("startTime") as number) || engine.startTime;
 
     // Restore HLC vector
-    const hlcVectorRaw = yState.get("hlcVector") || {};
+    const hlcVectorRaw = (yState.get("hlcVector") as Record<string, string>) || {};
     engine.hlcVector = engine.parseHlcVector(hlcVectorRaw);
 
     // Re-attach update handler
@@ -340,7 +338,7 @@ export async function listActiveSessions(): Promise<{ sessionId: string; lastUpd
           const yState = doc.getMap("state");
           sessions.push({
             sessionId: value.sessionId,
-            lastUpdate: yState.get("lastUpdate") || 0,
+            lastUpdate: (yState.get("lastUpdate") as number) || 0,
           });
           cursor.continue();
         } else {

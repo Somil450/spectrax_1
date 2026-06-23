@@ -191,7 +191,7 @@ export default function PrivacyPage() {
         </div>
 
         <div>
-          <h2 className="text-2xl font-semibold mb-2">Children's Privacy</h2>
+          <h2 className="text-2xl font-semibold mb-2">Children&apos;s Privacy</h2>
 
           <p>
             Spectrax is not intended for children under 13 years of age. We do

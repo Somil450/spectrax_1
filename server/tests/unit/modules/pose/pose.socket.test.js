@@ -134,5 +134,30 @@ describe("pose.socket", () => {
 
       expect(socket.emitted.length).toBe(emittedBefore + 1);
     });
+
+    it("does not let invalid frames consume the valid-frame budget", () => {
+      const socket = createSocket();
+      socket.id = "rate-limit-mix";
+      const sessionService = { appendFrame: vi.fn() };
+
+      registerPoseSocketHandlers({ socket, sessionService });
+
+      for (let i = 0; i < 60; i++) {
+        socket.trigger("frame", {
+          landmarks: [],
+          timestamp: 0,
+          exercise: "squat",
+        });
+      }
+      expect(sessionService.appendFrame).not.toHaveBeenCalled();
+
+      socket.trigger("frame", {
+        landmarks: Array.from({ length: 33 }, () => ({ x: 0, y: 0, visibility: 0 })),
+        timestamp: 1,
+        exercise: "squat",
+      });
+
+      expect(sessionService.appendFrame).toHaveBeenCalledTimes(1);
+    });
   });
 });

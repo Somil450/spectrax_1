@@ -129,7 +129,7 @@ export const NavBar: React.FC<NavBarProps> = ({ navigateTo, theme, setTheme }) =
             observer.disconnect();
             return;
           }
-        } catch (e) {}
+        } catch (e) { /* ignore */ }
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });

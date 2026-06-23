@@ -26,12 +26,11 @@ let db: ReturnType<typeof getFirestore>;
 let app: ReturnType<typeof initializeApp>;
 
 try {
-if (!firebaseConfig || !firebaseConfig.apiKey) {
-  console.warn("Firebase not configured — running offline mode");
-  
-}
+  if (!firebaseConfig || !firebaseConfig.apiKey) {
+    throw new Error("Firebase configuration is missing");
+  }
 
-const app = initializeApp(firebaseConfig);
+  app = initializeApp(firebaseConfig);
 
   const appCheckSiteKey = import.meta.env.VITE_APPCHECK_RECAPTCHA_KEY;
   if (appCheckSiteKey) {
@@ -39,6 +38,10 @@ const app = initializeApp(firebaseConfig);
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true,
     });
+  } else if (import.meta.env.PROD) {
+    console.warn(
+      "Firebase App Check is not configured (VITE_APPCHECK_RECAPTCHA_KEY is unset); abuse protection is disabled.",
+    );
   }
 
   auth = getAuth(app);
@@ -48,7 +51,6 @@ const app = initializeApp(firebaseConfig);
   setPersistence(auth, browserLocalPersistence).catch((error) => {
     console.warn("Failed to set Firebase persistence:", error);
   });
-
 } catch (e) {
   console.warn("⚠️ Firebase not configured — running in offline/demo mode", e);
   // Create a minimal app stub so imports don't crash

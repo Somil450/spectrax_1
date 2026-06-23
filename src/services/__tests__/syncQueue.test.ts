@@ -96,4 +96,21 @@ describe("syncOfflineQueue", () => {
     expect(result.failed).toBe(2);
     expect(offlineQueue.getQueue()).toHaveLength(2);
   });
+
+  it("does not sync sessions belonging to a different user", async () => {
+    const { addDoc } = await import("firebase/firestore");
+    vi.mocked(addDoc).mockResolvedValue({ id: "doc" } as any);
+
+    offlineQueue.enqueueSession(createMockSession("mine"));
+    const otherSession = createMockSession("theirs");
+    otherSession.userId = "other-user";
+    offlineQueue.enqueueSession(otherSession);
+
+    const result = await syncOfflineQueue();
+
+    expect(result.synced).toBe(1);
+    expect(result.failed).toBe(0);
+    const remaining = offlineQueue.getQueue();
+    expect(remaining.map((s) => s.id)).toEqual(["theirs"]);
+  });
 });

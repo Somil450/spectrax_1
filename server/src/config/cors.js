@@ -10,8 +10,9 @@ function createCorsOptions(config) {
   const origin = parseOrigin(config.corsOrigin);
 
   if (origin === "*" && process.env.NODE_ENV === "production") {
-    console.warn(
-      "[SpectraX] WARNING: CORS origin is set to '*' in production. Restrict it via CORS_ORIGIN env.",
+    throw new Error(
+      "[SpectraX] CORS_ORIGIN is set to '*' in production. " +
+      "Set CORS_ORIGIN to your frontend domain (e.g., https://yourapp.com) to fix this.",
     );
   }
 

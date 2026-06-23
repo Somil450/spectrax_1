@@ -1,11 +1,3 @@
-// import { pipeline, env } from '@xenova/transformers';
-
-// // Configure environment for robust remote model loading
-// env.allowRemoteModels = true;
-// env.useBrowserCache = true;
-// env.remoteHost = 'https://huggingface.co/';
-// env.remotePathTemplate = '{model}/resolve/{revision}/';
-
 /**
  * clipEngine.ts
  * A lightweight Vision-Language Model (CLIP) module for intelligent fitness analysis.
@@ -23,13 +15,10 @@ export interface ClipResult {
 }
 
 class ClipEngine {
-  private classifier: any = null;
   private isLoading = false;
   private isAnalyzing = false;
-  private mode: 'local' | 'cloud' = 'cloud';
+  private mode = 'local' as const;
   private progress = 0; // 0 to 100
-  // Note: For production, this should be in an .env file
-  private readonly hfToken: string = ""; // Removed for security
 
   // Labels for zero-shot image classification
   private readonly labels = [
@@ -101,7 +90,7 @@ class ClipEngine {
   // ---------------------------------------------------------------------------
 
   public isReady() {
-    return !!this.classifier;
+    return this.workerReady;
   }
 
   public isBusy() {
@@ -124,7 +113,6 @@ class ClipEngine {
    * Uses quantized INT8 weights for ~150MB download size.
    */
   public async init() {
-    this.mode = 'local';
     this.isLoading = true;
     this.progress = 0;
 
@@ -153,10 +141,10 @@ class ClipEngine {
   }
 
   /**
-   * Analyzes a video frame using either local CLIP or Hugging Face Cloud Inference.
+   * Analyzes a video frame using the local CLIP worker.
    */
   public async analyzeFrame(image: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement): Promise<ClipResult | null> {
-    if (this.isAnalyzing) return null;
+    if (this.isAnalyzing || !this.workerReady) return null;
 
     let targetImage: HTMLCanvasElement | HTMLImageElement = image as any;
 
@@ -173,102 +161,30 @@ class ClipEngine {
       targetImage = this.helperCanvas;
     }
 
-    if (this.mode === 'local') {
-      if (!this.workerReady) return null;
-
-      return new Promise((resolve) => {
-        const handleMessage = (event: MessageEvent) => {
-          const { type, results } = event.data;
-          if (type === 'prediction') {
-            this.worker?.removeEventListener('message', handleMessage);
-            this.isAnalyzing = false;
-            resolve({
-              label: results[0]?.label || "unknown",
-              confidence: results[0]?.score || 0
-            });
-          }
-        };
-
-        this.isAnalyzing = true;
-        this.worker?.addEventListener('message', handleMessage);
-
-        // Send image data to worker
-        if (targetImage instanceof HTMLCanvasElement) {
-          const imageData = targetImage.getContext('2d')?.getImageData(0, 0, targetImage.width, targetImage.height);
-          this.worker?.postMessage({
-            type: 'analyze',
-            image: imageData,
-            labels: this.labels
+    return new Promise((resolve) => {
+      const handleMessage = (event: MessageEvent) => {
+        const { type, results } = event.data;
+        if (type === 'prediction') {
+          this.worker?.removeEventListener('message', handleMessage);
+          this.isAnalyzing = false;
+          resolve({
+            label: results[0]?.label || "unknown",
+            confidence: results[0]?.score || 0
           });
         }
-      });
-    } else if (this.mode === 'cloud') {
-      return this.analyzeFrameCloud(targetImage);
-    }
-
-    return null;
-  }
-
-  private async analyzeFrameCloud(image: HTMLCanvasElement | HTMLImageElement): Promise<ClipResult | null> {
-    if (this.isAnalyzing) return null;
-
-    try {
-      this.isAnalyzing = true;
-
-      // 1. Convert image to JPEG Blob
-      const blob = await new Promise<Blob | null>((resolve) => {
-        if (image instanceof HTMLCanvasElement) {
-          image.toBlob((b) => resolve(b), 'image/jpeg', 0.6);
-        } else {
-          resolve(null);
-        }
-      });
-
-      if (!blob) return null;
-
-      // 2. Query Hugging Face Inference API
-      const response = await fetch(
-        "https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32",
-        {
-          headers: {
-            Authorization: `Bearer ${this.hfToken}`,
-            "Content-Type": "application/json",
-            "x-wait-for-model": "true"
-          },
-          method: "POST",
-          body: JSON.stringify({
-            inputs: await this.blobToBase64(blob),
-            parameters: { candidate_labels: this.labels }
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const results = await response.json();
-      if (Array.isArray(results) && results.length > 0) {
-        const top = results[0];
-        return { label: top.label, confidence: top.score };
-      }
-
-      return null;
-    } catch (error) {
-      return null;
-    } finally {
-      this.isAnalyzing = false;
-    }
-  }
-
-  private blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        resolve(base64 || "");
       };
-      reader.readAsDataURL(blob);
+
+      this.isAnalyzing = true;
+      this.worker?.addEventListener('message', handleMessage);
+
+      if (targetImage instanceof HTMLCanvasElement) {
+        const imageData = targetImage.getContext('2d')?.getImageData(0, 0, targetImage.width, targetImage.height);
+        this.worker?.postMessage({
+          type: 'analyze',
+          image: imageData,
+          labels: this.labels
+        });
+      }
     });
   }
 

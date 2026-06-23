@@ -1,4 +1,3 @@
-import { ExerciseContext, RepCompletionResult } from './IExercisePlugin';
 import { BaseExercisePlugin } from './BaseExercisePlugin';
 import { exercisePluginRegistry } from './ExercisePluginRegistry';
 

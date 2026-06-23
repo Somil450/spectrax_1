@@ -30,6 +30,16 @@ service cloud.firestore {
       return value is number && value >= min && value <= max;
     }
 
+    function isValidUserData(data) {
+      return data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'lastLogin'])
+        && (!('uid' in data.keys()) || data.uid is string)
+        && (!('email' in data.keys()) || (data.email is string && data.email.size() <= 256))
+        && (!('displayName' in data.keys()) || data.displayName == null || (data.displayName is string && data.displayName.size() <= 128))
+        && (!('photoURL' in data.keys()) || data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 2048))
+        && (!('createdAt' in data.keys()) || data.createdAt is number)
+        && (!('lastLogin' in data.keys()) || data.lastLogin is number);
+    }
+
     // ── User profile ────────────────────────────────────────────────
     // The app uses setDoc({...}, { merge: true }) for both the initial
     // create and subsequent partial updates, so we keep the update rule
@@ -41,12 +51,10 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && request.resource.data.keys().hasAll(['uid', 'email', 'createdAt', 'lastLogin'])
         && request.resource.data.uid == userId
-        && request.resource.data.email is string
-        && request.resource.data.email.size() <= 256
-        && request.resource.data.createdAt is number
-        && request.resource.data.lastLogin is number;
+        && isValidUserData(request.resource.data);
 
       allow update: if isOwner(userId)
+        && isValidUserData(request.resource.data)
         && (!('uid' in request.resource.data.keys())
             || request.resource.data.uid == resource.data.uid)
         && (!('createdAt' in request.resource.data.keys())

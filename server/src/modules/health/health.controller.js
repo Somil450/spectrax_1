@@ -1,6 +1,15 @@
+function isLoopbackIp(ip) {
+  return (
+    ip === "127.0.0.1" ||
+    ip === "::1" ||
+    ip === "::ffff:127.0.0.1" ||
+    (typeof ip === "string" && ip.startsWith("127."))
+  );
+}
+
 function getHealth(req, res, sessionStore) {
   const healthSecret = process.env.HEALTH_SECRET_TOKEN;
-  const isLocalhost = req.ip === "127.0.0.1" || req.ip === "::1" || req.hostname === "localhost";
+  const isLocalhost = isLoopbackIp(req.ip);
   const authHeader = req.get("Authorization") || "";
   const isAuthorized = healthSecret && authHeader === `Bearer ${healthSecret}`;
 

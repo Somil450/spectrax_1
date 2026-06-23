@@ -228,7 +228,7 @@ throttleMonitor.onLevelChange((level) => {
 });
 
 // Helper drawing functions
-function drawFullSkeleton(ctx: CanvasRenderingContext2D, landmarks: any[]) {
+function drawFullSkeleton(_ctx: CanvasRenderingContext2D, _landmarks: any[]) {
   // Your existing full drawing logic (connections + labels + shadows)
   // ...
 }
