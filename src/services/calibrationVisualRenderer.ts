@@ -137,7 +137,7 @@ export class CalibrationVisualRenderer {
   /**
    * Calibration complete and ready
    */
-  private renderCalibrationReady(state: CalibrationState): CalibrationVisuals {
+  private renderCalibrationReady(_state: CalibrationState): CalibrationVisuals {
     return {
       color: "var(--neon-green)",
       status: "success",

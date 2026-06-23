@@ -493,6 +493,9 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
         {/* Play/Pause */}
         <button
           onClick={() => setIsPlaying((p) => !p)}
+          className="has-tooltip tooltip-top"
+          data-tooltip={isPlaying ? "Pause" : "Play"}
+          aria-label={isPlaying ? "Pause replay" : "Play replay"}
           style={{
             width: '40px',
             height: '40px',

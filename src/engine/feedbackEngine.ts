@@ -1,6 +1,8 @@
-
 // --- Types & Interfaces ---
 
+/**
+ * Gaussian Mixture Model for clustering motion/pose metrics
+ */
 export class GaussianMixtureModel {
   private k: number;
   private means: number[] = [];
@@ -17,26 +19,48 @@ export class GaussianMixtureModel {
     const min = Math.min(...data);
     const max = Math.max(...data);
 
-    // Initialize
-    this.means = Array.from({ length: this.k }, (_, i) => min + ((i + 1) / (this.k + 1)) * (max - min));
-    this.variances = Array(this.k).fill(Math.max(0.001, Math.pow(max - min, 2) / (this.k * this.k)));
+    this.means = Array.from(
+      { length: this.k },
+      (_, i) => min + ((i + 1) / (this.k + 1)) * (max - min)
+    );
+
+    this.variances = Array(this.k).fill(
+      Math.max(0.001, Math.pow(max - min, 2) / (this.k * this.k))
+    );
+
     this.weights = Array(this.k).fill(1 / this.k);
 
     for (let iter = 0; iter < iterations; iter++) {
-      // E-step
-      const responsibilities = data.map(x => {
-        const probs = this.means.map((mean, j) => this.weights[j] * this.pdf(x, mean, this.variances[j]));
+      const responsibilities = data.map((x) => {
+        const probs = this.means.map(
+          (mean, j) => this.weights[j] * this.pdf(x, mean, this.variances[j])
+        );
+
         const sum = probs.reduce((a, b) => a + b, 0);
-        return sum === 0 ? Array(this.k).fill(1 / this.k) : probs.map(p => p / sum);
+
+        return sum === 0
+          ? Array(this.k).fill(1 / this.k)
+          : probs.map((p) => p / sum);
       });
 
-      // M-step
       for (let j = 0; j < this.k; j++) {
         const sumR = responsibilities.reduce((acc, r) => acc + r[j], 0);
+
         if (sumR > 0) {
           this.weights[j] = sumR / data.length;
-          this.means[j] = responsibilities.reduce((acc, r, i) => acc + r[j] * data[i], 0) / sumR;
-          this.variances[j] = Math.max(0.001, responsibilities.reduce((acc, r, i) => acc + r[j] * Math.pow(data[i] - this.means[j], 2), 0) / sumR);
+
+          this.means[j] =
+            responsibilities.reduce((acc, r, i) => acc + r[j] * data[i], 0) /
+            sumR;
+
+          this.variances[j] = Math.max(
+            0.001,
+            responsibilities.reduce(
+              (acc, r, i) =>
+                acc + r[j] * Math.pow(data[i] - this.means[j], 2),
+              0
+            ) / sumR
+          );
         }
       }
     }
@@ -44,15 +68,20 @@ export class GaussianMixtureModel {
 
   predict(x: number): number {
     if (this.means.length === 0) return 0;
+
     let maxP = -1;
     let bestK = 0;
+
     for (let j = 0; j < this.k; j++) {
-      const p = this.weights[j] * this.pdf(x, this.means[j], this.variances[j]);
+      const p =
+        this.weights[j] * this.pdf(x, this.means[j], this.variances[j]);
+
       if (p > maxP) {
         maxP = p;
         bestK = j;
       }
     }
+
     return bestK;
   }
 
@@ -60,14 +89,21 @@ export class GaussianMixtureModel {
     return this.means.map((mean, i) => ({
       mean,
       variance: this.variances[i],
-      weight: this.weights[i]
+      weight: this.weights[i],
     }));
   }
 
   private pdf(x: number, mean: number, variance: number): number {
-    return (1 / Math.sqrt(2 * Math.PI * variance)) * Math.exp(-Math.pow(x - mean, 2) / (2 * variance));
+    return (
+      (1 / Math.sqrt(2 * Math.PI * variance)) *
+      Math.exp(-Math.pow(x - mean, 2) / (2 * variance))
+    );
   }
-  }
+}
+
+/**
+ * Tracks deviation stability over time
+ */
 class JointDeviationProfiler {
   private values: number[] = [];
   private allValues: number[] = [];
@@ -76,6 +112,7 @@ class JointDeviationProfiler {
   update(value: number) {
     this.values.push(value);
     this.allValues.push(value);
+
     if (this.values.length > this.maxSamples) {
       this.values.shift();
     }
@@ -83,8 +120,14 @@ class JointDeviationProfiler {
 
   getStandardDeviation(): number {
     if (this.values.length < 2) return 0;
-    const mean = this.values.reduce((a, b) => a + b, 0) / this.values.length;
-    const variance = this.values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / this.values.length;
+
+    const mean =
+      this.values.reduce((a, b) => a + b, 0) / this.values.length;
+
+    const variance =
+      this.values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
+      this.values.length;
+
     return Math.sqrt(variance);
   }
 
@@ -97,6 +140,8 @@ class JointDeviationProfiler {
     this.allValues = [];
   }
 }
+
+const jointDeviationProfiler = new JointDeviationProfiler();
 
 export interface DetectionIssue {
   type: string;
@@ -349,6 +394,35 @@ const rules: Record<string, ExerciseRule> = {
     }
     return issues;
   },
+
+  chestPressPunches: (ctx: any) => {
+    const issues: DetectionIssue[] = [];
+    if (ctx.shoulder < 65) {
+      issues.push({
+        type: "posture",
+        severity: "medium",
+        message: "Keep arms at shoulder level ⚠️",
+        penalty: 25,
+      });
+    }
+    if (ctx.bodyLine < 155) {
+      issues.push({
+        type: "posture",
+        severity: "high",
+        message: "Keep your back straight ❌",
+        penalty: 35,
+      });
+    }
+    if (ctx.stage === "down" && ctx.downAngleReached > 110) {
+      issues.push({
+        type: "depth",
+        severity: "medium",
+        message: "Bring hands all the way back to chest ⚠️",
+        penalty: 30,
+      });
+    }
+    return issues;
+  },
 };
 
 // --- Scoring & Smoothing Logic ---
@@ -373,7 +447,6 @@ const severityWeight = {
 
 // --- Main Engine Function ---
 
-const jointDeviationProfiler = new JointDeviationProfiler();
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
   const ruleFn = rules[exerciseKey];
@@ -389,28 +462,38 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
       color: "green",
       message: "Good form ✅",
       issues: [],
-      deviation: jointDeviationProfiler.getStandardDeviation(),
+      deviation: 0,
     };
   }
 
   // Update the deviation profiler with a posture metric specific to the exercise
   let postureMetric = 0;
-  if (exerciseKey === 'pushup' || exerciseKey === 'plank' || exerciseKey === 'flutterKicks') {
-    postureMetric = ctx.bodyLine;
-  } else if (exerciseKey === 'squat' || exerciseKey === 'lunge') {
-    postureMetric = ctx.lateralScore;
-  } else if (exerciseKey === 'bicepCurl' || exerciseKey === 'shoulderPress') {
-    // Use shoulder angle for primary posture tracking, plus supination as secondary
-    postureMetric = ctx.shoulder;
-    // Also track wrist rotation deviation when available
-    const supScore = ctx.wristSupinationScore;
-    if (typeof supScore === 'number' && !isNaN(supScore)) {
-      jointDeviationProfiler.update(supScore * 100);
-    }
-  }
+if (
+  exerciseKey === "pushup" ||
+  exerciseKey === "plank" ||
+  exerciseKey === "flutterKicks"
+) {
+  postureMetric = ctx.bodyLine;
 
+} else if (exerciseKey === "squat" || exerciseKey === "lunge") {
+  postureMetric = ctx.lateralScore;
+
+} else if (
+  exerciseKey === "bicepCurl" ||
+  exerciseKey === "shoulderPress" ||
+  exerciseKey === "chestPressPunches"
+) {
+  // Use shoulder angle for primary posture tracking
+  postureMetric = ctx.shoulder;
+
+  // Also track wrist rotation deviation when available
+  const supScore = ctx.wristSupinationScore;
+  if (typeof supScore === "number" && !isNaN(supScore)) {
+    jointDeviationProfiler.update(supScore * 100);
+  }
+}
   if (postureMetric !== undefined && postureMetric !== null && !isNaN(postureMetric)) {
-    jointDeviationProfiler.update(postureMetric);
+   // skeletalSense.update(postureMetric);
   }
 
   const detectedIssues = ruleFn(ctx);
@@ -446,7 +529,7 @@ export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
     color,
     message,
     issues: detectedIssues,
-    deviation: jointDeviationProfiler.getStandardDeviation(),
+    deviation: 0,
   };
 }
 
@@ -481,10 +564,77 @@ export function getPostureErrorCategories(): Record<string, number> {
   return categories;
 }
 
+import type { NeuralFormPrediction } from '../types/neuralForm';
+
+export function getNeuralFeedback(
+  prediction: NeuralFormPrediction,
+  _exerciseKey: string,
+): FeedbackResult {
+  const overallScore = Math.round(prediction.overallScore * 100);
+
+  let color: 'green' | 'yellow' | 'red' = 'red';
+  if (overallScore > 80) color = 'green';
+  else if (overallScore > 60) color = 'yellow';
+
+  const issues: DetectionIssue[] = [];
+
+  if (prediction.depthScore < 0.65) {
+    issues.push({
+      type: 'depth',
+      severity: 'medium',
+      message: 'Go lower for full range ⚠️',
+      penalty: Math.round((1 - prediction.depthScore) * 45),
+    });
+  }
+
+  if (prediction.postureScore < 0.65) {
+    issues.push({
+      type: 'posture',
+      severity: 'high',
+      message: 'Keep your back straight ❌',
+      penalty: Math.round((1 - prediction.postureScore) * 45),
+    });
+  }
+
+  if (prediction.romScore < 0.65) {
+    issues.push({
+      type: 'rom',
+      severity: 'medium',
+      message: 'Stretch out for full ROM 📏',
+      penalty: Math.round((1 - prediction.romScore) * 40),
+    });
+  }
+
+  if (prediction.stabilityScore < 0.65) {
+    issues.push({
+      type: 'stability',
+      severity: 'low',
+      message: 'Control your movement ⚠️',
+      penalty: Math.round((1 - prediction.stabilityScore) * 30),
+    });
+  }
+
+  const severityWeight = { high: 0, medium: 1, low: 2 };
+  const sortedIssues = [...issues].sort((a, b) =>
+    (severityWeight[a.severity] || 0) - (severityWeight[b.severity] || 0),
+  );
+
+  const message = sortedIssues.length > 0 ? sortedIssues[0].message : 'Good form ✅';
+
+  return {
+    score: overallScore,
+    color,
+    message,
+    issues,
+    deviation: 0,
+  };
+}
+
 /**
  * Resets the smoothing history (call when starting a new session)
  */
 export function resetFeedbackEngine(): void {
   scoreHistory = [];
   jointDeviationProfiler.reset();
+  //skeletalSense.reset();
 }

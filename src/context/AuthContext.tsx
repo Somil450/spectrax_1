@@ -83,7 +83,7 @@ const getErrorMessage = (error: unknown): string => {
   if (errorCode === "auth/user-disabled")
     return "This account has been disabled";
   if (errorCode === "auth/email-already-in-use")
-    return "Email already registered";
+    return "Could not create your account. If you already have one, please sign in.";
   if (errorCode === "auth/weak-password")
     return "Password must be at least 6 characters";
   if (errorCode === "auth/too-many-requests")
@@ -232,7 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Email and password are required");
       }
 
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -347,18 +347,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Developer / Offline Bypass Login
    */
   const signInAsGuest = async () => {
+    if (!import.meta.env.DEV) return;
     setError(null);
     setLoading(true);
     try {
+      const guestUid = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
       const mockUser = {
-        uid: "mock-guest-user-id",
+        uid: guestUid,
         email: "guest@spectrax.local",
         displayName: "Guest User",
         photoURL: null,
       } as any;
       setUser(mockUser);
       setUserProfile({
-        uid: "mock-guest-user-id",
+        uid: guestUid,
         email: "guest@spectrax.local",
         displayName: "Guest User",
         photoURL: null,

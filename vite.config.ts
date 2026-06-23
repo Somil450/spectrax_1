@@ -32,8 +32,16 @@ const sharedArrayBufferHeaders = () => ({
 });
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@msgpack/msgpack": "@msgpack/msgpack/dist.cjs/index.cjs",
+    },
+  },
   esbuild: {
     target: "es2020",
+  },
+  optimizeDeps: {
+    include: ["@msgpack/msgpack"],
   },
   plugins: [
     sharedArrayBufferHeaders(),
@@ -127,6 +135,7 @@ export default defineConfig({
           if (id.includes("node_modules/three")) return "vendor-three";
           if (id.includes("node_modules/firebase")) return "vendor-firebase";
           if (id.includes("node_modules/@xenova")) return "vendor-xenova";
+          if (id.includes("src/workers/depthWorker")) return "vendor-xenova";
           if (id.includes("node_modules/@mediapipe")) return "vendor-mediapipe";
           if (id.includes("node_modules/react")) return "vendor-react";
         },
@@ -138,5 +147,6 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     exclude: ["server/**", "node_modules/**"],
+    setupFiles: ["src/setupTests.ts"],
   },
 } as any);

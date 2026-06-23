@@ -7,25 +7,32 @@ const {
 } = require("./pose.validator");
 const { MAX_FRAMES_PER_SEC } = require("../../config/constants");
 
-const frameTimestamps = new Map();
-
 function registerPoseSocketHandlers({ socket, sessionService }) {
+  // Move frameTimestamps to function scope for test isolation
+  const frameTimestamps = new Map();
+  const invalidFrameTimestamps = new Map();
   frameTimestamps.set(socket.id, []);
+  invalidFrameTimestamps.set(socket.id, []);
 
-  socket.on("frame", (data) => {
+  function withinRateLimit(store) {
     const now = Date.now();
-    const timestamps = frameTimestamps.get(socket.id) || [];
-    const recent = timestamps.filter((t) => now - t < 1000);
+    const recent = (store.get(socket.id) || []).filter((t) => now - t < 1000);
     if (recent.length >= MAX_FRAMES_PER_SEC) {
-      return;
+      return false;
     }
     recent.push(now);
-    frameTimestamps.set(socket.id, recent);
+    store.set(socket.id, recent);
+    return true;
+  }
 
+  socket.on("frame", (data) => {
     if (
       !hasPoseLandmarks(data && data.landmarks) ||
       !hasValidTimestamp(data && data.timestamp)
     ) {
+      if (!withinRateLimit(invalidFrameTimestamps)) {
+        return;
+      }
       socket.emit("feedback", {
         angles: {},
         corrections: [],
@@ -35,6 +42,10 @@ function registerPoseSocketHandlers({ socket, sessionService }) {
           ? data.timestamp
           : null,
       });
+      return;
+    }
+
+    if (!withinRateLimit(frameTimestamps)) {
       return;
     }
 
@@ -76,6 +87,7 @@ function registerPoseSocketHandlers({ socket, sessionService }) {
 
   socket.on("disconnect", () => {
     frameTimestamps.delete(socket.id);
+    invalidFrameTimestamps.delete(socket.id);
   });
 }
 

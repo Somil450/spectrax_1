@@ -9,3 +9,5 @@ export function debounce<T extends (...args: any[]) => void>(func: T, wait: numb
     }, wait);
   } as T;
 }
+
+// TODO: Consider adding more comprehensive JSDoc comments

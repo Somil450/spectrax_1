@@ -126,6 +126,8 @@ export const BadgeNotification: React.FC<BadgeNotificationProps> = ({ badge, onC
       {/* Close */}
       <button
         onClick={handleClose}
+        className="has-tooltip tooltip-top"
+        data-tooltip="Dismiss"
         aria-label="Dismiss badge notification"
         style={{
           flexShrink: 0,

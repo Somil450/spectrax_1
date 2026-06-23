@@ -1,5 +1,13 @@
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import { gpuAngleCalculator } from './gpuAngleUtils';
+import { FrameInterpolationEngine, frameInterpolationEngine } from './frameInterpolationEngine';
+
+// MediaPipe Pose Landmarker wrapper support
+export const mediaPipePoseLandmarkerConfig = {
+  runningMode: 'VIDEO' as const,
+  numPoses: 1,
+};
+
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
 
@@ -162,10 +170,6 @@ export function readLandmark(index: LandmarkIndex): Readonly<Vec3> {
 
 // ─── Internal Types ───────────────────────────────────────────────────────────
 
-type MediaPipePoseConstructor = new (options: {
-  locateFile: (file: string) => string;
-}) => PoseType;
-
 type LandmarkCoordinate = "x" | "y" | "z" | "visibility";
 
 type LandmarkStream = "poseLandmarks" | "poseWorldLandmarks";
@@ -216,12 +220,6 @@ interface LandmarkFilter {
   toConfig(): PoseSmoothingFilterConfig;
 }
 
-const LANDMARK_COORDINATES: LandmarkCoordinate[] = [
-  "x",
-  "y",
-  "z",
-  "visibility",
-];
 
 const DEFAULT_FILTERS: PoseSmoothingFilterConfig[] = [
   {
@@ -618,6 +616,9 @@ export class PoseService {
     new ArrayBuffer(BUF_BYTES),
   ];
   private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
+  private interpolationEngine: FrameInterpolationEngine = frameInterpolationEngine;
+  private interpolationEnabled: boolean = true;
+  private userCallback: ((results: Results) => void) | null = null;
 
   constructor() {
     this.init();
@@ -641,10 +642,6 @@ export class PoseService {
       });
 
       this.isLoaded = true;
-
-
-      if (this.sharedLandmarkFrame) {
-      }
     } catch (e) {
       console.error("PoseService init failed:", e);
     }
@@ -800,15 +797,49 @@ export class PoseService {
     }
   }
 
+  setInterpolationEnabled(enabled: boolean) {
+    this.interpolationEnabled = enabled;
+    if (!enabled) {
+      this.interpolationEngine.reset();
+    }
+  }
+
+  getInterpolationEnabled(): boolean {
+    return this.interpolationEnabled;
+  }
+
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
+    this.userCallback = callback;
 
     this.pose.onResults((results: Results) => {
       this.inProgress = false;
       this.errorCount = 0;
 
-      if (results) {
-        callback(this.preprocessResults(results));
+      if (!results) return;
+
+      const processed = this.preprocessResults(results);
+
+      if (!this.interpolationEnabled || !processed.poseLandmarks) {
+        callback(processed);
+        return;
+      }
+
+      const frames = this.interpolationEngine.feedConfirmedFrame(
+        processed.poseLandmarks,
+        performance.now(),
+      );
+
+      // Emit all frames: confirmed + any ghosts
+      for (const frame of frames) {
+        const frameResults: Results = {
+          ...processed,
+          poseLandmarks: frame.landmarks as any,
+          // Tag ghost frames so downstream can react
+          // @ts-expect-error — extending Results type for internal use
+          __isGhostFrame: frame.isGhost,
+        };
+        callback(frameResults);
       }
     });
   }
@@ -839,14 +870,29 @@ export class PoseService {
     if (this.pose) {
       try {
         await this.pose.close();
-      } catch {}
+      } catch { /* ignore */ }
       this.pose = null;
       this.isLoaded = false;
     }
+    this.interpolationEngine.reset();
     gpuAngleCalculator.destroy();
   }
 
+  private depthLandmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null = null;
+
+  setDepthLandmarks(landmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null) {
+    this.depthLandmarks = landmarks;
+  }
+
+  getDepthLandmarks() {
+    return this.depthLandmarks;
+  }
+
   private preprocessResults(results: Results): Results {
+    if (this.depthLandmarks && results.poseLandmarks) {
+      (results as any).__depthLandmarks = this.depthLandmarks;
+    }
+
     if (this.smoothingFilters.length === 0) {
       if (results.poseLandmarks) {
         jointConfidenceHash.process(results.poseLandmarks);
@@ -895,3 +941,5 @@ export class PoseService {
 const globalPoseService = new PoseService();
 
 export { globalPoseService as poseService };
+
+// TODO: Consider adding more comprehensive JSDoc comments

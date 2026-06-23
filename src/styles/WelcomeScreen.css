@@ -17,11 +17,9 @@
    Container & Layout
    ============================================= */
 .welcome-container {
-  height: 100vh;
-  overflow-y: auto;
+  min-height: 100vh;
   overflow-x: hidden;
   background: var(--bg-hero);
-  scroll-behavior: smooth;
 }
 
 /* =============================================
@@ -58,8 +56,11 @@
 }
 
 .particle-canvas {
-  position: absolute;
-  inset: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   opacity: 0.6;
   pointer-events: none;
 }
@@ -996,6 +997,51 @@
   border-color: rgba(124, 58, 237, 0.65);
   box-shadow: 0 4px 18px rgba(124, 58, 237, 0.18);
   transform: translateY(-2px);
+}
+
+/* =============================================
+   BMI Calculator button — green variant
+   ============================================= */
+.welcome-btn-secondary--green {
+  background: rgba(0, 255, 100, 0.08);
+  border: 1.5px solid rgba(0, 255, 100, 0.35);
+  color: var(--neon-green);
+  box-shadow: 0 2px 8px rgba(0, 255, 100, 0.1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 12px 28px;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  backdrop-filter: blur(5px);
+}
+
+.welcome-btn-secondary--green:hover {
+  background: rgba(0, 255, 100, 0.15);
+  border-color: var(--neon-green);
+  box-shadow: 0 4px 16px rgba(0, 255, 100, 0.25);
+  transform: translateY(-2px);
+}
+
+.welcome-btn-secondary--green:active {
+  transform: translateY(0);
+}
+
+/* Light-mode scoped override for green */
+.welcome-container[data-theme="light"] .welcome-btn-secondary--green {
+  background: rgba(0, 102, 204, 0.08);
+  border-color: rgba(0, 102, 204, 0.35);
+  color: var(--neon-cyan);
+}
+
+.welcome-container[data-theme="light"] .welcome-btn-secondary--green:hover {
+  background: rgba(0, 102, 204, 0.16);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.2);
 }
 
 

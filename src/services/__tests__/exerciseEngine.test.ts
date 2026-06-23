@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { calculateJumpingJackSyncMetrics, ExerciseEngine, EngineState } from "../exerciseEngine";
+import { KinematicEngine } from "../kinematicEngine";
 import { resetFeedbackEngine } from "../../engine/feedbackEngine";
 import type { ExerciseConfig } from "../../config/exercises";
 import { initialSquatDepthStats } from "../Squat_depth_classifier";
@@ -216,5 +217,55 @@ describe("ExerciseEngine", () => {
 
     expect(result.jumpingJackSyncSamples).toHaveLength(1);
     expect(result.jumpingJackSync?.samples).toBe(1);
+  });
+
+  it("resets KinematicEngine metrics on reset()", () => {
+    const kinematic = new KinematicEngine();
+    const mockLandmarks = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0.1, visibility: 0.9 }));
+    
+    mockLandmarks[24].y = 0.5;
+    kinematic.update(mockLandmarks, 1000, 24);
+    
+    mockLandmarks[24].y = 0.4;
+    kinematic.update(mockLandmarks, 1050, 24);
+    
+    kinematic.onRepComplete();
+    
+    const metrics = kinematic.getMetrics();
+    expect(metrics.baselineVelocity).toBeGreaterThan(0);
+    
+    kinematic.reset();
+    const resetMetrics = kinematic.getMetrics();
+    expect(resetMetrics.baselineVelocity).toBe(0);
+    expect(resetMetrics.velocitiesSession).toHaveLength(0);
+  });
+  it("resets kinematicEngine state on reset() of ExerciseEngine", async () => {
+    const mockLandmarks = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0.1, visibility: 0.9 }));
+    mockLandmarks[24].y = 0.5;
+    
+    const res1 = await engine.process(
+      squatConfig,
+      { knee: 170 },
+      goodVis,
+      makeState(),
+      undefined,
+      mockLandmarks
+    );
+    
+    expect(res1.vbtMetrics).toBeDefined();
+    
+    engine.reset();
+    
+    const res2 = await engine.process(
+      squatConfig,
+      { knee: 170 },
+      goodVis,
+      makeState(),
+      undefined,
+      mockLandmarks
+    );
+    
+    expect(res2.vbtMetrics?.baselineVelocity).toBe(0);
+    expect(res2.vbtMetrics?.velocitiesSession).toHaveLength(0);
   });
 });

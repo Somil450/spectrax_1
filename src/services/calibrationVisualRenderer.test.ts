@@ -8,7 +8,6 @@
 
 import {
   CalibrationVisualRenderer,
-  CalibrationVisuals,
 } from "./calibrationVisualRenderer";
 import type { CalibrationState } from "./calibrationStateEngine";
 

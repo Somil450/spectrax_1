@@ -41,6 +41,7 @@ export class ActivityClassificationService {
       if (data.type === 'ready') {
         this.isReady = true;
       } else if (data.type === 'model-loaded') {
+        // Model loaded, ready for predictions
       } else if (data.type === 'prediction') {
         if (this.onActivityDetected) {
           this.onActivityDetected(data.results);

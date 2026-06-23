@@ -3,8 +3,7 @@
  * Handles syncing offline-queued replay sessions to the backend.
  */
 
-import { getQueue, removeFromQueue } from "../utils/offlineQueue";
-import type { ReplaySession } from "../utils/offlineQueue";
+import { getQueue, removeFromQueue, type ReplaySession } from "../utils/offlineQueue";
 import { getAuth } from "firebase/auth";
 import {
   getFirestore,
@@ -50,11 +49,15 @@ async function uploadReplaySession(session: ReplaySession): Promise<void> {
  * On failure: keeps it in the queue, logs the error, continues with remaining items.
  */
 export async function syncOfflineQueue(): Promise<SyncResult> {
+  const currentUserId = getAuth().currentUser?.uid;
   const queue = getQueue();
   let synced = 0;
   let failed = 0;
 
   for (const session of queue) {
+    if (!currentUserId || session.userId !== currentUserId) {
+      continue;
+    }
     try {
       await uploadReplaySession(session);
       removeFromQueue(session.id);

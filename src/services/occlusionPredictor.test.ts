@@ -164,9 +164,9 @@ describe("OcclusionPredictor", () => {
     const dist = (a: Landmark, b: Landmark) =>
       Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 
-    // Record initial bone lengths
-    const initialLeftUpperArm = dist(lms[11], lms[13]);
-    const initialRightUpperArm = dist(lms[12], lms[14]);
+    // Record initial bone lengths (computed for side effects)
+    dist(lms[11], lms[13]);
+    dist(lms[12], lms[14]);
 
     // Feed 30+ calibration frames
     for (let frame = 0; frame < 35; frame++) {
