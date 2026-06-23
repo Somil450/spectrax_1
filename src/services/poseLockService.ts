@@ -1,10 +1,22 @@
 import { Results, NormalizedLandmarkList } from '@mediapipe/pose';
+import { multiPersonTracker, TrackedPerson } from './multiPersonTracker';
 
 /**
  * poseLockService.ts
- * Ensures the system stays focused on a single user by tracking spatial continuity.
- * Prevents erratic tracking when multiple people are in the frame.
+ * Now supports multi-person tracking with identity persistence.
+ * Replaces single-user lock with occlusion-aware multi-person tracking.
  */
+
+export interface Person {
+  id: string;
+  landmarks: NormalizedLandmarkList;
+  isPrimary: boolean;
+  color: string;
+  confidence: number;
+  velocity: { x: number; y: number };
+  area: number;
+  occlusionFrames: number;
+}
 
 export class PoseLockService {
   
@@ -21,10 +33,11 @@ export class PoseLockService {
   private lastSeenTime = 0;
   private confidenceHistory: number[] = [];
   private readonly CONFIDENCE_WINDOW = 5;
+  private primaryPersonId: string | null = null;
 
   /**
-   * Evaluates if the current pose results belong to the "locked" user.
-   * If not locked, it will lock onto the first high-confidence pose detected.
+   * Legacy single-person filter. Maintained for backward compatibility.
+   * @deprecated Use trackMultiple() for multi-person scenarios.
    */
   filter(results: Results): Results | null {
     if (!results.poseLandmarks) {
@@ -81,12 +94,61 @@ export class PoseLockService {
     return results;
   }
 
+  /**
+   * Multi-person tracking with identity persistence.
+   * Returns array of tracked persons with occlusion-aware state.
+   */
+  trackMultiple(results: Results): Person[] {
+    const tracked = multiPersonTracker.track(results);
+    const now = Date.now();
+
+    if (tracked.length === 0) {
+      if (Date.now() - this.lastSeenTime > this.UNLOCK_TIME_THRESHOLD) {
+        this.primaryPersonId = null;
+      }
+      return [];
+    }
+
+    // Auto-select primary person if none set or previous primary is lost
+    const primaryStillTracked = tracked.some(t => t.id === this.primaryPersonId);
+    if (!this.primaryPersonId || !primaryStillTracked) {
+      // Select largest/most confident person as primary
+      const best = tracked.reduce((a, b) => 
+        a.confidence * a.area > b.confidence * b.area ? a : b
+      );
+      this.primaryPersonId = best.id;
+    }
+
+    this.lastSeenTime = now;
+
+    return tracked.map(track => ({
+      id: track.id,
+      landmarks: track.landmarks,
+      isPrimary: track.id === this.primaryPersonId,
+      color: track.color,
+      confidence: track.confidence,
+      velocity: track.velocity,
+      area: track.area,
+      occlusionFrames: track.occlusionFrames,
+    }));
+  }
+
+  setPrimaryPerson(id: string): void {
+    this.primaryPersonId = id;
+  }
+
+  getPrimaryPersonId(): string | null {
+    return this.primaryPersonId;
+  }
+
   reset() {
     this.isLocked = false;
     this.lastCentroid = null;
     this.lastArea = null;
     this.lastSeenTime = 0;
     this.confidenceHistory = [];
+    this.primaryPersonId = null;
+    multiPersonTracker.reset();
   }
 
   private smoothedConfidence(raw: number): number {

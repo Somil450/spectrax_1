@@ -54,6 +54,19 @@ export interface DepthMapResult {
   timestamp: number;
 }
 
+/** Multi-person tracking person metadata */
+export interface TrackedPersonMeta {
+  id: string;
+  color: string;
+  isPrimary: boolean;
+  confidence: number;
+  velocity: { x: number; y: number };
+  area: number;
+  occlusionFrames: number;
+  bbox: { x: number; y: number; width: number; height: number };
+  centroid: { x: number; y: number };
+}
+
 /** Pose results augmented with per-landmark depth */
 export interface DepthAugmentedResults {
   landmarks: DepthLandmark[];
