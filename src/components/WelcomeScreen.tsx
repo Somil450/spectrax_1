@@ -21,7 +21,6 @@ import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from "../context/ThemeContext";
 
-
 const STATS = [
   { value: "30+", label: "FPS tracking" },
   { value: "6", label: "exercises" },
@@ -583,7 +582,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     </li>
                     <li>
                       <a
-                        href="https://github.com/Somil450/spectrax_1/blob/main/README.md"
+                        href="https://spectrax.dev/docs"
                         className="footer-link"
                       >
                         <FileText size={14} /> Documentation
