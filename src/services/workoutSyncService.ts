@@ -363,7 +363,7 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
             syncedCount++;
           } catch (syncError) {
             // markWorkoutAsSynced failed — rollback orphaned Firestore doc
-            try { await deleteDoc(doc(getFirestore(), "users", userId, "workouts", firestoreId)); } catch {}
+            try { await deleteDoc(doc(getFirestore(), "users", userId, "workouts", firestoreId)); } catch { /* rollback best-effort */ }
             throw syncError;
           }
         }
@@ -587,7 +587,7 @@ export async function bulkUploadWorkouts(
             `[SpectraX] Failed to mark workout ${localKey} as synced locally — rolling back Firestore doc ${firestoreId}:`,
             syncError,
           );
-          try { await deleteDoc(doc(db, "users", userId, "workouts", firestoreId)); } catch {}
+          try { await deleteDoc(doc(db, "users", userId, "workouts", firestoreId)); } catch { /* rollback best-effort */ }
         }
       }
     }
