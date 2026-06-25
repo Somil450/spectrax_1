@@ -353,16 +353,22 @@ export async function syncWorkoutsToFirestore(userId: string): Promise<number> {
     let syncedCount = 0;
 
     for (const workout of unsyncedWorkouts) {
+      let firestoreId: string | undefined;
       try {
-        const firestoreId = await uploadWorkoutToFirestore(workout);
+        firestoreId = await uploadWorkoutToFirestore(workout);
         const targetId = workout.localId ?? workout.id;
         if (targetId !== undefined) {
-          await markWorkoutAsSynced(targetId as any, firestoreId);
-          syncedCount++;
+          try {
+            await markWorkoutAsSynced(targetId as any, firestoreId);
+            syncedCount++;
+          } catch (syncError) {
+            // markWorkoutAsSynced failed — rollback orphaned Firestore doc
+            try { await deleteDoc(doc(getFirestore(), "users", userId, "workouts", firestoreId)); } catch {}
+            throw syncError;
+          }
         }
       } catch (error) {
         console.error(`Failed to sync workout with localId ${workout.localId}:`, error);
-        // Continue with next workout instead of throwing
       }
     }
 
@@ -578,9 +584,10 @@ export async function bulkUploadWorkouts(
           await markWorkoutAsSynced(localKey, firestoreId);
         } catch (syncError) {
           console.error(
-            `[SpectraX] Failed to mark workout ${localKey} as synced locally:`,
+            `[SpectraX] Failed to mark workout ${localKey} as synced locally — rolling back Firestore doc ${firestoreId}:`,
             syncError,
           );
+          try { await deleteDoc(doc(db, "users", userId, "workouts", firestoreId)); } catch {}
         }
       }
     }
