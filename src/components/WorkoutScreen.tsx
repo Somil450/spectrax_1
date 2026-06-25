@@ -1,61 +1,41 @@
-import React, { useState, useEffect, useRef } from "react";
-import Draggable, {
-  type DraggableData,
-  type DraggableEvent,
-} from "react-draggable";
-import {
-  Activity,
-  StopCircle,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Lock,
-  Unlock,
-} from "lucide-react";
-import { cameraService } from "../services/cameraService";
-import { poseService } from "../services/poseService";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import Draggable, { type DraggableData, type DraggableEvent } from "react-draggable";
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from "lucide-react";
+import { useCameraPose } from "../hooks/useCameraPose";
 import { overlayRenderer } from "../services/overlayRenderer";
 import { getJointAngles, getJointVisibility } from "../services/angleUtils";
+import { getPostureErrorCategories } from "../engine/feedbackEngine";
 import { exerciseEngine, EngineState } from "../services/exerciseEngine";
 import { ExerciseConfig } from "../config/exercises";
-import { sessionRecorder } from "../services/sessionRecorder";
-import { skeletalSense } from "../services/skeletalSense"; // Kept on main thread for reliable auto-detect
+import { sessionRecorder, FrameData } from "../services/sessionRecorder";
+import { skeletalSense } from "../services/skeletalSense";
 import { poseLockService } from "../services/poseLockService";
 import { clipEngine } from "../services/clipEngine";
 import { BodyType } from "../services/bodyTypeEngine";
+import { initialSquatDepthStats } from "../services/Squat_depth_classifier";
 import { useWorkoutSync } from "../hooks/useWorkoutSync";
-import {
-  FocusPanel,
-  TimerPanel,
-  RepsPanel,
-  EnginePanel,
-  SensePanel,
-} from "./WorkoutPanels";
-import {
-  useThrottleLevel,
-  throttleMonitor,
-} from "../services/performanceThrottleService";
+import { useDisplayConfig } from "../hooks/useDisplayConfig";
+import { useThrottleLevel, throttleMonitor } from "../services/performanceThrottleService";
+import { gestureService, GestureCommand } from "../services/gestureService";
+import { ghostService } from "../services/ghostService";
+import type { NormalizedLandmark } from "@mediapipe/pose";
 import { Replay3DModel } from "./Replay3DModel";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity } from 'lucide-react';
-import { useCameraPose } from '../hooks/useCameraPose';
-import { overlayRenderer } from '../services/overlayRenderer';
-import { getJointAngles, getJointVisibility } from '../services/angleUtils';
-import { getPostureErrorCategories } from '../engine/feedbackEngine';
-import { exerciseEngine, EngineState } from '../services/exerciseEngine';
-import { ExerciseConfig } from '../config/exercises';
-import { sessionRecorder } from '../services/sessionRecorder';
-import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
-import { poseLockService } from '../services/poseLockService';
-import { clipEngine } from '../services/clipEngine';
-import { BodyType } from '../services/bodyTypeEngine';
-import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
-import { useWorkoutSync } from '../hooks/useWorkoutSync';
-import { useDisplayConfig } from '../hooks/useDisplayConfig';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from './WorkoutPanels';
-import { CameraErrorBoundary } from './CameraErrorBoundary';
-import FpsOverlay from './FpsOverlay';
-import { useFpsCounter } from '../hooks/useFpsCounter';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel } from "./WorkoutPanels";
+import { CameraErrorBoundary } from "./CameraErrorBoundary";
+import FpsOverlay from "./FpsOverlay";
+import { useFpsCounter } from "../hooks/useFpsCounter";
+
+const srOnly: React.CSSProperties = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: 0,
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
 
 
 // ── Web Worker (Vite native worker bundling) ──────────────────────────────────
@@ -194,44 +174,7 @@ useEffect(() => {
   const [vlmProgress, setVlmProgress] = useState(0);
   const [clipResult, setClipResult] = useState<any>(null);
   const { isOnline } = useWorkoutSync();
- fix-workout-screen-memory-leaks
-  
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [showExitModal, setShowExitModal] = useState(false);
-
-  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
-  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<number | NodeJS.Timeout | null>(null);
-  const workoutControlRef = useRef<any>(null);
-  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
-  const ghostFramesRef = useRef<any[]>([]);
-  const ghostStatsRef = useRef<any>(null);
-  const [hasGhost, setHasGhost] = useState(false);
-
-  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
-  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<number | NodeJS.Timeout | null>(null);
-  const workoutControlRef = useRef<any>(null);
-  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
-  const ghostFramesRef = useRef<any[]>([]);
-  const ghostStatsRef = useRef<any>(null);
-  const [hasGhost, setHasGhost] = useState(false);
-
-  // ── Gestures & Controls (lost in merge) ──
-  const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
-  const [lastGestureCommand, setLastGestureCommand] = useState<string | null>(null);
-  const [gestureHudVisible, setGestureHudVisible] = useState(false);
-  const gestureHudTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const workoutControlRef = useRef<any>(null);
-  const [workoutControlState, setWorkoutControlState] = useState<any>(null);
-
-  // ── Ghost Mode (lost in merge) ──
-  const ghostFramesRef = useRef<any[]>([]);
-  const ghostStatsRef = useRef<any>(null);
-  const [hasGhost, setHasGhost] = useState(false);
+  const throttleLevel = useThrottleLevel();
 
   const [engineState, setEngineState] = useState<EngineState>({
     reps: 0,
@@ -265,11 +208,14 @@ useEffect(() => {
   });
 
   const startTimeRef = useRef<number>(Date.now());
+  const bodyTypeRef = useRef<BodyType | null>(null);
+  const onAutoDetectRef = useRef<((key: string) => void) | null>(null);
+  const isMountedRef = useRef(false);
   const frameSkipRef = useRef<number>(0); // frame-skip counter
   const workerRef = useRef<Worker | null>(null); // pose worker
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
-  const lastObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
-  const previousObservedLandmarksRef = useRef<PoseLandmark[] | null>(null);
+  const lastObservedLandmarksRef = useRef<NormalizedLandmark[] | null>(null);
+  const previousObservedLandmarksRef = useRef<NormalizedLandmark[] | null>(null);
   const dropoutFrameCountRef = useRef(0);
   const [mismatchError, setMismatchError] = useState<string | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -289,7 +235,7 @@ useEffect(() => {
   const ghostStatsRef = useRef<any>(null);
   const [hasGhost, setHasGhost] = useState(false);
 
-  const clampPanelPositions = (positions: PanelPositions) => {
+  const clampPanelPositions = React.useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
 
     return (Object.keys(positions) as WorkoutPanelId[]).reduce(
@@ -298,6 +244,10 @@ useEffect(() => {
         const maxX = Math.max(width - (panel?.offsetWidth || 0), 0);
         const maxY = Math.max(height - (panel?.offsetHeight || 0), 0);
 
+        nextPositions[panelId] = {
+          x: Math.max(0, Math.min(positions[panelId].x, maxX)),
+          y: Math.max(0, Math.min(positions[panelId].y, maxY)),
+        };
       return nextPositions;
     },
       {} as PanelPositions,
@@ -862,6 +812,7 @@ useEffect(() => {
           </p>
         </div>
       )}
+      <CameraErrorBoundary>
       {/* Background Video Layer */}
       <div
   ref={viewportRef}
@@ -1785,6 +1736,7 @@ useEffect(() => {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };

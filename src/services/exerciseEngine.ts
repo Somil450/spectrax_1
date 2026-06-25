@@ -1,13 +1,12 @@
-import { getSupinationScore } from "./wristRotationDetector";
+﻿import { getSupinationScore } from "./wristRotationDetector";
 
 /**
- * exerciseEngine.ts  (updated — squat depth classification integrated)
+ * exerciseEngine.ts  (updated â€” squat depth classification integrated)
  */
 
 import { ExerciseConfig } from '../config/exercises';
 import { getFeedback, resetFeedbackEngine, FeedbackResult } from '../engine/feedbackEngine';
-import { getSupinationScore } from "./wristRotationDetector";
-// Note: feedbackEngine.ts lives in src/engine/ — path is correct relative to src/services/
+// Note: feedbackEngine.ts lives in src/engine/ â€” path is correct relative to src/services/
 import {
   classifySquatDepth,
   getLiveDepthFeedback,
@@ -139,9 +138,9 @@ export function calculateJumpingJackSyncMetrics(
   };
 }
 
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // EngineState
-// ─────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface EngineState {
   reps: number;
@@ -170,7 +169,7 @@ export interface EngineState {
   repDeviations: number[];
   accuracy: number;
 
-  // ── Squat depth classification (NEW) ──────────────────────────
+  // â”€â”€ Squat depth classification (NEW) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   /**
    * Classification result for the most recently completed rep.
    * null until the first rep is counted.
@@ -178,7 +177,7 @@ export interface EngineState {
   lastDepthResult: SquatDepthResult | null;
   depthStats: SquatDepthStats;
 
-  // 🔥 Static hold time tracking
+  // ðŸ”¥ Static hold time tracking
   holdTime?: number;
 
   wristSupinationScore?: number;
@@ -202,12 +201,11 @@ export interface EngineState {
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
 
-  wristSupinationScore?: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface RepParams {
   repCooldown: number;
@@ -218,27 +216,6 @@ interface RepParams {
   streakMinScore: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
 
 const ENGINE_DEFAULTS: RepParams = {
   repCooldown: 600,
@@ -260,33 +237,6 @@ export function clearRepParams(key: string): void {
   layoutOverrides.delete(key);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Layout Parser & Defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface RepParams {
-  repCooldown: number;
-  hysteresis: number;
-  smoothingWindow: number;
-  minDownDuration: number;
-  correctRepMinScore: number;
-  streakMinScore: number;
-}
-
-// ─────────────────────────────────────────────
-// ExerciseEngine
-// ─────────────────────────────────────────────
-
-const ENGINE_DEFAULTS: RepParams = {
-  repCooldown: 600,
-  hysteresis: 10,
-  smoothingWindow: 5,
-  minDownDuration: 150,
-  correctRepMinScore: 70,
-  streakMinScore: 80,
-};
-
-const layoutOverrides = new Map<string, Partial<RepParams>>();
 
 export class ExerciseEngine {
   private readonly BASE_REP_COOLDOWN = 600;
@@ -341,7 +291,7 @@ export class ExerciseEngine {
     const now = Date.now();
     const p = this.repParams(config.key);
 
-    // ───────── KINEMATICS ENGINE ─────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€ KINEMATICS ENGINE â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let updatedVbtMetrics = currentState.vbtMetrics;
     if (landmarks && now !== undefined) {
       const jointMap: Record<string, number> = {
@@ -381,7 +331,7 @@ export class ExerciseEngine {
 
     const currentVisibility = visibility[config.primaryJoint];
 
-    // ───────── ADAPTIVE VISIBILITY & RECOVERY ─────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€ ADAPTIVE VISIBILITY & RECOVERY â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const prevVisibilityBuffer = currentState.visibilityBuffer || [];
 
     const newVisibilityBuffer = [...prevVisibilityBuffer, currentVisibility].slice(-p.smoothingWindow);
@@ -410,7 +360,7 @@ export class ExerciseEngine {
     if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
         ...currentState,
-        feedback: 'SENSORS BLURRED — POSITION BODY',
+        feedback: 'SENSORS BLURRED â€” POSITION BODY',
         status: 'yellow',
         isInExercisePosture: false,
         liveDepthFeedback: '',
@@ -453,7 +403,7 @@ export class ExerciseEngine {
       };
     }
 
-    // ───────── REP LOGIC ─────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€ REP LOGIC â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let nextStage = stage;
     let nextReps = reps;
     let nextLastRepTime = lastRepTime;
@@ -492,7 +442,7 @@ export class ExerciseEngine {
       }
     }
 
-    // ───────── POSTURE VALIDATION ─────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€ POSTURE VALIDATION â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const isInExercisePosture = this.isValidExercisePosture(
       history,
       config,
@@ -550,7 +500,7 @@ export class ExerciseEngine {
       feedbackResult = {
         score: 100,
         color: 'green',
-        message: 'READY 🟢',
+        message: 'READY ðŸŸ¢',
         issues: [],
         deviation: 0,
       };
@@ -564,13 +514,13 @@ export class ExerciseEngine {
       currentDeviation = feedbackResult.deviation || 0;
     }
 
-    // ───────── LIVE DEPTH FEEDBACK (during down phase) ────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€ LIVE DEPTH FEEDBACK (during down phase) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //
     // Only inject depth cue when no high-priority form issue is active.
-    // Green status = no critical form error → safe to display depth coaching.
+    // Green status = no critical form error â†’ safe to display depth coaching.
     // We use downAngleReached (the running minimum this rep) so the cue
     // reflects the deepest point reached so far, not the current angle.
-    // ───────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let liveDepthFeedback = '';
     let livePushupDepthFeedback = '';
 
@@ -596,7 +546,7 @@ export class ExerciseEngine {
       }
     }
 
-    // ───────── REP ACCURACY SYSTEM ─────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€ REP ACCURACY SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let nextCurrentStreak = currentState.currentStreak;
     let nextBestStreak = currentState.bestStreak;
     let nextTotalReps = currentState.totalReps;
@@ -639,12 +589,12 @@ export class ExerciseEngine {
     if (repJustCounted) {
       this.kinematicEngine.onRepComplete();
 
-      // ── Classify depth for the completed rep ─────────────────────────────
+      // â”€â”€ Classify depth for the completed rep â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       //
       // `downAngleReached` holds the minimum femur angle for this rep.
       // If the exercise is NOT a squat, depth classification is skipped and
       // no score modifier is applied.  Gate on config.key.
-      // ─────────────────────────────────────────────────────────────────────
+      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const isSquat = /squat/i.test(config.key);
       const isPushup = /pushup/i.test(config.key);
 
@@ -708,7 +658,7 @@ export class ExerciseEngine {
       nextMinScoreInRep = 100;
     }
 
-    // ───────── FEEDBACK DISPLAY ─────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€ FEEDBACK DISPLAY â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let displayFeedback: string;
     let displayStatus: "green" | "yellow" | "red";
 
@@ -745,7 +695,7 @@ export class ExerciseEngine {
     if (
       isInExercisePosture &&
       displayStatus !== 'green' &&
-      displayFeedback !== 'Good form ✅'
+      displayFeedback !== 'Good form âœ…'
     ) {
       nextMistakes[displayFeedback] =
         (nextMistakes[displayFeedback] || 0) + 1;
@@ -796,12 +746,10 @@ export class ExerciseEngine {
 
       vbtMetrics: updatedVbtMetrics,
 
-      // 🔥 Static hold time tracking
+      // ðŸ”¥ Static hold time tracking
       holdTime: nextHoldTime,
 
       wristSupinationScore,
-      jumpingJackSyncSamples: nextJumpingJackSyncSamples,
-      jumpingJackSync: nextJumpingJackSync
     };
   }
 }

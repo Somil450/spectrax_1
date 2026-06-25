@@ -7,6 +7,8 @@ import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
+import { cameraService } from '../services/cameraService';
+import { poseService } from '../services/poseService';
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
@@ -30,6 +32,23 @@ const srOnly: React.CSSProperties = {
   clipPath: 'inset(50%)',
   whiteSpace: 'nowrap',
   border: 0,
+};
+
+const isStationary = (
+  prev: Array<{ x?: number; y?: number }>,
+  curr: Array<{ x?: number; y?: number }>,
+): boolean => {
+  if (!prev || !curr || prev.length !== curr.length) return false;
+  const threshold = 0.01;
+  for (let i = 0; i < prev.length; i++) {
+    if (
+      Math.abs((prev[i]?.x ?? 0) - (curr[i]?.x ?? 0)) > threshold ||
+      Math.abs((prev[i]?.y ?? 0) - (curr[i]?.y ?? 0)) > threshold
+    ) {
+      return false;
+    }
+  }
+  return true;
 };
 
 export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({ 
@@ -73,6 +92,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const lastProcessTime = useRef<number>(0);
   const FPS_LIMIT = 15;
   const countdownIntervalRef = useRef<any>(null);
+  const lastLandmarksRef = useRef<any>(null);
 
   const handleResults = useCallback((results: any) => {
     const evaluation = calibrationLogic.evaluate(results);
@@ -187,35 +207,35 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         await cameraService.startCamera(videoRef.current);
         
         poseService.onResults((results) => {
-  if (!isMounted) return;
-  const evaluation = calibrationLogic.evaluate(results);
-  setResult(evaluation);
+          if (!isMounted) return;
+          const evaluation = calibrationLogic.evaluate(results);
+          setResult(evaluation);
 
-  if (results.poseLandmarks) {
-    const bt = bodyTypeEngine.analyze(results.poseLandmarks);
-    setBodyTypeRes(bt);
-    if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-      onBodyTypeDetected(bt.bodyType);
-    }
+          if (results.poseLandmarks) {
+            const bt = bodyTypeEngine.analyze(results.poseLandmarks);
+            setBodyTypeRes(bt);
+            if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
+              onBodyTypeDetected(bt.bodyType);
+            }
 
-    const gesture = gestureService.analyze(results.poseLandmarks);
-    setGestureResult(gesture);
+            const gesture = gestureService.analyze(results.poseLandmarks);
+            setGestureResult(gesture);
 
-    // ── Debounce canvas redraw when stationary ──────────────────────────
-    // If landmarks haven't moved beyond threshold, skip the draw call
-    // entirely — freezing the canvas and saving a full processor draw loop.
-    if (
-      lastLandmarksRef.current &&
-      isStationary(lastLandmarksRef.current, results.poseLandmarks)
-    ) {
-      return; // pose unchanged — skip redraw
-    }
-    lastLandmarksRef.current = results.poseLandmarks;
-  }
+            // ── Debounce canvas redraw when stationary ──────────────────────────
+            // If landmarks haven't moved beyond threshold, skip the draw call
+            // entirely — freezing the canvas and saving a full processor draw loop.
+            if (
+              lastLandmarksRef.current &&
+              isStationary(lastLandmarksRef.current, results.poseLandmarks)
+            ) {
+              return; // pose unchanged — skip redraw
+            }
+            lastLandmarksRef.current = results.poseLandmarks;
+          }
 
-  const primaryJoints = selectedExercise.joints?.flat() || [];
-  overlayRenderer.draw(results, evaluation.status, primaryJoints);
-});
+          const primaryJoints = selectedExercise.joints?.flat() || [];
+          overlayRenderer.draw(results, evaluation.status, primaryJoints);
+        });
         const processLoop = (timestamp: number) => {
           if (!isMounted) return;
           const elapsed = timestamp - lastProcessTime.current;
@@ -248,6 +268,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     startSystem();
 
     return () => {
+      isMounted = false;
       stopSystem();
       bodyTypeEngine.reset();
       gestureService.reset();

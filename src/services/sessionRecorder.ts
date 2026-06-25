@@ -22,6 +22,35 @@ export interface TelemetryEvent {
   data?: any;
 }
 
+type LandmarkCoordinate = "x" | "y" | "z" | "visibility";
+
+interface CompressedLandmarkDelta {
+  index: number;
+  values: Partial<Record<LandmarkCoordinate, number>>;
+}
+
+interface CompressedFrameChunk {
+  kind: "base" | "delta";
+  timestamp: number;
+  timestampDelta: number;
+  runLength: number;
+  exercise?: string;
+  feedback?: string;
+  angles?: Record<string, number>;
+  landmarks?: CompressedLandmarkDelta[];
+}
+
+export interface SessionArchive {
+  codec: string;
+  frameCount: number;
+  generatedAt: number;
+  frames: CompressedFrameChunk[];
+}
+
+const ANGLE_THRESHOLD = 1.0;
+const LANDMARK_THRESHOLD = 0.01;
+const FLOAT_PRECISION = 5;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // RLD Compression Driver
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,10 +72,11 @@ export class RLDCompressionDriver {
       } else {
         compressed.push({
           ...currFrame,
-          timestampDelta: currFrame.timestamp - prevFrame.timestamp,
+          kind: "base",
+          timestampDelta: currFrame.timestamp - previousFrame.timestamp,
           runLength: 1,
         });
-        prevFrame = currFrame;
+        previousFrame = currFrame;
       }
       previousFrame = currFrame;
     }
@@ -55,7 +85,6 @@ export class RLDCompressionDriver {
 
   static decompress(compressedData: CompressedFrameChunk[]): FrameData[] {
     const frames: FrameData[] = [];
-    let previousFrame: FrameData | null = null;
 
     for (const item of compressedData) {
       const { runLength, timestampDelta, ...frameBase } = item;
@@ -412,19 +441,15 @@ class SessionRecorder {
     if (this.displacements.length >= MAX_FRAMES - 1) {
       this.displacements.shift();
     }
-  }
 
-  const centroid = this.getCentroid(frame.landmarks);
-  if (centroid && this.lastCentroid) {
-    const dx = centroid.x - this.lastCentroid.x;
-    const dy = centroid.y - this.lastCentroid.y;
-    const distance = Math.hypot(dx, dy);
-    this.displacements.push(distance);
-  }
-  this.lastCentroid = centroid;
-
-  const lastCompressed =
-      this.compressedFrames[this.compressedFrames.length - 1];
+    const centroid = this.getCentroid(frame.landmarks);
+    if (centroid && this.lastCentroid) {
+      const dx = centroid.x - this.lastCentroid.x;
+      const dy = centroid.y - this.lastCentroid.y;
+      const distance = Math.hypot(dx, dy);
+      this.displacements.push(distance);
+    }
+    this.lastCentroid = centroid;
 
     const last = this.compressedFrames[this.compressedFrames.length - 1];
     if (this.lastRawFrame && RLDCompressionDriver.isStationary(this.lastRawFrame, frame)) {
@@ -432,6 +457,7 @@ class SessionRecorder {
     } else {
       this.compressedFrames.push({
         ...frame,
+        kind: "base",
         timestampDelta: this.lastRawFrame ? frame.timestamp - this.lastRawFrame.timestamp : 33,
         runLength: 1,
       });
