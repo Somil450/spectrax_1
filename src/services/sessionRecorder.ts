@@ -350,15 +350,9 @@ class SessionRecorder {
   }
   recordFrame(frame: FrameData) {
     // Evict the oldest entry from the rolling buffer when full.
-    if (this._frameCount >= MAX_FRAMES) {
-      const first = this.compressedFrames[0];
-      if (first && first.runLength > 1) {
-        first.runLength--;
-        first.timestamp += first.timestampDelta || 33;
-      } else {
-        this.compressedFrames.shift();
-      }
-      this._frameCount--;
+    if (this._frameCount >= MAX_FRAMES && this.compressedFrames.length > 0) {
+      const first = this.compressedFrames.shift()!;
+      this._frameCount -= first.runLength;
     }
 
     // Track centroid displacement for the stability report.

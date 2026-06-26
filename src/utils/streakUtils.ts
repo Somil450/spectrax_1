@@ -55,22 +55,19 @@ export function updateWorkoutStreak(): WorkoutStreakData {
 
   const lastWorkoutDate = streakData.lastWorkoutDate;
 
-  // Attempt to parse old local date string formats (e.g., "Mon Jan 01 2024") and convert to UTC
-  // If it's already YYYY-MM-DD, this will still parse correctly to midnight UTC.
-  const lastDate = new Date(lastWorkoutDate);
-  let parsedLastString = lastWorkoutDate;
-  if (!lastWorkoutDate.match(/^\d{4}-\d{2}-\d{2}$/) && !isNaN(lastDate.getTime())) {
-      parsedLastString = lastDate.toDateString();
-  } else if (isNaN(lastDate.getTime())) {
-      // Fallback if parsing fails entirely
-      parsedLastString = todayString; 
+  const localDayNumber = (d: Date): number =>
+    Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+
+  const isoMatch = lastWorkoutDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let lastDate: Date;
+  if (isoMatch) {
+    lastDate = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+  } else {
+    const parsed = new Date(lastWorkoutDate);
+    lastDate = isNaN(parsed.getTime()) ? today : parsed;
   }
 
-  const todayParsed = new Date(todayString);
-  const lastParsed = new Date(parsedLastString);
-  
-  const diffTime = todayParsed.getTime() - lastParsed.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = localDayNumber(today) - localDayNumber(lastDate);
 
   let currentStreak = streakData.currentStreak;
 
