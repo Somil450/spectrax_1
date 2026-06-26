@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const { createServer } = require("./app/createServer");
 const { logger } = require("./shared/utils/logger");
 
