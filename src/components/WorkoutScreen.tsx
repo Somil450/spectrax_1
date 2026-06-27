@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { useCameraPose } from '../hooks/useCameraPose';
+import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
@@ -1014,6 +1015,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             </p>
             <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px' }}>RELOAD PAGE</button>
           </div>
+        </div>
+      )}
+      {poseService.isFallbackMode && (
+        <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(239, 68, 68, 0.9)", color: "#fff", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold", zIndex: 1100, display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>
+          <ShieldAlert size={16} />
+          <span>SIMULATED FALLBACK MODE (WEBGL UNSUPPORTED)</span>
         </div>
       )}
       <CameraErrorBoundary>
