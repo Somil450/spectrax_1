@@ -259,25 +259,25 @@ export class CRDTSessionEngine {
   private async persistUpdate(update: Uint8Array): Promise<void> {
     try {
       const db = await openDB();
-      const tx = db.transaction(YJS_STORE, "readwrite");
-      const store = tx.objectStore(YJS_STORE);
+      return new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(YJS_STORE, "readwrite");
+        const store = tx.objectStore(YJS_STORE);
 
-      // Append update to existing session record
-      const getReq = store.get(this.sessionId);
-      getReq.onsuccess = () => {
-        const existing = getReq.result as { sessionId: string; updates: Uint8Array[] } | undefined;
-        const updates = existing?.updates || [];
-        updates.push(update);
+        const getReq = store.get(this.sessionId);
+        getReq.onsuccess = () => {
+          const existing = getReq.result as { sessionId: string; updates: Uint8Array[] } | undefined;
+          const updates = existing?.updates || [];
+          updates.push(update);
 
-        // Keep only last 100 updates to prevent unbounded growth
-        if (updates.length > 100) {
-          // Compact: encode full state as single update
-          const compacted = Y.encodeStateAsUpdate(this.doc);
-          store.put({ sessionId: this.sessionId, updates: [compacted] });
-        } else {
-          store.put({ sessionId: this.sessionId, updates });
-        }
-      };
+          const putReq = updates.length > 100
+            ? store.put({ sessionId: this.sessionId, updates: [Y.encodeStateAsUpdate(this.doc)] })
+            : store.put({ sessionId: this.sessionId, updates });
+          putReq.onerror = () => reject(putReq.error);
+        };
+        getReq.onerror = () => reject(getReq.error);
+        tx.onerror = () => reject(tx.error);
+        tx.oncomplete = () => resolve();
+      });
     } catch (err) {
       console.error("[CRDT] Failed to persist update:", err);
     }
