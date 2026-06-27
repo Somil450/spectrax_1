@@ -7,6 +7,7 @@ import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
+import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
@@ -246,16 +247,10 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   return (
     <div className="screen-container" style={{ background: 'var(--bg-primary)' }}>
       {error === 'CAMERA_PERMISSION_DENIED' && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)', boxSizing: 'border-box' }}>
-          <div style={{ margin: 'auto', width: '100%', maxWidth: '500px', padding: '24px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', borderRadius: '16px', boxSizing: 'border-box' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
-            <h2 style={{ fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', marginBottom: '12px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>CAMERA ACCESS REQUIRED</h2>
-            <p style={{ color: '#94a3b8', lineHeight: 1.5, marginBottom: '24px', fontSize: '0.9rem' }}>
-              SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
-            </p>
-            <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px' }}>RELOAD PAGE</button>
-          </div>
-        </div>
+        <CameraPermissionRecovery onRetry={() => {
+          setError(null);
+          startSystem();
+        }} />
       )}
 
       <div className="camera-viewport" style={{
