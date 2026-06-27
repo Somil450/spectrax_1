@@ -15,6 +15,7 @@ import { BodyType } from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
+import { audioFeedbackService } from '../services/audioFeedbackService';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { injuryRiskEngine } from '../services/injuryRiskEngine';
@@ -748,6 +749,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       bodyTypeRef.current,
       results.poseLandmarks
     );
+    
+    // Trigger Audio Feedback
+    if (nextState.correctReps > mutableState.current.correctReps) {
+      audioFeedbackService.playSuccessChime();
+    } else if (nextState.status === "red" && mutableState.current.status !== "red") {
+      audioFeedbackService.playErrorBuzz();
+    }
+
     mutableState.current = nextState;
     setEngineState(nextState);
 
@@ -795,7 +804,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         overlayRenderer.set3DEnabled(false);
         overlayRenderer.setMeshVertices(null);
       }
-      overlayRenderer.draw(results, nextState.status, primaryJoints);
+      
+      const errorJoints: number[] = [];
+      if (nextState.mistakes["knee"]) errorJoints.push(25, 26);
+      if (nextState.mistakes["back"]) errorJoints.push(11, 12, 23, 24);
+      if (nextState.mistakes["elbow"]) errorJoints.push(13, 14);
+      if (nextState.mistakes["depth"]) errorJoints.push(23, 24);
+      
+      overlayRenderer.draw(results, nextState.status, primaryJoints, errorJoints);
     }
   }, [exercise, depth3DEnabled, handleEnd]);
 
@@ -1045,6 +1061,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             transform: "scaleX(-1)",
           }}
         />
+        {engineState.status === "red" && (
+          <div className="workout-error-flash" style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            boxShadow: 'inset 0 0 100px rgba(255, 0, 0, 0.7)',
+            pointerEvents: 'none',
+            zIndex: 10,
+            animation: 'pulse 1s infinite'
+          }} />
+        )}
       </div>
 
       {/* Target Overlays for IndexedDB State logic */}

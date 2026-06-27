@@ -725,7 +725,7 @@ export class ExerciseEngine {
       correctReps: nextCorrectReps,
       minScoreInRep: nextMinScoreInRep,
       repScores: nextRepScores,
-      repDeviations: nextRepDeviations,src/services/Squat_depth_classifier.ts
+      repDeviations: nextRepDeviations,
       accuracy,
 
       lastDepthResult: nextLastDepthResult,
