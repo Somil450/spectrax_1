@@ -1174,11 +1174,6 @@ body {
   opacity: 1 !important;
 }
 
-/* Better heading glow */
-.text-glow {
-  text-shadow:
-    0 0 18px rgba(37,99,235,0.18);
-}
 /* =========================================
    LIGHT MODE TEXT VISIBILITY FIX
 ========================================= */
