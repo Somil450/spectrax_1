@@ -44,6 +44,7 @@ interface WelcomeScreenProps {
   onViewTrophies: () => void;
   onViewProfile?: () => void;
   onViewFitnessCalculator?: () => void;
+  onViewAvatarCustomization?: () => void;
   onViewWorkoutPlans: () => void;
   leveling?: {
     xp: number;
@@ -59,7 +60,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
   onViewTrophies,
+  onViewProfile,
   onViewFitnessCalculator,
+  onViewAvatarCustomization,
   onViewWorkoutPlans,
   leveling,
   activePlan,
@@ -220,6 +223,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </button>
 
               <div className="welcome-btn-row">
+                <button
+                  onClick={onViewAvatarCustomization}
+                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                  aria-label="Customize Avatar"
+                  tabIndex={0}
+                >
+                  <User size={15} />
+                  Avatar
+                </button>
                 <button
                   onClick={onViewHistory}
                   className="welcome-btn-secondary welcome-btn-secondary--cyan"
