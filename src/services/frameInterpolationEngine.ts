@@ -159,35 +159,14 @@ export class FrameInterpolationEngine {
     timestamp: number,
   ): TimestampedFrame {
     const out = new Float32Array(LM_COUNT * STRIDE);
-    const dt = b.timestamp - a.timestamp;
-    // Avoid division by zero; if same timestamp, just return b
-    const safeDt = dt > 0 ? dt : 1;
 
     for (let i = 0; i < LM_COUNT; i++) {
       const off = i * STRIDE;
 
       // Linear interpolation for position
-      const x = a.landmarks[off] + t * (b.landmarks[off] - a.landmarks[off]);
-      const y = a.landmarks[off + 1] + t * (b.landmarks[off + 1] - a.landmarks[off + 1]);
-      const z = a.landmarks[off + 2] + t * (b.landmarks[off + 2] - a.landmarks[off + 2]);
-
-      // Velocity-based extrapolation for continuity feel:
-      // v = (b - a) / dt, projected forward by t * dt
-      // This is equivalent to linear interpolation but framed as vector velocity
-      const vx = (b.landmarks[off] - a.landmarks[off]) / safeDt;
-      const vy = (b.landmarks[off + 1] - a.landmarks[off + 1]) / safeDt;
-      const vz = (b.landmarks[off + 2] - a.landmarks[off + 2]) / safeDt;
-
-      // Blend lerp with velocity projection for smoother motion
-      const blend = 0.7; // favor lerp, velocity adds micro-correction
-      const projectedX = a.landmarks[off] + vx * t * safeDt;
-      const projectedY = a.landmarks[off + 1] + vy * t * safeDt;
-      const projectedZ = a.landmarks[off + 2] + vz * t * safeDt;
-
-      out[off] = x * blend + projectedX * (1 - blend);
-      out[off + 1] = y * blend + projectedY * (1 - blend);
-      out[off + 2] = z * blend + projectedZ * (1 - blend);
-
+      out[off] = a.landmarks[off] + t * (b.landmarks[off] - a.landmarks[off]);
+      out[off + 1] = a.landmarks[off + 1] + t * (b.landmarks[off + 1] - a.landmarks[off + 1]);
+      out[off + 2] = a.landmarks[off + 2] + t * (b.landmarks[off + 2] - a.landmarks[off + 2]);
       // Mark as ghost frame
       out[off + 3] = this.config.ghostVisibility;
     }
