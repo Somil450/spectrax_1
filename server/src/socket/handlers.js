@@ -1,5 +1,6 @@
 const { processPose } = require("../modules/poseProcessor");
 const { saveSession, MAX_SESSION_FRAMES } = require("../modules/sessionStorage");
+const { DEFAULT_EXERCISE, SUPPORTED_EXERCISES } = require("../shared/constants/exercises");
 
 function setupSocketHandlers(io, sessions) {
   io.on("connection", (socket) => {
@@ -13,6 +14,14 @@ function setupSocketHandlers(io, sessions) {
     // ── Real-time frame processing ──
     socket.on("frame", (data) => {
       if (!data || !Array.isArray(data.landmarks) || data.landmarks.length < 29) return;
+
+      if (data.exercise && !SUPPORTED_EXERCISES.includes(data.exercise)) {
+        socket.emit("exercise:unsupported", {
+          received: data.exercise,
+          fallback: DEFAULT_EXERCISE,
+          supported: SUPPORTED_EXERCISES,
+        });
+      }
 
       const now = Date.now();
       if (now - frameWindowStart >= 1000) {
