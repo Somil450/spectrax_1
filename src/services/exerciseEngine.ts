@@ -305,7 +305,7 @@ export class ExerciseEngine {
     // Adaptive Difficulty Tuning
     let currentCooldown = this.BASE_REP_COOLDOWN;
     let currentHysteresis = this.BASE_HYSTERESIS;
-    
+
     if (bodyType === 'ecto') {
       currentCooldown = 750; // Longer limbs take more time to complete full ROM
       currentHysteresis = 12; // Ectos need slightly larger movement bands
@@ -606,11 +606,11 @@ export class ExerciseEngine {
       // ── Classify depth for the completed rep ─────────────────────────────
       let depthScoreModifier = 0;
       const repCompletionResult = strategy.onRepComplete(exerciseContext);
-      
+
       if (repCompletionResult) {
         depthScoreModifier = repCompletionResult.depthScoreModifier;
         if (!repCompletionResult.isFullDepth) nextMinScoreInRep = 0;
-        
+
         if (repCompletionResult.nextLastDepthResult) {
           nextLastDepthResult = repCompletionResult.nextLastDepthResult;
           nextDepthStats = repCompletionResult.nextDepthStats;
@@ -744,7 +744,7 @@ export class ExerciseEngine {
       tutMetrics: tut || undefined,
       holdTime: nextHoldTime,
 
-      wristSupinationScore,
+                              wristSupinationScore,
     };
   }
 

@@ -56,6 +56,20 @@ describe("getFeedback", () => {
     expect(afterReset.score).toBe(65);
     expect(afterReset.color).toBe("yellow");
   });
+
+  it("resets smoothing when the exercise key changes (auto-switch contamination)", () => {
+    getFeedback({ knee: 90, stage: "up" }, "squat"); // score 100 → history: [100]
+
+    // Auto-switch to a low-form pushup (rawScore 30). Without a reset on key
+    // change, history would be [100, 30] → smoothed 65 (yellow); with the reset
+    // it is [30] → 30 (red).
+    const afterSwitch = getFeedback(
+      { bodyLine: 120, horizontalStretch: 30, stage: "up" },
+      "pushup"
+    );
+    expect(afterSwitch.score).toBe(30);
+    expect(afterSwitch.color).toBe("red");
+  });
 });
 
 describe("getFeedback – flutterKicks", () => {

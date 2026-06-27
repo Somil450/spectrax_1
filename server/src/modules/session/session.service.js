@@ -38,16 +38,24 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
 
   async function cleanupOldSessions() {
     try {
-      if (!fs.existsSync(sessionPath)) {
+      const parsed = path.parse(sessionPath);
+      const sessionDir = parsed.dir;
+      const filePrefix = `${parsed.name}-`;
+      const fileExt = parsed.ext || '.json';
+
+      if (!fs.existsSync(sessionDir)) {
         return;
       }
-      const files = await fs.promises.readdir(sessionPath);
+      const files = await fs.promises.readdir(sessionDir);
       const now = Date.now();
       const ttlMs = SESSION_FILE_TTL_DAYS * 24 * 60 * 60 * 1000;
       let deletedCount = 0;
 
       for (const file of files) {
-        const filePath = path.join(sessionPath, file);
+        if (!file.startsWith(filePrefix) || !file.endsWith(fileExt)) {
+          continue;
+        }
+        const filePath = path.join(sessionDir, file);
         const stats = await fs.promises.stat(filePath);
         const fileAge = now - stats.mtime.getTime();
         if (fileAge > ttlMs) {

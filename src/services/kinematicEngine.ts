@@ -228,7 +228,7 @@ export class KinematicEngine {
 
       // ── TUT: Finalize current rep's phase timing ───────────────
       // Add time for the current active phase since last transition
-      const now = performance.now();
+      const now = this.previousTime;
       const activePhaseDuration = now - this.phaseStartTime;
       this.currentRepTUT[this.currentPhase] += activePhaseDuration;
 

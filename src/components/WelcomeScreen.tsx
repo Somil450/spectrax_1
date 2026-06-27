@@ -20,6 +20,7 @@ import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from "../context/ThemeContext";
+import { debounce } from "../utils/debounce";
 
 
 const STATS = [
