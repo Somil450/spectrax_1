@@ -93,9 +93,6 @@ class BodyTypeEngine {
     // Adaptive calibration factor: body-type-specific ±10% threshold scaling
     // When torsoToFemur > reference → shorter femurs → thresholds decrease (factor < 1.0)
     // When torsoToFemur < reference → longer femurs → thresholds increase (factor > 1.0)
-    const rawFactor = this.REFERENCE_TORSO_FEMUR_RATIO / torsoToFemur;
-    Math.min(1.1, Math.max(0.9, rawFactor));
-
     this.history.push({ shoulderToHip, torsoToLeg, torsoToFemur, armToTorso });
     if (this.history.length > this.HISTORY_SIZE) {
       this.history.shift();
