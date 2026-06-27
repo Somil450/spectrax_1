@@ -2,6 +2,24 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { io: ioClient } = require("socket.io-client");
+
+require.cache[require.resolve("firebase-admin")] = {
+  exports: {
+    getApps: () => [],
+    initializeApp: () => {},
+    auth: () => ({
+      verifyIdToken: (token) => {
+        if (token === "valid-token") {
+          return Promise.resolve({ uid: "test-user-id" });
+        }
+        throw new Error("Invalid token");
+      }
+    })
+  }
+};
+
+const admin = require("firebase-admin");
+
 const { createServer } = require("../../src/app/createServer");
 const { buildSessionFilePath } = require("../../src/shared/utils/paths");
 
@@ -25,6 +43,8 @@ describe("socket flow", () => {
     const address = runtime.server.address();
     const client = ioClient(`ws://127.0.0.1:${address.port}`, {
       transports: ["websocket"],
+      auth: { token: "valid-token" },
+      forceNew: true,
     });
 
     const feedbackPromise = new Promise((resolve, reject) => {

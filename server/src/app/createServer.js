@@ -46,7 +46,7 @@ function createServer(overrides = {}) {
   const io = new Server(server, createSocketOptions(config));
 
   // Initialize Firebase Admin if not already initialized
-  if (!admin.apps.length) {
+  if (!admin.getApps().length) {
     admin.initializeApp({
       projectId: config.firebaseProjectId || process.env.FIREBASE_PROJECT_ID || 'demo-project',
     });
@@ -56,10 +56,13 @@ function createServer(overrides = {}) {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-      
       if (!token) {
         if (process.env.NODE_ENV !== "production") {
-          logger.warn("[SpectraX] Missing auth token. Proceeding as guest (development only).");
+          if (logger.warn) {
+            logger.warn("[SpectraX] Missing auth token. Proceeding as guest (development only).");
+          } else {
+            logger.info("[SpectraX] Missing auth token. Proceeding as guest (development only).");
+          }
           socket.user = { uid: "guest_user", isGuest: true };
           return next();
         }
