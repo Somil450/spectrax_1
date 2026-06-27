@@ -351,6 +351,7 @@ export class ExerciseEngine {
     if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
         ...currentState,
+        trackingLostFrames: nextTrackingLostFrames,
         feedback: 'SENSORS BLURRED — POSITION BODY',
         status: 'yellow',
         isInExercisePosture: false,
