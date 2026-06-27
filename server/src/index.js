@@ -5,7 +5,10 @@ const runtime = createServer();
 
 let shuttingDown = false;
 
-process.on("SIGINT", () => {
+// Handles both SIGINT (interactive, e.g. Ctrl+C) and SIGTERM (orchestrated, e.g.
+// Docker/Kubernetes/PM2/systemd) so the server saves sessions and exits cleanly
+// on any stop or restart. The shuttingDown guard makes a repeated signal safe.
+function gracefulShutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
 
@@ -20,7 +23,10 @@ process.on("SIGINT", () => {
       logger.error("[SpectraX] Shutdown failed:", error.message);
       process.exit(1);
     });
-});
+}
+
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
 
 runtime
   .start()
