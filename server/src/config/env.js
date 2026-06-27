@@ -17,6 +17,8 @@ function getConfig(overrides = {}) {
     overrides.maxConnectionsPerIp ?? Number(process.env.MAX_CONNECTIONS_PER_IP || 10);
   const trustProxy =
     overrides.trustProxy ?? (Number(process.env.TRUST_PROXY) || 0);
+  const firebaseProjectId = 
+    overrides.firebaseProjectId ?? process.env.FIREBASE_PROJECT_ID;
 
   return {
     port,
@@ -26,6 +28,7 @@ function getConfig(overrides = {}) {
     socketPath,
     maxConnectionsPerIp,
     trustProxy,
+    firebaseProjectId,
   };
 }
 

@@ -18,17 +18,18 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     sessionStore.setSessionFrames(socketId, sessionFrames);
   }
 
-  async function saveSession(frames, socketId) {
+  async function saveSession(frames, socketId, userId) {
     try {
       const resolvedSessionPath = buildSessionFilePath(sessionPath, socketId);
       const sessionData = {
         savedAt: new Date().toISOString(),
         socketId,
+        userId: userId || 'guest',
         frameCount: frames.length,
         frames,
       };
       await fs.promises.writeFile(resolvedSessionPath, JSON.stringify(sessionData, null, 2));
-      logger.info(`[SpectraX] session.json saved (${frames.length} frames)`);
+      logger.info(`[SpectraX] session.json saved (${frames.length} frames, User: ${userId || 'guest'})`);
       return resolvedSessionPath;
     } catch (error) {
       logger.error('[SpectraX] Failed to save session:', error.message);
@@ -90,13 +91,13 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     logger.error('[SpectraX] Failed to start cleanup routine:', error.message);
   });
 
-  async function finalizeSession(socketId) {
+  async function finalizeSession(socketId, userId) {
     if (finalizedSessions.has(socketId)) return [];
     finalizedSessions.add(socketId);
     try {
       const frames = sessionStore.getSessionFrames(socketId);
       if (frames && frames.length > 0) {
-        await saveSession(frames, socketId);
+        await saveSession(frames, socketId, userId);
       }
       sessionStore.deleteSession(socketId);
       return frames;

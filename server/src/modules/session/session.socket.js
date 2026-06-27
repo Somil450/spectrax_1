@@ -7,8 +7,9 @@ function registerSessionSocketHandlers({ socket, sessionService, logger }) {
         return;
       }
 
-      const frames = await sessionService.finalizeSession(socket.id);
-      logger.info(`[SpectraX] Session saved for ${socket.id} (${frames.length} frames)`);
+      const userId = socket.user?.uid || 'guest';
+      const frames = await sessionService.finalizeSession(socket.id, userId);
+      logger.info(`[SpectraX] Session saved for ${socket.id} (User: ${userId}, ${frames.length} frames)`);
     } catch (error) {
       logger.error(`[SpectraX] Failed to finalize session on session:end for ${socket.id}:`, error.message);
     }
@@ -20,8 +21,9 @@ function registerSessionSocketHandlers({ socket, sessionService, logger }) {
         return;
       }
 
-      await sessionService.finalizeSession(socket.id);
-      logger.info(`[SpectraX] Client disconnected: ${socket.id}`);
+      const userId = socket.user?.uid || 'guest';
+      await sessionService.finalizeSession(socket.id, userId);
+      logger.info(`[SpectraX] Client disconnected: ${socket.id} (User: ${userId})`);
     } catch (error) {
       logger.error(`[SpectraX] Failed to finalize session on disconnect for ${socket.id}:`, error.message);
     }

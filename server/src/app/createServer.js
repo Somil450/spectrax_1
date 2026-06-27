@@ -2,7 +2,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const { getConfig } = require("../config/env");
 const { createSocketOptions } = require("../config/socket");
-const { SOCKET_AUTH_TOKEN } = require("../config/constants");
+const admin = require("firebase-admin");
 const { createSessionStore } = require("../modules/session/session.store");
 const { createSessionService } = require("../modules/session/session.service");
 const { registerPoseSocketHandlers } = require("../modules/pose/pose.socket");
@@ -45,22 +45,35 @@ function createServer(overrides = {}) {
   const server = http.createServer(app);
   const io = new Server(server, createSocketOptions(config));
 
-  io.use((socket, next) => {
-    if (!SOCKET_AUTH_TOKEN) {
-      if (process.env.NODE_ENV === "production") {
-        return next(new Error("Server misconfiguration: SOCKET_AUTH_TOKEN is not set"));
+  // Initialize Firebase Admin if not already initialized
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      projectId: config.firebaseProjectId || process.env.FIREBASE_PROJECT_ID || 'demo-project',
+    });
+  }
+
+  // WebSocket Authentication Middleware using Firebase Admin
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      
+      if (!token) {
+        if (process.env.NODE_ENV !== "production") {
+          logger.warn("[SpectraX] Missing auth token. Proceeding as guest (development only).");
+          socket.user = { uid: "guest_user", isGuest: true };
+          return next();
+        }
+        return next(new Error("Authentication failed: missing token"));
       }
-      console.warn(
-        "[SpectraX] WARNING: SOCKET_AUTH_TOKEN is not configured. " +
-        "All WebSocket connections accepted without authentication.",
-      );
-      return next();
+      
+      // Verify the Firebase JWT
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      socket.user = decodedToken;
+      next();
+    } catch (error) {
+      logger.error("[SpectraX] WebSocket JWT Auth Failed:", error.message);
+      next(new Error("Authentication failed: invalid token"));
     }
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-    if (token !== SOCKET_AUTH_TOKEN) {
-      return next(new Error("Authentication failed: invalid or missing token"));
-    }
-    next();
   });
 
   io.use((socket, next) => {
