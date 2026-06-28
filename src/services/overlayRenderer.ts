@@ -42,35 +42,44 @@ export class OverlayRenderer {
   draw(
     results: Results,
     status: "green" | "yellow" | "red" = "green",
-    primaryJoints: number[] = []
+    primaryJoints: number[] = [],
+    personColor?: string,
+    isGhost?: boolean
   ) {
     if (!this.ctx || !results.poseLandmarks) return;
 
-    this.clear();
+    // Only clear on first draw call of a frame
+    if (!isGhost) {
+      this.clear();
+    }
 
-    const color = this.getStatusColor(status);
+    const color = personColor || this.getStatusColor(status);
     const width = this.ctx.canvas.width;
     const height = this.ctx.canvas.height;
 
-    if (this.draw3DEnabled && this.meshVertices) {
+    if (this.draw3DEnabled && this.meshVertices && !isGhost) {
       this.draw3DMesh(this.meshVertices, width, height, color);
     }
 
     if (drawConnectors && POSE_CONNECTIONS && drawLandmarks) {
+      const connectorColor = isGhost ? color + "44" : "rgba(255, 255, 255, 0.2)";
+      const highlightColor = isGhost ? color + "66" : color;
+
       drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-        color: "rgba(255, 255, 255, 0.2)",
-        lineWidth: 2,
+        color: connectorColor,
+        lineWidth: isGhost ? 1 : 2,
       });
 
       drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-        color: color,
-        lineWidth: 4,
+        color: highlightColor,
+        lineWidth: isGhost ? 2 : 4,
       });
 
       drawLandmarks(this.ctx, results.poseLandmarks, {
-        color: "#ffffff",
+        color: isGhost ? color + "AA" : "#ffffff",
         fillColor: (data: any) => {
-          if (primaryJoints.includes(data.index!)) return color;
+          if (primaryJoints.includes(data.index!)) return highlightColor;
+          if (isGhost) return color + "88";
           if (data.index! >= 11) {
             if (data.index! % 2 !== 0) return "rgba(0, 240, 255, 0.8)";
             if (data.index! % 2 === 0) return "rgba(157, 78, 221, 0.8)";
@@ -79,16 +88,68 @@ export class OverlayRenderer {
         },
         lineWidth: 1,
         radius: (data: any) => {
-          return primaryJoints.includes(data.index!) ? 6 : 3;
+          return primaryJoints.includes(data.index!) ? 6 : (isGhost ? 2 : 3);
         },
       });
 
-      this.ctx.shadowBlur = 15;
-      this.ctx.shadowColor = color;
+      if (!isGhost) {
+        this.ctx.shadowBlur = 15;
+        this.ctx.shadowColor = color;
+      }
     }
 
+    if (!isGhost) {
+      this.drawScanningLine();
+      this.drawCenterOfMass(results.poseLandmarks);
+    }
+  }
+
+  /**
+   * Draw multiple person skeletons with color-coded IDs.
+   */
+  drawMultiPerson(
+    persons: Array<{
+      landmarks: any[];
+      color: string;
+      isPrimary: boolean;
+      occlusionFrames: number;
+    }>,
+    status: "green" | "yellow" | "red" = "green",
+    primaryJoints: number[] = []
+  ) {
+    if (!this.ctx) return;
+
+    this.clear();
+
+    for (const person of persons) {
+      const results: Results = {
+        poseLandmarks: person.landmarks,
+      } as Results;
+
+      const alpha = person.occlusionFrames > 5 ? 0.4 : 1;
+      const color = person.color;
+
+      // Set global alpha for this person
+      this.ctx.globalAlpha = alpha;
+
+      this.draw(results, status, primaryJoints, color, false);
+
+      // Draw person ID near centroid
+      const centroidX = person.landmarks.reduce((s: number, lm: any) => s + lm.x, 0) / person.landmarks.length;
+      const centroidY = person.landmarks.reduce((s: number, lm: any) => s + lm.y, 0) / person.landmarks.length;
+
+      this.ctx.globalAlpha = 1;
+      this.ctx.fillStyle = color;
+      this.ctx.font = "bold 14px var(--font-heading)";
+      this.ctx.fillText(
+        person.isPrimary ? "★ PRIMARY" : "PERSON",
+        centroidX * this.ctx.canvas.width - 30,
+        centroidY * this.ctx.canvas.height - 20
+      );
+    }
+
+    this.ctx.globalAlpha = 1;
     this.drawScanningLine();
-    this.drawCenterOfMass(results.poseLandmarks);
   }
 
   private draw3DMesh(

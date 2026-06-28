@@ -129,4 +129,41 @@ export class GhostService {
   }
 }
 
+  /**
+   * Compare a person's current landmarks against ghost frame at elapsed time.
+   * Returns a similarity score (0-1) and deviation metrics.
+   */
+  public comparePersonToGhost(
+    personLandmarks: any[],
+    ghostFrames: FrameData[],
+    elapsedMs: number
+  ): { score: number; deviations: Record<string, number> } | null {
+    const ghostFrame = this.getGhostFrameAtTime(ghostFrames, elapsedMs);
+    if (!ghostFrame || !ghostFrame.landmarks) return null;
+
+    const deviations: Record<string, number> = {};
+    let totalDeviation = 0;
+    let count = 0;
+
+    const compareIndices = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+
+    for (const i of compareIndices) {
+      const person = personLandmarks[i];
+      const ghost = ghostFrame.landmarks[i];
+      if (person && ghost && person.visibility > 0.3 && ghost.visibility > 0.3) {
+        const dx = person.x - ghost.x;
+        const dy = person.y - ghost.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        deviations[`joint_${i}`] = dist;
+        totalDeviation += dist;
+        count++;
+      }
+    }
+
+    const avgDeviation = count > 0 ? totalDeviation / count : 0;
+    const score = Math.max(0, 1 - avgDeviation * 2); // Scale: 0.5 deviation = 0 score
+
+    return { score, deviations };
+  }
+
 export const ghostService = new GhostService();

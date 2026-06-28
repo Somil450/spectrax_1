@@ -9,7 +9,7 @@ import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
-import { poseLockService } from '../services/poseLockService';
+import { poseLockService, Person } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType } from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
@@ -278,6 +278,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const ghostFramesRef = useRef<FrameData[]>([]);
   const ghostStatsRef = useRef<GhostStats | null>(null);
   const [hasGhost, setHasGhost] = useState(false);
+  const [trackedPersons, setTrackedPersons] = useState<Person[]>([]);
+  const [primaryPersonId, setPrimaryPersonId] = useState<string | null>(null);
+  const personEnginesRef = useRef<Map<string, EngineState>>(new Map());
+  const personStatsRef = useRef<Map<string, {
+    reps: number; totalReps: number; correctReps: number; repScores: number[];
+    repDeviations: number[]; mistakes: Record<string, number>; bestStreak: number;
+  }>>(new Map());
 
   const clampPanelPositions = useCallback((positions: PanelPositions) => {
     const { width, height } = getViewportSize();
@@ -600,9 +607,27 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }, [exercise.key, onEnd, seconds, clipResult]);
 
   const handlePoseResults = useCallback(async (results: any) => {
-    // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
-    const filteredResults = poseLockService.filter(results);
-    if (!filteredResults || !filteredResults.poseLandmarks) return;
+    // ── MULTI-PERSON TRACKING: Track up to 4 people with identity persistence ──
+    const persons = poseLockService.trackMultiple(results);
+    if (persons.length === 0) return;
+
+    setTrackedPersons(persons);
+    
+    // Update primary person ID if changed
+    const currentPrimary = poseLockService.getPrimaryPersonId();
+    if (currentPrimary !== primaryPersonId) {
+      setPrimaryPersonId(currentPrimary);
+    }
+
+    // Process each tracked person
+    const primaryPerson = persons.find(p => p.isPrimary) || persons[0];
+    if (!primaryPerson) return;
+
+    // Use primary person's landmarks for main processing
+    const filteredResults = {
+      ...results,
+      poseLandmarks: primaryPerson.landmarks,
+    };
 
     if (depth3DEnabled && videoRef.current && depthEngineRef.current) {
       const video = videoRef.current;
@@ -741,17 +766,79 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
     }
 
-    // 2. Process through multi-exercise engine (stays on main thread — manages state)
-    const nextState = await exerciseEngine.process(
-      activeConfig,
-      angles,
-      visibility,
-      mutableState.current,
-      bodyTypeRef.current,
-      results.poseLandmarks
-    );
-    mutableState.current = nextState;
-    setEngineState(nextState);
+    // 2. Process through multi-exercise engine per person
+    for (const person of persons) {
+      if (!personEnginesRef.current.has(person.id)) {
+        personEnginesRef.current.set(person.id, {
+          reps: 0,
+          stage: "up",
+          feedback: "ESTABLISHING POSTURE...",
+          status: "yellow",
+          lastRepTime: 0,
+          isCalibrated: false,
+          history: [],
+          stageStartTime: 0,
+          frameScore: 0,
+          totalScore: 0,
+          totalFrames: 0,
+          allowRep: false,
+          mistakes: {},
+          currentStreak: 0,
+          bestStreak: 0,
+          isInExercisePosture: false,
+          downAngleReached: 999,
+          totalReps: 0,
+          correctReps: 0,
+          minScoreInRep: 100,
+          repScores: [],
+          repDeviations: [],
+          accuracy: 100,
+          lastDepthResult: null,
+          depthStats: initialSquatDepthStats(),
+          liveDepthFeedback: '',
+          jumpingJackSyncSamples: [],
+          jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
+        });
+        personStatsRef.current.set(person.id, {
+          reps: 0, totalReps: 0, correctReps: 0,
+          repScores: [], repDeviations: [],
+          mistakes: {}, bestStreak: 0,
+        });
+      }
+
+      const personAngles = getJointAngles(person.landmarks);
+      const personVisibility = getJointVisibility(person.landmarks);
+      const personState = personEnginesRef.current.get(person.id)!;
+
+      const nextPersonState = await exerciseEngine.process(
+        activeConfig,
+        personAngles,
+        personVisibility,
+        personState,
+        bodyTypeRef.current,
+        person.landmarks
+      );
+
+      personEnginesRef.current.set(person.id, nextPersonState);
+
+      // Update stats for this person
+      if (nextPersonState.reps > (personStatsRef.current.get(person.id)?.reps || 0)) {
+        const stats = personStatsRef.current.get(person.id)!;
+        stats.reps = nextPersonState.reps;
+        stats.totalReps = nextPersonState.totalReps;
+        stats.correctReps = nextPersonState.correctReps;
+        stats.repScores = [...nextPersonState.repScores];
+        stats.repDeviations = [...nextPersonState.repDeviations];
+        stats.mistakes = { ...nextPersonState.mistakes };
+        stats.bestStreak = nextPersonState.bestStreak;
+        personStatsRef.current.set(person.id, stats);
+      }
+    }
+
+    // Use primary person's state for UI
+    const primaryState = personEnginesRef.current.get(primaryPerson.id) || mutableState.current;
+    mutableState.current = primaryState;
+    setEngineState(primaryState);
 
     let riskSnapshot: ReturnType<typeof injuryRiskEngine.computeRisk> | undefined;
     if (nextState.vbtMetrics) {
@@ -1047,6 +1134,61 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             transform: "scaleX(-1)",
           }}
         />
+        {/* Multi-person skeleton overlays */}
+        {trackedPersons.map(person => (
+          <div
+            key={person.id}
+            style={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+              transform: "scaleX(-1)",
+            }}
+          >
+            <svg
+              width="100%"
+              height="100%"
+              viewBox="0 0 1 1"
+              preserveAspectRatio="none"
+              style={{ position: "absolute", inset: 0 }}
+            >
+              {/* Person ID label */}
+              <text
+                x={person.centroid.x}
+                y={person.bbox.y - 0.02}
+                fill={person.color}
+                fontSize="0.03"
+                fontFamily="var(--font-heading)"
+                fontWeight="bold"
+                textAnchor="middle"
+              >
+                {person.isPrimary ? '★ ' : ''}P{person.id.replace('person_', '')}
+              </text>
+              {/* Bounding box */}
+              <rect
+                x={person.bbox.x}
+                y={person.bbox.y}
+                width={person.bbox.width}
+                height={person.bbox.height}
+                fill="none"
+                stroke={person.color}
+                strokeWidth="0.002"
+                strokeDasharray={person.occlusionFrames > 0 ? "0.005,0.005" : "none"}
+                opacity={person.occlusionFrames > 5 ? 0.5 : 1}
+              />
+              {/* Velocity indicator */}
+              <line
+                x1={person.centroid.x}
+                y1={person.centroid.y}
+                x2={person.centroid.x + person.velocity.x * 10}
+                y2={person.centroid.y + person.velocity.y * 10}
+                stroke={person.color}
+                strokeWidth="0.002"
+                opacity="0.6"
+              />
+            </svg>
+          </div>
+        ))}
       </div>
 
       {/* Target Overlays for IndexedDB State logic */}
@@ -1175,6 +1317,45 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         >
           <span style={{ fontSize: "1.2em" }}>⚠️</span>
           <span>Offline - Data will sync</span>
+        </div>
+      )}
+
+      {/* Person Selector Dropdown */}
+      {trackedPersons.length > 1 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "80px",
+            left: "30px",
+            zIndex: 100,
+            pointerEvents: "auto",
+          }}
+        >
+          <select
+            value={primaryPersonId || ''}
+            onChange={(e) => {
+              const id = e.target.value;
+              poseLockService.setPrimaryPerson(id);
+              setPrimaryPersonId(id);
+            }}
+            style={{
+              background: "rgba(10, 10, 26, 0.9)",
+              border: "1px solid var(--neon-cyan)",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              color: "#fff",
+              fontSize: "0.8rem",
+              fontFamily: "var(--font-heading)",
+              cursor: "pointer",
+              outline: "none",
+            }}
+          >
+            {trackedPersons.map(person => (
+              <option key={person.id} value={person.id} style={{ color: "#000" }}>
+                {person.isPrimary ? '★ ' : ''}Person {person.id.replace('person_', '')} ({Math.round(person.confidence * 100)}%)
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
