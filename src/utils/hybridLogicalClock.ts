@@ -85,9 +85,11 @@ export function hlcToString(ts: HLCTimestamp): string {
  */
 export function hlcFromString(str: string): HLCTimestamp {
   const [wallTime, counter, ...nodeIdParts] = str.split(":");
+  const parsedWall = parseInt(wallTime, 10);
+  const parsedCounter = parseInt(counter, 10);
   return {
-    wallTime: parseInt(wallTime, 10),
-    counter: parseInt(counter, 10),
+    wallTime: Number.isFinite(parsedWall) ? parsedWall : 0,
+    counter: Number.isFinite(parsedCounter) ? parsedCounter : 0,
     nodeId: nodeIdParts.join(":"),
   };
 }

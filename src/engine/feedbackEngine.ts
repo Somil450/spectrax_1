@@ -428,6 +428,7 @@ const rules: Record<string, ExerciseRule> = {
 // --- Scoring & Smoothing Logic ---
 
 let scoreHistory: number[] = [];
+let lastExerciseKey: string | null = null;
 const SMOOTHING_WINDOW = 5;
 
 function getSmoothedScore(rawScore: number): number {
@@ -449,6 +450,11 @@ const severityWeight = {
 
 
 export function getFeedback(ctx: any, exerciseKey: string): FeedbackResult {
+  if (lastExerciseKey !== null && lastExerciseKey !== exerciseKey) {
+    resetFeedbackEngine();
+  }
+  lastExerciseKey = exerciseKey;
+
   const ruleFn = rules[exerciseKey];
 
   if (!ruleFn) {
@@ -635,6 +641,7 @@ export function getNeuralFeedback(
  */
 export function resetFeedbackEngine(): void {
   scoreHistory = [];
+  lastExerciseKey = null;
   jointDeviationProfiler.reset();
   //skeletalSense.reset();
 }
