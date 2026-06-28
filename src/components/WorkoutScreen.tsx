@@ -24,6 +24,8 @@ import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
 import { reconstruct3DMesh } from '../services/mesh3DEngine';
 import { gestureService, GestureCommand } from '../services/gestureService';
+import { debounce } from '../utils/debounce';
+import { useThrottleLevel } from '../services/performanceThrottleService';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';

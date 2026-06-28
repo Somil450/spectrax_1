@@ -70,6 +70,8 @@ export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
   very_active: 'Very Active (hard exercise + physical job)',
 };
 
+export const MIN_SAFE_CALORIES = 1200;
+
 // ─────────────────────────────────────────────────────────────────
 // BMI
 // ─────────────────────────────────────────────────────────────────
@@ -80,7 +82,7 @@ export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
  */
 export function calculateBMI(weightKg: number, heightCm: number): BMIResult {
   const heightM = heightCm / 100;
-  const bmi = weightKg / (heightM * heightM);
+  const bmi = Number.isFinite(weightKg) && heightM > 0 ? weightKg / (heightM * heightM) : 0;
   const rounded = Math.round(bmi * 10) / 10;
 
   let category: BMICategory;
@@ -133,12 +135,13 @@ export function calculateTDEE(
  * Derive deficit and surplus targets from a TDEE value.
  */
 export function getCalorieRecommendations(tdee: number): CalorieRecommendations {
+  const safeTdee = Number.isFinite(tdee) && tdee > 0 ? tdee : 0;
   return {
-    tdee,
-    deficitMild: tdee - 300,
-    deficitAggressive: tdee - 500,
-    surplusMild: tdee + 300,
-    surplusAggressive: tdee + 500,
+    tdee: safeTdee,
+    deficitMild: Math.max(MIN_SAFE_CALORIES, safeTdee - 300),
+    deficitAggressive: Math.max(MIN_SAFE_CALORIES, safeTdee - 500),
+    surplusMild: safeTdee + 300,
+    surplusAggressive: safeTdee + 500,
   };
 }
 

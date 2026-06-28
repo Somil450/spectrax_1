@@ -32,4 +32,24 @@ describe('session.socket', () => {
 
     expect(sessionService.finalizeSession).not.toHaveBeenCalled();
   });
+
+  it('catches and logs a finalizeSession rejection instead of letting it escape the listener', async () => {
+    const socket = createSocket('socket-7');
+    const errors = [];
+    const sessionService = {
+      finalizeSession: vi.fn().mockRejectedValue(new Error('disk full')),
+    };
+
+    registerSessionSocketHandlers({
+      socket,
+      sessionService,
+      logger: { info() {}, error: (...args) => errors.push(args) },
+    });
+
+    await expect(socket.trigger('session:end')).resolves.toBeUndefined();
+    await expect(socket.trigger('disconnect')).resolves.toBeUndefined();
+
+    expect(sessionService.finalizeSession).toHaveBeenCalledTimes(2);
+    expect(errors).toHaveLength(2);
+  });
 });

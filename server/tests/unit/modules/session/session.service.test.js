@@ -42,4 +42,34 @@ describe('session.service', () => {
     expect(saved.frameCount).toBe(1);
     expect(saved.frames).toEqual([{ timestamp: 1 }]);
   });
+
+  it('deletes only old session files and leaves other files untouched', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spectrax-cleanup-'));
+    const sessionPath = path.join(dir, 'session.json');
+    const store = createSessionStore();
+    const service = createSessionService({
+      sessionStore: store,
+      sessionPath,
+      maxSessionFrames: 3,
+      logger: { info() {}, error() {} },
+    });
+    service.stopCleanupRoutine();
+
+    const oldSession = path.join(dir, 'session-old.json');
+    const recentSession = path.join(dir, 'session-recent.json');
+    const otherFile = path.join(dir, 'keep-me.txt');
+    fs.writeFileSync(oldSession, '{}');
+    fs.writeFileSync(recentSession, '{}');
+    fs.writeFileSync(otherFile, 'important');
+
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(oldSession, tenDaysAgo, tenDaysAgo);
+    fs.utimesSync(otherFile, tenDaysAgo, tenDaysAgo);
+
+    await service.cleanupOldSessions();
+
+    expect(fs.existsSync(oldSession)).toBe(false);
+    expect(fs.existsSync(recentSession)).toBe(true);
+    expect(fs.existsSync(otherFile)).toBe(true);
+  });
 });
