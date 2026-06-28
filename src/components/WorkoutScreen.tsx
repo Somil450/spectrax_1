@@ -11,7 +11,7 @@ import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
-import { BodyType as _BodyType } from '../services/bodyTypeEngine';
+import { BodyType} from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
