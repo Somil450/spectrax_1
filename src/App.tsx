@@ -13,6 +13,9 @@ import { throttleMonitor } from './services/performanceThrottleService';
 import NavBar from "./components/NavBar";
 import About from "./components/About";
 import Contact from "./components/Contact";
+import PrivacyPage from './components/privacy'; // Change to your actual file path
+import TermsAndConditions from './components/terms&conditions'
+
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
@@ -49,12 +52,16 @@ type Screen =
   | "forgot-password"
   | "trophy"
   | "profile"
+  | "privacy" 
+  | "terms&conditions"
   | "fitness";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact"],
+  privacy: ["welcome"],
+  "terms&conditions": ["welcome"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact",'privacy','terms&conditions'],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -344,6 +351,7 @@ function App() {
 
       {currentScreen === "welcome" && (
         <WelcomeScreen
+        navigateTo={navigateTo}
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
@@ -366,7 +374,16 @@ function App() {
             />
           </PageErrorBoundary>
         )}
+        {currentScreen === "privacy" && (
+    <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
+      <PrivacyPage onBack={() => navigateTo("welcome")} />
+    </PageErrorBoundary>
+  )}
 
+  {currentScreen === "terms&conditions" && (
+    <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
+      <TermsAndConditions onBack={() => navigateTo("welcome")} />
+    </PageErrorBoundary>)}
         {currentScreen === "workout" && (
           <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
             <WorkoutScreen

@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { buildSessionFilePath } = require('../../shared/utils/paths');
 
-const SESSION_FILE_TTL_DAYS = parseInt(process.env.SESSION_FILE_TTL_DAYS || '7');
-const CLEANUP_INTERVAL_HOURS = parseInt(process.env.CLEANUP_INTERVAL_HOURS || '24');
+const SESSION_FILE_TTL_DAYS = parseInt(process.env.SESSION_FILE_TTL_DAYS || '7', 10);
+const CLEANUP_INTERVAL_HOURS = parseInt(process.env.CLEANUP_INTERVAL_HOURS || '24', 10);
 
 function createSessionService({ sessionStore, sessionPath, maxSessionFrames, logger }) {
   let cleanupIntervalId = null;

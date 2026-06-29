@@ -3,6 +3,7 @@ import { cameraService } from '../services/cameraService';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { depthEstimationEngine } from '../services/depthEstimationEngine';
+import { throttleMonitor } from '../services/performanceThrottleService';
 
 interface UseCameraPoseOptions {
   videoRef?: React.RefObject<HTMLVideoElement>;
@@ -96,6 +97,19 @@ export function useCameraPose({
     cameraService.stopCamera();
     poseService.setInterpolationEnabled(false);
     depthEstimationEngine.destroy();
+  }, []);
+
+  useEffect(() => {
+    throttleMonitor.start();
+    const unsubscribe = throttleMonitor.onLevelChange((level) => {
+      if (level === 2) {
+        console.warn("[Performance] Severe lag detected. Auto-downgrading MediaPipe model complexity to 0.");
+        poseService.setOptions({ modelComplexity: 0 });
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

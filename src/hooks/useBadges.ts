@@ -28,16 +28,22 @@ function safeRead<T>(key: string, fallback: T): T {
   }
 }
 
-function calculateStreak(isoDateStrings: string[]): number {
+function localDayString(d: Date): string {
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+export function calculateStreak(isoDateStrings: string[]): number {
   if (isoDateStrings.length === 0) return 0;
 
   // Deduplicate to one entry per calendar day, newest first
-  const days = [...new Set(isoDateStrings.map(d => d.slice(0, 10)))]
+  const days = [...new Set(isoDateStrings.map(d => localDayString(new Date(d))))]
     .sort()
     .reverse();
 
-  const today     = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const today     = localDayString(new Date());
+  const yesterday = localDayString(new Date(Date.now() - 86_400_000));
 
   // Streak must start today or yesterday (grace for late-night workouts)
   if (days[0] !== today && days[0] !== yesterday) return 0;

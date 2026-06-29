@@ -204,6 +204,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* Background grid */}
       <div className="bg-grid" aria-hidden="true" />
+      
 
       {/* ── Header ── */}
       <header className="history-header">

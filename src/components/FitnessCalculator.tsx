@@ -206,9 +206,11 @@ const BMIPanel: React.FC<{
 
   return (
     <div className="fitness-card">
+      
       <h2 className="fitness-card-title">
         <Scale size={18} /> BMI Calculator
       </h2>
+
 
       <div className="fitness-form-grid">
         <InputField

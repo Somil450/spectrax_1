@@ -3,6 +3,7 @@ import Draggable, { type DraggableData, type DraggableEvent } from 'react-dragga
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
+import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../services/angleUtils';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
@@ -12,7 +13,7 @@ import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
-import { BodyType } from '../services/bodyTypeEngine';
+import { BodyType} from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
@@ -25,8 +26,7 @@ import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
 import { reconstruct3DMesh } from '../services/mesh3DEngine';
 import { gestureService, GestureCommand } from '../services/gestureService';
-import { debounce } from '../utils/debounce';
-import { useThrottleLevel } from '../services/performanceThrottleService';
+
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -173,6 +173,9 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const { settings, updateSetting } = useSettings();
   const { user } = useAuth();
+  useEffect(() => {
+  if (!user?.uid) return; // Guard clause 
+}, [user?.uid]);
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const lastSpokenFeedbackRef = useRef<string>("");
   const lastSpokenTimeRef = useRef<number>(0);
@@ -923,7 +926,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       injuryRiskEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
-  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession]);
+  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession,user?.uid]);
 
   useEffect(() => {
     setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
@@ -1010,6 +1013,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           setCameraError(null);
           startSystem();
         }} />
+      )}
+      {poseService.isFallbackMode && (
+        <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(239, 68, 68, 0.9)", color: "#fff", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold", zIndex: 1100, display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>
+          <ShieldAlert size={16} />
+          <span>SIMULATED FALLBACK MODE (WEBGL UNSUPPORTED)</span>
+        </div>
       )}
       <CameraErrorBoundary>
       {/* Background Video Layer */}

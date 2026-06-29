@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
-import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity } from 'lucide-react';
+import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity, ShieldAlert } from 'lucide-react';
+import { poseService } from '../services/poseService';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
@@ -251,6 +252,13 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           setError(null);
           startSystem();
         }} />
+      )}
+
+      {poseService.isFallbackMode && (
+        <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(239, 68, 68, 0.9)", color: "#fff", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold", zIndex: 1100, display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>
+          <ShieldAlert size={16} />
+          <span>SIMULATED FALLBACK MODE (WEBGL UNSUPPORTED)</span>
+        </div>
       )}
 
       <div className="camera-viewport" style={{
