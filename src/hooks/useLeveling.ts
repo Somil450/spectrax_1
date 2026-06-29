@@ -4,7 +4,7 @@ const XP_PER_REP = 10;
 const STORAGE_KEY = 'spectrax_user_xp';
 
 export function calculateLevel(xp: number): number {
-  if (xp < 100) return 1;
+  if (!Number.isFinite(xp) || xp < 100) return 1;
   if (xp < 250) return 2;
   if (xp < 500) return 3;
   if (xp < 1000) return 4;
@@ -31,14 +31,16 @@ export function useLeveling() {
   useEffect(() => {
     const storedXp = localStorage.getItem(STORAGE_KEY);
     if (storedXp) {
-      setXp(parseInt(storedXp, 10));
+      const parsed = parseInt(storedXp, 10);
+      setXp(Number.isFinite(parsed) && parsed >= 0 ? parsed : 0);
     }
   }, []);
 
   const addXpFromReps = (reps: number) => {
-    const gainedXp = reps * XP_PER_REP;
+    const gainedXp = Number.isFinite(reps) && reps > 0 ? reps * XP_PER_REP : 0;
     setXp((prevXp) => {
-      const newXp = prevXp + gainedXp;
+      const safePrev = Number.isFinite(prevXp) ? prevXp : 0;
+      const newXp = safePrev + gainedXp;
       localStorage.setItem(STORAGE_KEY, newXp.toString());
       return newXp;
     });

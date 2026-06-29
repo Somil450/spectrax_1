@@ -11,7 +11,7 @@ import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
-import { BodyType } from '../services/bodyTypeEngine';
+import { BodyType} from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
@@ -24,6 +24,8 @@ import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
 import { reconstruct3DMesh } from '../services/mesh3DEngine';
 import { gestureService, GestureCommand } from '../services/gestureService';
+import { debounce } from '../utils/debounce';
+import { useThrottleLevel } from '../services/performanceThrottleService';
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -170,6 +172,9 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const { settings, updateSetting } = useSettings();
   const { user } = useAuth();
+  useEffect(() => {
+  if (!user?.uid) return; // Guard clause 
+}, [user?.uid]);
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const lastSpokenFeedbackRef = useRef<string>("");
   const lastSpokenTimeRef = useRef<number>(0);

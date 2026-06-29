@@ -74,19 +74,17 @@ All other HTTP requests require no authentication.
 
 ### WebSocket Connections
 
-Every Socket.io connection must include an auth token in the handshake:
+Browser clients authenticate via **Firebase Auth ID tokens**. The token is passed as a
+`firebaseToken` query parameter in the raw WebSocket URL. The built-in `useWorkoutWebSocket`
+hook obtains the Firebase ID token automatically via `auth.currentUser.getIdToken()`.
 
-```javascript
-const socket = io("http://localhost:3001", {
-  auth: { token: "your-socket-auth-token" },
-});
-```
+A `SOCKET_AUTH_TOKEN` env var is available for **machine-to-machine / proxy authentication**
+only. It is validated via `socket.handshake.auth.token` and is **not** used by browser clients.
 
-The server compares this token against `SOCKET_AUTH_TOKEN` from environment variables.
-
-- If `SOCKET_AUTH_TOKEN` is **not set** and the environment is **development**: all connections are accepted (with a console warning).
-- If `SOCKET_AUTH_TOKEN` is **not set** in **production**: all connections are rejected with `Server misconfiguration: SOCKET_AUTH_TOKEN is not set`.
-- If the token does **not match**: connection is rejected with `Unauthorized`.
+- The `VITE_SOCKET_AUTH_TOKEN` client env var has been **removed** — shared secrets
+  must never be embedded in client bundles where they are publicly visible.
+- The server does **not** accept tokens via `socket.handshake.query.token` (URL query
+  parameters) because they leak in logs, browser history, and referer headers.
 
 ---
 
@@ -394,8 +392,9 @@ Session files are automatically deleted after `SESSION_FILE_TTL_DAYS` days (defa
 
 | Error message                                             | Cause                                                                     | Fix                                               |
 | --------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
-| `"Unauthorized"`                                          | `auth.token` in the Socket.io handshake doesn't match `SOCKET_AUTH_TOKEN` | Set the correct token in the client's `io()` call |
+| `"Unauthorized"`                                          | `auth.token` in the Socket.io handshake doesn't match `SOCKET_AUTH_TOKEN` | Set the env var on the server or use a non-browser client |
 | `"Server misconfiguration: SOCKET_AUTH_TOKEN is not set"` | `SOCKET_AUTH_TOKEN` env var is missing in production                      | Set the env var on the server                     |
+| `"Authentication failed: invalid or missing token"`       | Browser client connected without a valid Firebase ID token                | Ensure the user is signed in via Firebase Auth    |
 
 ### Frame Processing Errors
 
@@ -452,7 +451,7 @@ Full reference for all environment variables consumed by the backend.
 | `PORT`                   | `3001`  | No               | Port the HTTP server listens on                                 |
 | `ALLOWED_ORIGIN`         | —       | Yes (production) | CORS allowed origin — set to your frontend URL                  |
 | `CORS_ORIGIN`            | —       | No               | Alias for `ALLOWED_ORIGIN` (legacy)                             |
-| `SOCKET_AUTH_TOKEN`      | `null`  | Yes (production) | Secret token clients must pass in `socket.handshake.auth.token` |
+| `SOCKET_AUTH_TOKEN`      | `null`  | Server-only      | Shared secret for machine-to-machine/proxy auth via `socket.handshake.auth.token`. **Do not** expose in client bundles — use Firebase Auth tokens for browser clients instead |
 | `HEALTH_SECRET_TOKEN`    | —       | No               | Bearer token that grants full metrics on `GET /health`          |
 | `MAX_FRAMES_PER_SEC`     | `60`    | No               | Per-socket frame rate ceiling                                   |
 | `SESSION_FILE_TTL_DAYS`  | `7`     | No               | How many days before session files are auto-deleted             |
