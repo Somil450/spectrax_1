@@ -25,6 +25,7 @@ function createApp({ sessionStore, config = getConfig() }) {
 
   app.use(cors(createCorsOptions(config)));
   app.use(express.json({ limit: PAYLOAD_LIMIT }));
+  app.use(createSecurityHeaders());
   app.use(createHealthRouter({ sessionStore }));
 
   return app;
