@@ -42,7 +42,8 @@ export class OverlayRenderer {
   draw(
     results: Results,
     status: "green" | "yellow" | "red" = "green",
-    primaryJoints: number[] = []
+    primaryJoints: number[] = [],
+    errorJoints: number[] = []
   ) {
     if (!this.ctx || !results.poseLandmarks) return;
 
@@ -70,6 +71,7 @@ export class OverlayRenderer {
       drawLandmarks(this.ctx, results.poseLandmarks, {
         color: "#ffffff",
         fillColor: (data: any) => {
+          if (errorJoints.includes(data.index!)) return "#ff0000"; // Bright red for errors
           if (primaryJoints.includes(data.index!)) return color;
           if (data.index! >= 11) {
             if (data.index! % 2 !== 0) return "rgba(0, 240, 255, 0.8)";
@@ -79,6 +81,7 @@ export class OverlayRenderer {
         },
         lineWidth: 1,
         radius: (data: any) => {
+          if (errorJoints.includes(data.index!)) return 8; // Larger radius for errors
           return primaryJoints.includes(data.index!) ? 6 : 3;
         },
       });

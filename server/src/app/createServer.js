@@ -56,7 +56,7 @@ function createServer(overrides = {}) {
       );
       return next();
     }
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    const token = socket.handshake.auth?.token;
     if (token !== SOCKET_AUTH_TOKEN) {
       return next(new Error("Authentication failed: invalid or missing token"));
     }
