@@ -1,7 +1,9 @@
 import React from "react";
 
-
-export default function PrivacyPage({onBack}) {
+interface PrivacyPageProps {
+  onBack: () => void;
+}
+export default function PrivacyPage({onBack}: PrivacyPageProps) {
   return (
     <main className="max-w-4xl mx-auto px-6 py-12 ">
        

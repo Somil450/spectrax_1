@@ -1,7 +1,9 @@
 import { Radius } from "lucide-react";
 import React from "react";
-
-export default function TermsAndConditions({onBack}) {
+interface TermsAndConditionsProps {
+  onBack: () => void;
+}
+export default function TermsAndConditions({onBack}:TermsAndConditionsProps) {
   return (
     <main className="max-w-4xl mx-auto px-6 py-12">
       <button 

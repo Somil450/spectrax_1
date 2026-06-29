@@ -24,8 +24,7 @@ import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
 import { reconstruct3DMesh } from '../services/mesh3DEngine';
 import { gestureService, GestureCommand } from '../services/gestureService';
-import { debounce } from '../utils/debounce';
-import { useThrottleLevel } from '../services/performanceThrottleService';
+
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -925,7 +924,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       injuryRiskEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
-  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession]);
+  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession,user?.uid]);
 
   useEffect(() => {
     setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
