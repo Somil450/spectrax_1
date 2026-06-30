@@ -50,7 +50,7 @@ async function uploadReplaySession(session: ReplaySession): Promise<void> {
  */
 export async function syncOfflineQueue(): Promise<SyncResult> {
   const currentUserId = getAuth().currentUser?.uid;
-  const queue = getQueue();
+  const queue = await getQueue();
   let synced = 0;
   let failed = 0;
 
@@ -60,7 +60,7 @@ export async function syncOfflineQueue(): Promise<SyncResult> {
     }
     try {
       await uploadReplaySession(session);
-      removeFromQueue(session.id);
+      await removeFromQueue(session.id);
       synced++;
     } catch (error) {
       console.error(

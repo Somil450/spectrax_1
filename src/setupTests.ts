@@ -63,3 +63,92 @@ beforeAll(() => {
 afterAll(() => {
   console.error = originalError;
 });
+
+// ── IndexedDB In-Memory Mock for Testing ─────────────────────────────────────
+const storeMap = new Map<string, any>();
+
+class MockIDBRequest extends EventTarget {
+  result: any;
+  error: any = null;
+  set onsuccess(cb: any) {
+    this.addEventListener("success", cb);
+  }
+  set onerror(cb: any) {
+    this.addEventListener("error", cb);
+  }
+  set onupgradeneeded(cb: any) {
+    this.addEventListener("upgradeneeded", cb);
+  }
+}
+
+const mockIndexedDB = {
+  open(name: string, version: number) {
+    const req = new MockIDBRequest();
+    setTimeout(() => {
+      const db = {
+        objectStoreNames: {
+          contains: () => true
+        },
+        createObjectStore: () => {},
+        transaction(storeName: string, mode: string) {
+          return {
+            objectStore(name: string) {
+              return {
+                put(value: any) {
+                  const r = new MockIDBRequest();
+                  storeMap.set(value.id, value);
+                  setTimeout(() => {
+                    r.dispatchEvent(new Event("success"));
+                  }, 0);
+                  return r;
+                },
+                getAll() {
+                  const r = new MockIDBRequest();
+                  r.result = Array.from(storeMap.values());
+                  setTimeout(() => {
+                    r.dispatchEvent(new Event("success"));
+                  }, 0);
+                  return r;
+                },
+                clear() {
+                  const r = new MockIDBRequest();
+                  storeMap.clear();
+                  setTimeout(() => {
+                    r.dispatchEvent(new Event("success"));
+                  }, 0);
+                  return r;
+                },
+                delete(id: any) {
+                  const r = new MockIDBRequest();
+                  storeMap.delete(id);
+                  setTimeout(() => {
+                    r.dispatchEvent(new Event("success"));
+                  }, 0);
+                  return r;
+                }
+              };
+            }
+          };
+        }
+      };
+      req.result = db;
+      req.dispatchEvent(new Event("success"));
+    }, 0);
+    return req;
+  }
+};
+
+Object.defineProperty(globalThis, "indexedDB", {
+  value: mockIndexedDB,
+  writable: true,
+  configurable: true
+});
+
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "indexedDB", {
+    value: mockIndexedDB,
+    writable: true,
+    configurable: true
+  });
+}
+

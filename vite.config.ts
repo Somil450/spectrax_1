@@ -122,6 +122,18 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*$/i,
+            handler: "NetworkOnly",
+            options: {
+              backgroundSync: {
+                name: "firestore-sync-queue",
+                options: {
+                  maxRetentionTime: 24 * 60, // 24 hours
+                },
+              },
+            },
+          },
         ],
       },
     }),

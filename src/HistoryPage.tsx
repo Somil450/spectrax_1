@@ -67,7 +67,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
   // Trigger sync when coming back online
   const handleReconnect = useCallback(async () => {
-    const queue = getQueue();
+    const queue = await getQueue();
     if (queue.length === 0) return;
 
     setPendingCount(queue.length);
@@ -90,7 +90,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           `${result.synced} synced, ${result.failed} failed`,
         );
       }
-      setPendingCount(getQueue().length);
+      setPendingCount((await getQueue()).length);
     } catch (err) {
       setOfflineSyncState("failed");
       setSyncResultMessage("Sync failed — will retry on reconnect");
@@ -102,13 +102,21 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
   // Check pending queue on mount and when online status changes
   useEffect(() => {
-    const queue = getQueue();
-    setPendingCount(queue.length);
-    if (queue.length > 0 && !isOnline) {
-      setOfflineSyncState("pending");
-    } else if (queue.length === 0 && offlineSyncState === "pending") {
-      setOfflineSyncState("idle");
-    }
+    let active = true;
+    const checkQueue = async () => {
+      const queue = await getQueue();
+      if (!active) return;
+      setPendingCount(queue.length);
+      if (queue.length > 0 && !isOnline) {
+        setOfflineSyncState("pending");
+      } else if (queue.length === 0 && offlineSyncState === "pending") {
+        setOfflineSyncState("idle");
+      }
+    };
+    checkQueue();
+    return () => {
+      active = false;
+    };
   }, [isOnline, offlineSyncState]);
 
   // Auto-sync when isOnline transitions to true and there are pending items
@@ -148,7 +156,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           `${result.synced} synced, ${result.failed} failed`,
         );
       }
-      setPendingCount(getQueue().length);
+      setPendingCount((await getQueue()).length);
     } catch (err) {
       setOfflineSyncState("failed");
       setSyncResultMessage("Sync failed — please try again");
