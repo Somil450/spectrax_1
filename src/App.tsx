@@ -39,6 +39,8 @@ const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => 
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
 
+const MultiplayerRoomScreen = lazy(() => import("./components/MultiplayerRoomScreen").then(m => ({ default: m.MultiplayerRoomScreen })));
+
 type Screen =
   | "welcome"
   | "calibration"
@@ -54,12 +56,15 @@ type Screen =
   | "trophy"
   | "profile"
   | "fitness"
-  | "avatar";
+  | "avatar"
+  | "multiplayer"
+  | "privacy"
+  | "terms&conditions";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "multiplayer", "privacy", "terms&conditions"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -74,6 +79,9 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   about: ["welcome"],
   contact: ["welcome"],
   avatar: ["welcome"],
+  multiplayer: ["welcome"],
+  privacy: ["welcome"],
+  "terms&conditions": ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -438,6 +446,14 @@ function App() {
           <Suspense fallback={<div className="loading-fallback">Loading Avatar Customization...</div>}>
             <AvatarCustomizationScreen onBack={() => navigateTo("welcome")} />
           </Suspense>
+        )}
+
+        {currentScreen === "multiplayer" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Multiplayer room. Please try again.">
+            <Suspense fallback={<div className="loading-fallback">Loading Multiplayer lobby...</div>}>
+              <MultiplayerRoomScreen onBack={() => navigateTo("welcome")} user={user} />
+            </Suspense>
+          </PageErrorBoundary>
         )}
 
         {currentScreen === "fitness" && (
