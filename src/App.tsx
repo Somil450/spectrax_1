@@ -38,6 +38,8 @@ const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").th
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
+const TutorialsScreen = lazy(() => import("./components/TutorialsScreen").then(m => ({ default: m.TutorialsScreen })));
+
 
 type Screen =
   | "welcome"
@@ -54,12 +56,16 @@ type Screen =
   | "trophy"
   | "profile"
   | "fitness"
-  | "avatar";
+  | "avatar"
+  | "privacy"
+  | "terms&conditions"
+  | "tutorials";
+
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "tutorials", "privacy", "terms&conditions"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -74,7 +80,11 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   about: ["welcome"],
   contact: ["welcome"],
   avatar: ["welcome"],
+  privacy: ["welcome"],
+  "terms&conditions": ["welcome"],
+  tutorials: ["welcome", "calibration"],
 };
+
 
 const canTransitionTo = (from: Screen, to: Screen) => {
   return SCREEN_TRANSITIONS[from].includes(to);
@@ -319,10 +329,11 @@ function App() {
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <div
         className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""
-          } ${["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
+          } ${["summary", "replay", "history", "trophy", "fitness", "tutorials"].includes(currentScreen)
             ? "is-hidden"
             : ""
           }`}
+
       >
         <div className={`selector-indicator theme-${theme}`} />
         <button
@@ -358,9 +369,11 @@ function App() {
           onViewFitnessCalculator={() => navigateTo("fitness")}
           onViewAvatarCustomization={() => navigateTo("avatar")}
           onViewWorkoutPlans={() => {}}
+          onViewTutorials={() => navigateTo("tutorials")}
           leveling={leveling}
         />
       )}
+
 
       <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
@@ -440,9 +453,25 @@ function App() {
           </Suspense>
         )}
 
+        {currentScreen === "tutorials" && (
+          <Suspense fallback={<div className="loading-fallback">Loading Tutorials...</div>}>
+            <TutorialsScreen
+              onBack={() => navigateTo("welcome")}
+              onStartTryMode={(exerciseKey) => {
+                const config = exercises[exerciseKey];
+                if (config) {
+                  setSelectedExercise(config);
+                  navigateTo("calibration");
+                }
+              }}
+            />
+          </Suspense>
+        )}
+
         {currentScreen === "fitness" && (
           <FitnessCalculator onBack={() => navigateTo("welcome")} />
         )}
+
       </Suspense>
 
       {currentScreen === "about" && (
