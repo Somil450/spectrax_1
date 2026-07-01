@@ -13,6 +13,9 @@ import { throttleMonitor } from './services/performanceThrottleService';
 import NavBar from "./components/NavBar";
 import About from "./components/About";
 import Contact from "./components/Contact";
+import PrivacyPage from './components/privacy'; // Change to your actual file path
+import TermsAndConditions from './components/terms&conditions'
+
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
@@ -34,6 +37,7 @@ const FitnessCalculator = lazy(() => import("./components/FitnessCalculator").th
 const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
+const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
 
 type Screen =
   | "welcome"
@@ -49,12 +53,13 @@ type Screen =
   | "forgot-password"
   | "trophy"
   | "profile"
-  | "fitness";
+  | "fitness"
+  | "avatar";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -68,6 +73,7 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   fitness: ["welcome"],
   about: ["welcome"],
   contact: ["welcome"],
+  avatar: ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -344,11 +350,13 @@ function App() {
 
       {currentScreen === "welcome" && (
         <WelcomeScreen
+        navigateTo={navigateTo}
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
-          onViewProfile={user ? () => navigateTo("profile") : undefined}
+          onViewProfile={() => navigateTo("profile")}
           onViewFitnessCalculator={() => navigateTo("fitness")}
+          onViewAvatarCustomization={() => navigateTo("avatar")}
           onViewWorkoutPlans={() => {}}
           leveling={leveling}
         />
@@ -366,7 +374,16 @@ function App() {
             />
           </PageErrorBoundary>
         )}
+        {currentScreen === "privacy" && (
+    <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
+      <PrivacyPage onBack={() => navigateTo("welcome")} />
+    </PageErrorBoundary>
+  )}
 
+  {currentScreen === "terms&conditions" && (
+    <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
+      <TermsAndConditions onBack={() => navigateTo("welcome")} />
+    </PageErrorBoundary>)}
         {currentScreen === "workout" && (
           <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
             <WorkoutScreen
@@ -412,6 +429,15 @@ function App() {
 
         {currentScreen === "profile" && (
           <UserProfileScreen onLogout={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "contact" && (
+          <Contact />
+        )}
+        {currentScreen === "avatar" && (
+          <Suspense fallback={<div className="loading-fallback">Loading Avatar Customization...</div>}>
+            <AvatarCustomizationScreen onBack={() => navigateTo("welcome")} />
+          </Suspense>
         )}
 
         {currentScreen === "fitness" && (

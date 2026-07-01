@@ -6,7 +6,7 @@
  * All calculations are pure — no backend, no API, no DB.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Scale,
@@ -566,6 +566,35 @@ export const FitnessCalculator: React.FC<FitnessCalculatorProps> = ({ onBack }) 
 
   // Cache TDEE so Deficit/Surplus tabs can reuse it without recalculating
   const [cachedTDEE, setCachedTDEE] = useState<number | null>(null);
+
+  // Initialize from localStorage if available
+  useEffect(() => {
+    const w = localStorage.getItem("spectrax_user_weight_kg");
+    const h = localStorage.getItem("spectrax_user_height_cm");
+    const a = localStorage.getItem("spectrax_user_age");
+    const g = localStorage.getItem("spectrax_user_gender") as Gender | null;
+    const act = localStorage.getItem("spectrax_user_activity") as ActivityLevel | null;
+
+    if (w || h || a || g || act) {
+      setInputs((prev) => ({
+        ...prev,
+        weight: w || prev.weight,
+        height: h || prev.height,
+        age: a || prev.age,
+        gender: g || prev.gender,
+        activity: act || prev.activity,
+      }));
+    }
+  }, []);
+
+  // Save to localStorage when changed
+  useEffect(() => {
+    if (inputs.weight) localStorage.setItem("spectrax_user_weight_kg", inputs.weight);
+    if (inputs.height) localStorage.setItem("spectrax_user_height_cm", inputs.height);
+    if (inputs.age) localStorage.setItem("spectrax_user_age", inputs.age);
+    localStorage.setItem("spectrax_user_gender", inputs.gender);
+    localStorage.setItem("spectrax_user_activity", inputs.activity);
+  }, [inputs]);
 
   return (
     <div className="fitness-page" role="main" aria-label="Fitness Calculator">

@@ -1,26 +1,47 @@
+import { Radius } from "lucide-react";
 import React from "react";
-
-export default function TermsAndConditions() {
+interface TermsAndConditionsProps {
+  onBack: () => void;
+}
+export default function TermsAndConditions({onBack}:TermsAndConditionsProps) {
   return (
     <main className="max-w-4xl mx-auto px-6 py-12">
-      <h1 className="text-4xl font-bold mb-4">Terms & Conditions</h1>
+      <button 
+        onClick={onBack} 
+        style={{height:'40px',width:'130px', background: 'var(--neon-cyan)',  color: 'var(--bg-primary)',borderRadius:"7px",fontWeight:"500",fontSize:"15px",borderColor:'white'}}
+      >
+        ← Back to Home
+      </button>
+      <h1 style={{
+                      background: "rgba(0,255,200,0.1)",
+                      border: "1px solid rgba(0,255,200,0.3)",
+                      outline: "none",
+                      color: "#fff",
+                      fontSize: "0.9rem",
+                      fontWeight: 700,
+                      width: "100%",
+                      padding: "6px 8px",
+                      borderRadius: "6px",
+                      boxSizing: "border-box",
+                      
+                    }}>Terms & Conditions</h1>
 
       <p className="text-gray-500 mb-8">Last Updated: June 2026</p>
 
       <section className="space-y-8">
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>
             1. Acceptance of Terms
           </h2>
-          <p>
+          <p >
             By accessing or using Spectrax (&quot;the Service&quot;), you agree to
             be bound by these Terms and Conditions. If you do not agree with any
             part of these terms, you must not use the Service.
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">2. Eligibility</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}} >2. Eligibility</h2>
           <p>
             You must be at least 13 years old or the minimum legal age required
             in your jurisdiction to use Spectrax.
@@ -32,8 +53,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">3. User Accounts</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>3. User Accounts</h2>
 
           <ul className="list-disc pl-6 space-y-2">
             <li>
@@ -52,8 +73,8 @@ export default function TermsAndConditions() {
           </ul>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>
             4. Fitness & Health Disclaimer
           </h2>
 
@@ -77,8 +98,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">5. Camera Usage</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>5. Camera Usage</h2>
 
           <p>
             Certain features require access to your device camera for exercise
@@ -97,8 +118,8 @@ export default function TermsAndConditions() {
           </ul>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>
             6. Workout Statistics & Accuracy
           </h2>
 
@@ -121,8 +142,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">7. Acceptable Use</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>7. Acceptable Use</h2>
 
           <p>You agree not to:</p>
 
@@ -136,8 +157,8 @@ export default function TermsAndConditions() {
           </ul>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">8. User Content</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>8. User Content</h2>
 
           <p>
             You retain ownership of any content, workout records, profile data,
@@ -150,8 +171,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>
             9. Intellectual Property
           </h2>
 
@@ -168,7 +189,7 @@ export default function TermsAndConditions() {
         </div>
 
         <div>
-          <h2 className="text-2xl font-semibold mb-3">
+          <h2 style={{textAlign:'center'}}>
             10. Availability of Service
           </h2>
 
@@ -183,8 +204,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>
             11. Limitation of Liability
           </h2>
 
@@ -203,8 +224,8 @@ export default function TermsAndConditions() {
           </ul>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">12. Indemnification</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>12. Indemnification</h2>
 
           <p>
             You agree to indemnify and hold harmless Spectrax, its owners,
@@ -213,8 +234,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">13. Termination</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>13. Termination</h2>
 
           <p>
             We reserve the right to suspend or terminate access to the Service
@@ -223,8 +244,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">14. Privacy</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>14. Privacy</h2>
 
           <p>Your use of Spectrax is also governed by our Privacy Policy.</p>
 
@@ -236,8 +257,8 @@ export default function TermsAndConditions() {
           </a>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">15. Changes to Terms</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>15. Changes to Terms</h2>
 
           <p>
             We may update these Terms from time to time. Continued use of the
@@ -245,8 +266,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">16. Governing Law</h2>
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>16. Governing Law</h2>
 
           <p>
             These Terms shall be governed and interpreted in accordance with
@@ -254,8 +275,8 @@ export default function TermsAndConditions() {
           </p>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-semibold mb-3">
+        <div style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}} >
+          <h2 style={{textAlign:'center'}}>
             17. Contact Information
           </h2>
 

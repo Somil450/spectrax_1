@@ -11,7 +11,11 @@ function createSecurityHeaders() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=(), interest-cohort=()");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss: https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com; img-src 'self' data: blob: https://*.googleusercontent.com; media-src 'self' blob: data: https://cdn.jsdelivr.net; frame-src 'self' https://*.firebaseapp.com; object-src 'none';"
+    );
     next();
   };
 }
@@ -23,6 +27,7 @@ function createApp({ sessionStore, config = getConfig() }) {
     app.set("trust proxy", config.trustProxy);
   }
 
+  app.use(createSecurityHeaders());
   app.use(cors(createCorsOptions(config)));
   app.use(express.json({ limit: PAYLOAD_LIMIT }));
   app.use(createSecurityHeaders());

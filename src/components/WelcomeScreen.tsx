@@ -20,7 +20,7 @@ import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from "../context/ThemeContext";
-import { debounce } from "../utils/debounce";
+
 
 
 const STATS = [
@@ -45,7 +45,11 @@ interface WelcomeScreenProps {
   onViewTrophies: () => void;
   onViewProfile?: () => void;
   onViewFitnessCalculator?: () => void;
+  onViewAvatarCustomization?: () => void;
   onViewWorkoutPlans: () => void;
+
+  navigateTo: (screen: string) => void;
+ 
   leveling?: {
     xp: number;
     level: number;
@@ -54,14 +58,19 @@ interface WelcomeScreenProps {
   };
   activePlan?: ActivePlan | null;
   onStartWorkout?: (exerciseKey: string) => void;
+  
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStart,
   onViewHistory,
+  navigateTo,
   onViewTrophies,
+  onViewProfile,
   onViewFitnessCalculator,
+  onViewAvatarCustomization,
   onViewWorkoutPlans,
+  
   leveling,
   activePlan,
   onStartWorkout,
@@ -221,6 +230,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </button>
 
               <div className="welcome-btn-row">
+                <button
+                  onClick={onViewAvatarCustomization}
+                  className="welcome-btn-secondary welcome-btn-secondary--cyan"
+                  aria-label="Customize Avatar"
+                  tabIndex={0}
+                >
+                  <User size={15} />
+                  Avatar
+                </button>
                 <button
                   onClick={onViewHistory}
                   className="welcome-btn-secondary welcome-btn-secondary--cyan"
@@ -603,17 +621,33 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 <div className="footer-column">
                   <h4 className="footer-column-title">LEGAL</h4>
                   <ul className="footer-links">
-                    {["MIT License", "Privacy", "Terms"].map((item) => (
-                      <li key={item}>
-                        <a
-                          href="#"
-                          className="footer-link"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          {item}
-                        </a>
-                      </li>
-                    ))}
+                    <li>
+    <span className="footer-link-text">MIT License</span>
+  </li>
+  <li>
+    <a 
+      href="#" 
+      className="footer-link"
+      onClick={(e) => {
+        e.preventDefault();
+        navigateTo("privacy"); // Triggers the screen change
+      }}
+    >
+      Privacy
+    </a>
+  </li>
+  <li>
+    <a 
+      href="#" 
+      className="footer-link"
+      onClick={(e) => {
+        e.preventDefault();
+        navigateTo("terms&conditions"); // Triggers the screen change
+      }}
+    >
+      Terms
+    </a>
+  </li>
                   </ul>
                 </div>
               </div>

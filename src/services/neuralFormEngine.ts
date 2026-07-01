@@ -10,7 +10,7 @@
  */
 
 import * as tf from '@tensorflow/tfjs';
-import type { BodyType } from './bodyTypeEngine';
+
 import type { FeedbackResult } from '../engine/feedbackEngine';
 import type { NeuralFormFeatures, NeuralFormPrediction } from '../types/neuralForm';
 import { EXERCISE_KEYS } from '../types/neuralForm';

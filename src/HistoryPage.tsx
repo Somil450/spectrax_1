@@ -21,6 +21,8 @@ import { getQueue } from "./utils/offlineQueue";
 import { syncOfflineQueue } from "./services/syncQueue";
 import { HistoryPageSkeleton } from "./components/HistoryPageSkeleton";
 import SessionCard from "./SessionCard";
+import { BodyMetricsWidget } from "./components/BodyMetricsWidget";
+import { ProgressAnalyticsWidget } from "./components/ProgressAnalyticsWidget";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -418,6 +420,14 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
       <main className="history-body">
         {/* Loading */}
         {loading && <HistoryPageSkeleton />}
+
+        {/* ── Dashboard Widgets ── */}
+        {!loading && !error && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+            <ProgressAnalyticsWidget sessions={sessions} />
+            <BodyMetricsWidget />
+          </div>
+        )}
 
         {/* ── Filter Panel ── */}
         {!loading && !error && sessions.length > 0 && (
