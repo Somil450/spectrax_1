@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { auth } from '../config/firebase';
 
 export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.meta.env.VITE_BACKEND_URL) {
   const wsSocketRef = useRef<WebSocket | null>(null);
@@ -7,7 +6,7 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
   useEffect(() => {
     let cancelled = false;
 
-    async function connect() {
+    function connect() {
       try {
         if (!backendUrlRaw) {
           console.warn(
@@ -19,19 +18,8 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
         }
         const backendUrl = (backendUrlRaw ?? "http://localhost:3001").replace(/\/+$/, "");
 
-        let firebaseToken = "";
-        try {
-          const currentUser = auth?.currentUser;
-          if (currentUser) {
-            firebaseToken = await currentUser.getIdToken();
-          }
-        } catch {
-          // Not authenticated or Firebase not configured — connect without token
-        }
-
         if (cancelled) return;
-        const tokenParam = firebaseToken ? `&firebaseToken=${encodeURIComponent(firebaseToken)}` : "";
-        const wsUrl = backendUrl.replace(/^http/, "ws") + `/socket.io/?EIO=4&transport=websocket${tokenParam}`;
+        const wsUrl = backendUrl.replace(/^http/, "ws") + "/socket.io/?EIO=4&transport=websocket";
         const wsSocket = new WebSocket(wsUrl);
         wsSocketRef.current = wsSocket;
 
