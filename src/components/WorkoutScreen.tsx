@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
-import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { getJointAngles, getJointVisibility } from '../utils/poseMath';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
 import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { CameraView } from './CameraView/CameraView';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
@@ -1038,49 +1039,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       )}
       <CameraErrorBoundary>
       {/* Background Video Layer */}
-      <div
-        className="camera-viewport"
-        style={{ position: "absolute", inset: 0 }}
-      >
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            opacity: 0.4,
-            transform: "scaleX(-1)",
-          }}
-        />
-        <canvas
-          ref={canvasRef}
-          width={1280}
-          height={720}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            transform: "scaleX(-1)",
-          }}
-        />
-        {engineState.status === "red" && (
-          <div className="workout-error-flash" style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            boxShadow: 'inset 0 0 100px rgba(255, 0, 0, 0.7)',
-            pointerEvents: 'none',
-            zIndex: 10,
-            animation: 'pulse 1s infinite'
-          }} />
-        )}
-      </div>
+      <CameraView
+        videoRef={videoRef}
+        canvasRef={canvasRef}
+        status={engineState.status}
+      />
 
       {/* Target Overlays for IndexedDB State logic */}
       {displayConfig.fpsDisplay && (
