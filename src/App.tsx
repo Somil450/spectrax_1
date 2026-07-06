@@ -54,12 +54,14 @@ type Screen =
   | "trophy"
   | "profile"
   | "fitness"
-  | "avatar";
+  | "avatar"
+  | "privacy"
+  | "terms&conditions";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "privacy", "terms&conditions"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -74,6 +76,8 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   about: ["welcome"],
   contact: ["welcome"],
   avatar: ["welcome"],
+  privacy: ["welcome"],
+  "terms&conditions": ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
