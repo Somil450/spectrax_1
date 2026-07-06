@@ -38,6 +38,7 @@ const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").th
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
+const BattleMode = lazy(() => import("./components/BattleMode/BattleMode").then(m => ({ default: m.BattleMode })));
 
 type Screen =
   | "welcome"
@@ -54,12 +55,15 @@ type Screen =
   | "trophy"
   | "profile"
   | "fitness"
-  | "avatar";
+  | "avatar"
+  | "battle"
+  | "privacy"
+  | "terms&conditions";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "battle", "privacy", "terms&conditions"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -74,6 +78,9 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   about: ["welcome"],
   contact: ["welcome"],
   avatar: ["welcome"],
+  battle: ["welcome"],
+  privacy: ["welcome"],
+  "terms&conditions": ["welcome"],
 };
 
 const canTransitionTo = (from: Screen, to: Screen) => {
@@ -375,15 +382,22 @@ function App() {
           </PageErrorBoundary>
         )}
         {currentScreen === "privacy" && (
-    <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
-      <PrivacyPage onBack={() => navigateTo("welcome")} />
-    </PageErrorBoundary>
-  )}
+          <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
+            <PrivacyPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
 
-  {currentScreen === "terms&conditions" && (
-    <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
-      <TermsAndConditions onBack={() => navigateTo("welcome")} />
-    </PageErrorBoundary>)}
+        {currentScreen === "terms&conditions" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
+            <TermsAndConditions onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+
+        {currentScreen === "battle" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Battle Mode. Please try again.">
+            <BattleMode onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
         {currentScreen === "workout" && (
           <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
             <WorkoutScreen
