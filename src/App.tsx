@@ -38,6 +38,7 @@ const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").th
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
+const BattleMode = lazy(() => import("./components/BattleMode/BattleMode").then(m => ({ default: m.BattleMode })));
 
 const MultiplayerRoomScreen = lazy(() => import("./components/MultiplayerRoomScreen").then(m => ({ default: m.MultiplayerRoomScreen })));
 
@@ -383,15 +384,22 @@ function App() {
           </PageErrorBoundary>
         )}
         {currentScreen === "privacy" && (
-    <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
-      <PrivacyPage onBack={() => navigateTo("welcome")} />
-    </PageErrorBoundary>
-  )}
+          <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
+            <PrivacyPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
 
-  {currentScreen === "terms&conditions" && (
-    <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
-      <TermsAndConditions onBack={() => navigateTo("welcome")} />
-    </PageErrorBoundary>)}
+        {currentScreen === "terms&conditions" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
+            <TermsAndConditions onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+
+        {currentScreen === "battle" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Battle Mode. Please try again.">
+            <BattleMode onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
         {currentScreen === "workout" && (
           <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
             <WorkoutScreen

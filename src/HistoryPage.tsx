@@ -23,6 +23,7 @@ import { HistoryPageSkeleton } from "./components/HistoryPageSkeleton";
 import SessionCard from "./SessionCard";
 import { BodyMetricsWidget } from "./components/BodyMetricsWidget";
 import { ProgressAnalyticsWidget } from "./components/ProgressAnalyticsWidget";
+import { Dashboard } from "./components/Dashboard/Dashboard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -423,9 +424,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
         {/* ── Dashboard Widgets ── */}
         {!loading && !error && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-            <ProgressAnalyticsWidget sessions={sessions} />
-            <BodyMetricsWidget />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '24px' }}>
+            <Dashboard sessions={sessions} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+              <ProgressAnalyticsWidget sessions={sessions} />
+              <BodyMetricsWidget />
+            </div>
           </div>
         )}
 
