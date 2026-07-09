@@ -14,6 +14,7 @@ import {
   Star,
   Scale,
   Target,
+  Users,
 } from "lucide-react";
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
@@ -218,7 +219,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </div>
             )}
 
-            <div className="welcome-actions">
+            <div className="welcome-actions" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button
                 onClick={onStart}
                 className="btn-neon welcome-btn-primary"
@@ -227,6 +228,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               >
                 <Play size={16} fill="currentColor" />
                 Start Training
+              </button>
+
+              <button
+                onClick={() => navigateTo("battle")}
+                className="btn-neon welcome-btn-primary"
+                style={{ background: "var(--neon-purple)", borderColor: "var(--neon-purple)" }}
+                aria-label="Workout Battle"
+                tabIndex={0}
+              >
+                <Users size={16} />
+                Workout Battle
               </button>
 
               <div className="welcome-btn-row">

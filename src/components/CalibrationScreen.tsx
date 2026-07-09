@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
-import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity, ShieldAlert } from 'lucide-react';
+import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity, ShieldAlert, Check } from 'lucide-react';
 import { poseService } from '../services/poseService';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
+import { useSettings } from '../context/SettingsContext';
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
@@ -34,9 +35,18 @@ const srOnly: React.CSSProperties = {
   border: 0,
 };
 
+const EXERCISE_JOINTS: Record<string, { a: number, b: number, c: number }> = {
+  squat: { a: 23, b: 25, c: 27 },
+  pushup: { a: 11, b: 13, c: 15 },
+  bicepCurl: { a: 11, b: 13, c: 15 },
+  lunge: { a: 23, b: 25, c: 27 },
+  shoulderPress: { a: 11, b: 13, c: 15 },
+};
+
 export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   selectedExercise, onSelectExercise, onNext, onBack, onBodyTypeDetected
 }) => {
+  const { settings, updateSetting } = useSettings();
 
   // -- State variables --
   const { sessions, fetchHistory } = useWorkoutHistory();
@@ -70,11 +80,32 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
 
+  const [phase, setPhase] = useState<'positioning' | 'countdown' | 'movement' | 'summary'>('positioning');
+  const [minAngle, setMinAngle] = useState<number>(180);
+  const [maxAngle, setMaxAngle] = useState<number>(0);
+  const [calibratedVal, setCalibratedVal] = useState<number | null>(null);
+  const [movementTimer, setMovementTimer] = useState<number>(6);
+
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
 
   const countdownIntervalRef = useRef<any>(null);
 
+
+  const calculateJointAngle = (landmarks: any[], aIdx: number, bIdx: number, cIdx: number) => {
+    const a = landmarks[aIdx];
+    const b = landmarks[bIdx];
+    const c = landmarks[cIdx];
+    if (!a || !b || !c) return 0;
+    const ab = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+    const cb = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
+    const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
+    const magAB = Math.sqrt(ab.x * ab.x + ab.y * ab.y + ab.z * ab.z);
+    const magCB = Math.sqrt(cb.x * cb.x + cb.y * cb.y + cb.z * cb.z);
+    if (magAB < 1e-6 || magCB < 1e-6) return 0;
+    const cos = dot / (magAB * magCB);
+    return Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
+  };
 
   const handleResults = useCallback((results: any) => {
     let adaptiveFactor = 1.0;
@@ -89,6 +120,16 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
       const gesture = gestureService.analyze(results.poseLandmarks);
       setGestureResult(gesture);
+
+      // Track movement range of motion
+      if (phase === 'movement') {
+        const joint = EXERCISE_JOINTS[selectedExercise.key] || { a: 23, b: 25, c: 27 };
+        const currentAngle = calculateJointAngle(results.poseLandmarks, joint.a, joint.b, joint.c);
+        if (currentAngle > 5 && currentAngle < 179) {
+          setMinAngle((prev) => Math.min(prev, currentAngle));
+          setMaxAngle((prev) => Math.max(prev, currentAngle));
+        }
+      }
     }
 
     const evaluation = calibrationLogic.evaluate(results, adaptiveFactor);
@@ -96,7 +137,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  }, [onBodyTypeDetected, selectedExercise]);
+  }, [onBodyTypeDetected, selectedExercise, phase]);
 
   const handleCameraError = (err: any) => {
     const name = (err instanceof Error) ? err.name : '';
@@ -189,40 +230,63 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   useEffect(() => {
     const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
-    if (gestureTriggered && result.isReady && !gestureResult.isPoseLost && !countdownActive) {
-      setCountdownActive(true);
+    if (gestureTriggered && result.isReady && !gestureResult.isPoseLost && phase === 'positioning') {
+      setPhase('countdown');
       setCountdownSeconds(3);
-    } else if (!gestureTriggered || gestureResult.isPoseLost) {
-      if (countdownActive) {
-        setCountdownActive(false);
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-      }
     }
-  }, [gestureResult.isHandRaised, gestureResult.isThumbsUp, result.isReady, gestureResult.isPoseLost, countdownActive]);
+  }, [gestureResult.isHandRaised, gestureResult.isThumbsUp, result.isReady, gestureResult.isPoseLost, phase]);
 
   useEffect(() => {
-    if (countdownActive && countdownSeconds > 0) {
-      countdownIntervalRef.current = window.setInterval(() => {
-        setCountdownSeconds(prev => prev - 1);
+    if (phase === 'countdown') {
+      const interval = setInterval(() => {
+        setCountdownSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setPhase('movement');
+            setMovementTimer(6);
+            setMinAngle(180);
+            setMaxAngle(0);
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
-      return () => {
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-      };
-    } else if (countdownActive && countdownSeconds === 0) {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-      setCountdownActive(false);
-      onNext();
+      return () => clearInterval(interval);
     }
-  }, [countdownActive, countdownSeconds, onNext]);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === 'movement') {
+      const interval = setInterval(() => {
+        setMovementTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setPhase('summary');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === 'summary') {
+      const range = maxAngle - minAngle;
+      // Set target threshold at 90% of dynamic range
+      const calibratedThreshold = range > 10 ? Math.round(maxAngle - range * 0.90) : selectedExercise.downThreshold;
+      setCalibratedVal(calibratedThreshold);
+
+      const currentProfile = settings.calibrationProfile || {};
+      currentProfile[selectedExercise.key] = {
+        minAngle: Math.round(minAngle),
+        maxAngle: Math.round(maxAngle),
+        calibratedThreshold,
+      };
+      updateSetting('calibrationProfile', { ...currentProfile });
+    }
+  }, [phase, minAngle, maxAngle, selectedExercise.key]);
 
   const statusColor = result.status === 'green' ? 'var(--neon-green)' : (result.status === 'yellow' ? 'var(--neon-yellow)' : 'var(--neon-red)');
 
@@ -650,11 +714,36 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         {/* Bottom Controls */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'all', marginTop: 'auto', paddingBottom: '80px' }}>
           <button onClick={onBack} className="btn-outline">CANCEL</button>
-          {countdownActive && countdownSeconds > 0 ? (
+          
+          {phase === 'countdown' ? (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid var(--neon-cyan)', background: 'rgba(0, 240, 255, 0.05)', boxShadow: '0 0 20px rgba(0, 240, 255, 0.3)' }}>
-              <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>STARTING IN</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>GET READY TO MOVE</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: '4rem', color: 'var(--neon-cyan)', letterSpacing: '4px', textShadow: '0 0 20px rgba(0, 240, 255, 0.8)', animation: 'pulse 0.5s ease-in-out' }}>{countdownSeconds}</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>KEEP POSITION STEADY</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Perform one max-depth rep when timer starts</div>
+            </div>
+          ) : phase === 'movement' ? (
+            <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', border: '2px solid var(--neon-purple)', background: 'rgba(157, 23, 248, 0.05)', boxShadow: '0 0 20px rgba(157, 23, 248, 0.2)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--neon-purple)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>PERFORM CALIBRATION REP</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: '3rem', color: 'var(--neon-purple)', textShadow: '0 0 10px var(--neon-purple)' }}>{movementTimer}s</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Go as deep as possible and return to start position!</div>
+            </div>
+          ) : phase === 'summary' ? (
+            <div className="glass" style={{ padding: '20px 30px', minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '16px', border: '2px solid var(--neon-green)', background: 'rgba(34, 197, 94, 0.05)', boxShadow: '0 0 20px rgba(34, 197, 94, 0.2)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--neon-green)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700, textAlign: 'center' }}>CALIBRATION SUCCESSFUL</div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.75rem' }}>
+                <div style={{ color: 'var(--text-secondary)' }}>Full extension:</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', textAlign: 'right' }}>{Math.round(maxAngle)}°</div>
+                <div style={{ color: 'var(--text-secondary)' }}>Max depth:</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', textAlign: 'right' }}>{Math.round(minAngle)}°</div>
+                <div style={{ color: 'var(--neon-green)', fontWeight: 'bold' }}>Dynamic Threshold:</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--neon-green)', textAlign: 'right' }}>{calibratedVal}°</div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <button onClick={() => setPhase('positioning')} className="btn-outline" style={{ flex: 1, fontSize: '0.7rem', padding: '8px' }}>RETRY</button>
+                <button onClick={onNext} className="btn-neon" style={{ flex: 1, fontSize: '0.7rem', padding: '8px', background: 'var(--neon-green)', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>START WORKOUT</button>
+              </div>
             </div>
           ) : gestureResult.isPoseLost ? (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', border: '2px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.05)', boxShadow: '0 0 20px rgba(255, 59, 92, 0.3)' }}>
@@ -667,11 +756,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Hand color="var(--neon-purple)" size={28} style={{ animation: 'pulse 1.5s ease-in-out infinite' }} />
                 <div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>READY TO START</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>READY TO CALIBRATE</div>
                   <div style={{ color: 'var(--neon-cyan)', fontWeight: 700, fontSize: '0.85rem' }}>RAISE HANDS OR THUMBS UP</div>
                 </div>
               </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>Lift both hands or give a thumbs up to begin analysis</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>Lift both hands or give a thumbs up to begin dynamic calibration</div>
               {gestureResult.confidence > 0 && gestureResult.confidence < 1 && (
                 <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{ width: `${gestureResult.confidence * 100}%`, height: '100%', background: 'var(--neon-purple)', transition: 'width 0.3s ease', boxShadow: '0 0 10px var(--neon-purple)' }} />
@@ -685,12 +774,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{selectedExercise.name} mode</div>
-                {/*
-                    NOTE: aria-live / role / aria-atomic have been removed from this
-                    visible element. Announcements are now handled by the dedicated
-                    hidden live region at the top of the JSX, which covers ALL states
-                    (calibrating, ready, pose lost, countdown, error) — not just this one.
-                  */}
                 <div className="pb-4" style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem', paddingBottom: '16px' }}>
                   {result.message}
                 </div>
