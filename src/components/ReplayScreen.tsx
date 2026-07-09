@@ -164,7 +164,7 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
             style={{
               fontSize: '0.65rem',
               letterSpacing: '3px',
-              color: isGoodForm ? '#00ff88' : '#ffcc00',
+              color: isGoodForm ? 'var(--neon-green)' : 'var(--neon-yellow)',
               textTransform: 'uppercase',
               marginBottom: '4px',
             }}
@@ -175,9 +175,9 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
             style={{
               fontSize: '1.8rem',
               fontWeight: 900,
-              color: isGoodForm ? '#00ff88' : '#ffcc00',
+              color: isGoodForm ? 'var(--neon-green)' : 'var(--neon-yellow)',
               letterSpacing: '1px',
-              textShadow: isGoodForm ? '0 0 20px #00ff8888' : '0 0 20px #ffcc0088',
+              textShadow: isGoodForm ? '0 0 20px var(--neon-green)' : '0 0 20px var(--neon-yellow)',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
@@ -357,18 +357,25 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
             <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', letterSpacing: '1px' }}>
               Total Accuracy (AI)
             </span>
-            <span style={{ fontSize: '0.72rem', color: accuracy >= 80 ? '#00ff88' : '#ff4466', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.72rem', color: accuracy >= 80 ? 'var(--neon-green)' : 'var(--neon-red)', fontWeight: 700 }}>
               {accuracy}%
             </span>
           </div>
-          <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+          <div
+            role="progressbar"
+            aria-label="Total accuracy"
+            aria-valuenow={accuracy}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}
+          >
             <div
               style={{
                 height: '100%',
                 width: `${accuracy}%`,
-                background: accuracy >= 80 ? '#00ff88' : '#ff4466',
+                background: accuracy >= 80 ? 'var(--neon-green)' : 'var(--neon-red)',
                 borderRadius: '2px',
-                boxShadow: accuracy >= 80 ? '0 0 6px #00ff88' : '0 0 6px #ff4466',
+                boxShadow: accuracy >= 80 ? '0 0 6px var(--neon-green)' : '0 0 6px var(--neon-red)',
                 transition: 'width 0.5s ease',
               }}
             />
@@ -381,18 +388,25 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
             <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', letterSpacing: '1px' }}>
               Alignment Score
             </span>
-            <span style={{ fontSize: '0.72rem', color: '#00ff88', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--neon-green)', fontWeight: 700 }}>
               {alignmentScore}%
             </span>
           </div>
-          <div style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+          <div
+            role="progressbar"
+            aria-label="Alignment score"
+            aria-valuenow={alignmentScore}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            style={{ height: '3px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px' }}
+          >
             <div
               style={{
                 height: '100%',
                 width: `${alignmentScore}%`,
-                background: '#00ff88',
+                background: 'var(--neon-green)',
                 borderRadius: '2px',
-                boxShadow: '0 0 6px #00ff88',
+                boxShadow: '0 0 6px var(--neon-green)',
                 transition: 'width 0.1s linear',
               }}
             />
@@ -523,6 +537,8 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
             min={0}
             max={Math.max(0, frames.length - 1)}
             value={currentFrameIdx}
+            aria-label="Replay frame"
+            aria-valuetext={`Frame ${currentFrameIdx + 1} of ${frames.length}`}
             onChange={(e) => {
               setIsPlaying(false);
               setCurrentFrameIdx(Number(e.target.value));

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
-interface ActivePlan {
+export interface ActivePlan {
   id: string;
   goal: string;
   level: string;

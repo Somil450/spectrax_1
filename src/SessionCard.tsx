@@ -153,6 +153,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
         .delete-btn {
           display: flex;
           align-items: center;
+          justify-content: center;
           gap: 5px;
           background: transparent;
           border: 1px solid transparent;
@@ -162,6 +163,9 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           padding: 4px 8px;
           font-size: 12px;
           transition: all 0.15s ease;
+          min-width: 44px;
+          min-height: 44px;
+          position: relative;
         }
         .delete-btn:hover {
           color: #ef4444;
@@ -177,7 +181,17 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
         @keyframes pulse-border {
           to { border-color: rgba(239,68,68,0.9); }
         }
-        .confirm-label { font-size: 11px; font-weight: 600; }
+        .confirm-label {
+          position: absolute;
+          right: calc(100% + 8px);
+          top: 50%;
+          transform: translateY(-50%);
+          white-space: nowrap;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--neon-red);
+          pointer-events: none;
+        }
         .stats-grid {
           display: flex;
           gap: 14px;

@@ -161,10 +161,21 @@ class ClipEngine {
       targetImage = this.helperCanvas;
     }
 
+    if (!(targetImage instanceof HTMLCanvasElement)) {
+      return null;
+    }
+
     return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        this.worker?.removeEventListener('message', handleMessage);
+        this.isAnalyzing = false;
+        resolve(null);
+      }, 10000);
+
       const handleMessage = (event: MessageEvent) => {
         const { type, results } = event.data;
         if (type === 'prediction') {
+          clearTimeout(timeout);
           this.worker?.removeEventListener('message', handleMessage);
           this.isAnalyzing = false;
           resolve({
@@ -177,14 +188,12 @@ class ClipEngine {
       this.isAnalyzing = true;
       this.worker?.addEventListener('message', handleMessage);
 
-      if (targetImage instanceof HTMLCanvasElement) {
-        const imageData = targetImage.getContext('2d')?.getImageData(0, 0, targetImage.width, targetImage.height);
-        this.worker?.postMessage({
-          type: 'analyze',
-          image: imageData,
-          labels: this.labels
-        });
-      }
+      const imageData = targetImage.getContext('2d')?.getImageData(0, 0, targetImage.width, targetImage.height);
+      this.worker?.postMessage({
+        type: 'analyze',
+        image: imageData,
+        labels: this.labels
+      });
     });
   }
 

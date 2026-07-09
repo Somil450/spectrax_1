@@ -93,6 +93,29 @@ describe('streakUtils', () => {
       expect(data.longestStreak).toBe(2); // Retains longest streak
       expect(data.lastWorkoutDate).toBe(new Date('2024-01-04T12:00:00Z').toDateString());
     });
+
+    it('increments the streak when the legacy YYYY-MM-DD date is the previous day (any timezone)', () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ currentStreak: 3, longestStreak: 3, lastWorkoutDate: '2024-01-01' }),
+      );
+      // Local "next day" regardless of timezone offset.
+      vi.setSystemTime(new Date(2024, 0, 2, 12, 0, 0));
+
+      const data = updateWorkoutStreak();
+      expect(data.currentStreak).toBe(4);
+    });
+
+    it('treats a legacy YYYY-MM-DD date as the same local day (any timezone)', () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ currentStreak: 3, longestStreak: 3, lastWorkoutDate: '2024-01-02' }),
+      );
+      vi.setSystemTime(new Date(2024, 0, 2, 18, 0, 0));
+
+      const data = updateWorkoutStreak();
+      expect(data.currentStreak).toBe(3);
+    });
   });
 
   describe('storage failure handling', () => {

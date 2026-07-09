@@ -50,17 +50,21 @@ async function uploadReplaySession(session: ReplaySession): Promise<void> {
  */
 export async function syncOfflineQueue(): Promise<SyncResult> {
   const currentUserId = getAuth().currentUser?.uid;
+  if (!currentUserId) {
+    throw new Error("User not authenticated — cannot sync offline queue");
+  }
+
   const queue = getQueue();
   let synced = 0;
   let failed = 0;
 
   for (const session of queue) {
-    if (!currentUserId || session.userId !== currentUserId) {
+    if (session.userId !== currentUserId) {
       continue;
     }
     try {
       await uploadReplaySession(session);
-      removeFromQueue(session.id);
+      await removeFromQueue(session.id);
       synced++;
     } catch (error) {
       console.error(

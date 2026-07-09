@@ -198,7 +198,7 @@ export function LoginScreen({
         </div>
 
         {displayError && (
-          <div className="error-alert">
+          <div className="error-alert" role="alert">
             <span>{displayError}</span>
             <button
               className="error-close"

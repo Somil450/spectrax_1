@@ -109,13 +109,14 @@ export interface Replay3DModelProps {
   exerciseName?: string;
 }
 
-type HudLabel = {
-  x: number;
-  y: number;
-  angle: number;
-  label: string;
-  id: number;
-};
+const HUD_JOINTS: { idx: number; boneKey: string; label: string; p1: number; p2: number; p3: number }[] = [
+  { idx: 13, boneKey: "leftElbow",  label: "L ELBOW", p1: 11, p2: 13, p3: 15 },
+  { idx: 14, boneKey: "rightElbow", label: "R ELBOW", p1: 12, p2: 14, p3: 16 },
+  { idx: 25, boneKey: "leftKnee",   label: "L KNEE",  p1: 23, p2: 25, p3: 27 },
+  { idx: 26, boneKey: "rightKnee",  label: "R KNEE",  p1: 24, p2: 26, p3: 28 },
+  { idx: 23, boneKey: "leftHip",    label: "L HIP",   p1: 11, p2: 23, p3: 25 },
+  { idx: 24, boneKey: "rightHip",   label: "R HIP",   p1: 12, p2: 24, p3: 26 },
+];
 
 type RippleEvent = {
   origin: THREE.Vector2;
@@ -466,6 +467,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const autoAdaptRef      = useRef(true);
   const fpsMonitor        = useRef(new AdaptiveFPSMonitor());
   const frameFloatRef     = useRef(0);
+  const currentFrameIdxRef = useRef(0);
 
   const isPlaying        = externalIsPlaying   !== undefined ? externalIsPlaying   : _isPlaying;
   const currentFrameIdx  = externalFrameIdx    !== undefined ? externalFrameIdx    : _currentFrameIdx;
@@ -474,6 +476,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
   useEffect(() => { graphicsPresetRef.current = graphicsPreset; }, [graphicsPreset]);
   useEffect(() => { autoAdaptRef.current      = autoAdapt; },     [autoAdapt]);
+  useEffect(() => { currentFrameIdxRef.current = currentFrameIdx; }, [currentFrameIdx]);
 
   // ── Three.js refs ─────────────────────────────────────────────────────────
   const sceneRef    = useRef<THREE.Scene | null>(null);
@@ -522,7 +525,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const depthRaycasterRef    = useRef(new THREE.Raycaster());
   const orbitPelvisTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const hasOrbitPelvisTargetRef = useRef(false);
-  const [hudLabels, setHudLabels] = useState<HudLabel[]>([]);
+  const hudRefs      = useRef<Record<number, HTMLDivElement | null>>({});
+  const hudAngleRefs = useRef<Record<number, HTMLSpanElement | null>>({});
   const reqIdRef             = useRef<number>(0);
   const lastTimeRef          = useRef<number>(0);
   const recoveryTimeoutRef   = useRef<number | null>(null);
@@ -1047,7 +1051,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const { width: w, height: h } = entry.contentRect;
           if (w === 0 || h === 0) return;
           rendererRef.current.setSize(w, h);
-          rendererRef.current.setPixelRatio(window.devicePixelRatio);
+          const cfg = GRAPHICS_PRESETS[graphicsPresetRef.current];
+          rendererRef.current.setPixelRatio(Math.min(cfg.pixelRatio, window.devicePixelRatio ?? 1));
           cameraRef.current.aspect = w / h;
           cameraRef.current.updateProjectionMatrix();
           composerRef.current?.setSize(w, h);
@@ -1221,14 +1226,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       if (isPlaying && time - lastTimeRef.current > 1000 / 8) {
-        const nextFloat = ((frameFloatRef.current ?? currentFrameIdx) + 1) % frames.length;
+        const nextFloat = ((frameFloatRef.current ?? currentFrameIdxRef.current) + 1) % frames.length;
         frameFloatRef.current = nextFloat;
         const nextIdx = Math.round(nextFloat) % frames.length;
         setCurrentFrameIdx(nextIdx);
         lastTimeRef.current = time;
       }
 
-      const renderFloat = isPlaying ? (frameFloatRef.current ?? currentFrameIdx) : currentFrameIdx;
+      const renderFloat = isPlaying ? (frameFloatRef.current ?? currentFrameIdxRef.current) : currentFrameIdxRef.current;
       const interpolatedLm = getInterpolatedLandmarks(frames, renderFloat);
       if (!interpolatedLm) {
         rendererRef.current?.render(sceneRef.current!, cameraRef.current!);
@@ -1237,7 +1242,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
       const frame      = frames[Math.round(renderFloat) % frames.length];
       const { baseColor, badJoints, mistakeColor } = parseFeedback(frame.feedback);
-      const repCount   = frame.repCount ?? Math.floor(currentFrameIdx / 30);
+      const repCount   = frame.repCount ?? Math.floor(currentFrameIdxRef.current / 30);
       const timeSeconds = time * 0.001;
 
       // Compute depth scale from torso size
@@ -1368,33 +1373,39 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         applyPose("rightAnkle",    28, 30);
 
         // HUD joint angle labels
-        const newLabels: HudLabel[] = [];
-        const projectJoint = (idx: number, boneKey: string, label: string, p1: number, p2: number, p3: number) => {
-          if (!cameraRef.current || !rendererRef.current || !mountRef.current) return;
-          const a = getLm(p1), b = getLm(p2), c = getLm(p3);
+        const updateHudLabel = (joint: typeof HUD_JOINTS[number]) => {
+          const el = hudRefs.current[joint.idx];
+          if (!el) return;
+          if (!cameraRef.current || !rendererRef.current || !mountRef.current) {
+            el.style.display = "none";
+            return;
+          }
+          const a = getLm(joint.p1), b = getLm(joint.p2), c = getLm(joint.p3);
           let angle = 0;
           if (a && b && c) {
             const v1 = new THREE.Vector3().subVectors(a, b);
             const v2 = new THREE.Vector3().subVectors(c, b);
             angle = Math.round(v1.angleTo(v2) * (180 / Math.PI));
           }
-          const bone = boneMapRef.current[boneKey];
-          if (!bone) return;
+          const bone = boneMapRef.current[joint.boneKey];
+          if (!bone) {
+            el.style.display = "none";
+            return;
+          }
           const pos    = new THREE.Vector3();
           bone.getWorldPosition(pos);
           const vector = pos.project(cameraRef.current);
           const x = (vector.x * 0.5 + 0.5) * mountRef.current.clientWidth;
           const y = -(vector.y * 0.5 - 0.5) * mountRef.current.clientHeight;
-          newLabels.push({ x, y, angle, label, id: idx });
+          el.style.display = "flex";
+          el.style.left = `${x}px`;
+          el.style.top = `${y}px`;
+          el.style.borderColor = angle < 140 ? "var(--neon-cyan)" : "var(--neon-purple)";
+          const angleEl = hudAngleRefs.current[joint.idx];
+          if (angleEl) angleEl.textContent = `${angle}°`;
         };
 
-        projectJoint(13, "leftElbow",   "L ELBOW", 11, 13, 15);
-        projectJoint(14, "rightElbow",  "R ELBOW", 12, 14, 16);
-        projectJoint(25, "leftKnee",    "L KNEE",  23, 25, 27);
-        projectJoint(26, "rightKnee",   "R KNEE",  24, 26, 28);
-        projectJoint(23, "leftHip",     "L HIP",   11, 23, 25);
-        projectJoint(24, "rightHip",    "R HIP",   12, 24, 26);
-        setHudLabels(newLabels);
+        HUD_JOINTS.forEach(updateHudLabel);
 
         // Skin error highlight
         skinnedMeshesRef.current.forEach((mesh) => {
@@ -1473,7 +1484,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, currentFrameIdx, isPlaying, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
+  }, [frames, isPlaying, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
 
   // ─── No frames guard ─────────────────────────────────────────────────────
   if (!frames || frames.length === 0) {
@@ -1513,10 +1524,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       />
 
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
-        {hudLabels.map((node) => (
-          <div key={node.id} style={{ position: "absolute", left: node.x, top: node.y, transform: "translate(-50%,-50%)", padding: "4px 8px", background: "rgba(0,0,0,0.6)", border: `1px solid ${node.angle < 140 ? "var(--neon-cyan)" : "var(--neon-purple)"}`, borderRadius: "4px", display: "flex", flexDirection: "column", alignItems: "center", backdropFilter: "blur(4px)", boxShadow: "0 0 10px rgba(0,0,0,0.5)", transition: "all 0.1s linear" }}>
-            <span style={{ fontSize: "0.6rem", color: "#aaa", letterSpacing: "1px" }}>{node.label}</span>
-            <span style={{ fontSize: "0.85rem", color: "#fff", fontWeight: 800 }}>{node.angle}°</span>
+        {HUD_JOINTS.map((joint) => (
+          <div key={joint.idx} ref={(el) => { hudRefs.current[joint.idx] = el; }} style={{ position: "absolute", display: "none", transform: "translate(-50%,-50%)", padding: "4px 8px", background: "rgba(0,0,0,0.6)", border: "1px solid var(--neon-cyan)", borderRadius: "4px", flexDirection: "column", alignItems: "center", backdropFilter: "blur(4px)", boxShadow: "0 0 10px rgba(0,0,0,0.5)", transition: "all 0.1s linear" }}>
+            <span style={{ fontSize: "0.6rem", color: "#aaa", letterSpacing: "1px" }}>{joint.label}</span>
+            <span ref={(el) => { hudAngleRefs.current[joint.idx] = el; }} style={{ fontSize: "0.85rem", color: "#fff", fontWeight: 800 }}>0°</span>
           </div>
         ))}
       </div>
