@@ -14,6 +14,7 @@ import {
   Star,
   Scale,
   Target,
+  Users,
 } from "lucide-react";
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
@@ -221,7 +222,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </div>
             )}
 
-            <div className="welcome-actions">
+            <div className="welcome-actions" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button
                 onClick={onStart}
                 className="btn-neon welcome-btn-primary"
@@ -230,6 +231,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               >
                 <Play size={16} fill="currentColor" />
                 Start Training
+              </button>
+
+              <button
+                onClick={() => navigateTo("battle")}
+                className="btn-neon welcome-btn-primary"
+                style={{ background: "var(--neon-purple)", borderColor: "var(--neon-purple)" }}
+                aria-label="Workout Battle"
+                tabIndex={0}
+              >
+                <Users size={16} />
+                Workout Battle
               </button>
 
               <div className="welcome-btn-row">
@@ -292,6 +304,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     BMI
                   </button>
                 )}
+                <button
+                  onClick={() => navigateTo("multiplayer")}
+                  className="welcome-btn-secondary welcome-btn-secondary--blue"
+                  aria-label="Join Multiplayer Workout"
+                  tabIndex={0}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "rgba(0, 240, 255, 0.1)",
+                    border: "1px solid rgba(0, 240, 255, 0.3)",
+                    boxShadow: "0 0 10px rgba(0, 240, 255, 0.15)"
+                  }}
+                >
+                  <Users size={15} />
+                  Live Battle
+                </button>
               </div>
             </div>
 

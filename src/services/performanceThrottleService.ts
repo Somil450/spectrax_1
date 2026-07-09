@@ -8,6 +8,7 @@ class FrameDropMonitor {
   private listeners: Set<(level: ThrottleLevel) => void> = new Set();
   private currentLevel: ThrottleLevel = 0;
   private started = false;
+  private subscriberCount = 0;
 
   // Configuration
   private readonly WINDOW_SIZE = 60; // frames to keep (≈1s at 60fps)
@@ -72,7 +73,14 @@ class FrameDropMonitor {
 
   onLevelChange(cb: (level: ThrottleLevel) => void): () => void {
     this.listeners.add(cb);
-    return () => this.listeners.delete(cb);
+    this.subscriberCount++;
+    return () => {
+      this.listeners.delete(cb);
+      this.subscriberCount--;
+      if (this.subscriberCount <= 0) {
+        this.stop();
+      }
+    };
   }
 }
 
@@ -92,8 +100,6 @@ export function useThrottleLevel(): ThrottleLevel {
     const unsubscribe = throttleMonitor.onLevelChange(setLevel);
     return () => {
       unsubscribe();
-      // Do not stop the monitor globally; other components may use it.
-      // throttleMonitor.stop();
     };
   }, []);
 

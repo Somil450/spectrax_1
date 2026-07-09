@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/NavBar.css';
 import { Home, Activity, Award, SunMedium, Menu, Scale} from 'lucide-react';
+import { Tracker } from './Tracker/Tracker';
+
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
 interface NavBarProps {
   navigateTo: (screen: string) => void;
@@ -142,11 +145,13 @@ export const NavBar: React.FC<NavBarProps> = ({ navigateTo, theme, setTheme }) =
 
   return (
     <header className={`spectrax-navbar glass ${hidden ? 'hidden' : ''}`}>
-      <div className="nav-left">
+      <div className="nav-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <div className="nav-brand" onClick={() => navigateTo('welcome')}>
           <Home size={18} />
           <span className="brand-text">SpectraX</span>
+          <ConnectionStatusIndicator />
         </div>
+        <Tracker />
       </div>
 
       <nav className={`nav-center ${open ? 'open' : ''}`} aria-hidden={!open}>
