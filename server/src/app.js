@@ -66,6 +66,7 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 // ─── Setup Routes & Socket Handlers ────────────────────────────────────────
 setupHealthRoute(app, sessions);
 setupSocketHandlers(io, sessions);
+app.use("/api/workouts", require("./api/workouts"));
 
 // ─── Global Error Handler ─────────────────────────────────────────────────
 app.use(errorHandler);

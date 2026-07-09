@@ -736,14 +736,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     const visibility = getJointVisibility(results.poseLandmarks);
 
-    // Adjust structural thresholds dynamically based on active detected body type
+    // Adjust structural thresholds dynamically based on active detected body type or calibrated profile
     const activeConfig = { ...exercise };
-    if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
-      activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
-    } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
-      activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
-    } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
-      activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
+    const calib = settings.calibrationProfile?.[exercise.key];
+    if (calib && calib.calibratedThreshold) {
+      activeConfig.downThreshold = calib.calibratedThreshold;
+    } else {
+      if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
+        activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
+      } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
+        activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
+      } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
+        activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
+      }
     }
 
     // 2. Process through multi-exercise engine (stays on main thread — manages state)
@@ -819,7 +824,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       
       overlayRenderer.draw(results, nextState.status, primaryJoints, errorJoints);
     }
-  }, [exercise, depth3DEnabled, handleEnd]);
+  }, [exercise, depth3DEnabled, handleEnd, settings]);
 
   const handleFrameTick = useCallback((count: number) => {
     setVlmProgress(clipEngine.getProgress());

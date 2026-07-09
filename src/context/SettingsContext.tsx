@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+export interface ExerciseCalibration {
+  minAngle: number;
+  maxAngle: number;
+  calibratedThreshold: number;
+}
+
+export interface CalibrationProfile {
+  [exerciseKey: string]: ExerciseCalibration;
+}
+
 export interface UserSettings {
   theme: 'light' | 'dark' | 'system';
   soundEnabled: boolean;
@@ -8,6 +18,7 @@ export interface UserSettings {
   showSkeleton: boolean;
   bodyType: 'ecto' | 'meso' | 'endo' | 'default';
   difficulty: 'beginner' | 'intermediate' | 'advanced';
+  calibrationProfile?: CalibrationProfile;
 }
 
 const defaultSettings: UserSettings = {
@@ -18,6 +29,7 @@ const defaultSettings: UserSettings = {
   showSkeleton: true,
   bodyType: 'default',
   difficulty: 'beginner',
+  calibrationProfile: {},
 };
 
 interface SettingsContextType {
