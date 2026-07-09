@@ -12,13 +12,6 @@ import type {
 
 const LM_COUNT = 33;
 
-const _depthLandmarks: DepthLandmark[] = Array.from({ length: LM_COUNT }, () => ({
-  x: 0, y: 0, z: 0, visibility: 0, depthConfidence: 0,
-}));
-const _meshVertices: Mesh3DVertex[] = Array.from({ length: LM_COUNT }, () => ({
-  x: 0, y: 0, z: 0, visibility: 0,
-}));
-
 function estimateFocalLengthPx(frameWidth: number): number {
   return frameWidth / (2 * Math.tan((60 * Math.PI) / 360));
 }
@@ -76,15 +69,25 @@ export function reconstruct3DMesh(
   const cy = frameHeight / 2;
 
   const limit = Math.min(landmarks.length, LM_COUNT);
+  const depthLandmarks: DepthLandmark[] = [];
+  const meshVertices: Mesh3DVertex[] = [];
 
   for (let i = 0; i < limit; i++) {
     const lm = landmarks[i];
-    const dl = _depthLandmarks[i];
-    const mv = _meshVertices[i];
 
-    dl.x = lm.x;
-    dl.y = lm.y;
-    dl.visibility = lm.visibility ?? 1;
+    const dl: DepthLandmark = {
+      x: lm.x,
+      y: lm.y,
+      z: 0,
+      visibility: lm.visibility ?? 1,
+      depthConfidence: 0,
+    };
+    const mv: Mesh3DVertex = {
+      x: 0,
+      y: 0,
+      z: 0,
+      visibility: dl.visibility,
+    };
 
     if (depthMap) {
       const { depth, confidence } = sampleDepth(depthMap, lm.x, lm.y);
@@ -97,7 +100,6 @@ export function reconstruct3DMesh(
       mv.x = (px - cx) * depth / fx;
       mv.y = (py - cy) * depth / fy;
       mv.z = depth;
-      mv.visibility = dl.visibility;
     } else {
       dl.z = lm.z;
       dl.depthConfidence = lm.visibility ?? 1;
@@ -105,14 +107,13 @@ export function reconstruct3DMesh(
       mv.x = lm.x;
       mv.y = lm.y;
       mv.z = lm.z;
-      mv.visibility = dl.visibility;
     }
+
+    depthLandmarks.push(dl);
+    meshVertices.push(mv);
   }
 
-  return {
-    depthLandmarks: _depthLandmarks.slice(0, limit).map((d) => ({ ...d })),
-    meshVertices: _meshVertices.slice(0, limit).map((m) => ({ ...m })),
-  };
+  return { depthLandmarks, meshVertices };
 }
 
 export function getLandmarkDepths(

@@ -1,20 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
+import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
+import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
-import { getJointAngles, getJointVisibility } from '../services/angleUtils';
+import { getJointAngles, getJointVisibility } from '../utils/poseMath';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
 import { exerciseEngine, EngineState } from '../services/exerciseEngine';
+import { CameraView } from './CameraView/CameraView';
 import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
 import { poseLockService } from '../services/poseLockService';
 import { clipEngine } from '../services/clipEngine';
-import { BodyType } from '../services/bodyTypeEngine';
+import { BodyType} from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
 import { useWorkoutSync } from '../hooks/useWorkoutSync';
 import { useDisplayConfig } from '../hooks/useDisplayConfig';
+import { audioFeedbackService } from '../services/audioFeedbackService';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { injuryRiskEngine } from '../services/injuryRiskEngine';
@@ -24,8 +28,7 @@ import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
 import { reconstruct3DMesh } from '../services/mesh3DEngine';
 import { gestureService, GestureCommand } from '../services/gestureService';
-import { debounce } from '../utils/debounce';
-import { useThrottleLevel } from '../services/performanceThrottleService';
+
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -172,6 +175,9 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
 export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
   const { settings, updateSetting } = useSettings();
   const { user } = useAuth();
+  useEffect(() => {
+  if (!user?.uid) return; // Guard clause 
+}, [user?.uid]);
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const lastSpokenFeedbackRef = useRef<string>("");
   const lastSpokenTimeRef = useRef<number>(0);
@@ -731,14 +737,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     const visibility = getJointVisibility(results.poseLandmarks);
 
-    // Adjust structural thresholds dynamically based on active detected body type
+    // Adjust structural thresholds dynamically based on active detected body type or calibrated profile
     const activeConfig = { ...exercise };
-    if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
-      activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
-    } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
-      activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
-    } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
-      activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
+    const calib = settings.calibrationProfile?.[exercise.key];
+    if (calib && calib.calibratedThreshold) {
+      activeConfig.downThreshold = calib.calibratedThreshold;
+    } else {
+      if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
+        activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
+      } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
+        activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
+      } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
+        activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
+      }
     }
 
     // 2. Process through multi-exercise engine (stays on main thread — manages state)
@@ -750,6 +761,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       bodyTypeRef.current,
       results.poseLandmarks
     );
+    
+    // Trigger Audio Feedback
+    if (nextState.correctReps > mutableState.current.correctReps) {
+      audioFeedbackService.playSuccessChime();
+    } else if (nextState.status === "red" && mutableState.current.status !== "red") {
+      audioFeedbackService.playErrorBuzz();
+    }
+
     mutableState.current = nextState;
     setEngineState(nextState);
 
@@ -797,9 +816,16 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         overlayRenderer.set3DEnabled(false);
         overlayRenderer.setMeshVertices(null);
       }
-      overlayRenderer.draw(results, nextState.status, primaryJoints);
+      
+      const errorJoints: number[] = [];
+      if (nextState.mistakes["knee"]) errorJoints.push(25, 26);
+      if (nextState.mistakes["back"]) errorJoints.push(11, 12, 23, 24);
+      if (nextState.mistakes["elbow"]) errorJoints.push(13, 14);
+      if (nextState.mistakes["depth"]) errorJoints.push(23, 24);
+      
+      overlayRenderer.draw(results, nextState.status, primaryJoints, errorJoints);
     }
-  }, [exercise, depth3DEnabled, handleEnd]);
+  }, [exercise, depth3DEnabled, handleEnd, settings]);
 
   const handleFrameTick = useCallback((count: number) => {
     setVlmProgress(clipEngine.getProgress());
@@ -922,7 +948,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       injuryRiskEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
-  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession]);
+  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession,user?.uid]);
 
   useEffect(() => {
     setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
@@ -1005,49 +1031,24 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       style={{ background: "var(--bg-primary)" }}
     >
       {cameraError === 'CAMERA_PERMISSION_DENIED' && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 1000, background: 'rgba(8,12,20,0.95)', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#fff', padding: '20px', textAlign: 'center', backdropFilter: 'blur(10px)', boxSizing: 'border-box' }}>
-          <div style={{ margin: 'auto', width: '100%', maxWidth: '500px', padding: '24px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', borderRadius: '16px', boxSizing: 'border-box' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
-            <h2 style={{ fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', marginBottom: '12px', color: '#ef4444', fontFamily: 'var(--font-heading)' }}>CAMERA ACCESS REQUIRED</h2>
-            <p style={{ color: '#94a3b8', lineHeight: 1.5, marginBottom: '24px', fontSize: '0.9rem' }}>
-              SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.
-            </p>
-            <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px' }}>RELOAD PAGE</button>
-          </div>
+        <CameraPermissionRecovery onRetry={() => {
+          setCameraError(null);
+          startSystem();
+        }} />
+      )}
+      {poseService.isFallbackMode && (
+        <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(239, 68, 68, 0.9)", color: "#fff", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold", zIndex: 1100, display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>
+          <ShieldAlert size={16} />
+          <span>SIMULATED FALLBACK MODE (WEBGL UNSUPPORTED)</span>
         </div>
       )}
       <CameraErrorBoundary>
       {/* Background Video Layer */}
-      <div
-        className="camera-viewport"
-        style={{ position: "absolute", inset: 0 }}
-      >
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            opacity: 0.4,
-            transform: "scaleX(-1)",
-          }}
-        />
-        <canvas
-          ref={canvasRef}
-          width={1280}
-          height={720}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            transform: "scaleX(-1)",
-          }}
-        />
-      </div>
+      <CameraView
+        videoRef={videoRef}
+        canvasRef={canvasRef}
+        status={engineState.status}
+      />
 
       {/* Target Overlays for IndexedDB State logic */}
       {displayConfig.fpsDisplay && (

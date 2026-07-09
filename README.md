@@ -85,29 +85,32 @@ It doesn't just track your body; it **understands your movement**. SpectraX coun
 <div align="center">
 
 ### Welcome Screen
-![Welcome Screen](assets/screenshots/01-welcome.png.jpeg)
-*Initialize your session, sign in, or browse workout history.*
+![Welcome Screen](assets/screenshots/01-home-screen.png)
+*Start your AI-powered fitness journey with SpectraX.*
 
-### Exercise Selection — Bodyweight Squats
-![Squats](assets/screenshots/02-exercise-selection-squats.png.jpeg)
-*Select from multiple exercises with live camera preview.*
+### Exercise Selection - Bodyweight Squats
+![Squats](assets/screenshots/02-camera-acess.png)
+*Select from multiple exercises with a live camera preview.*
 
-### Exercise Selection — Bicep Curls
-![Bicep Curls](assets/screenshots/04-exercise-selection-bicep-curls.png.jpeg)
-*Real-time pose detection ready for bicep curl tracking.*
+### Bicep Curl Exercise
+![Bicep Curls](assets/screenshots/03-bicep-curl.png)
+*Follow guided instructions while tracking your bicep curl form.*
 
-### Exercise Selection — Plank
-![Plank](assets/screenshots/03-exercise-selection-plank.png.jpeg)
-*Plank hold detection with live camera feed.*
+### Plank Exercise
+![Plank](assets/screenshots/04-plank-posture.png)
+*Real-time posture detection for planks and more workouts.*
 
-### Exercise Selection — Push-Ups
-![Push-Ups](assets/screenshots/05-exercise-selection-pushup.png.jpeg)
-*Push-up rep counting with form analysis.*
+### Fitness Calculator
+![Fitness](assets/screenshots/05-fitness-cal.png)
+*Manage your fitness metrics with built-in calculators.*
 
 ### Session History
-![Session History](assets/screenshots/06-exercise-session-history.png.jpeg)
+![Session History](assets/screenshots/06-session-history.png)
 *Review past workout sessions and track your progress over time.*
 
+### Trophy Room
+![Trophy Room](assets/screenshots/07-Trophy.png)
+*Unlock achievements as you reach your fitness milestones.*
 </div>
 
 ---

@@ -64,7 +64,7 @@ export async function syncOfflineQueue(): Promise<SyncResult> {
     }
     try {
       await uploadReplaySession(session);
-      removeFromQueue(session.id);
+      await removeFromQueue(session.id);
       synced++;
     } catch (error) {
       console.error(

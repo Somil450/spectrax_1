@@ -13,6 +13,9 @@ import { throttleMonitor } from './services/performanceThrottleService';
 import NavBar from "./components/NavBar";
 import About from "./components/About";
 import Contact from "./components/Contact";
+import PrivacyPage from './components/privacy'; // Change to your actual file path
+import TermsAndConditions from './components/terms&conditions'
+
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
@@ -34,6 +37,9 @@ const FitnessCalculator = lazy(() => import("./components/FitnessCalculator").th
 const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").then(m => ({ default: m.CalibrationScreen })));
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
+const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
+const TutorialsScreen = lazy(() => import("./components/TutorialsScreen").then(m => ({ default: m.TutorialsScreen })));
+
 
 type Screen =
   | "welcome"
@@ -49,12 +55,17 @@ type Screen =
   | "forgot-password"
   | "trophy"
   | "profile"
-  | "fitness";
+  | "fitness"
+  | "avatar"
+  | "privacy"
+  | "terms&conditions"
+  | "tutorials";
+
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "tutorials", "privacy", "terms&conditions"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -68,7 +79,12 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   fitness: ["welcome"],
   about: ["welcome"],
   contact: ["welcome"],
+  avatar: ["welcome"],
+  privacy: ["welcome"],
+  "terms&conditions": ["welcome"],
+  tutorials: ["welcome", "calibration"],
 };
+
 
 const canTransitionTo = (from: Screen, to: Screen) => {
   return SCREEN_TRANSITIONS[from].includes(to);
@@ -313,10 +329,11 @@ function App() {
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <div
         className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""
-          } ${["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
+          } ${["summary", "replay", "history", "trophy", "fitness", "tutorials"].includes(currentScreen)
             ? "is-hidden"
             : ""
           }`}
+
       >
         <div className={`selector-indicator theme-${theme}`} />
         <button
@@ -344,15 +361,19 @@ function App() {
 
       {currentScreen === "welcome" && (
         <WelcomeScreen
+        navigateTo={navigateTo}
           onStart={() => navigateTo("calibration")}
           onViewHistory={() => navigateTo("history")}
           onViewTrophies={() => navigateTo("trophy")}
-          onViewProfile={user ? () => navigateTo("profile") : undefined}
+          onViewProfile={() => navigateTo("profile")}
           onViewFitnessCalculator={() => navigateTo("fitness")}
+          onViewAvatarCustomization={() => navigateTo("avatar")}
           onViewWorkoutPlans={() => {}}
+          onViewTutorials={() => navigateTo("tutorials")}
           leveling={leveling}
         />
       )}
+
 
       <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
@@ -366,7 +387,23 @@ function App() {
             />
           </PageErrorBoundary>
         )}
+        {currentScreen === "privacy" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
+            <PrivacyPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
 
+        {currentScreen === "terms&conditions" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
+            <TermsAndConditions onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+
+        {currentScreen === "battle" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Battle Mode. Please try again.">
+            <BattleMode onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
         {currentScreen === "workout" && (
           <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
             <WorkoutScreen
@@ -414,9 +451,34 @@ function App() {
           <UserProfileScreen onLogout={() => navigateTo("welcome")} />
         )}
 
+        {currentScreen === "contact" && (
+          <Contact />
+        )}
+        {currentScreen === "avatar" && (
+          <Suspense fallback={<div className="loading-fallback">Loading Avatar Customization...</div>}>
+            <AvatarCustomizationScreen onBack={() => navigateTo("welcome")} />
+          </Suspense>
+        )}
+
+        {currentScreen === "tutorials" && (
+          <Suspense fallback={<div className="loading-fallback">Loading Tutorials...</div>}>
+            <TutorialsScreen
+              onBack={() => navigateTo("welcome")}
+              onStartTryMode={(exerciseKey) => {
+                const config = exercises[exerciseKey];
+                if (config) {
+                  setSelectedExercise(config);
+                  navigateTo("calibration");
+                }
+              }}
+            />
+          </Suspense>
+        )}
+
         {currentScreen === "fitness" && (
           <FitnessCalculator onBack={() => navigateTo("welcome")} />
         )}
+
       </Suspense>
 
       {currentScreen === "about" && (

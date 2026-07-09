@@ -142,3 +142,37 @@ describe("getJointVisibility - lunge fields", () => {
     expect(vis.backKnee).toBeCloseTo(0.85, 5);
   });
 });
+
+describe("no shared mutable singleton", () => {
+  it("getJointAngles returns a distinct object on each call", () => {
+    const a = getJointAngles(mockLandmarks());
+    const b = getJointAngles(mockLandmarks());
+    expect(a).not.toBe(b);
+  });
+
+  it("getJointAngles does not retroactively mutate a previous result", () => {
+    const bent = mockLandmarks({
+      23: lm(0.4, 0.5),
+      25: lm(0.4, 0.7),
+      27: lm(0.6, 0.7),
+    });
+    const first = getJointAngles(bent);
+    const firstKnee = first.knee;
+    getJointAngles(mockLandmarks());
+    expect(first.knee).toBe(firstKnee);
+  });
+
+  it("getJointAngles returns a distinct, isolated default when landmarks is null", () => {
+    const a = getJointAngles(null);
+    const b = getJointAngles(null);
+    expect(a).not.toBe(b);
+    a.knee = 999;
+    expect(b.knee).toBe(0);
+  });
+
+  it("getJointVisibility returns a distinct object on each call", () => {
+    const a = getJointVisibility(mockLandmarks());
+    const b = getJointVisibility(mockLandmarks());
+    expect(a).not.toBe(b);
+  });
+});

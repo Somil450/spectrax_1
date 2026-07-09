@@ -235,7 +235,7 @@ spectrax_1/
 │       │   ├── createApp.js      # Express app factory
 │       │   └── createServer.js   # HTTP + Socket.io server factory
 │       ├── config/
-│       │   ├── constants.js      # PORT (3001), SESSIONS_DIR, SOCKET_AUTH_TOKEN
+│       │   ├── constants.js      # PORT (3001), SESSIONS_DIR, SOCKET_AUTH_TOKEN (server-only)
 │       │   ├── cors.js           # CORS options builder
 │       │   ├── env.js            # Env var validation
 │       │   └── socket.js         # Socket.io config (websocket-only, ping tuning)
@@ -367,7 +367,7 @@ The backend is intentionally thin. Its responsibilities are:
 
 - **Socket.io relay** — receives `pose_frame` events from the client, processes them server-side via `pose.service.js`, and can broadcast results to other sockets in the same room
 - **Session persistence** — accumulates frames in an in-memory `Map<socketId, frame[]>` and flushes to disk (`sessions/`) on `session_end` or graceful shutdown
-- **Auth middleware** — validates `SOCKET_AUTH_TOKEN` on every WebSocket connection (bypassed in development if unset)
+- **Auth middleware** — validates `SOCKET_AUTH_TOKEN` on every WebSocket connection (bypassed in development if unset). Browser clients authenticate via Firebase ID tokens instead of the shared secret. The server rejects `socket.handshake.query.token` (URL-sent tokens) to prevent token leakage via logs and referer headers.
 - **Health check** — `GET /health` for uptime monitoring
 
 The backend does **not** run MediaPipe. All pose inference happens client-side. The server receives already-processed angle data, not raw video.
