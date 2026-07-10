@@ -4,6 +4,7 @@ import { Replay3DModel } from "./Replay3DModel";
 import { getExerciseFrames } from "../utils/mockExerciseFrames";
 import { AVATAR_SKINS } from "../utils/avatarSkins";
 import { exercises } from "../config/exercises";
+import { ExercisePreviewOverlay } from "./ExercisePreviewOverlay";
 
 interface TutorialsScreenProps {
   onBack: () => void;
@@ -50,6 +51,7 @@ export const TutorialsScreen: React.FC<TutorialsScreenProps> = ({ onBack, onStar
   const [selectedExercise, setSelectedExercise] = useState<string>("squat");
   const [completedTutorials, setCompletedTutorials] = useState<string[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("spectrax.completedTutorials");
@@ -191,12 +193,15 @@ export const TutorialsScreen: React.FC<TutorialsScreenProps> = ({ onBack, onStar
                         }
                       }}
                       className={`btn-glass ${selectedExercise === item.key ? "active" : ""}`}
+                      onMouseEnter={() => setHoveredExercise(item.key)}
+                      onMouseLeave={() => setHoveredExercise(null)}
                       style={{
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
                         textAlign: "left",
                         padding: "10px 12px",
+                        position: "relative",
                         borderColor: selectedExercise === item.key ? "var(--neon-green)" : "var(--glass-border)"
                       }}
                     >
@@ -209,6 +214,12 @@ export const TutorialsScreen: React.FC<TutorialsScreenProps> = ({ onBack, onStar
                           Req: {item.prerequisites}
                         </span>
                       )}
+                      
+                      <ExercisePreviewOverlay 
+                        demoUrl={exercises[item.key]?.demoUrl} 
+                        isVisible={hoveredExercise === item.key} 
+                        placement="above" 
+                      />
                     </button>
                   );
                 })}

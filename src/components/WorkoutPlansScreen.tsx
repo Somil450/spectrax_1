@@ -6,6 +6,8 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
+import { exercises } from "../config/exercises";
+import { ExercisePreviewOverlay } from "./ExercisePreviewOverlay";
 
 export interface ActivePlan {
   id: string;
@@ -132,6 +134,7 @@ export const WorkoutPlansScreen: React.FC<WorkoutPlansScreenProps> = ({
   const [selectedGoal, setSelectedGoal] = useState<string>("Weight Loss");
   const [selectedLevel, setSelectedLevel] = useState<string>("Beginner");
   const [generatedPlan, setGeneratedPlan] = useState<ActivePlan | null>(null);
+  const [hoveredExerciseIndex, setHoveredExerciseIndex] = useState<number | null>(null);
 
 
   const generatePlan = () => {
@@ -267,8 +270,19 @@ export const WorkoutPlansScreen: React.FC<WorkoutPlansScreenProps> = ({
 
             <div className="weekly-schedule">
               <h3>Weekly Schedule</h3>
-              {currentPlan.exercises.map((ex, index) => (
-                <div key={index} className="exercise-row">
+              {currentPlan.exercises.map((ex, index) => {
+                // Find matching exercise config for the demo video (case-insensitive)
+                const configKey = Object.keys(exercises).find(k => exercises[k].name.toLowerCase() === ex.name.toLowerCase());
+                const demoUrl = configKey ? exercises[configKey].demoUrl : undefined;
+                
+                return (
+                <div 
+                  key={index} 
+                  className="exercise-row"
+                  style={{ position: 'relative' }}
+                  onMouseEnter={() => setHoveredExerciseIndex(index)}
+                  onMouseLeave={() => setHoveredExerciseIndex(null)}
+                >
                   <div className="exercise-info">
                     <div className="exercise-day">{ex.day}</div>
                     <div className="exercise-name">{ex.name}</div>
@@ -288,8 +302,14 @@ export const WorkoutPlansScreen: React.FC<WorkoutPlansScreenProps> = ({
                     )}
                     {ex.completed ? "Done" : "Start"}
                   </button>
+                  <ExercisePreviewOverlay 
+                    demoUrl={demoUrl} 
+                    exerciseName={ex.name}
+                    isVisible={hoveredExerciseIndex === index} 
+                    placement="above" 
+                  />
                 </div>
-              ))}
+              )})}
             </div>
 
             {generatedPlan && (

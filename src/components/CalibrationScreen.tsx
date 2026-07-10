@@ -3,6 +3,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
 import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity, ShieldAlert, Check } from 'lucide-react';
+import { ExercisePreviewOverlay } from './ExercisePreviewOverlay';
 import { poseService } from '../services/poseService';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
@@ -628,34 +629,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
                   )}
 
                   {/* Video Overlay */}
-                  {(hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)) && ex.demoUrl && (
-                    <div
-                      className="animate-in"
-                      style={{
-                        position: 'absolute',
-                        right: 'calc(100% + 24px)', // Clear the panel's 16px padding + 8px gap
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: '240px', /* <--- INCREASED SIZE HERE */
-                        borderRadius: '12px', /* Slightly softer corners for larger video */
-                        overflow: 'hidden',
-                        border: '2px solid var(--neon-cyan)',
-                        boxShadow: '0 0 25px rgba(0, 240, 255, 0.3)', /* Stronger glow */
-                        backgroundColor: '#000',
-                        zIndex: 20,
-                        pointerEvents: 'none'
-                      }}
-                    >
-                      <video
-                        src={ex.demoUrl}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        style={{ width: '100%', display: 'block', objectFit: 'cover' }}
-                      />
-                    </div>
-                  )}
+                  <ExercisePreviewOverlay 
+                    demoUrl={ex.demoUrl} 
+                    isVisible={hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)} 
+                    placement="left" 
+                  />
                 </div>
               ))}
             </div>
