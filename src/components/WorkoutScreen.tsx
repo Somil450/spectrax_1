@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert, Mic, MicOff } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { poseService } from '../services/poseService';
@@ -181,6 +181,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   if (!user?.uid) return; // Guard clause 
 }, [user?.uid]);
   const voiceFeedbackEnabled = settings.voiceFeedback;
+  const voiceCommandsEnabled = settings.voiceCommands;
   const lastSpokenFeedbackRef = useRef<string>("");
   const lastSpokenTimeRef = useRef<number>(0);
   const lastMotivationTimeRef = useRef<number>(0);
@@ -621,8 +622,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     }
   }, [handleEnd]);
 
-  useVoiceControl({
-    enabled: voiceFeedbackEnabled && workoutControlState !== 'idle',
+  const { isListening: isVoiceListening } = useVoiceControl({
+    enabled: voiceCommandsEnabled && workoutControlState !== 'idle',
     onCommand: handleVoiceCommand,
   });
 
@@ -1335,6 +1336,20 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           {voiceFeedbackEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           {voiceFeedbackEnabled ? 'Voice Coach: ON' : 'Voice Coach: OFF'}
         </button>
+        <button
+          type="button"
+          className={`workout-lock-toggle ${voiceCommandsEnabled ? 'is-locked' : 'is-unlocked'}`}
+          onClick={() => updateSetting('voiceCommands', !voiceCommandsEnabled)}
+          aria-label={voiceCommandsEnabled ? 'Disable voice commands' : 'Enable voice commands'}
+        >
+          {voiceCommandsEnabled ? <Mic size={16} /> : <MicOff size={16} />}
+          {voiceCommandsEnabled ? 'Voice Cmds: ON' : 'Voice Cmds: OFF'}
+        </button>
+        {isVoiceListening && (
+          <span className="voice-listening-pill" aria-live="polite" aria-label="Microphone active">
+            <Mic size={12} />&nbsp;Listening…
+          </span>
+        )}
         <button
           type="button"
           className={`workout-lock-toggle is-unlocked`}

@@ -14,6 +14,7 @@ export interface UserSettings {
   theme: 'light' | 'dark' | 'system';
   soundEnabled: boolean;
   voiceFeedback: boolean;
+  voiceCommands: boolean;
   cameraFlipped: boolean;
   showSkeleton: boolean;
   bodyType: 'ecto' | 'meso' | 'endo' | 'default';
@@ -25,6 +26,7 @@ const defaultSettings: UserSettings = {
   theme: 'dark',
   soundEnabled: true,
   voiceFeedback: true,
+  voiceCommands: true,
   cameraFlipped: true,
   showSkeleton: true,
   bodyType: 'default',
