@@ -29,6 +29,7 @@ import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
 import { reconstruct3DMesh } from '../services/mesh3DEngine';
 import { gestureService, GestureCommand } from '../services/gestureService';
+import { useVoiceControl } from '../hooks/useVoiceControl';
 
 import { CameraErrorBoundary } from './CameraErrorBoundary';
 import { useSettings } from '../context/SettingsContext';
@@ -607,6 +608,23 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       }),
     });
   }, [exercise.key, onEnd, seconds, clipResult]);
+
+  const handleVoiceCommand = useCallback((cmd: 'START' | 'PAUSE' | 'STOP') => {
+    if (cmd === 'STOP') {
+      handleEnd();
+    } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
+      workoutControlRef.current = 'paused';
+      setWorkoutControlState('paused');
+    } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
+      workoutControlRef.current = 'running';
+      setWorkoutControlState('running');
+    }
+  }, [handleEnd]);
+
+  useVoiceControl({
+    enabled: voiceFeedbackEnabled && workoutControlState !== 'idle',
+    onCommand: handleVoiceCommand,
+  });
 
   const handlePoseResults = useCallback(async (results: any) => {
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
