@@ -15,6 +15,7 @@ import About from "./components/About";
 import Contact from "./components/Contact";
 import PrivacyPage from './components/privacy'; // Change to your actual file path
 import TermsAndConditions from './components/terms&conditions'
+import { ExitConfirmModal } from "./components/ExitConfirmModal";
 
 
 // Start monitoring throttling immediately
@@ -40,6 +41,8 @@ const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => 
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
 const WorkoutPlansScreen = lazy(() => import("./components/WorkoutPlansScreen").then(m => ({ default: m.WorkoutPlansScreen })));
+const BattleMode = lazy(() => import("./components/BattleMode/BattleMode").then(m => ({ default: m.BattleMode })));
+const TutorialsScreen = lazy(() => import("./components/TutorialsScreen").then(m => ({ default: m.TutorialsScreen })));
 
 type Screen =
   | "welcome"
@@ -57,12 +60,16 @@ type Screen =
   | "profile"
   | "fitness"
   | "avatar"
-  | "workoutPlans";
+  | "workoutPlans"
+  | "privacy"
+  | "terms&conditions"
+  | "battle"
+  | "tutorials";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "workoutPlans"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "workoutPlans", "privacy", "terms&conditions", "battle", "tutorials"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -78,6 +85,10 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   contact: ["welcome"],
   avatar: ["welcome"],
   workoutPlans: ["welcome"],
+  privacy: ["welcome"],
+  "terms&conditions": ["welcome"],
+  battle: ["welcome"],
+  tutorials: ["welcome", "calibration"],
 };
 
 
