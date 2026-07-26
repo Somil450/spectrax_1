@@ -16,6 +16,7 @@ import Contact from "./components/Contact";
 import PrivacyPage from './components/privacy'; // Change to your actual file path
 import TermsAndConditions from './components/terms&conditions'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
+import { PrivacyShield } from "./components/PrivacyShield";
 
 
 // Start monitoring throttling immediately
@@ -334,6 +335,7 @@ function App() {
       {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
+      <PrivacyShield />
       <div
         className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""
           } ${["summary", "replay", "history", "trophy", "fitness", "tutorials"].includes(currentScreen)
