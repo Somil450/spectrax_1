@@ -16,6 +16,7 @@ import Contact from "./components/Contact";
 import PrivacyPage from './components/privacy'; // Change to your actual file path
 import TermsAndConditions from './components/terms&conditions'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
+import { PerformanceMonitor } from "./components/PerformanceMonitor";
 
 
 // Start monitoring throttling immediately
@@ -551,6 +552,7 @@ function App() {
           }}
         />
       )}
+      <PerformanceMonitor visible={currentScreen === 'workout' || currentScreen === 'calibration'} />
     </main>
   );
 }

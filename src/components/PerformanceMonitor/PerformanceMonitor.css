@@ -1,0 +1,90 @@
+.perf-monitor-card {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #f8fafc;
+  font-family: monospace, system-ui, -apple-system;
+  font-size: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  min-width: 220px;
+  transition: all 0.3s ease;
+}
+
+.perf-monitor-card.minimized {
+  min-width: auto;
+  padding: 8px 12px;
+}
+
+.perf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: bold;
+}
+
+.perf-title {
+  color: #38bdf8;
+  font-size: 12px;
+}
+
+.perf-toggle-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.perf-toggle-btn:hover {
+  color: #ffffff;
+}
+
+.perf-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+}
+
+.perf-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.perf-label {
+  color: #94a3b8;
+}
+
+.perf-value {
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.fps-good {
+  color: #4ade80;
+}
+
+.fps-warning {
+  color: #facc15;
+}
+
+.fps-danger {
+  color: #f87171;
+}
+
+.scale-throttled {
+  color: #f87171;
+  font-weight: bold;
+}
