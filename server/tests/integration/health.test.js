@@ -9,7 +9,7 @@ describe('health route', () => {
     sessionStore.initializeSession('socket-b');
 
     const app = createApp({ sessionStore });
-    const response = await request(app).get('/health');
+    const response = await request(app).get('/health').set('Host', 'localhost');
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('ok');

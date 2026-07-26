@@ -26,7 +26,10 @@ let db: ReturnType<typeof getFirestore>;
 let app: ReturnType<typeof initializeApp>;
 
 try {
-  if (!firebaseConfig.apiKey) throw new Error("Missing Firebase config");
+  if (!firebaseConfig || !firebaseConfig.apiKey) {
+    throw new Error("Firebase configuration is missing");
+  }
+
   app = initializeApp(firebaseConfig);
 
   const appCheckSiteKey = import.meta.env.VITE_APPCHECK_RECAPTCHA_KEY;
@@ -35,6 +38,10 @@ try {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true,
     });
+  } else if (import.meta.env.PROD) {
+    console.warn(
+      "Firebase App Check is not configured (VITE_APPCHECK_RECAPTCHA_KEY is unset); abuse protection is disabled.",
+    );
   }
 
   auth = getAuth(app);
@@ -44,8 +51,6 @@ try {
   setPersistence(auth, browserLocalPersistence).catch((error) => {
     console.warn("Failed to set Firebase persistence:", error);
   });
-
-  console.log("✅ Firebase initialized");
 } catch (e) {
   console.warn("⚠️ Firebase not configured — running in offline/demo mode", e);
   // Create a minimal app stub so imports don't crash

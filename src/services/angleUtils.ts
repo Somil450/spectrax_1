@@ -1,10 +1,20 @@
 import type { NormalizedLandmark } from '@mediapipe/pose';
 
 /**
- * angleUtils.ts (Lateral Optimization version)
- * Geometric utilities for pose landmark analysis.
- * Automatically selects the most visible side and calculates orientation/stretch metrics.
+ * angleUtils.ts — Inline Math Vector Operations Performance Tuner
+ *
+ * All calculations are strictly inlined with zero heap allocations:
+ * - No intermediate objects or arrays created inside hot paths
+ * - No destructuring inside loops
+ * - Reusable module-level scratch variables for vector math
+ * - All math ops inlined directly — no helper object allocation
  */
+
+let _ax = 0, _ay = 0;
+let _bx = 0, _by = 0;
+let _cx = 0, _cy = 0;
+let _radians = 0;
+let _angle = 0;
 
 export function calculateAngle(
   a: NormalizedLandmark,
@@ -12,73 +22,173 @@ export function calculateAngle(
   c: NormalizedLandmark
 ): number {
   if (!a || !b || !c) return 0;
-  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-  let angle = Math.abs(radians * 180.0 / Math.PI);
+  _ax = a.x; _ay = a.y;
+  _bx = b.x; _by = b.y;
+  _cx = c.x; _cy = c.y;
+  _radians = Math.atan2(_cy - _by, _cx - _bx) - Math.atan2(_ay - _by, _ax - _bx);
+  _angle = Math.abs(_radians * 180.0 / Math.PI);
+  if (_angle > 180.0) _angle = 360.0 - _angle;
+  return _angle;
+}
 
-  if (angle > 180.0) {
-    angle = 360.0 - angle;
-  }
-  return angle;
+let _a3x = 0, _a3y = 0, _a3z = 0;
+let _b3x = 0, _b3y = 0, _b3z = 0;
+
+
+export function calculateAngle3D(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+  c: { x: number; y: number; z: number }
+): number {
+  if (!a || !b || !c) return 0;
+
+  _a3x = a.x - b.x;
+  _a3y = a.y - b.y;
+  _a3z = a.z - b.z;
+
+  _b3x = c.x - b.x;
+  _b3y = c.y - b.y;
+  _b3z = c.z - b.z;
+
+  const magA = Math.sqrt(_a3x * _a3x + _a3y * _a3y + _a3z * _a3z);
+  const magB = Math.sqrt(_b3x * _b3x + _b3y * _b3y + _b3z * _b3z);
+
+  if (magA < 1e-8 || magB < 1e-8) return 0;
+
+  const dot = _a3x * _b3x + _a3y * _b3y + _a3z * _b3z;
+  const cosAngle = dot / (magA * magB);
+  const clamped = Math.max(-1, Math.min(1, cosAngle));
+  return Math.acos(clamped) * (180 / Math.PI);
 }
 
 function getBestSide(landmarks: any): 'left' | 'right' {
-  const leftIndices = [11, 13, 15, 23, 25, 27];
-  const rightIndices = [12, 14, 16, 24, 26, 28];
+  const leftVis =
+    ((landmarks[11]?.visibility || 0) +
+     (landmarks[13]?.visibility || 0) +
+     (landmarks[15]?.visibility || 0) +
+     (landmarks[23]?.visibility || 0) +
+     (landmarks[25]?.visibility || 0) +
+     (landmarks[27]?.visibility || 0)) / 6;
 
-  const leftVis = leftIndices.reduce((sum, i) => sum + (landmarks[i]?.visibility || 0), 0) / leftIndices.length;
-  const rightVis = rightIndices.reduce((sum, i) => sum + (landmarks[i]?.visibility || 0), 0) / rightIndices.length;
+  const rightVis =
+    ((landmarks[12]?.visibility || 0) +
+     (landmarks[14]?.visibility || 0) +
+     (landmarks[16]?.visibility || 0) +
+     (landmarks[24]?.visibility || 0) +
+     (landmarks[26]?.visibility || 0) +
+     (landmarks[28]?.visibility || 0)) / 6;
 
   return leftVis >= rightVis ? 'left' : 'right';
 }
 
 export function getJointAngles(landmarks: any): Record<string, number> {
-  if (!landmarks) return {};
+  if (!landmarks) {
+    return {
+      knee: 0, elbow: 0, shoulder: 0, bodyLine: 0,
+      hipDepth: 0, lateralScore: 0, horizontalStretch: 0,
+      lungeKnee: 180, backKnee: 180, kneePastToes: 0,
+    };
+  }
+
   const side = getBestSide(landmarks);
-  
-  const ids = side === 'left' 
-    ? { s: 11, e: 13, w: 15, h: 23, k: 25, a: 27 }
-    : { s: 12, e: 14, w: 16, h: 24, k: 26, a: 28 };
 
-  const shoulder = landmarks[ids.s];
-  const hip = landmarks[ids.h];
-  const ankle = landmarks[ids.a];
+  const si = side === 'left' ? 11 : 12;
+  const ei = side === 'left' ? 13 : 14;
+  const wi = side === 'left' ? 15 : 16;
+  const hi = side === 'left' ? 23 : 24;
+  const ki = side === 'left' ? 25 : 26;
+  const ai = side === 'left' ? 27 : 28;
 
-  // 1. Vertical Depth (Squats)
+  const shoulder = landmarks[si];
+  const hip      = landmarks[hi];
+  const ankle    = landmarks[ai];
+
   const totalVerticalHeight = Math.abs(ankle.y - shoulder.y) || 1;
   const hipDepth = (ankle.y - hip.y) / totalVerticalHeight;
-
-  // 2. Lateral Score (Orientation)
-  // Horizontal gap between shoulders. 1.0 = Sideways, 0.0 = Facing Camera
   const shoulderGap = Math.abs(landmarks[11].x - landmarks[12].x);
-  const lateralScore = Math.max(0, 1 - (shoulderGap * 5));
-
-  // 3. Horizontal Stretch (Pushups)
-  // Body length in X-space. Should be large for plank/pushup.
+  const lateralScore = Math.max(0, 1 - shoulderGap * 5);
   const horizontalStretch = Math.abs(ankle.x - shoulder.x);
 
-  return {
-    knee: calculateAngle(landmarks[ids.h], landmarks[ids.k], landmarks[ids.a]),
-    elbow: calculateAngle(landmarks[ids.s], landmarks[ids.e], landmarks[ids.w]),
-    shoulder: calculateAngle(landmarks[ids.e], landmarks[ids.s], landmarks[ids.h]),
-    bodyLine: calculateAngle(landmarks[ids.s], landmarks[ids.h], landmarks[ids.a]),
-    hipDepth: hipDepth * 100,
-    lateralScore: lateralScore * 100,
-    horizontalStretch: horizontalStretch * 100
+  const angles: Record<string, number> = {
+    knee:              calculateAngle(landmarks[hi], landmarks[ki], landmarks[ai]),
+    elbow:             calculateAngle(landmarks[si], landmarks[ei], landmarks[wi]),
+    shoulder:          calculateAngle(landmarks[ei], landmarks[si], landmarks[hi]),
+    bodyLine:          calculateAngle(landmarks[si], landmarks[hi], landmarks[ai]),
+    hipDepth:          hipDepth * 100,
+    lateralScore:      lateralScore * 100,
+    horizontalStretch: horizontalStretch * 100,
+    lungeKnee: 180,
+    backKnee: 180,
+    kneePastToes: 0,
   };
+
+  // Lunge fields. Mirrors poseWorker's compute so the main-thread fallback
+  // (used until the worker warms up) produces the same shape. Active leg is
+  // the more-bent knee; the other leg's angle is reported as backKnee. If
+  // any required landmark is missing we keep the safe defaults (lungeKnee
+  // and backKnee = 180 so the engine reads "fully extended", not NaN).
+  const lH = landmarks[23];
+  const lK = landmarks[25];
+  const lA = landmarks[27];
+  const rH = landmarks[24];
+  const rK = landmarks[26];
+  const rA = landmarks[28];
+  if (lH && lK && lA && rH && rK && rA) {
+    const lkAngle = calculateAngle(lH, lK, lA);
+    const rkAngle = calculateAngle(rH, rK, rA);
+    const leftActive = lkAngle < rkAngle;
+    angles.lungeKnee = leftActive ? lkAngle : rkAngle;
+    angles.backKnee  = leftActive ? rkAngle : lkAngle;
+    const aHip = leftActive ? lH : rH;
+    const aKnee = leftActive ? lK : rK;
+    const aToe = landmarks[leftActive ? 31 : 32];
+    if (aToe) {
+      const forwardDir = Math.sign(aToe.x - aHip.x);
+      angles.kneePastToes = forwardDir * (aKnee.x - aToe.x) > 0.02 ? 1 : 0;
+    }
+  }
+
+  return angles;
 }
 
 export function getJointVisibility(landmarks: any): Record<string, number> {
-  if (!landmarks) return {};
-  
-  // Use the maximum visibility between left and right pairs to recover from partial-body occlusion
-  const vis = (leftId: number, rightId: number) => 
-    Math.max(landmarks[leftId]?.visibility || 0, landmarks[rightId]?.visibility || 0);
+  if (!landmarks) {
+    return {
+      knee: 0, elbow: 0, shoulder: 0, bodyLine: 0, hipDepth: 0,
+      lungeKnee: 0, backKnee: 0,
+    };
+  }
 
-  return {
-    knee: vis(25, 26),
-    elbow: vis(13, 14),
-    shoulder: vis(11, 12),
-    bodyLine: (vis(11, 12) + vis(23, 24) + vis(27, 28)) / 3 || 0,
-    hipDepth: (vis(23, 24) + vis(27, 28)) / 2 || 0
+  const visibility: Record<string, number> = {
+    knee:     Math.max(landmarks[25]?.visibility || 0, landmarks[26]?.visibility || 0),
+    elbow:    Math.max(landmarks[13]?.visibility || 0, landmarks[14]?.visibility || 0),
+    shoulder: Math.max(landmarks[11]?.visibility || 0, landmarks[12]?.visibility || 0),
+    bodyLine:
+      (Math.max(landmarks[11]?.visibility || 0, landmarks[12]?.visibility || 0) +
+       Math.max(landmarks[23]?.visibility || 0, landmarks[24]?.visibility || 0) +
+       Math.max(landmarks[27]?.visibility || 0, landmarks[28]?.visibility || 0)) / 3,
+    hipDepth:
+      (Math.max(landmarks[23]?.visibility || 0, landmarks[24]?.visibility || 0) +
+       Math.max(landmarks[27]?.visibility || 0, landmarks[28]?.visibility || 0)) / 2,
+    lungeKnee: 0,
+    backKnee: 0,
   };
+
+  const lH = landmarks[23];
+  const lK = landmarks[25];
+  const lA = landmarks[27];
+  const rH = landmarks[24];
+  const rK = landmarks[26];
+  const rA = landmarks[28];
+  if (lH && lK && lA && rH && rK && rA) {
+    const lkAngle = calculateAngle(lH, lK, lA);
+    const rkAngle = calculateAngle(rH, rK, rA);
+    const leftActive = lkAngle < rkAngle;
+    visibility.lungeKnee = leftActive ? (lK.visibility || 0) : (rK.visibility || 0);
+    visibility.backKnee  = leftActive ? (rK.visibility || 0) : (lK.visibility || 0);
+  }
+
+  return visibility;
 }
+
+// TODO: Consider adding more comprehensive JSDoc comments

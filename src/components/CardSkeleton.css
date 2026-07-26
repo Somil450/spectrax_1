@@ -1,0 +1,20 @@
+.skeleton-card {
+  width: 100%;
+  padding: 24px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glass-shadow);
+}
+
+.skeleton-line {
+  border-radius: var(--radius-sm);
+  background: var(--text-secondary);
+  opacity: 0.2;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.08; }
+}

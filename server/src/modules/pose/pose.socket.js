@@ -1,17 +1,38 @@
-const { DEFAULT_EXERCISE } = require("../../shared/constants/exercises");
+const { DEFAULT_EXERCISE, SUPPORTED_EXERCISES } = require("../../shared/constants/exercises");
 const { processPose } = require("./pose.service");
 const {
   hasPoseLandmarks,
   hasValidTimestamp,
   isSupportedExercise,
 } = require("./pose.validator");
+const { MAX_FRAMES_PER_SEC } = require("../../config/constants");
+
 
 function registerPoseSocketHandlers({ socket, sessionService }) {
+  const frameTimestamps = new Map();
+  const invalidFrameTimestamps = new Map();
+  frameTimestamps.set(socket.id, []);
+  invalidFrameTimestamps.set(socket.id, []);
+
+  function withinRateLimit(store) {
+    const now = Date.now();
+    const recent = (store.get(socket.id) || []).filter((t) => now - t < 1000);
+    if (recent.length >= MAX_FRAMES_PER_SEC) {
+      return false;
+    }
+    recent.push(now);
+    store.set(socket.id, recent);
+    return true;
+  }
+
   socket.on("frame", (data) => {
     if (
       !hasPoseLandmarks(data && data.landmarks) ||
       !hasValidTimestamp(data && data.timestamp)
     ) {
+      if (!withinRateLimit(invalidFrameTimestamps)) {
+        return;
+      }
       socket.emit("feedback", {
         angles: {},
         corrections: [],
@@ -24,9 +45,22 @@ function registerPoseSocketHandlers({ socket, sessionService }) {
       return;
     }
 
+    if (!withinRateLimit(frameTimestamps)) {
+      return;
+    }
+
+    const exerciseSupported = isSupportedExercise(data.exercise);
+    if (!exerciseSupported && data.exercise) {
+      socket.emit("exercise:unsupported", {
+        received: data.exercise,
+        fallback: DEFAULT_EXERCISE,
+        supported: SUPPORTED_EXERCISES,
+      });
+    }
+
     const normalizedData = {
       ...data,
-      exercise: isSupportedExercise(data.exercise)
+      exercise: exerciseSupported
         ? data.exercise
         : DEFAULT_EXERCISE,
     };
@@ -58,6 +92,11 @@ function registerPoseSocketHandlers({ socket, sessionService }) {
         timestamp: data.timestamp,
       });
     }
+  });
+
+  socket.on("disconnect", () => {
+    frameTimestamps.delete(socket.id);
+    invalidFrameTimestamps.delete(socket.id);
   });
 }
 

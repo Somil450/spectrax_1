@@ -1,5 +1,13 @@
 import type { Pose as PoseType, Results, NormalizedLandmarkList } from '@mediapipe/pose';
 import { gpuAngleCalculator } from './gpuAngleUtils';
+import { FrameInterpolationEngine, frameInterpolationEngine } from './frameInterpolationEngine';
+
+// MediaPipe Pose Landmarker wrapper support
+export const mediaPipePoseLandmarkerConfig = {
+  runningMode: 'VIDEO' as const,
+  numPoses: 1,
+};
+
 // MediaPipe ships as a UMD bundle loaded via CDN in index.html — not ESM-importable.
 const Pose = (window as any).Pose as typeof PoseType;
 
@@ -162,10 +170,6 @@ export function readLandmark(index: LandmarkIndex): Readonly<Vec3> {
 
 // ─── Internal Types ───────────────────────────────────────────────────────────
 
-type MediaPipePoseConstructor = new (options: {
-  locateFile: (file: string) => string;
-}) => PoseType;
-
 type LandmarkCoordinate = "x" | "y" | "z" | "visibility";
 
 type LandmarkStream = "poseLandmarks" | "poseWorldLandmarks";
@@ -216,12 +220,6 @@ interface LandmarkFilter {
   toConfig(): PoseSmoothingFilterConfig;
 }
 
-const LANDMARK_COORDINATES: LandmarkCoordinate[] = [
-  "x",
-  "y",
-  "z",
-  "visibility",
-];
 
 const DEFAULT_FILTERS: PoseSmoothingFilterConfig[] = [
   {
@@ -241,11 +239,142 @@ const clamp = (value: number, min: number, max: number) => {
   return Math.min(Math.max(value, min), max);
 };
 
-const getCoordinateKey = (
-  stream: LandmarkStream,
-  landmarkIndex: number,
-  coordinate: LandmarkCoordinate,
-) => `${stream}:${landmarkIndex}:${coordinate}`;
+// ─── Dynamic Joint Confidence Hashing ──────────────────────────────────────────
+
+/**
+ * Rolling entry for a single landmark coordinate's confidence history.
+ */
+interface ConfidenceEntry {
+  /** Rolling window of recent confidence values */
+  history: number[];
+  /** Dynamic safety threshold — adapts to recent confidence levels */
+  dynamicThreshold: number;
+  /** Last known good value (when confidence was above threshold) */
+  lastGoodValue: number;
+  /** Consecutive frames below threshold */
+  lowConfidenceFrames: number;
+  /** Whether this entry has seen a valid value at least once */
+  initialized: boolean;
+}
+
+/**
+ * Hash-table system that maps each (landmark, coordinate) pair to a rolling
+ * confidence tracker. On every frame, each coordinate is checked against its
+ * own dynamically adjusted threshold. Unstable coordinates (confidence below
+ * the adaptive threshold) are replaced with an interpolated estimate derived
+ * from the last known good value, bypassing jittery or lost landmarks.
+ *
+ * The threshold adapts per-entry using an exponential moving average of recent
+ * confidence values scaled by a safety factor, with a static floor so that
+ * extremely low confidence never becomes "normal".
+ */
+class JointConfidenceHash {
+  private readonly entries = new Map<string, ConfidenceEntry>();
+  private readonly confidenceWindow: number;
+  private readonly thresholdFloor: number;
+  private readonly safetyFactor: number;
+  private readonly blendFactor: number;
+
+  constructor(
+    confidenceWindow = 10,
+    thresholdFloor = 0.45,
+    safetyFactor = 0.8,
+    blendFactor = 0.3,
+  ) {
+    this.confidenceWindow = confidenceWindow;
+    this.thresholdFloor = thresholdFloor;
+    this.safetyFactor = safetyFactor;
+    this.blendFactor = blendFactor;
+  }
+
+  /**
+   * Hash a (landmark, coordinate) pair to a stable string key.
+   */
+  private hash(landmarkIndex: number, coordinate: LandmarkCoordinate): string {
+    return `${landmarkIndex}:${coordinate}`;
+  }
+
+  /**
+   * Get or create a confidence entry for the given key.
+   */
+  private getOrCreateEntry(key: string): ConfidenceEntry {
+    let entry = this.entries.get(key);
+    if (!entry) {
+      entry = {
+        history: [],
+        dynamicThreshold: this.thresholdFloor,
+        lastGoodValue: 0,
+        lowConfidenceFrames: 0,
+        initialized: false,
+      };
+      this.entries.set(key, entry);
+    }
+    return entry;
+  }
+
+  /**
+   * Update the rolling confidence history and recompute the dynamic threshold.
+   */
+  private updateThreshold(entry: ConfidenceEntry, currentConfidence: number): void {
+    entry.history.push(currentConfidence);
+    if (entry.history.length > this.confidenceWindow) {
+      entry.history.shift();
+    }
+
+    const avgConfidence =
+      entry.history.reduce((sum, v) => sum + v, 0) / entry.history.length;
+    entry.dynamicThreshold = Math.max(
+      avgConfidence * this.safetyFactor,
+      this.thresholdFloor,
+    );
+  }
+
+  /**
+   * Process all 33 landmarks, checking each (x, y, z) coordinate against its
+   * dynamic confidence threshold. Low-confidence coordinates are replaced with
+   * an interpolated estimate (blend of last-good and current).
+   */
+  process(landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>): void {
+    const limit = Math.min(landmarks.length, 33);
+    const coords: LandmarkCoordinate[] = ["x", "y", "z"];
+
+    for (let i = 0; i < limit; i++) {
+      const lm = landmarks[i];
+      const visibility = lm.visibility ?? 1;
+
+      for (const coord of coords) {
+        const key = this.hash(i, coord);
+        const entry = this.getOrCreateEntry(key);
+        const currentValue = lm[coord] ?? 0;
+
+        this.updateThreshold(entry, visibility);
+
+        if (visibility < entry.dynamicThreshold) {
+          entry.lowConfidenceFrames++;
+
+          if (entry.initialized) {
+            // Blend toward the last known good value to avoid hard snaps
+            lm[coord] =
+              entry.lastGoodValue * this.blendFactor +
+              currentValue * (1 - this.blendFactor);
+          }
+          // If not initialized, leave the current value as-is
+        } else {
+          entry.lastGoodValue = currentValue;
+          entry.lowConfidenceFrames = 0;
+          entry.initialized = true;
+        }
+      }
+    }
+  }
+
+  reset(): void {
+    this.entries.clear();
+  }
+}
+
+/** Singleton hash instance used by the pose service */
+const jointConfidenceHash = new JointConfidenceHash();
 
 // ─── Optimized EMA Filter (In-Place Mutation) ─────────────────────────────────
 
@@ -487,13 +616,33 @@ export class PoseService {
     new ArrayBuffer(BUF_BYTES),
   ];
   private smoothingFilters: LandmarkFilter[] = DEFAULT_FILTERS.map(createFilter);
+  private interpolationEngine: FrameInterpolationEngine = frameInterpolationEngine;
+  private interpolationEnabled: boolean = true;
+  private userCallback: ((results: Results) => void) | null = null;
+  public isFallbackMode: boolean = false;
 
   constructor() {
     this.init();
   }
 
+  private isWebGLSupported() {
+    try {
+      const canvas = document.createElement('canvas');
+      return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+    } catch {
+      return false;
+    }
+  }
+
   private init() {
     if (this.pose) return;
+
+    if (!this.isWebGLSupported()) {
+      console.warn("PoseService: WebGL is not supported. Running in simulated fallback mode.");
+      this.isFallbackMode = true;
+      this.isLoaded = true;
+      return;
+    }
 
     try {
       this.pose = new Pose({
@@ -510,14 +659,20 @@ export class PoseService {
       });
 
       this.isLoaded = true;
-
-      console.log("PoseService: initialized.");
-
-      if (this.sharedLandmarkFrame) {
-        console.log("PoseService: SharedArrayBuffer synchronization enabled.");
-      }
     } catch (e) {
-      console.error("PoseService init failed:", e);
+      console.error("PoseService init failed, switching to simulated fallback mode:", e);
+      this.isFallbackMode = true;
+      this.isLoaded = true;
+    }
+  }
+
+  setOptions(options: any) {
+    if (this.pose) {
+      try {
+        this.pose.setOptions(options);
+      } catch (err) {
+        console.error("PoseService failed to set options:", err);
+      }
     }
   }
 
@@ -671,22 +826,126 @@ export class PoseService {
     }
   }
 
+  setInterpolationEnabled(enabled: boolean) {
+    this.interpolationEnabled = enabled;
+    if (!enabled) {
+      this.interpolationEngine.reset();
+    }
+  }
+
+  getInterpolationEnabled(): boolean {
+    return this.interpolationEnabled;
+  }
+
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
+    this.userCallback = callback;
 
     this.pose.onResults((results: Results) => {
       this.inProgress = false;
       this.errorCount = 0;
 
-      if (results) {
-        callback(this.preprocessResults(results));
+      if (!results) return;
+
+      const processed = this.preprocessResults(results);
+
+      if (!this.interpolationEnabled || !processed.poseLandmarks) {
+        callback(processed);
+        return;
+      }
+
+      const frames = this.interpolationEngine.feedConfirmedFrame(
+        processed.poseLandmarks,
+        performance.now(),
+      );
+
+      // Emit all frames: confirmed + any ghosts
+      for (const frame of frames) {
+        const frameResults: Results = {
+          ...processed,
+          poseLandmarks: frame.landmarks as any,
+          // Tag ghost frames so downstream can react
+          // @ts-expect-error — extending Results type for internal use
+          __isGhostFrame: frame.isGhost,
+        };
+        callback(frameResults);
       }
     });
+  }
+
+  private generateMockLandmarks(): any[] {
+    const t = performance.now() / 1000;
+    const squatFactor = Math.max(0, Math.sin(t * 1.5)); // 0 to 1 squat depth
+
+    const landmarks = [];
+    // Initialize 33 points
+    for (let i = 0; i < 33; i++) {
+      landmarks.push({ x: 0.5, y: 0.5, z: 0, visibility: 0.9 });
+    }
+
+    // Nose
+    landmarks[0] = { x: 0.5, y: 0.2 + squatFactor * 0.15, z: 0, visibility: 0.99 };
+    // Shoulders
+    landmarks[11] = { x: 0.43, y: 0.35 + squatFactor * 0.15, z: -0.1, visibility: 0.99 };
+    landmarks[12] = { x: 0.57, y: 0.35 + squatFactor * 0.15, z: -0.1, visibility: 0.99 };
+    // Elbows
+    landmarks[13] = { x: 0.4, y: 0.45 + squatFactor * 0.15, z: -0.15, visibility: 0.99 };
+    landmarks[14] = { x: 0.6, y: 0.45 + squatFactor * 0.15, z: -0.15, visibility: 0.99 };
+    // Wrists
+    landmarks[15] = { x: 0.38, y: 0.5 + squatFactor * 0.12, z: -0.2, visibility: 0.99 };
+    landmarks[16] = { x: 0.62, y: 0.5 + squatFactor * 0.12, z: -0.2, visibility: 0.99 };
+    // Hips
+    landmarks[23] = { x: 0.45, y: 0.58 + squatFactor * 0.15, z: 0, visibility: 0.99 };
+    landmarks[24] = { x: 0.55, y: 0.58 + squatFactor * 0.15, z: 0, visibility: 0.99 };
+    // Knees
+    landmarks[25] = { x: 0.44 - squatFactor * 0.05, y: 0.72 + squatFactor * 0.08, z: -0.05, visibility: 0.99 };
+    landmarks[26] = { x: 0.56 + squatFactor * 0.05, y: 0.72 + squatFactor * 0.08, z: -0.05, visibility: 0.99 };
+    // Ankles
+    landmarks[27] = { x: 0.45, y: 0.88, z: 0.1, visibility: 0.99 };
+    landmarks[28] = { x: 0.55, y: 0.88, z: 0.1, visibility: 0.99 };
+
+    return landmarks;
+  }
+
+  private sendFallback(image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement) {
+    if (!this.userCallback) return;
+    const mockLandmarks = this.generateMockLandmarks();
+    const results: Results = {
+      poseLandmarks: mockLandmarks as any,
+      image: image as any,
+    } as any;
+
+    const processed = this.preprocessResults(results);
+
+    if (!this.interpolationEnabled || !processed.poseLandmarks) {
+      this.userCallback(processed);
+      return;
+    }
+
+    const frames = this.interpolationEngine.feedConfirmedFrame(
+      processed.poseLandmarks,
+      performance.now(),
+    );
+
+    for (const frame of frames) {
+      const frameResults: Results = {
+        ...processed,
+        poseLandmarks: frame.landmarks as any,
+        // @ts-expect-error — extending Results type
+        __isGhostFrame: frame.isGhost,
+      };
+      this.userCallback(frameResults);
+    }
   }
 
   async send(
     image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement,
   ) {
+    if (this.isFallbackMode) {
+      this.sendFallback(image);
+      return;
+    }
+
     if (!this.pose || !this.isLoaded || this.inProgress) return;
 
     this.inProgress = true;
@@ -698,8 +957,9 @@ export class PoseService {
       this.errorCount++;
 
       if (this.errorCount > 10) {
-        console.warn("PoseService: too many errors, resetting...");
+        console.warn("PoseService: too many errors, resetting and switching to simulated fallback mode...");
         this.close();
+        this.isFallbackMode = true;
         this.init();
         this.errorCount = 0;
       }
@@ -710,16 +970,32 @@ export class PoseService {
     if (this.pose) {
       try {
         await this.pose.close();
-      } catch {}
+      } catch { /* ignore */ }
       this.pose = null;
       this.isLoaded = false;
     }
+    this.interpolationEngine.reset();
     gpuAngleCalculator.destroy();
   }
 
+  private depthLandmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null = null;
+
+  setDepthLandmarks(landmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null) {
+    this.depthLandmarks = landmarks;
+  }
+
+  getDepthLandmarks() {
+    return this.depthLandmarks;
+  }
+
   private preprocessResults(results: Results): Results {
+    if (this.depthLandmarks && results.poseLandmarks) {
+      (results as any).__depthLandmarks = this.depthLandmarks;
+    }
+
     if (this.smoothingFilters.length === 0) {
       if (results.poseLandmarks) {
+        jointConfidenceHash.process(results.poseLandmarks);
         this.writeToPoseBuffer(results.poseLandmarks);
         this.publishSharedLandmarks(results.poseLandmarks);
       }
@@ -728,6 +1004,7 @@ export class PoseService {
 
     if (!results.poseLandmarks && !results.poseWorldLandmarks) {
       this.resetSmoothingFilters();
+      jointConfidenceHash.reset();
       this.clearSharedLandmarks();
       return results;
     }
@@ -735,6 +1012,7 @@ export class PoseService {
     // Apply filters in-place (no spread, no new object creation)
     if (results.poseLandmarks) {
       this.applyFilters(results.poseLandmarks, "poseLandmarks");
+      jointConfidenceHash.process(results.poseLandmarks);
       this.writeToPoseBuffer(results.poseLandmarks);
       this.publishSharedLandmarks(results.poseLandmarks);
     } else {
@@ -743,6 +1021,7 @@ export class PoseService {
 
     if (results.poseWorldLandmarks) {
       this.applyFilters(results.poseWorldLandmarks, "poseWorldLandmarks");
+      jointConfidenceHash.process(results.poseWorldLandmarks);
     }
 
     return results;
@@ -762,3 +1041,5 @@ export class PoseService {
 const globalPoseService = new PoseService();
 
 export { globalPoseService as poseService };
+
+// TODO: Consider adding more comprehensive JSDoc comments

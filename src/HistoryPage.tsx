@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { History, Trash2, ArrowLeft, TrendingUp, Filter, Loader2, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
+import { EmptyState } from "./components/EmptyState";
 
 // ── Debounce Hook ─────────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -18,7 +19,11 @@ import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { getQueue } from "./utils/offlineQueue";
 import { syncOfflineQueue } from "./services/syncQueue";
+import { HistoryPageSkeleton } from "./components/HistoryPageSkeleton";
 import SessionCard from "./SessionCard";
+import { BodyMetricsWidget } from "./components/BodyMetricsWidget";
+import { ProgressAnalyticsWidget } from "./components/ProgressAnalyticsWidget";
+import { Dashboard } from "./components/Dashboard/Dashboard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +57,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
     removeSession,
     clearHistory,
   } = useWorkoutHistory();
-  const { syncStatus, isOnline: workoutIsOnline, manualSync } = useWorkoutSync();
+  const { syncStatus, manualSync } = useWorkoutSync();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Offline replay queue state
@@ -63,7 +68,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
   // Trigger sync when coming back online
   const handleReconnect = useCallback(async () => {
-    const queue = getQueue();
+    const queue = await getQueue();
     if (queue.length === 0) return;
 
     setPendingCount(queue.length);
@@ -86,7 +91,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           `${result.synced} synced, ${result.failed} failed`,
         );
       }
-      setPendingCount(getQueue().length);
+      setPendingCount((await getQueue()).length);
     } catch (err) {
       setOfflineSyncState("failed");
       setSyncResultMessage("Sync failed — will retry on reconnect");
@@ -98,13 +103,21 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
   // Check pending queue on mount and when online status changes
   useEffect(() => {
-    const queue = getQueue();
-    setPendingCount(queue.length);
-    if (queue.length > 0 && !isOnline) {
-      setOfflineSyncState("pending");
-    } else if (queue.length === 0 && offlineSyncState === "pending") {
-      setOfflineSyncState("idle");
-    }
+    let active = true;
+    const checkQueue = async () => {
+      const queue = await getQueue();
+      if (!active) return;
+      setPendingCount(queue.length);
+      if (queue.length > 0 && !isOnline) {
+        setOfflineSyncState("pending");
+      } else if (queue.length === 0 && offlineSyncState === "pending") {
+        setOfflineSyncState("idle");
+      }
+    };
+    checkQueue();
+    return () => {
+      active = false;
+    };
   }, [isOnline, offlineSyncState]);
 
   // Auto-sync when isOnline transitions to true and there are pending items
@@ -144,7 +157,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           `${result.synced} synced, ${result.failed} failed`,
         );
       }
-      setPendingCount(getQueue().length);
+      setPendingCount((await getQueue()).length);
     } catch (err) {
       setOfflineSyncState("failed");
       setSyncResultMessage("Sync failed — please try again");
@@ -202,6 +215,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* Background grid */}
       <div className="bg-grid" aria-hidden="true" />
+      
 
       {/* ── Header ── */}
       <header className="history-header">
@@ -367,7 +381,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
               <>
                 <WifiOff size={14} />
                 <span>
-                  You're offline — {pendingCount} session{pendingCount !== 1 ? "s" : ""} will sync when you reconnect
+                  You&apos;re offline — {pendingCount} session{pendingCount !== 1 ? "s" : ""} will sync when you reconnect
                 </span>
               </>
             )}
@@ -413,6 +427,20 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
       {/* ── Body ── */}
       <main className="history-body">
+        {/* Loading */}
+        {loading && <HistoryPageSkeleton />}
+
+        {/* ── Dashboard Widgets ── */}
+        {!loading && !error && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '24px' }}>
+            <Dashboard sessions={sessions} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+              <ProgressAnalyticsWidget sessions={sessions} />
+              <BodyMetricsWidget />
+            </div>
+          </div>
+        )}
+
         {/* ── Filter Panel ── */}
         {!loading && !error && sessions.length > 0 && (
           <div className="filter-panel" style={{ marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", background: "var(--glass-bg)", padding: "16px", borderRadius: "12px", border: "1px solid var(--glass-border)", backdropFilter: "blur(12px)" }}>
@@ -490,14 +518,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
 
         {/* Empty */}
         {!loading && !error && sessions.length === 0 && (
-          <div className="state-center empty-state">
-            <div className="empty-icon">🏋️</div>
-            <h2>No sessions yet</h2>
-            <p>Complete a workout and your session will appear here.</p>
-            <button className="start-btn" onClick={onBack}>
-              Start a Workout
-            </button>
-          </div>
+          <EmptyState 
+            title="No sessions yet"
+            description="Complete a workout and your session will appear here."
+            actionText="Start a Workout"
+            onAction={onBack}
+          />
         )}
 
         {/* Sessions empty after filter */}

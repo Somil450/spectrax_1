@@ -1,0 +1,16 @@
+{
+  "name": "SpectraX Form Baseline",
+  "version": "1.0.0",
+  "architecture": {
+    "inputDim": 40,
+    "hiddenLayers": [
+      { "units": 64, "activation": "relu", "kernelInitializer": "glorotUniform" },
+      { "units": 64, "activation": "relu", "kernelInitializer": "glorotUniform" }
+    ],
+    "outputDim": 5,
+    "outputActivation": "sigmoid",
+    "outputInitializer": "glorotUniform"
+  },
+  "pretrained": false,
+  "description": "Baseline MLP for per-user biomechanical form scoring. Loaded as architecture metadata; actual weights are initialized in-browser. Fine-tuned per-user via transfer learning on the first 10 reps of each exercise."
+}

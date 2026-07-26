@@ -159,7 +159,7 @@ export function SignUpScreen({
           );
         } else {
           setLocalError(
-            err.message || "Failed to create account. Please try again.",
+            "Could not create your account. If you already have one, please sign in.",
           );
         }
       } else {
@@ -182,7 +182,7 @@ export function SignUpScreen({
         </div>
 
         {displayError && (
-          <div className="error-alert">
+          <div className="error-alert" role="alert">
             <span>{displayError}</span>
             <button
               className="error-close"

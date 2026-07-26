@@ -6,18 +6,33 @@ export interface WorkoutStreakData {
 
 const STORAGE_KEY = "spectrax_workout_streak";
 
-export function getWorkoutStreak(): WorkoutStreakData {
-  const saved = localStorage.getItem(STORAGE_KEY);
+const DEFAULT_STREAK_DATA: WorkoutStreakData = {
+  currentStreak: 0,
+  longestStreak: 0,
+  lastWorkoutDate: null,
+};
 
-  if (!saved) {
-    return {
-      currentStreak: 0,
-      longestStreak: 0,
-      lastWorkoutDate: null,
-    };
+function safeWrite(data: WorkoutStreakData): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  return JSON.parse(saved);
+export function getWorkoutStreak(): WorkoutStreakData {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return { ...DEFAULT_STREAK_DATA };
+    const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== "object") {
+      return { ...DEFAULT_STREAK_DATA };
+    }
+    return { ...DEFAULT_STREAK_DATA, ...parsed };
+  } catch {
+    return { ...DEFAULT_STREAK_DATA };
+  }
 }
 
 export function updateWorkoutStreak(): WorkoutStreakData {
@@ -34,14 +49,25 @@ export function updateWorkoutStreak(): WorkoutStreakData {
       lastWorkoutDate: todayString,
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+    safeWrite(newData);
     return newData;
   }
 
-  const lastWorkout = new Date(streakData.lastWorkoutDate);
+  const lastWorkoutDate = streakData.lastWorkoutDate;
 
-  const diffTime = today.getTime() - lastWorkout.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const localDayNumber = (d: Date): number =>
+    Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+
+  const isoMatch = lastWorkoutDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let lastDate: Date;
+  if (isoMatch) {
+    lastDate = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+  } else {
+    const parsed = new Date(lastWorkoutDate);
+    lastDate = isNaN(parsed.getTime()) ? today : parsed;
+  }
+
+  const diffDays = localDayNumber(today) - localDayNumber(lastDate);
 
   let currentStreak = streakData.currentStreak;
 
@@ -69,7 +95,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
     lastWorkoutDate: todayString,
   };
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+  safeWrite(updatedData);
 
   return updatedData;
 }

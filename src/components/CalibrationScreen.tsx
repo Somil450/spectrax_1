@@ -2,18 +2,22 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
-import { Camera, AlertCircle, Dumbbell, Hand } from 'lucide-react';
+import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity, ShieldAlert, Check } from 'lucide-react';
+import { ExercisePreviewOverlay } from './ExercisePreviewOverlay';
+import { poseService } from '../services/poseService';
 import { ExerciseConfig, exercises } from '../config/exercises';
 import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEngine';
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
+import { CameraPermissionRecovery } from './CameraPermissionRecovery';
+import { useSettings } from '../context/SettingsContext';
 
 interface CalibrationScreenProps {
   selectedExercise: ExerciseConfig;
   onSelectExercise: (key: string) => void;
   onNext: () => void;
   onBack: () => void;
-  onBodyTypeDetected: (type: BodyType) => void;
+  onBodyTypeDetected: (type: BodyType, factor: number) => void;
 }
 
 // ── Visually-hidden style (sr-only) ──────────────────────────────────────────
@@ -32,10 +36,19 @@ const srOnly: React.CSSProperties = {
   border: 0,
 };
 
-export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({ 
+const EXERCISE_JOINTS: Record<string, { a: number, b: number, c: number }> = {
+  squat: { a: 23, b: 25, c: 27 },
+  pushup: { a: 11, b: 13, c: 15 },
+  bicepCurl: { a: 11, b: 13, c: 15 },
+  lunge: { a: 23, b: 25, c: 27 },
+  shoulderPress: { a: 11, b: 13, c: 15 },
+};
+
+export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   selectedExercise, onSelectExercise, onNext, onBack, onBodyTypeDetected
 }) => {
-  
+  const { settings, updateSetting } = useSettings();
+
   // -- State variables --
   const { sessions, fetchHistory } = useWorkoutHistory();
 
@@ -49,6 +62,7 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isReady: false,
     visibleCount: 0,
     totalCount: 8,
+    adaptiveFactor: 1.0,
   });
   const [error, setError] = useState<string | null>(null);
   const [bodyTypeRes, setBodyTypeRes] = useState<BodyTypeResult | null>(null);
@@ -60,49 +74,87 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     isPoseLost: false,
     isThumbsUp: false,
     isCrossedArms: false,
+    isSingleHandRaised: false,
+    command: null,
+    gestureConfidences: { START: 0, PAUSE: 0, STOP: 0 },
   });
   const [countdownActive, setCountdownActive] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(3);
-  
+
+  const [phase, setPhase] = useState<'positioning' | 'countdown' | 'movement' | 'summary'>('positioning');
+  const [minAngle, setMinAngle] = useState<number>(180);
+  const [maxAngle, setMaxAngle] = useState<number>(0);
+  const [calibratedVal, setCalibratedVal] = useState<number | null>(null);
+  const [movementTimer, setMovementTimer] = useState<number>(6);
+
   const [hoveredExercise, setHoveredExercise] = useState<string | null>(null);
-  
-  const frameId = useRef<number>(0);
-  const lastProcessTime = useRef<number>(0);
-  const FPS_LIMIT = 15;
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+
   const countdownIntervalRef = useRef<any>(null);
 
-  const handleCameraError = (err: any) => {
-    const name = (err instanceof Error) ? err.name : '';
-    let msg = "Something went wrong starting the camera. Try refreshing the page.";
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      msg = "Camera access was blocked. Open your browser's site settings and allow camera access, then try again.";
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      msg = "No camera found on this device. Plug in a webcam and try again.";
-    } else if (name === 'NotReadableError' || name === 'TrackStartError') {
-      msg = "Your camera is being used by another app. Close it and try again.";
-    }
-    setError(msg);
-    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+
+  const calculateJointAngle = (landmarks: any[], aIdx: number, bIdx: number, cIdx: number) => {
+    const a = landmarks[aIdx];
+    const b = landmarks[bIdx];
+    const c = landmarks[cIdx];
+    if (!a || !b || !c) return 0;
+    const ab = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+    const cb = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
+    const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
+    const magAB = Math.sqrt(ab.x * ab.x + ab.y * ab.y + ab.z * ab.z);
+    const magCB = Math.sqrt(cb.x * cb.x + cb.y * cb.y + cb.z * cb.z);
+    if (magAB < 1e-6 || magCB < 1e-6) return 0;
+    const cos = dot / (magAB * magCB);
+    return Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
   };
 
   const handleResults = useCallback((results: any) => {
-    const evaluation = calibrationLogic.evaluate(results);
-    setResult(evaluation);
-    
+    let adaptiveFactor = 1.0;
+
     if (results.poseLandmarks) {
       const bt = bodyTypeEngine.analyze(results.poseLandmarks);
       setBodyTypeRes(bt);
+      adaptiveFactor = bt.adaptiveFactor;
       if (bt.bodyType !== 'scanning' && bt.confidence > 0.8) {
-        onBodyTypeDetected(bt.bodyType);
+        onBodyTypeDetected(bt.bodyType, bt.adaptiveFactor);
       }
 
       const gesture = gestureService.analyze(results.poseLandmarks);
       setGestureResult(gesture);
+
+      // Track movement range of motion
+      if (phase === 'movement') {
+        const joint = EXERCISE_JOINTS[selectedExercise.key] || { a: 23, b: 25, c: 27 };
+        const currentAngle = calculateJointAngle(results.poseLandmarks, joint.a, joint.b, joint.c);
+        if (currentAngle > 5 && currentAngle < 179) {
+          setMinAngle((prev) => Math.min(prev, currentAngle));
+          setMaxAngle((prev) => Math.max(prev, currentAngle));
+        }
+      }
     }
+
+    const evaluation = calibrationLogic.evaluate(results, adaptiveFactor);
+    setResult(evaluation);
 
     const primaryJoints = selectedExercise.joints?.flat() || [];
     overlayRenderer.draw(results, evaluation.status, primaryJoints);
-  }, [selectedExercise, onBodyTypeDetected]);
+  }, [onBodyTypeDetected, selectedExercise, phase]);
+
+  const handleCameraError = (err: any) => {
+    const name = (err instanceof Error) ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
+      setError('CAMERA_PERMISSION_DENIED');
+    } else {
+      let msg = "Something went wrong starting the camera. Try refreshing the page.";
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = "No camera found on this device. Plug in a webcam and try again.";
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = "Your camera is being used by another app. Close it and try again.";
+      }
+      setError(msg);
+    }
+    setResult(prev => ({ ...prev, status: 'red', message: 'Sync failed' }));
+  };
 
   const {
     videoRef,
@@ -161,6 +213,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
   }, [countdownSeconds, countdownActive]);
 
 
+
+
   useEffect(() => {
     setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
     startSystem();
@@ -177,54 +231,77 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   useEffect(() => {
     const gestureTriggered = gestureResult.isHandRaised || gestureResult.isThumbsUp;
-    if (gestureTriggered && result.isReady && !gestureResult.isPoseLost && !countdownActive) {
-      setCountdownActive(true);
+    if (gestureTriggered && result.isReady && !gestureResult.isPoseLost && phase === 'positioning') {
+      setPhase('countdown');
       setCountdownSeconds(3);
-    } else if (!gestureTriggered || gestureResult.isPoseLost) {
-      if (countdownActive) {
-        setCountdownActive(false);
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-      }
     }
-  }, [gestureResult.isHandRaised, gestureResult.isThumbsUp, result.isReady, gestureResult.isPoseLost, countdownActive]);
+  }, [gestureResult.isHandRaised, gestureResult.isThumbsUp, result.isReady, gestureResult.isPoseLost, phase]);
 
   useEffect(() => {
-    if (countdownActive && countdownSeconds > 0) {
-      countdownIntervalRef.current = window.setInterval(() => {
-        setCountdownSeconds(prev => prev - 1);
+    if (phase === 'countdown') {
+      const interval = setInterval(() => {
+        setCountdownSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setPhase('movement');
+            setMovementTimer(6);
+            setMinAngle(180);
+            setMaxAngle(0);
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
-      return () => {
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-      };
-    } else if (countdownActive && countdownSeconds === 0) {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-      setCountdownActive(false);
-      onNext();
+      return () => clearInterval(interval);
     }
-  }, [countdownActive, countdownSeconds, onNext]);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === 'movement') {
+      const interval = setInterval(() => {
+        setMovementTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setPhase('summary');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === 'summary') {
+      const range = maxAngle - minAngle;
+      // Set target threshold at 90% of dynamic range
+      const calibratedThreshold = range > 10 ? Math.round(maxAngle - range * 0.90) : selectedExercise.downThreshold;
+      setCalibratedVal(calibratedThreshold);
+
+      const currentProfile = settings.calibrationProfile || {};
+      currentProfile[selectedExercise.key] = {
+        minAngle: Math.round(minAngle),
+        maxAngle: Math.round(maxAngle),
+        calibratedThreshold,
+      };
+      updateSetting('calibrationProfile', { ...currentProfile });
+    }
+  }, [phase, minAngle, maxAngle, selectedExercise.key]);
 
   const statusColor = result.status === 'green' ? 'var(--neon-green)' : (result.status === 'yellow' ? 'var(--neon-yellow)' : 'var(--neon-red)');
 
   const getSortedExercises = () => {
     const all = Object.values(exercises);
     if (!bodyTypeRes || bodyTypeRes.bodyType === 'scanning') return all;
-    
+
     const type = bodyTypeRes.bodyType;
     const orderMap: Record<string, string[]> = {
-      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack'],
-      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank'],
-      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl']
+      ecto: ['squat', 'pushup', 'bicepCurl', 'plank', 'jumpingJack', 'shoulderPress', 'chestPressPunches'],
+      meso: ['pushup', 'squat', 'jumpingJack', 'bicepCurl', 'plank', 'shoulderPress', 'chestPressPunches'],
+      endo: ['jumpingJack', 'squat', 'plank', 'pushup', 'bicepCurl', 'shoulderPress', 'chestPressPunches']
     };
-    
+
     const order = orderMap[type] || [];
     return all.sort((a, b) => {
       const idxA = order.indexOf(a.key);
@@ -235,24 +312,37 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   return (
     <div className="screen-container" style={{ background: 'var(--bg-primary)' }}>
+      {error === 'CAMERA_PERMISSION_DENIED' && (
+        <CameraPermissionRecovery onRetry={() => {
+          setError(null);
+          startSystem();
+        }} />
+      )}
 
-      <div className="camera-viewport" style={{ 
+      {poseService.isFallbackMode && (
+        <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(239, 68, 68, 0.9)", color: "#fff", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold", zIndex: 1100, display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>
+          <ShieldAlert size={16} />
+          <span>SIMULATED FALLBACK MODE (WEBGL UNSUPPORTED)</span>
+        </div>
+      )}
+
+      <div className="camera-viewport" style={{
         position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'radial-gradient(circle at center, #111a3d 0%, #0a0a1a 100%)'
       }}>
-        <video 
-          ref={videoRef} 
-          playsInline 
-          muted 
-          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6, transform: 'scaleX(-1)' }} 
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6, transform: 'scaleX(-1)' }}
         />
-        <canvas 
-          ref={canvasRef} 
+        <canvas
+          ref={canvasRef}
           width={1280}
           height={720}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }} 
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', transform: 'scaleX(-1)' }}
         />
-        
+
         {/* Silhouette Guide Overlay Removed as per user request */}
       </div>
 
@@ -281,167 +371,357 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         {announcement}
       </div>
 
-      <div className="ui-layer" style={{ position: 'relative', zIndex: 10, height: '100%', padding: '40px', pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        
+      <div className="ui-layer" style={{ position: 'relative', zIndex: 10, flex: 1, padding: 'clamp(16px, 4vw, 40px)', paddingBottom: '120px', boxSizing: 'border-box', pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: '32px', overflowY: 'auto' }}>
+
         {/* Header & Exercise Selector */}
         <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'all' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
-              <Camera color="var(--neon-cyan)" size={24} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="calib-header">
+              <div className="glass" style={{ padding: '12px', borderRadius: '12px' }}>
+                <Camera color="var(--neon-cyan)" size={24} />
+              </div>
+              <div>
+                <h2 className="calib-title">Camera Calibration</h2>
+                <p className="calib-subtitle">Step into frame and hold still</p>
+              </div>
             </div>
-            <div>
-              <h2 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-cyan)', fontSize: '1.2rem', letterSpacing: '2px' }}>Camera Calibration</h2>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.75rem', letterSpacing: '0.5px' }}>Step into frame and hold still</p>
+
+            {/* Quick Start Panel */}
+            <div className="glass calib-onboarding-panel" style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px',
+              padding: '24px',
+              width: '320px',
+              border: '1px solid var(--glass-border)',
+              boxShadow: 'var(--glass-shadow)',
+              background: 'var(--glass-bg)',
+              pointerEvents: 'all'
+            }}>
+              {/* Header: QUICK START */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '12px' }}>
+                <Activity size={24} color="var(--neon-cyan)" />
+                <span style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '1.2rem',
+                  fontWeight: 800,
+                  letterSpacing: '2px',
+                  color: 'var(--neon-cyan)',
+                  textTransform: 'uppercase'
+                }}>
+                  ⚡ QUICK START
+                </span>
+              </div>
+
+              {/* Step 1: FULL BODY VISIBLE */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px' }}>
+                  <User size={32} color="var(--text-primary)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    FULL BODY VISIBLE
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: START */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <Hand size={32} color="var(--neon-green)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    START
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Raise both hands
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: PAUSE */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <Hand size={32} color="var(--neon-yellow)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    PAUSE
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Raise one hand
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4: STOP */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '40px', marginTop: '4px' }}>
+                  <StopCircle size={32} color="var(--neon-red)" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontSize: '1.1rem',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    letterSpacing: '1px'
+                  }}>
+                    STOP
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.9rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: '2px'
+                  }}>
+                    Cross arms
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="glass" style={{ padding: '16px', minWidth: '240px' }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <Dumbbell size={14} color="var(--neon-purple)" />
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>
-             </div>
-             
-             {/* Exercise Grid with Video Tooltips */}
-             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {getSortedExercises().map((ex) => (
-                  <div 
-                    key={ex.key} 
-                    style={{ position: 'relative' }}
-                    onMouseEnter={() => setHoveredExercise(ex.key)}
-                    onMouseLeave={() => setHoveredExercise(null)}
+          <div className="glass calib-panel">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <Dumbbell size={14} color="var(--neon-purple)" />
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Select Exercise</span>
+            </div>
+
+            {/* Exercise Grid with Video Tooltips */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {getSortedExercises().map((ex) => (
+                <div
+                  key={ex.key}
+                  style={{ position: 'relative' }}
+                  onMouseEnter={() => setHoveredExercise(ex.key)}
+                  onMouseLeave={() => setHoveredExercise(null)}
+                >
+                  <button
+                    onClick={() => onSelectExercise(ex.key)}
+                    style={{
+                      background: selectedExercise.key === ex.key ? 'var(--neon-purple)' : 'transparent',
+                      color: selectedExercise.key === ex.key ? '#fff' : 'var(--text-secondary)',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.3s ease',
+                      width: '100%',
+                      position: 'relative',
+                      zIndex: 2,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
                   >
-                    <button 
-                      onClick={() => onSelectExercise(ex.key)}
+                    <div
                       style={{
-                        background: selectedExercise.key === ex.key ? 'var(--neon-purple)' : 'transparent',
-                        color: selectedExercise.key === ex.key ? '#fff' : 'var(--text-secondary)',
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        border: '1px solid rgba(168, 85, 247, 0.3)',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.3s ease',
-                        width: '100%',
-                        position: 'relative',
-                        zIndex: 2,
                         display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
+                        alignItems: 'center',
+                        gap: '8px'
                       }}
                     >
                       <span>{ex.name.toUpperCase()}</span>
-                      <span style={{ 
-                        fontSize: '0.65rem', 
-                        opacity: 0.8,
-                        background: selectedExercise.key === ex.key ? 'rgba(0,0,0,0.2)' : 'rgba(168, 85, 247, 0.1)',
-                        padding: '2px 6px',
-                        borderRadius: '4px'
-                      }}>
-                        {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
-                      </span>
-                    </button>
-
-                    {/* Video Overlay */}
-                    { (hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)) && ex.demoUrl && (
-                      <div 
-                        className="animate-in"
-                        style={{
-                          position: 'absolute',
-                          right: '105%', // Pop out to the left
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: '240px', /* <--- INCREASED SIZE HERE */
-                          borderRadius: '12px', /* Slightly softer corners for larger video */
-                          overflow: 'hidden',
-                          border: '2px solid var(--neon-cyan)',
-                          boxShadow: '0 0 25px rgba(0, 240, 255, 0.3)', /* Stronger glow */
-                          backgroundColor: '#000',
-                          zIndex: 20,
-                          pointerEvents: 'none'
+                      <span
+                        title="view guide"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedExercise(expandedExercise === ex.key ? null : ex.key);
                         }}
-                      >
-                        <video 
-                          src={ex.demoUrl} 
-                          autoPlay 
-                          loop 
-                          muted 
-                          playsInline 
-                          style={{ width: '100%', display: 'block', objectFit: 'cover' }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-             </div>
+                        style={{
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          fontWeight: 'bold',
+                        }}
+                      >{expandedExercise === ex.key ? '▲' : '▼'}
+                      </span>
+                    </div>
 
-             {/* Total Reps Lifetime Stats - Small Section */}
-             <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-               <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {Object.values(exercises).map(ex => {
-                    const reps = sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0);
-                    return (
-                      <div key={`stat-${ex.key}`} style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                        <span>{ex.name}</span>
-                        <span style={{ color: reps > 0 ? 'var(--neon-purple)' : 'var(--text-dim)', fontWeight: 'bold' }}>{reps}</span>
+                    <span style={{
+                      fontSize: '0.65rem',
+                      opacity: 0.8,
+                      background: selectedExercise.key === ex.key ? 'rgba(0,0,0,0.2)' : 'rgba(168, 85, 247, 0.1)',
+                      padding: '2px 6px',
+                      borderRadius: '4px'
+                    }}>
+                      {sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0)} REPS
+                    </span>
+                  </button>
+                  {expandedExercise === ex.key && ex.guide && (
+                    <div
+                      style={{
+                        marginTop: '6px',
+                        padding: '16px',
+                        borderRadius: '12px',
+                        background: 'rgba(168,85,247,0.08)',
+                        border: '1px solid rgba(168,85,247,0.2)',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-secondary)',
+                      }} >
+                      <h4 style={{
+                        color: 'var(--neon-purple)',
+                        marginBottom: '8px',
+                        marginTop: '12px'
+                      }}>Instructions</h4>
+                      <ul style={{
+                        marginLeft: '16px',
+                        marginBottom: '12px',
+                      }}>
+                        {ex.guide?.instructions.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                      <h4 style={{
+                        color: 'var(--neon-purple)',
+                        marginBottom: '8px',
+                        marginTop: '12px'
+                      }}>Common Mistakes</h4>
+                      <ul style={{
+                        marginLeft: '16px',
+                        marginBottom: '12px',
+                      }}>
+                        {ex.guide?.commonMistakes.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                      <h4 style={{
+                        color: 'var(--neon-purple)',
+                        marginBottom: '8px',
+                        marginTop: '12px'
+                      }}>Target Muscles</h4>
+                      <div>
+                        {ex.guide?.targetMuscles.join(',')}
                       </div>
-                    );
-                  })}
-               </div>
-             </div>
+                    </div>
+                  )}
+
+                  {/* Video Overlay */}
+                  <ExercisePreviewOverlay 
+                    demoUrl={ex.demoUrl} 
+                    isVisible={hoveredExercise === ex.key || (selectedExercise.key === ex.key && hoveredExercise === null)} 
+                    placement="left" 
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Total Reps Lifetime Stats - Small Section */}
+            <div style={{ marginTop: '20px', paddingTop: '16px', paddingBottom: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', fontWeight: 600 }}>LIFETIME STATS</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {Object.values(exercises).map(ex => {
+                  const reps = sessions.filter(s => s.exerciseType === ex.name).reduce((sum, s) => sum + s.totalReps, 0);
+                  return (
+                    <div key={`stat-${ex.key}`} style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                      <span>{ex.name}</span>
+                      <span style={{ color: reps > 0 ? 'var(--neon-purple)' : 'var(--text-dim)', fontWeight: 'bold' }}>{reps}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Center Feedback Area */}
         <div style={{ alignSelf: 'center', textAlign: 'center' }}>
-          {error === 'CAMERA_PERMISSION_DENIED' ? (
-            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
-              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>CAMERA ACCESS DENIED</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>SpectraX requires camera access to track your body movements. Please enable permissions in your browser settings and refresh the page.</p>
-              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>RELOAD</button>
-            </div>
-          ) : error ? (
-            <div className="glass animate-in" style={{ padding: '32px 48px', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', maxWidth: '500px', pointerEvents: 'all' }}>
-              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto' }} />
-              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '8px' }}>HARDWARE SYNC FAILED</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>{error}</p>
-              <button onClick={() => window.location.reload()} className="btn-outline" style={{ marginTop: '24px', borderColor: 'var(--neon-red)', color: 'var(--neon-red)' }}>REINITIALIZE</button>
+          {error ? (
+            <div className="glass animate-in" style={{ padding: '24px', margin: '0 16px', width: '100%', maxWidth: '500px', maxHeight: '80vh', overflowY: 'auto', border: '1px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.1)', pointerEvents: 'all', boxSizing: 'border-box' }}>
+              <AlertCircle color="var(--neon-red)" size={48} style={{ marginBottom: '16px', margin: '0 auto', flexShrink: 0 }} />
+              <h3 style={{ fontFamily: 'var(--font-heading)', color: 'var(--neon-red)', marginBottom: '12px', fontSize: 'clamp(1.2rem, 4vw, 1.5rem)' }}>HARDWARE SYNC FAILED</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '24px' }}>{error}</p>
+              <button onClick={() => window.location.reload()} className="btn-outline" style={{ borderColor: 'var(--neon-red)', color: 'var(--neon-red)', padding: '12px 24px', width: '100%', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, letterSpacing: '1px', flexShrink: 0 }}>REINITIALIZE</button>
             </div>
           ) : (
-            <div className="glass animate-in" style={{ padding: '24px 40px', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', minWidth: '400px' }}>
-               <p style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44` }}>
+            <div className="glass animate-in" style={{ padding: '24px clamp(16px, 4vw, 40px)', border: `1px solid ${statusColor}`, background: 'rgba(13, 17, 39, 0.9)', width: '100%', maxWidth: '500px', boxSizing: 'border-box' }}>
+              <p className="pb-4" style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1rem, 3vw, 1.4rem)', color: statusColor, letterSpacing: '4px', textShadow: `0 0 15px ${statusColor}44`, paddingBottom: '16px' }}>
                 {result.message.toUpperCase()}
-               </p>
-               <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
-                  <div style={{ 
-                    position: 'absolute', 
-                    inset: 0, 
-                    width: `${result.isReady ? 100 : (result.totalCount > 0 ? (result.visibleCount / result.totalCount) * 100 : 0)}%`, 
-                    background: statusColor, 
-                    transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease', 
-                    boxShadow: `0 0 12px ${statusColor}` 
-                  }} />
-               </div>
-               <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px' }}>
-                 {result.isReady 
-                   ? 'OPTIMAL POSITION ACHIEVED' 
-                   : `ACQUIRING BODY LANDMARKS... (${result.visibleCount || 0}/${result.totalCount || 8})`}
-               </p>
+              </p>
+              <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', margin: '16px 0', position: 'relative', overflow: 'hidden', borderRadius: '2px' }}>
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: `${result.isReady ? 100 : (result.totalCount > 0 ? (result.visibleCount / result.totalCount) * 100 : 0)}%`,
+                  background: statusColor,
+                  transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease',
+                  boxShadow: `0 0 12px ${statusColor}`
+                }} />
+              </div>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px' }}>
+                {result.isReady
+                  ? 'OPTIMAL POSITION ACHIEVED'
+                  : `ACQUIRING BODY LANDMARKS... (${result.visibleCount || 0}/${result.totalCount || 8})`}
+              </p>
             </div>
           )}
         </div>
 
         {/* Bottom Controls */}
-        <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'all' }}>
+        <div className="animate-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pointerEvents: 'all', marginTop: 'auto', paddingBottom: '80px' }}>
           <button onClick={onBack} className="btn-outline">CANCEL</button>
-          {countdownActive && countdownSeconds > 0 ? (
+          
+          {phase === 'countdown' ? (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid var(--neon-cyan)', background: 'rgba(0, 240, 255, 0.05)', boxShadow: '0 0 20px rgba(0, 240, 255, 0.3)' }}>
-              <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>STARTING IN</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>GET READY TO MOVE</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: '4rem', color: 'var(--neon-cyan)', letterSpacing: '4px', textShadow: '0 0 20px rgba(0, 240, 255, 0.8)', animation: 'pulse 0.5s ease-in-out' }}>{countdownSeconds}</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>KEEP POSITION STEADY</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Perform one max-depth rep when timer starts</div>
+            </div>
+          ) : phase === 'movement' ? (
+            <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', border: '2px solid var(--neon-purple)', background: 'rgba(157, 23, 248, 0.05)', boxShadow: '0 0 20px rgba(157, 23, 248, 0.2)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--neon-purple)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>PERFORM CALIBRATION REP</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: '3rem', color: 'var(--neon-purple)', textShadow: '0 0 10px var(--neon-purple)' }}>{movementTimer}s</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Go as deep as possible and return to start position!</div>
+            </div>
+          ) : phase === 'summary' ? (
+            <div className="glass" style={{ padding: '20px 30px', minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '16px', border: '2px solid var(--neon-green)', background: 'rgba(34, 197, 94, 0.05)', boxShadow: '0 0 20px rgba(34, 197, 94, 0.2)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--neon-green)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700, textAlign: 'center' }}>CALIBRATION SUCCESSFUL</div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.75rem' }}>
+                <div style={{ color: 'var(--text-secondary)' }}>Full extension:</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', textAlign: 'right' }}>{Math.round(maxAngle)}°</div>
+                <div style={{ color: 'var(--text-secondary)' }}>Max depth:</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', textAlign: 'right' }}>{Math.round(minAngle)}°</div>
+                <div style={{ color: 'var(--neon-green)', fontWeight: 'bold' }}>Dynamic Threshold:</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--neon-green)', textAlign: 'right' }}>{calibratedVal}°</div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <button onClick={() => setPhase('positioning')} className="btn-outline" style={{ flex: 1, fontSize: '0.7rem', padding: '8px' }}>RETRY</button>
+                <button onClick={onNext} className="btn-neon" style={{ flex: 1, fontSize: '0.7rem', padding: '8px', background: 'var(--neon-green)', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>START WORKOUT</button>
+              </div>
             </div>
           ) : gestureResult.isPoseLost ? (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', border: '2px solid var(--neon-red)', background: 'rgba(255, 59, 92, 0.05)', boxShadow: '0 0 20px rgba(255, 59, 92, 0.3)' }}>
@@ -454,11 +734,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Hand color="var(--neon-purple)" size={28} style={{ animation: 'pulse 1.5s ease-in-out infinite' }} />
                 <div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>READY TO START</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>READY TO CALIBRATE</div>
                   <div style={{ color: 'var(--neon-cyan)', fontWeight: 700, fontSize: '0.85rem' }}>RAISE HANDS OR THUMBS UP</div>
                 </div>
               </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>Lift both hands or give a thumbs up to begin analysis</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>Lift both hands or give a thumbs up to begin dynamic calibration</div>
               {gestureResult.confidence > 0 && gestureResult.confidence < 1 && (
                 <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{ width: `${gestureResult.confidence * 100}%`, height: '100%', background: 'var(--neon-purple)', transition: 'width 0.3s ease', boxShadow: '0 0 10px var(--neon-purple)' }} />
@@ -468,19 +748,13 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
           ) : (
             <div className="glass" style={{ padding: '20px 40px', minWidth: '350px', display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div style={{ position: 'relative', width: '12px', height: '12px' }}>
-                  <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--neon-yellow)', boxShadow: `0 0 10px var(--neon-yellow)` }} />
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--neon-yellow)', boxShadow: `0 0 10px var(--neon-yellow)` }} />
               </div>
               <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{selectedExercise.name} mode</div>
-                  {/*
-                    NOTE: aria-live / role / aria-atomic have been removed from this
-                    visible element. Announcements are now handled by the dedicated
-                    hidden live region at the top of the JSX, which covers ALL states
-                    (calibrating, ready, pose lost, countdown, error) — not just this one.
-                  */}
-                  <div style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem' }}>
-                    {result.message}
-                  </div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{selectedExercise.name} mode</div>
+                <div className="pb-4" style={{ color: 'var(--neon-yellow)', fontWeight: 700, fontSize: '0.85rem', paddingBottom: '16px' }}>
+                  {result.message}
+                </div>
               </div>
             </div>
           )}
@@ -513,6 +787,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
         }
         .radar-ping.loading::after {
           animation: radar-pulse 1s infinite;
+        }
+        @media (max-width: 1024px) {
+          .calib-onboarding-panel {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

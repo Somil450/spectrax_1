@@ -12,7 +12,7 @@ const fs = require("fs");
 
 // ─── Config Imports ────────────────────────────────────────────────────────
 const { PORT, SESSIONS_DIR, SOCKET_AUTH_TOKEN } = require("./config/constants");
-const { corsOptions } = require("./config/cors");
+const { createCorsOptions } = require("./config/cors");
 
 // ─── Middleware Imports ────────────────────────────────────────────────────
 const errorHandler = require("./middleware/errorHandler");
@@ -22,14 +22,18 @@ const setupSocketHandlers = require("./socket/handlers");
 const setupHealthRoute = require("./modules/healthRoute");
 
 // ─── App Setup ─────────────────────────────────────────────────────────────
+const corsConfig = createCorsOptions({
+  corsOrigin: process.env.ALLOWED_ORIGIN || process.env.CORS_ORIGIN,
+});
+
 const app = express();
-app.use(cors({ origin: "*" }));
-app.use(express.json({ limit: "100kb" })); // Added payload limit to prevent DoS
+app.use(cors(corsConfig));
+app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: corsOptions,
+  cors: corsConfig,
   // Tune for minimal latency
   pingInterval: 5000,
   pingTimeout: 3000,
@@ -38,10 +42,17 @@ const io = new Server(server, {
 
 // ─── Socket Authentication ────────────────────────────────────────────────
 io.use((socket, next) => {
-  if (!SOCKET_AUTH_TOKEN) return next();
-  const token = socket.handshake.auth && socket.handshake.auth.token;
+  if (SOCKET_AUTH_TOKEN === null) {
+    // Not configured: reject in production, warn and allow in development
+    if (process.env.NODE_ENV === 'production') {
+      return next(new Error('Server misconfiguration: SOCKET_AUTH_TOKEN is not set'));
+    }
+    console.warn('[SpectraX] WARNING: SOCKET_AUTH_TOKEN is not set. All WebSocket connections accepted without authentication.');
+    return next();
+  }
+  const token = socket.handshake.auth?.token;
   if (token === SOCKET_AUTH_TOKEN) return next();
-  return next(new Error("Unauthorized"));
+  return next(new Error('Unauthorized'));
 });
 
 // ─── In-Memory Session Store (Per Socket) ─────────────────────────────────
@@ -55,6 +66,7 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 // ─── Setup Routes & Socket Handlers ────────────────────────────────────────
 setupHealthRoute(app, sessions);
 setupSocketHandlers(io, sessions);
+app.use("/api/workouts", require("./api/workouts"));
 
 // ─── Global Error Handler ─────────────────────────────────────────────────
 app.use(errorHandler);
