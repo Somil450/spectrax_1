@@ -335,6 +335,7 @@ function App() {
       {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
+      <PrivacyShield />
       <div
         className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""
           } ${["summary", "replay", "history", "trophy", "fitness", "tutorials"].includes(currentScreen)

@@ -1,0 +1,1 @@
+export { AvatarView } from './AvatarView';
