@@ -8,6 +8,7 @@ import {
   getFirestore,
   collection,
   addDoc,
+  setDoc,
   query,
   getDocs,
   deleteDoc,
@@ -266,7 +267,14 @@ export async function uploadWorkoutToFirestore(
     const db = getFirestore();
     const workoutsRef = collection(db, "users", userId, "workouts");
 
-    const docRef = await addDoc(workoutsRef, {
+    // Use deterministic ID to prevent duplicates on re-upload
+    const localKey = workout.localId ?? (typeof workout.id === "number" ? workout.id : undefined);
+    const docId = localKey !== undefined
+      ? `${localKey}_${workout.timestamp}`
+      : doc(workoutsRef).id;
+    const workoutRef = doc(db, "users", userId, "workouts", docId);
+
+    await setDoc(workoutRef, {
       exerciseType: workout.exerciseType,
       totalReps: workout.totalReps,
       accuracyScore: workout.accuracyScore,
@@ -276,7 +284,7 @@ export async function uploadWorkoutToFirestore(
       updatedAt: serverTimestamp(),
     });
 
-    return docRef.id;
+    return docId;
   } catch (error) {
     console.error("Error uploading workout to Firestore:", error);
     throw error;
@@ -553,7 +561,12 @@ export async function bulkUploadWorkouts(
     const uploadedIds: string[] = [];
 
     workouts.forEach((workout) => {
-      const workoutRef = doc(collection(db, "users", userId, "workouts"));
+      // Use deterministic ID to prevent duplicates on re-upload
+      const localKey = workout.localId ?? (typeof workout.id === "number" ? workout.id : undefined);
+      const docId = localKey !== undefined
+        ? `${localKey}_${workout.timestamp}`
+        : doc(collection(db, "users", userId, "workouts")).id;
+      const workoutRef = doc(db, "users", userId, "workouts", docId);
       batch.set(workoutRef, {
         exerciseType: workout.exerciseType,
         totalReps: workout.totalReps,
@@ -563,7 +576,7 @@ export async function bulkUploadWorkouts(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      uploadedIds.push(workoutRef.id);
+      uploadedIds.push(docId);
     });
 
     await batch.commit();
