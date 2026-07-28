@@ -90,17 +90,25 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     logger.error('[SpectraX] Failed to start cleanup routine:', error.message);
   });
 
-  async function finalizeSession(socketId) {
+  async function finalizeSession(socketId, retries = 2) {
     if (finalizedSessions.has(socketId)) return [];
     finalizedSessions.add(socketId);
     try {
       const frames = sessionStore.getSessionFrames(socketId);
       if (frames && frames.length > 0) {
-        const savedPath = await saveSession(frames, socketId);
+        let savedPath = null;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          savedPath = await saveSession(frames, socketId);
+          if (savedPath) break;
+          if (attempt < retries) {
+            logger.warn(`[SpectraX] finalizeSession: retry ${attempt + 1}/${retries} for ${socketId}`);
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          }
+        }
         if (savedPath) {
           sessionStore.deleteSession(socketId);
         } else {
-          logger.warn(`[SpectraX] finalizeSession: saveSession failed for ${socketId} — keeping session in memory`);
+          logger.warn(`[SpectraX] finalizeSession: saveSession failed after ${retries + 1} attempts for ${socketId} — keeping session in memory`);
         }
       } else {
         sessionStore.deleteSession(socketId);
@@ -109,6 +117,12 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     } finally {
       finalizedSessions.delete(socketId);
     }
+  }
+
+  async function retryFinalize(socketId) {
+    if (!sessionStore.getSessionFrames(socketId).length) return null;
+    finalizedSessions.delete(socketId);
+    return finalizeSession(socketId, 0);
   }
 
   async function saveAllSessions() {
