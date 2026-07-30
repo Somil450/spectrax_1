@@ -25,10 +25,7 @@ export class CameraErrorBoundary extends Component<Props, State> {
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false, error: null });
-    // In a real app we might re-initialize WebGL context here
-    // For now, refreshing the screen ensures pure state recovery
-    window.location.reload(); 
+    window.location.reload();
   };
 
   public render() {

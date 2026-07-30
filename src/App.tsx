@@ -15,6 +15,8 @@ import About from "./components/About";
 import Contact from "./components/Contact";
 import PrivacyPage from './components/privacy'; // Change to your actual file path
 import TermsAndConditions from './components/terms&conditions'
+import { ExitConfirmModal } from "./components/ExitConfirmModal";
+import { PerformanceMonitor } from "./components/PerformanceMonitor";
 
 
 // Start monitoring throttling immediately
@@ -24,6 +26,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+import type { ActivePlan } from "./components/WorkoutPlansScreen";
 const WelcomeScreen = lazy(() => import("./components/WelcomeScreen").then(m => ({ default: m.WelcomeScreen })));
 const SummaryScreen = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
 const TrophyRoom = lazy(() => import("./components/TrophyRoom").then(m => ({ default: m.TrophyRoom })));
@@ -38,6 +41,9 @@ const CalibrationScreen = lazy(() => import("./components/CalibrationScreen").th
 const WorkoutScreen = lazy(() => import("./components/WorkoutScreen").then(m => ({ default: m.WorkoutScreen })));
 const ReplayScreen = lazy(() => import("./components/ReplayScreen").then(m => ({ default: m.ReplayScreen })));
 const AvatarCustomizationScreen = lazy(() => import("./components/AvatarCustomizationScreen").then(m => ({ default: m.AvatarCustomizationScreen })));
+const WorkoutPlansScreen = lazy(() => import("./components/WorkoutPlansScreen").then(m => ({ default: m.WorkoutPlansScreen })));
+const BattleMode = lazy(() => import("./components/BattleMode/BattleMode").then(m => ({ default: m.BattleMode })));
+const TutorialsScreen = lazy(() => import("./components/TutorialsScreen").then(m => ({ default: m.TutorialsScreen })));
 
 type Screen =
   | "welcome"
@@ -61,7 +67,7 @@ type Screen =
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "workoutPlans", "privacy", "terms&conditions", "battle", "tutorials"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -79,6 +85,7 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   "privacy": ["welcome"],
   "terms&conditions": ["welcome"],
 };
+
 
 const canTransitionTo = (from: Screen, to: Screen) => {
   return SCREEN_TRANSITIONS[from].includes(to);
@@ -120,6 +127,7 @@ function App() {
   const { theme, setTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -321,12 +329,14 @@ function App() {
       {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
+      <PrivacyShield />
       <div
         className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""
-          } ${["summary", "replay", "history", "trophy", "fitness"].includes(currentScreen)
+          } ${["summary", "replay", "history", "trophy", "fitness", "tutorials"].includes(currentScreen)
             ? "is-hidden"
             : ""
           }`}
+
       >
         <div className={`selector-indicator theme-${theme}`} />
         <button
@@ -361,10 +371,11 @@ function App() {
           onViewProfile={() => navigateTo("profile")}
           onViewFitnessCalculator={() => navigateTo("fitness")}
           onViewAvatarCustomization={() => navigateTo("avatar")}
-          onViewWorkoutPlans={() => {}}
+          onViewWorkoutPlans={() => navigateTo("workoutPlans")}
           leveling={leveling}
         />
       )}
+
 
       <Suspense fallback={<GridSkeleton />}>
         {currentScreen === "calibration" && (
@@ -379,15 +390,22 @@ function App() {
           </PageErrorBoundary>
         )}
         {currentScreen === "privacy" && (
-    <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
-      <PrivacyPage onBack={() => navigateTo("welcome")} />
-    </PageErrorBoundary>
-  )}
+          <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
+            <PrivacyPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
 
-  {currentScreen === "terms&conditions" && (
-    <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
-      <TermsAndConditions onBack={() => navigateTo("welcome")} />
-    </PageErrorBoundary>)}
+        {currentScreen === "terms&conditions" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
+            <TermsAndConditions onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+
+        {currentScreen === "battle" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Battle Mode. Please try again.">
+            <BattleMode onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
         {currentScreen === "workout" && (
           <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
             <WorkoutScreen
@@ -444,8 +462,33 @@ function App() {
           </Suspense>
         )}
 
+        {currentScreen === "tutorials" && (
+          <Suspense fallback={<div className="loading-fallback">Loading Tutorials...</div>}>
+            <TutorialsScreen
+              onBack={() => navigateTo("welcome")}
+              onStartTryMode={(exerciseKey) => {
+                const config = exercises[exerciseKey];
+                if (config) {
+                  setSelectedExercise(config);
+                  navigateTo("calibration");
+                }
+              }}
+            />
+          </Suspense>
+        )}
+
         {currentScreen === "fitness" && (
           <FitnessCalculator onBack={() => navigateTo("welcome")} />
+        )}
+
+        {currentScreen === "workoutPlans" && (
+          <PageErrorBoundary fallbackMessage="Failed to load workout plans. Please try again.">
+            <WorkoutPlansScreen
+              onBack={() => navigateTo("welcome")}
+              activePlan={activePlan}
+              setActivePlan={setActivePlan}
+            />
+          </PageErrorBoundary>
         )}
       </Suspense>
 
@@ -492,80 +535,19 @@ function App() {
         </div>
       )}
       {showExitModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 999,
-            backdropFilter: "blur(8px)",
+        <ExitConfirmModal
+          message="Are you sure you want to end your session?"
+          onStay={() => setShowExitModal(false)}
+          onExit={() => {
+            setShowExitModal(false);
+            if (user?.uid) {
+              localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
+            }
+            navigateTo('welcome');
           }}
-        >
-          <div
-            style={{
-              background: "rgba(255,255,255,0.1)",
-              border: "1px solid rgba(255,255,255,0.2)",
-              borderRadius: "20px",
-              padding: "30px",
-              width: "320px",
-              textAlign: "center",
-              color: "white",
-              backdropFilter: "blur(15px)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-            }}
-          >
-            <h2>Confirm Exit</h2>
-
-            <p>Are you sure you want to end your session?</p>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginTop: "20px",
-              }}
-            >
-              <button
-                onClick={() => setShowExitModal(false)}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: "10px",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                Stay
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowExitModal(false);
-                  if (user?.uid) {
-                    localStorage.removeItem(`spectrax_telemetry_snapshot_${user.uid}`);
-                  }
-                  navigateTo('welcome');
-                }}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: '#ff4d4f',
-                  color: 'white'
-                }}
-              >
-                Exit
-              </button>
-            </div>
-          </div>
-        </div>
+        />
       )}
+      <PerformanceMonitor visible={currentScreen === 'workout' || currentScreen === 'calibration'} />
     </main>
   );
 }

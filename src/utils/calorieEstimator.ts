@@ -18,6 +18,9 @@ const MET_VALUES: Record<string, number> = {
   default: 5.0,
 };
 
+const REFERENCE_WEIGHT_KG = 70;
+const CALORIES_PER_REP_BASE = 1.5;
+
 export interface CalorieEstimateInput {
   exerciseName: string;   // e.g. "Squat", "Push Up"
   totalReps: number;
@@ -34,8 +37,12 @@ export interface CalorieEstimateResult {
 }
 
 /**
- * Estimates calories burned using MET formula adjusted by rep accuracy.
- * Formula: Calories = MET × weight(kg) × duration(hrs) × accuracyMultiplier
+ * Estimates calories burned from work done (reps), scaled by exercise
+ * intensity (MET) and body weight, with a duration-based floor.
+ *
+ * Rep term:      reps × CALORIES_PER_REP_BASE × (MET / default MET) × (weight / 70)
+ * Duration floor: MET × weight(kg) × duration(hrs)   (credits isometric holds)
+ * Calories = max(rep term, duration floor) × accuracyMultiplier
  *
  * The accuracy multiplier ranges from 0.7 to 1.0:
  * - 100% accuracy → ×1.0 (full effort, full calorie credit)
@@ -44,13 +51,18 @@ export interface CalorieEstimateResult {
 export function estimateCalories(input: CalorieEstimateInput): CalorieEstimateResult {
   const key = input.exerciseName.toLowerCase().replace(/\s+/g, '_');
   const met = MET_VALUES[key] ?? MET_VALUES['default'];
-  const weight = input.userWeightKg ?? 70;
+  const weight = input.userWeightKg ?? REFERENCE_WEIGHT_KG;
   const hours = input.durationSeconds / 3600;
+  const reps = Number.isFinite(input.totalReps) && input.totalReps > 0 ? input.totalReps : 0;
 
   // Accuracy multiplier: 0.7 at 0% accuracy, 1.0 at 100% accuracy
   const accuracyMultiplier = parseFloat((0.7 + (input.accuracyScore / 100) * 0.3).toFixed(3));
 
-  const rawCalories = met * weight * hours * accuracyMultiplier;
+  const intensity = met / MET_VALUES['default'];
+  const repCalories = reps * CALORIES_PER_REP_BASE * intensity * (weight / REFERENCE_WEIGHT_KG);
+  const durationCalories = met * weight * hours;
+
+  const rawCalories = Math.max(repCalories, durationCalories) * accuracyMultiplier;
   const calories = Math.max(1, Math.round(rawCalories));
 
   let label = 'Solid Burn 💪';

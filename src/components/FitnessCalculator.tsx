@@ -6,7 +6,7 @@
  * All calculations are pure — no backend, no API, no DB.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   Scale,
@@ -554,6 +554,19 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 export const FitnessCalculator: React.FC<FitnessCalculatorProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<Tab>('bmi');
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex = index;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextIndex = (index + 1) % TABS.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') nextIndex = (index - 1 + TABS.length) % TABS.length;
+    else if (e.key === 'Home') nextIndex = 0;
+    else if (e.key === 'End') nextIndex = TABS.length - 1;
+    else return;
+    e.preventDefault();
+    setActiveTab(TABS[nextIndex].id);
+    tabRefs.current[nextIndex]?.focus();
+  };
 
   // Shared inputs persist across tab switches so users don't re-enter data
   const [inputs, setInputs] = useState<SharedInputs>({
@@ -597,7 +610,7 @@ export const FitnessCalculator: React.FC<FitnessCalculatorProps> = ({ onBack }) 
   }, [inputs]);
 
   return (
-    <div className="fitness-page" role="main" aria-label="Fitness Calculator">
+    <div className="fitness-page">
       {/* Decorative ambient orbs */}
       <div className="fitness-orb fitness-orb--cyan" aria-hidden="true" />
       <div className="fitness-orb fitness-orb--purple" aria-hidden="true" />
@@ -628,15 +641,18 @@ export const FitnessCalculator: React.FC<FitnessCalculatorProps> = ({ onBack }) 
 
         {/* ── Tab bar ── */}
         <nav className="fitness-tabs" role="tablist" aria-label="Calculator tabs">
-          {TABS.map((tab) => (
+          {TABS.map((tab, index) => (
             <button
               key={tab.id}
+              ref={(el) => { tabRefs.current[index] = el; }}
               type="button"
               role="tab"
               aria-selected={activeTab === tab.id}
               aria-controls={`panel-${tab.id}`}
+              tabIndex={activeTab === tab.id ? 0 : -1}
               className={`fitness-tab-btn${activeTab === tab.id ? ' active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(e) => handleTabKeyDown(e, index)}
             >
               {tab.icon}
               <span>{tab.label}</span>

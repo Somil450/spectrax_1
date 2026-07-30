@@ -169,7 +169,7 @@ export class SkeletalSense {
     }
 
     // PUSHUP: Horizontal body alignment (shoulders and hips same height)
-    if (Math.abs(lShoulder.y - lHip.y) < 0.15 && Math.abs(lShoulder.y - landmarks[0].y) < 0.2) {
+    if (landmarks[0] && Math.abs(lShoulder.y - lHip.y) < 0.15 && Math.abs(lShoulder.y - landmarks[0].y) < 0.2) {
       // Check for arm movement in and out of 90 degrees
       return { label: "PUSHUP", confidence: 0.85 };
     }

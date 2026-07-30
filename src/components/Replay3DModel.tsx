@@ -352,15 +352,25 @@ const GRID_RIPPLE_MAX      = 6;
 const GRID_RIPPLE_LIFETIME = 2.8;
 const GRID_SIZE            = 10;
 
+const ONE_SCALE = new THREE.Vector3(1, 1, 1);
+const _segmentScale = new THREE.Vector3();
+
+const STRESS_UP_AXIS   = new THREE.Vector3(0, 1, 0);
+const STRESS_SIDE_AXIS = new THREE.Vector3(1, 0, 0);
+const STRESS_COLOR_BAD  = new THREE.Color(0xff3300);
+const STRESS_COLOR_GOOD = new THREE.Color(0x00ffff);
+const _stressOutward = new THREE.Vector3();
+const _stressLimb    = new THREE.Vector3();
+const _stressUp      = new THREE.Vector3();
+const _stressSide    = new THREE.Vector3();
+const _stressDir     = new THREE.Vector3();
+
 const buildSegmentScaleState = (ratio: number) => {
   const clampedRatio = THREE.MathUtils.clamp(ratio, PROPORTION_MIN_RATIO, PROPORTION_MAX_RATIO);
   const lateralScale = THREE.MathUtils.clamp(
     1 / Math.sqrt(Math.max(clampedRatio, 0.0001)), 0.88, 1.12,
   );
-  const matrix = new THREE.Matrix4().makeScale(lateralScale, clampedRatio, lateralScale);
-  const scale  = new THREE.Vector3();
-  matrix.decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
-  return { ratio: clampedRatio, matrix, scale };
+  return { ratio: clampedRatio, scale: _segmentScale.set(lateralScale, clampedRatio, lateralScale) };
 };
 
 // ─── Graphics Settings Panel ──────────────────────────────────────────────────
@@ -471,6 +481,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
   const isPlaying        = externalIsPlaying   !== undefined ? externalIsPlaying   : _isPlaying;
   const currentFrameIdx  = externalFrameIdx    !== undefined ? externalFrameIdx    : _currentFrameIdx;
+  const isFrameControlled = externalFrameIdx   !== undefined;
   const setIsPlaying     = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
   const setCurrentFrameIdx = onFrameChange ? onFrameChange : _setCurrentFrameIdx;
 
@@ -613,8 +624,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       );
 
       const fallbackCenter = bodyCenter ?? shoulderCenter ?? hipCenter ?? new THREE.Vector3(0, 0, 0);
-      const upAxis   = new THREE.Vector3(0, 1, 0);
-      const sideAxis = new THREE.Vector3(1, 0, 0);
 
       rigs.forEach((rig) => {
         const jointPos  = getLm(rig.jointIdx);
@@ -627,22 +636,21 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         const tensionBoost = badJoints.has(rig.jointIdx) ? 0.38 : 0;
         const groupBoost   = allowedGroups.has(rig.muscleGroup) ? 0.14 : 0.04;
 
-        const outward  = jointPos.clone().sub(fallbackCenter).normalize();
-        const limbAxis = jointPos.clone().sub(parentPos).normalize();
+        const outward  = _stressOutward.copy(jointPos).sub(fallbackCenter).normalize();
+        const limbAxis = _stressLimb.copy(jointPos).sub(parentPos).normalize();
         const direction = outward.multiplyScalar(0.55)
           .add(limbAxis.multiplyScalar(0.35))
-          .add(upAxis.clone().multiplyScalar(0.07))
-          .add(sideAxis.clone().multiplyScalar(0.03))
+          .add(_stressUp.copy(STRESS_UP_AXIS).multiplyScalar(0.07))
+          .add(_stressSide.copy(STRESS_SIDE_AXIS).multiplyScalar(0.03))
           .normalize();
 
         const stress    = THREE.MathUtils.clamp(motionStress * 0.55 + tensionBoost + groupBoost, 0, 1);
         const length    = 0.45 + stress * 1.55;
         const thickness = 0.045 + stress * 0.03;
-        const position  = jointPos.clone().add(direction.clone().multiplyScalar(0.08 + stress * 0.1));
 
         rig.mesh.visible = stress > 0.02;
-        rig.mesh.position.copy(position);
-        rig.mesh.quaternion.setFromUnitVectors(upAxis, direction);
+        rig.mesh.position.copy(jointPos).add(_stressDir.copy(direction).multiplyScalar(0.08 + stress * 0.1));
+        rig.mesh.quaternion.setFromUnitVectors(STRESS_UP_AXIS, direction);
         rig.mesh.renderOrder = 4;
 
         rig.material.uniforms.uStress.value    = stress;
@@ -650,11 +658,13 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         rig.material.uniforms.uThickness.value = thickness;
         rig.material.uniforms.uTime.value      = time * 0.001;
         rig.material.uniforms.uColor.value.copy(baseColor).lerp(
-          badJoints.has(rig.jointIdx) ? new THREE.Color(0xff3300) : new THREE.Color(0x00ffff),
+          badJoints.has(rig.jointIdx) ? STRESS_COLOR_BAD : STRESS_COLOR_GOOD,
           stress,
         );
 
-        previousPositions[rig.jointIdx] = jointPos.clone();
+        const prevStore = previousPositions[rig.jointIdx];
+        if (prevStore) prevStore.copy(jointPos);
+        else previousPositions[rig.jointIdx] = jointPos.clone();
       });
     },
     [],
@@ -797,7 +807,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
         if (!start || !end) {
           const fallbackScale = smoothedSegmentScalesRef.current[segment.boneKey] ?? new THREE.Vector3(1, 1, 1);
-          fallbackScale.lerp(new THREE.Vector3(1, 1, 1), PROPORTION_SMOOTHING);
+          fallbackScale.lerp(ONE_SCALE, PROPORTION_SMOOTHING);
           smoothedSegmentScalesRef.current[segment.boneKey] = fallbackScale;
           bone.scale.copy(fallbackScale);
           continue;
@@ -817,7 +827,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
         if (confidence < 0.25) {
           const fallbackScale = smoothedSegmentScalesRef.current[segment.boneKey] ?? new THREE.Vector3(1, 1, 1);
-          fallbackScale.lerp(new THREE.Vector3(1, 1, 1), PROPORTION_SMOOTHING);
+          fallbackScale.lerp(ONE_SCALE, PROPORTION_SMOOTHING);
           smoothedSegmentScalesRef.current[segment.boneKey] = fallbackScale;
           bone.scale.copy(fallbackScale);
           continue;
@@ -1051,7 +1061,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const { width: w, height: h } = entry.contentRect;
           if (w === 0 || h === 0) return;
           rendererRef.current.setSize(w, h);
-          rendererRef.current.setPixelRatio(window.devicePixelRatio);
+          const cfg = GRAPHICS_PRESETS[graphicsPresetRef.current];
+          rendererRef.current.setPixelRatio(Math.min(cfg.pixelRatio, window.devicePixelRatio ?? 1));
           cameraRef.current.aspect = w / h;
           cameraRef.current.updateProjectionMatrix();
           composerRef.current?.setSize(w, h);
@@ -1224,7 +1235,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         }
       }
 
-      if (isPlaying && time - lastTimeRef.current > 1000 / 8) {
+      if (isPlaying && !isFrameControlled && time - lastTimeRef.current > 1000 / 8) {
         const nextFloat = ((frameFloatRef.current ?? currentFrameIdxRef.current) + 1) % frames.length;
         frameFloatRef.current = nextFloat;
         const nextIdx = Math.round(nextFloat) % frames.length;
@@ -1232,7 +1243,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         lastTimeRef.current = time;
       }
 
-      const renderFloat = isPlaying ? (frameFloatRef.current ?? currentFrameIdxRef.current) : currentFrameIdxRef.current;
+      const renderFloat = isPlaying && !isFrameControlled ? (frameFloatRef.current ?? currentFrameIdxRef.current) : currentFrameIdxRef.current;
       const interpolatedLm = getInterpolatedLandmarks(frames, renderFloat);
       if (!interpolatedLm) {
         rendererRef.current?.render(sceneRef.current!, cameraRef.current!);
@@ -1483,7 +1494,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, isPlaying, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
+  }, [frames, isPlaying, isFrameControlled, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
 
   // ─── No frames guard ─────────────────────────────────────────────────────
   if (!frames || frames.length === 0) {

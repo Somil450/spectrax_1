@@ -57,13 +57,7 @@ jobs:
       - name: 🔍 Backend Validation
         run: |
           cd server
-
-          # Run backend tests if available
-          if npm run | grep -q "test"; then
-            npm test
-          else
-            echo "No backend tests found."
-          fi
+          npm test --if-present
 
       # Success Message
       - name: ✅ CI Completed Successfully

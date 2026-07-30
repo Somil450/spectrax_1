@@ -162,7 +162,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
         </div>
 
         {success ? (
-          <div className="success-alert">
+          <div className="success-alert" role="status">
             <div className="success-icon">✓</div>
             <h3>Check your email</h3>
             <p>
@@ -183,7 +183,7 @@ export function ForgotPasswordScreen({ onBack }: ForgotPasswordScreenProps) {
         ) : (
           <>
             {displayError && (
-              <div className="error-alert">
+              <div className="error-alert" role="alert">
                 <span>{displayError}</span>
                 <button
                   className="error-close"

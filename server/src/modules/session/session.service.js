@@ -96,9 +96,15 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     try {
       const frames = sessionStore.getSessionFrames(socketId);
       if (frames && frames.length > 0) {
-        await saveSession(frames, socketId);
+        const savedPath = await saveSession(frames, socketId);
+        if (savedPath) {
+          sessionStore.deleteSession(socketId);
+        } else {
+          logger.warn(`[SpectraX] finalizeSession: saveSession failed for ${socketId} — keeping session in memory`);
+        }
+      } else {
+        sessionStore.deleteSession(socketId);
       }
-      sessionStore.deleteSession(socketId);
       return frames;
     } finally {
       finalizedSessions.delete(socketId);

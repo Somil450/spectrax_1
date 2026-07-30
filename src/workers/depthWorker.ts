@@ -15,6 +15,9 @@ let depthBuffer: Float32Array | null = null;
 let depthWidth = 0;
 let depthHeight = 0;
 
+let offscreen: OffscreenCanvas | null = null;
+let offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
+
 let gpuDevice: GPUDevice | null = null;
 let gpuPipeline: GPUComputePipeline | null = null;
 let gpuBindGroupLayout: GPUBindGroupLayout | null = null;
@@ -244,8 +247,11 @@ self.onmessage = async (event: MessageEvent) => {
         4
       );
 
-      const offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const ctx = offscreen.getContext("2d")!;
+      if (!offscreen || offscreen.width !== bitmap.width || offscreen.height !== bitmap.height) {
+        offscreen = new OffscreenCanvas(bitmap.width, bitmap.height);
+        offscreenCtx = offscreen.getContext("2d");
+      }
+      const ctx = offscreenCtx!;
       ctx.drawImage(bitmap, 0, 0);
       const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
       rawImage.data.set(imageData.data);
@@ -307,6 +313,8 @@ self.onmessage = async (event: MessageEvent) => {
         type: "error",
         error: `Depth inference failed: ${err.message}`,
       });
+    } finally {
+      bitmap.close();
     }
     return;
   }

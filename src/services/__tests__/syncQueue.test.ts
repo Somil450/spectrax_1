@@ -36,8 +36,8 @@ function createMockSession(id: string): offlineQueue.ReplaySession {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("syncOfflineQueue", () => {
-  beforeEach(() => {
-    localStorage.clear();
+  beforeEach(async () => {
+    await offlineQueue.clearQueue();
     vi.clearAllMocks();
   });
 
@@ -47,14 +47,14 @@ describe("syncOfflineQueue", () => {
   });
 
   it("syncs all sessions and removes them from queue on success", async () => {
-    offlineQueue.enqueueSession(createMockSession("s1"));
-    offlineQueue.enqueueSession(createMockSession("s2"));
+    await offlineQueue.enqueueSession(createMockSession("s1"));
+    await offlineQueue.enqueueSession(createMockSession("s2"));
 
     const result = await syncOfflineQueue();
 
     expect(result.synced).toBe(2);
     expect(result.failed).toBe(0);
-    expect(offlineQueue.getQueue()).toHaveLength(0);
+    expect(await offlineQueue.getQueue()).toHaveLength(0);
   });
 
   it("keeps failed sessions in queue and continues with remaining", async () => {
@@ -67,9 +67,9 @@ describe("syncOfflineQueue", () => {
       .mockRejectedValueOnce(new Error("Network error"))
       .mockResolvedValueOnce({ id: "doc-3" } as any);
 
-    offlineQueue.enqueueSession(createMockSession("s1"));
-    offlineQueue.enqueueSession(createMockSession("s2"));
-    offlineQueue.enqueueSession(createMockSession("s3"));
+    await offlineQueue.enqueueSession(createMockSession("s1"));
+    await offlineQueue.enqueueSession(createMockSession("s2"));
+    await offlineQueue.enqueueSession(createMockSession("s3"));
 
     const result = await syncOfflineQueue();
 
@@ -77,7 +77,7 @@ describe("syncOfflineQueue", () => {
     expect(result.failed).toBe(1);
 
     // Only the failed session remains in queue
-    const remaining = offlineQueue.getQueue();
+    const remaining = await offlineQueue.getQueue();
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe("s2");
   });
@@ -87,30 +87,30 @@ describe("syncOfflineQueue", () => {
     const mockAddDoc = vi.mocked(addDoc);
     mockAddDoc.mockRejectedValue(new Error("Server down"));
 
-    offlineQueue.enqueueSession(createMockSession("s1"));
-    offlineQueue.enqueueSession(createMockSession("s2"));
+    await offlineQueue.enqueueSession(createMockSession("s1"));
+    await offlineQueue.enqueueSession(createMockSession("s2"));
 
     const result = await syncOfflineQueue();
 
     expect(result.synced).toBe(0);
     expect(result.failed).toBe(2);
-    expect(offlineQueue.getQueue()).toHaveLength(2);
+    expect(await offlineQueue.getQueue()).toHaveLength(2);
   });
 
   it("does not sync sessions belonging to a different user", async () => {
     const { addDoc } = await import("firebase/firestore");
     vi.mocked(addDoc).mockResolvedValue({ id: "doc" } as any);
 
-    offlineQueue.enqueueSession(createMockSession("mine"));
+    await offlineQueue.enqueueSession(createMockSession("mine"));
     const otherSession = createMockSession("theirs");
     otherSession.userId = "other-user";
-    offlineQueue.enqueueSession(otherSession);
+    await offlineQueue.enqueueSession(otherSession);
 
     const result = await syncOfflineQueue();
 
     expect(result.synced).toBe(1);
     expect(result.failed).toBe(0);
-    const remaining = offlineQueue.getQueue();
+    const remaining = await offlineQueue.getQueue();
     expect(remaining.map((s) => s.id)).toEqual(["theirs"]);
   });
 });

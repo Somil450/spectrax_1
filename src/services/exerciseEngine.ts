@@ -54,6 +54,44 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * Compute hip spline deviation for plank posture.
+ * Measures how far the hip midpoint deviates from the line
+ * between shoulder midpoint and knee midpoint.
+ * Positive = sagging (hips too low), negative = hyperextension (hips too high).
+ */
+function computeHipSplineDeviation(landmarks: any[] | undefined): number {
+  if (!landmarks || landmarks.length < 27) return 0;
+
+  const lShoulder = landmarks[11];
+  const rShoulder = landmarks[12];
+  const lHip = landmarks[23];
+  const rHip = landmarks[24];
+  const lKnee = landmarks[25];
+  const rKnee = landmarks[26];
+
+  if (!lShoulder || !rShoulder || !lHip || !rHip || !lKnee || !rKnee) return 0;
+
+  const shoulderY = (lShoulder.y + rShoulder.y) / 2;
+  const hipY = (lHip.y + rHip.y) / 2;
+  const kneeY = (lKnee.y + rKnee.y) / 2;
+
+  // Line from shoulder midpoint to knee midpoint
+  // At the hip's x position, what y value would a straight line give?
+  const shoulderX = (lShoulder.x + rShoulder.x) / 2;
+  const hipX = (lHip.x + rHip.x) / 2;
+  const kneeX = (lKnee.x + rKnee.x) / 2;
+
+  const dx = kneeX - shoulderX;
+  if (Math.abs(dx) < 0.001) return 0;
+
+  // Linear interpolation: expectedY at hipX along shoulder→knee line
+  const tHip = (hipX - shoulderX) / dx;
+  const expectedY = shoulderY + tHip * (kneeY - shoulderY);
+
+  return hipY - expectedY;
+}
+
 function normalizeSeries(values: number[]): number[] | null {
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -351,6 +389,7 @@ export class ExerciseEngine {
     if (avgVisibility < 0.4 && nextTrackingLostFrames >= 5) {
       return {
         ...currentState,
+        trackingLostFrames: nextTrackingLostFrames,
         feedback: 'SENSORS BLURRED — POSITION BODY',
         status: 'yellow',
         isInExercisePosture: false,
@@ -457,8 +496,8 @@ export class ExerciseEngine {
     const wristSupinationScore = strategy.getWristSupinationScore(landmarks);
 
     const PLANK_DEVIATION_THRESHOLD = 0.05;
-    const hipSplineDeviation = 0;
-    const nextPlankSpline = { isCalibrated: false };
+    const hipSplineDeviation = computeHipSplineDeviation(landmarks);
+    const nextPlankSpline = { isCalibrated: true };
 
     const context: any = {
       ...angles,

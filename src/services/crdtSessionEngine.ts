@@ -269,13 +269,15 @@ export class CRDTSessionEngine {
         const updates = existing?.updates || [];
         updates.push(update);
 
+        const lastUpdate = (this.yState.get("lastUpdate") as number) || Date.now();
+
         // Keep only last 100 updates to prevent unbounded growth
         if (updates.length > 100) {
           // Compact: encode full state as single update
           const compacted = Y.encodeStateAsUpdate(this.doc);
-          store.put({ sessionId: this.sessionId, updates: [compacted] });
+          store.put({ sessionId: this.sessionId, lastUpdate, updates: [compacted] });
         } else {
-          store.put({ sessionId: this.sessionId, updates });
+          store.put({ sessionId: this.sessionId, lastUpdate, updates });
         }
       };
     } catch (err) {
@@ -331,14 +333,10 @@ export async function listActiveSessions(): Promise<{ sessionId: string; lastUpd
       req.onsuccess = (e) => {
         const cursor = (e.target as IDBRequest).result as IDBCursorWithValue | null;
         if (cursor) {
-          const value = cursor.value as { sessionId: string; updates: Uint8Array[] };
-          // Peek at last update time from first update's doc
-          const doc = new Y.Doc();
-          Y.applyUpdate(doc, value.updates[value.updates.length - 1]);
-          const yState = doc.getMap("state");
+          const value = cursor.value as { sessionId: string; lastUpdate?: number; updates: Uint8Array[] };
           sessions.push({
             sessionId: value.sessionId,
-            lastUpdate: (yState.get("lastUpdate") as number) || 0,
+            lastUpdate: value.lastUpdate || 0,
           });
           cursor.continue();
         } else {

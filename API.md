@@ -50,7 +50,7 @@ VITE_BACKEND_URL=http://localhost:3001
 
 ```
 PORT=3001
-ALLOWED_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:5173
 SOCKET_AUTH_TOKEN=your-secret-token
 HEALTH_SECRET_TOKEN=your-health-token
 MAX_FRAMES_PER_SEC=60
@@ -449,8 +449,7 @@ Full reference for all environment variables consumed by the backend.
 | Variable                 | Default | Required         | Description                                                     |
 | ------------------------ | ------- | ---------------- | --------------------------------------------------------------- |
 | `PORT`                   | `3001`  | No               | Port the HTTP server listens on                                 |
-| `ALLOWED_ORIGIN`         | —       | Yes (production) | CORS allowed origin — set to your frontend URL                  |
-| `CORS_ORIGIN`            | —       | No               | Alias for `ALLOWED_ORIGIN` (legacy)                             |
+| `CORS_ORIGIN`            | —       | Yes (production) | CORS allowed origin; set to your frontend URL (the server throws on boot if unset in production) |
 | `SOCKET_AUTH_TOKEN`      | `null`  | Server-only      | Shared secret for machine-to-machine/proxy auth via `socket.handshake.auth.token`. **Do not** expose in client bundles — use Firebase Auth tokens for browser clients instead |
 | `HEALTH_SECRET_TOKEN`    | —       | No               | Bearer token that grants full metrics on `GET /health`          |
 | `MAX_FRAMES_PER_SEC`     | `60`    | No               | Per-socket frame rate ceiling                                   |

@@ -170,8 +170,7 @@ input {
               background-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
               color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
               border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-              backdrop-filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ── Segmented Capsule Theme Picker ───────────────────────────────── */
@@ -510,6 +509,30 @@ body {
   border-color: rgba(255, 214, 0, 0.38);
   box-shadow: var(--glass-shadow), 0 0 24px rgba(255, 214, 0, 0.16);
 }
+
+/* Voice commands listening indicator pill */
+.voice-listening-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.5);
+  color: var(--neon-cyan);
+  font-family: var(--font-heading);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  animation: voice-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(0, 240, 255, 0.3); opacity: 1; }
+  50%       { box-shadow: 0 0 18px rgba(0, 240, 255, 0.6); opacity: 0.8; }
+}
+
 
 .workout-panel-layer {
   position: absolute;
@@ -1174,11 +1197,6 @@ body {
   opacity: 1 !important;
 }
 
-/* Better heading glow */
-.text-glow {
-  text-shadow:
-    0 0 18px rgba(37,99,235,0.18);
-}
 /* =========================================
    LIGHT MODE TEXT VISIBILITY FIX
 ========================================= */

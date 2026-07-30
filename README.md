@@ -417,7 +417,7 @@ VITE_BACKEND_URL=http://localhost:3001
 
 ```env
 PORT=3001
-ALLOWED_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:5173
 ```
 
 > ⚠️ **Never commit `.env` files to version control.** The `.env.example` file is provided as a template.
@@ -543,7 +543,7 @@ npx vercel
 
 ### Backend
 
-The backend is a standalone Express + Socket.io server. Deploy to any Node.js-compatible platform (Railway, Render, Fly.io, etc.) and set the `ALLOWED_ORIGIN` env var to your frontend URL.
+The backend is a standalone Express + Socket.io server. Deploy to any Node.js-compatible platform (Railway, Render, Fly.io, etc.) and set the `CORS_ORIGIN` env var to your frontend URL.
 
 ---
 

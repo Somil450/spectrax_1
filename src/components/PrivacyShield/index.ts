@@ -1,0 +1,1 @@
+export { PrivacyShield } from './PrivacyShield';

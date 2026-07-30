@@ -1,0 +1,148 @@
+.routine-player-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 999;
+  width: 90%;
+  max-width: 500px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 20px;
+  padding: 24px;
+  color: #f8fafc;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(16px);
+}
+
+.player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.routine-title-badge {
+  font-size: 14px;
+  font-weight: bold;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.exit-player-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.player-progress-bar {
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.player-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #22c55e);
+  transition: width 0.3s ease;
+}
+
+.active-exercise-card,
+.rest-timer-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.step-indicator {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ex-name {
+  font-size: 24px;
+  color: #ffffff;
+}
+
+.ex-instructions {
+  font-size: 13px;
+  color: #cbd5e1;
+  max-width: 380px;
+}
+
+.rep-counter-display {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 16px 0;
+}
+
+.rep-count {
+  font-size: 48px;
+  font-weight: 800;
+  color: #38bdf8;
+}
+
+.rep-target {
+  font-size: 18px;
+  color: #94a3b8;
+}
+
+.rep-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rep-btn {
+  padding: 8px 16px;
+  background: #334155;
+  border: none;
+  color: #ffffff;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.rep-btn.primary {
+  background: #0284c7;
+}
+
+.complete-set-btn {
+  width: 100%;
+  padding: 14px;
+  background: #22c55e;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.timer-countdown {
+  font-size: 56px;
+  font-weight: 900;
+  color: #facc15;
+  margin: 16px 0;
+}
+
+.skip-rest-btn {
+  padding: 10px 20px;
+  background: #334155;
+  border: none;
+  color: #ffffff;
+  border-radius: 8px;
+  cursor: pointer;
+}
