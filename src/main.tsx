@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import App from "./App.tsx";
 import { ThemeProvider } from "./context/ThemeContext.tsx";
 import { AuthProvider } from "./context/AuthContext.tsx";
@@ -18,15 +19,17 @@ registerSW({
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <SettingsProvider>
-        <ThemeProvider>
-          <SmoothScroller>
-            <App />
-          </SmoothScroller>
-        </ThemeProvider>
-      </SettingsProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <SettingsProvider>
+          <ThemeProvider>
+            <SmoothScroller>
+              <App />
+            </SmoothScroller>
+          </ThemeProvider>
+        </SettingsProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>,
 );
 

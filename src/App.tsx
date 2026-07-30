@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, Suspense, useCallback, lazy } from "react";
+import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { BadgeNotification } from "./components/BadgeNotification";
 import { exercises, ExerciseConfig } from "./config/exercises";
 import { BodyType } from "./services/bodyTypeEngine";
@@ -13,7 +14,7 @@ import { throttleMonitor } from './services/performanceThrottleService';
 import NavBar from "./components/NavBar";
 import About from "./components/About";
 import Contact from "./components/Contact";
-import PrivacyPage from './components/privacy'; // Change to your actual file path
+import PrivacyPage from './components/privacy';
 import TermsAndConditions from './components/terms&conditions'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
@@ -92,9 +93,35 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   tutorials: ["welcome", "calibration"],
 };
 
+const SCREEN_TO_PATH: Record<Screen, string> = {
+  welcome: "/",
+  calibration: "/calibration",
+  workout: "/workout",
+  summary: "/summary",
+  replay: "/replay",
+  history: "/history",
+  about: "/about",
+  contact: "/contact",
+  login: "/login",
+  signup: "/signup",
+  "forgot-password": "/forgot-password",
+  trophy: "/trophy",
+  profile: "/profile",
+  fitness: "/fitness",
+  avatar: "/avatar",
+  workoutPlans: "/workout-plans",
+  privacy: "/privacy",
+  "terms&conditions": "/terms",
+  battle: "/battle",
+  tutorials: "/tutorials",
+};
+
+const PATH_TO_SCREEN: Record<string, Screen> = Object.fromEntries(
+  Object.entries(SCREEN_TO_PATH).map(([screen, path]) => [path, screen as Screen]),
+);
 
 const canTransitionTo = (from: Screen, to: Screen) => {
-  return SCREEN_TRANSITIONS[from].includes(to);
+  return SCREEN_TRANSITIONS[from]?.includes(to) ?? false;
 };
 
 interface WorkoutStats {
@@ -132,8 +159,11 @@ const firebaseConfigured = !!import.meta.env.VITE_FIREBASE_API_KEY;
 function App() {
   const { theme, setTheme } = useTheme();
   const { user, loading: authLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
+
+  const currentScreen: Screen = PATH_TO_SCREEN[location.pathname] ?? "welcome";
 
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -189,32 +219,29 @@ function App() {
   };
 
   const navigateTo = useCallback((screen: Screen, force = false) => {
-    setCurrentScreen((prevScreen) => {
-      if (force || canTransitionTo(prevScreen, screen)) {
-        return screen;
-      }
-
+    if (force || canTransitionTo(currentScreen, screen)) {
+      navigate(SCREEN_TO_PATH[screen]);
+    } else {
       console.warn(
-        `[App] Blocked illegal screen transition from ${prevScreen} to ${screen}`,
+        `[App] Blocked illegal screen transition from ${currentScreen} to ${screen}`,
       );
-      return prevScreen;
-    });
-  }, []);
+    }
+  }, [currentScreen, navigate]);
 
   useEffect(() => {
-    if (!firebaseConfigured) return; // no-op in demo/offline mode
+    if (!firebaseConfigured) return;
     if (!authLoading) {
       if (!user) {
-        navigateTo("login", true);
+        navigate(SCREEN_TO_PATH.login, { replace: true });
       } else if (
         currentScreen === "login" ||
         currentScreen === "signup" ||
         currentScreen === "forgot-password"
       ) {
-        navigateTo("welcome", true);
+        navigate(SCREEN_TO_PATH.welcome, { replace: true });
       }
     }
-  }, [user, authLoading, currentScreen, navigateTo]);
+  }, [user, authLoading, currentScreen, navigate]);
 
   const handleWorkoutEnd = (
     finalStats: Omit<WorkoutStats, "exerciseName"> & { tags?: string[] },
@@ -295,54 +322,45 @@ function App() {
     );
   }
 
-  // If not authenticated and Firebase is configured, show auth screens
   if (firebaseConfigured && !user) {
-    const activeAuthScreen = ["login", "signup", "forgot-password"].includes(
-      currentScreen,
-    )
-      ? currentScreen
-      : "login";
     return (
       <main className="spectrax-app">
-        {(currentScreen === "login" ||
-          (currentScreen !== "signup" &&
-            currentScreen !== "forgot-password")) && (
+        <Routes>
+          <Route path={SCREEN_TO_PATH.signup} element={
+            <SignUpScreen
+              onSignUpSuccess={() => navigateTo("welcome")}
+              onLoginClick={() => navigateTo("login")}
+            />
+          } />
+          <Route path={SCREEN_TO_PATH["forgot-password"]} element={
+            <ForgotPasswordScreen onBack={() => navigateTo("login")} />
+          } />
+          <Route path="*" element={
             <LoginScreen
               onLoginSuccess={() => navigateTo("welcome")}
               onSignUpClick={() => navigateTo("signup")}
               onForgotPasswordClick={() => navigateTo("forgot-password")}
             />
-          )}
-        {activeAuthScreen === "signup" && (
-          <SignUpScreen
-            onSignUpSuccess={() => navigateTo("welcome")}
-            onLoginClick={() => navigateTo("login")}
-          />
-        )}
-        {activeAuthScreen === "forgot-password" && (
-          <ForgotPasswordScreen onBack={() => navigateTo("login")} />
-        )}
+          } />
+        </Routes>
       </main>
     );
   }
 
-  // If authenticated, show main app with theme toggle and workout screens
+  const isWorkoutActive = currentScreen === "workout";
+  const isHidden = ["summary", "replay", "history", "trophy", "fitness", "tutorials"].includes(currentScreen);
+
   return (
     <main
       className="spectrax-app"
       style={{ background: "var(--bg-primary)", minHeight: "100vh" }}
     >
-      {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <PrivacyShield />
       <div
-        className={`theme-selector-segmented ${currentScreen === "workout" ? "workout-active" : ""
-          } ${["summary", "replay", "history", "trophy", "fitness", "tutorials"].includes(currentScreen)
-            ? "is-hidden"
-            : ""
-          }`}
-
+        className={`theme-selector-segmented ${isWorkoutActive ? "workout-active" : ""
+          } ${isHidden ? "is-hidden" : ""}`}
       >
         <div className={`selector-indicator theme-${theme}`} />
         <button
@@ -368,146 +386,136 @@ function App() {
         </button>
       </div>
 
-      {currentScreen === "welcome" && (
-        <WelcomeScreen
-        navigateTo={navigateTo}
-          onStart={() => navigateTo("calibration")}
-          onViewHistory={() => navigateTo("history")}
-          onViewTrophies={() => navigateTo("trophy")}
-          onViewProfile={() => navigateTo("profile")}
-          onViewFitnessCalculator={() => navigateTo("fitness")}
-          onViewAvatarCustomization={() => navigateTo("avatar")}
-          onViewWorkoutPlans={() => navigateTo("workoutPlans")}
-          leveling={leveling}
-        />
-      )}
-
-
       <Suspense fallback={<GridSkeleton />}>
-        {currentScreen === "calibration" && (
-          <PageErrorBoundary fallbackMessage="Failed to load calibration. Please try again.">
-            <CalibrationScreen
-              selectedExercise={selectedExercise}
-              onSelectExercise={handleSelectExercise}
-              onNext={() => navigateTo("workout")}
-              onBack={() => setShowExitModal(true)}
-              onBodyTypeDetected={(type, factor) => { setBodyType(type); setAdaptiveFactor(factor); }}
+        <Routes>
+          <Route path={SCREEN_TO_PATH.welcome} element={
+            <WelcomeScreen
+              navigateTo={navigateTo}
+              onStart={() => navigateTo("calibration")}
+              onViewHistory={() => navigateTo("history")}
+              onViewTrophies={() => navigateTo("trophy")}
+              onViewProfile={() => navigateTo("profile")}
+              onViewFitnessCalculator={() => navigateTo("fitness")}
+              onViewAvatarCustomization={() => navigateTo("avatar")}
+              onViewWorkoutPlans={() => navigateTo("workoutPlans")}
+              leveling={leveling}
             />
-          </PageErrorBoundary>
-        )}
-        {currentScreen === "privacy" && (
-          <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
-            <PrivacyPage onBack={() => navigateTo("welcome")} />
-          </PageErrorBoundary>
-        )}
-
-        {currentScreen === "terms&conditions" && (
-          <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
-            <TermsAndConditions onBack={() => navigateTo("welcome")} />
-          </PageErrorBoundary>
-        )}
-
-        {currentScreen === "battle" && (
-          <PageErrorBoundary fallbackMessage="Failed to load Battle Mode. Please try again.">
-            <BattleMode onBack={() => navigateTo("welcome")} />
-          </PageErrorBoundary>
-        )}
-        {currentScreen === "workout" && (
-          <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
-            <WorkoutScreen
-              exercise={selectedExercise}
-              onEnd={handleWorkoutEnd}
-              onAutoDetect={handleAutoDetect}
-              bodyType={bodyType}
-            />
-          </PageErrorBoundary>
-        )}
-
-        {currentScreen === "summary" &&
-          (statsLoading ? (
-            <SummaryScreenSkeleton />
-          ) : (
-            <PageErrorBoundary fallbackMessage="Failed to load workout summary. Please try again.">
-              <SummaryScreen
-                stats={stats}
-                leveling={leveling}
-                onRestart={() => navigateTo("welcome")}
-                onViewReplay={() => navigateTo("replay")}
+          } />
+          <Route path={SCREEN_TO_PATH.calibration} element={
+            <PageErrorBoundary fallbackMessage="Failed to load calibration. Please try again.">
+              <CalibrationScreen
+                selectedExercise={selectedExercise}
+                onSelectExercise={handleSelectExercise}
+                onNext={() => navigateTo("workout")}
+                onBack={() => setShowExitModal(true)}
+                onBodyTypeDetected={(type, factor) => { setBodyType(type); setAdaptiveFactor(factor); }}
               />
             </PageErrorBoundary>
-          ))}
-
-        {currentScreen === "replay" && (
-          <PageErrorBoundary fallbackMessage="Failed to load replay. Please try again.">
-            <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
-          </PageErrorBoundary>
-        )}
-
-        {currentScreen === "history" && (
-          <PageErrorBoundary fallbackMessage="Failed to load workout history. Please try again.">
-            <HistoryPage onBack={() => navigateTo("welcome")} />
-          </PageErrorBoundary>
-        )}
-
-        {currentScreen === "trophy" && (
-          <PageErrorBoundary fallbackMessage="Failed to load Trophy Room. Please try again.">
-            <TrophyRoom onBack={() => navigateTo("welcome")} />
-          </PageErrorBoundary>
-        )}
-
-        {currentScreen === "profile" && (
-          <UserProfileScreen onLogout={() => navigateTo("welcome")} />
-        )}
-
-        {currentScreen === "contact" && (
-          <Contact />
-        )}
-        {currentScreen === "avatar" && (
-          <Suspense fallback={<div className="loading-fallback">Loading Avatar Customization...</div>}>
-            <AvatarCustomizationScreen onBack={() => navigateTo("welcome")} />
-          </Suspense>
-        )}
-
-        {currentScreen === "tutorials" && (
-          <Suspense fallback={<div className="loading-fallback">Loading Tutorials...</div>}>
-            <TutorialsScreen
-              onBack={() => navigateTo("welcome")}
-              onStartTryMode={(exerciseKey) => {
-                const config = exercises[exerciseKey];
-                if (config) {
-                  setSelectedExercise(config);
-                  navigateTo("calibration");
-                }
-              }}
-            />
-          </Suspense>
-        )}
-
-        {currentScreen === "fitness" && (
-          <FitnessCalculator onBack={() => navigateTo("welcome")} />
-        )}
-
-        {currentScreen === "workoutPlans" && (
-          <PageErrorBoundary fallbackMessage="Failed to load workout plans. Please try again.">
-            <WorkoutPlansScreen
-              onBack={() => navigateTo("welcome")}
-              activePlan={activePlan}
-              setActivePlan={setActivePlan}
-            />
-          </PageErrorBoundary>
-        )}
+          } />
+          <Route path={SCREEN_TO_PATH.workout} element={
+            <PageErrorBoundary fallbackMessage="Something went wrong during your workout. Your progress has been saved.">
+              <WorkoutScreen
+                exercise={selectedExercise}
+                onEnd={handleWorkoutEnd}
+                onAutoDetect={handleAutoDetect}
+                bodyType={bodyType}
+              />
+            </PageErrorBoundary>
+          } />
+          <Route path={SCREEN_TO_PATH.summary} element={
+            statsLoading ? (
+              <SummaryScreenSkeleton />
+            ) : (
+              <PageErrorBoundary fallbackMessage="Failed to load workout summary. Please try again.">
+                <SummaryScreen
+                  stats={stats}
+                  leveling={leveling}
+                  onRestart={() => navigateTo("welcome")}
+                  onViewReplay={() => navigateTo("replay")}
+                />
+              </PageErrorBoundary>
+            )
+          } />
+          <Route path={SCREEN_TO_PATH.replay} element={
+            <PageErrorBoundary fallbackMessage="Failed to load replay. Please try again.">
+              <ReplayScreen onBack={() => navigateTo("summary")} stats={stats} />
+            </PageErrorBoundary>
+          } />
+          <Route path={SCREEN_TO_PATH.history} element={
+            <PageErrorBoundary fallbackMessage="Failed to load workout history. Please try again.">
+              <HistoryPage onBack={() => navigateTo("welcome")} />
+            </PageErrorBoundary>
+          } />
+          <Route path={SCREEN_TO_PATH.trophy} element={
+            <PageErrorBoundary fallbackMessage="Failed to load Trophy Room. Please try again.">
+              <TrophyRoom onBack={() => navigateTo("welcome")} />
+            </PageErrorBoundary>
+          } />
+          <Route path={SCREEN_TO_PATH.profile} element={
+            <UserProfileScreen onLogout={() => navigateTo("welcome")} />
+          } />
+          <Route path={SCREEN_TO_PATH.contact} element={<Contact />} />
+          <Route path={SCREEN_TO_PATH.about} element={<About />} />
+          <Route path={SCREEN_TO_PATH.privacy} element={
+            <PageErrorBoundary fallbackMessage="Failed to load Privacy page.">
+              <PrivacyPage onBack={() => navigateTo("welcome")} />
+            </PageErrorBoundary>
+          } />
+          <Route path={SCREEN_TO_PATH["terms&conditions"]} element={
+            <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
+              <TermsAndConditions onBack={() => navigateTo("welcome")} />
+            </PageErrorBoundary>
+          } />
+          <Route path={SCREEN_TO_PATH.battle} element={
+            <PageErrorBoundary fallbackMessage="Failed to load Battle Mode. Please try again.">
+              <BattleMode onBack={() => navigateTo("welcome")} />
+            </PageErrorBoundary>
+          } />
+          <Route path={SCREEN_TO_PATH.avatar} element={
+            <Suspense fallback={<div className="loading-fallback">Loading Avatar Customization...</div>}>
+              <AvatarCustomizationScreen onBack={() => navigateTo("welcome")} />
+            </Suspense>
+          } />
+          <Route path={SCREEN_TO_PATH.tutorials} element={
+            <Suspense fallback={<div className="loading-fallback">Loading Tutorials...</div>}>
+              <TutorialsScreen
+                onBack={() => navigateTo("welcome")}
+                onStartTryMode={(exerciseKey) => {
+                  const config = exercises[exerciseKey];
+                  if (config) {
+                    setSelectedExercise(config);
+                    navigateTo("calibration");
+                  }
+                }}
+              />
+            </Suspense>
+          } />
+          <Route path={SCREEN_TO_PATH.fitness} element={
+            <FitnessCalculator onBack={() => navigateTo("welcome")} />
+          } />
+          <Route path={SCREEN_TO_PATH.workoutPlans} element={
+            <PageErrorBoundary fallbackMessage="Failed to load workout plans. Please try again.">
+              <WorkoutPlansScreen
+                onBack={() => navigateTo("welcome")}
+                activePlan={activePlan}
+                setActivePlan={setActivePlan}
+              />
+            </PageErrorBoundary>
+          } />
+          <Route path="*" element={<WelcomeScreen
+            navigateTo={navigateTo}
+            onStart={() => navigateTo("calibration")}
+            onViewHistory={() => navigateTo("history")}
+            onViewTrophies={() => navigateTo("trophy")}
+            onViewProfile={() => navigateTo("profile")}
+            onViewFitnessCalculator={() => navigateTo("fitness")}
+            onViewAvatarCustomization={() => navigateTo("avatar")}
+            onViewWorkoutPlans={() => navigateTo("workoutPlans")}
+            leveling={leveling}
+          />} />
+        </Routes>
       </Suspense>
 
-      {currentScreen === "about" && (
-        <About />
-      )}
-
-      {currentScreen === "contact" && (
-        <Contact />
-      )}
-
-      {/* Global badge unlock notification — rendered at the app root so it's
-          always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
       <BackToTopButton />
 
