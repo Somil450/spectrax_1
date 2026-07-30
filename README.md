@@ -593,15 +593,25 @@ SpectraX is a **GSSoC 2026** project and we welcome contributors of all experien
 
 ---
 
-## 💖 Contributors
+## 💖 Contributor Wall
 
-Thanks to all the amazing people who contribute to **Spectrax** 🚀
+Thanks to all the amazing people who contribute to **SpectraX** 🚀
+
+<!-- readme: contributors -start -->
+<!-- readme: contributors -end -->
 
 <p align="center">
   <a href="https://github.com/Somil450/spectrax_1/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=Somil450/spectrax_1" alt="Contributors"/>
+    <img src="https://img.shields.io/github/contributors/Somil450/spectrax_1?style=for-the-badge&color=00f0ff" alt="Contributors Badge"/>
+  </a>
+  &nbsp;
+  <a href="https://github.com/Somil450/spectrax_1/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
+    <img src="https://img.shields.io/badge/First%20Timers%20Welcome-brightgreen?style=for-the-badge" alt="First Timers Welcome"/>
   </a>
 </p>
+
+> 🏆 This wall updates automatically via GitHub Actions as new contributors join.  
+> See the [full contributor list](https://github.com/Somil450/spectrax_1/graphs/contributors).
 
 ---
 
