@@ -1,11 +1,14 @@
+const { getHealth } = require("./health/health.controller");
+
 function setupHealthRoute(app, sessions) {
-  app.get("/health", (_req, res) => {
-    res.json({
-      status: "ok",
-      activeSessions: sessions.size,
-      uptime: Math.round(process.uptime()),
-    });
-  });
+  const sessionStore = {
+    size: () => sessions.size,
+    get: (id) => sessions.get(id),
+    set: (id, data) => sessions.set(id, data),
+    delete: (id) => sessions.delete(id),
+  };
+
+  app.get("/health", (req, res) => getHealth(req, res, sessionStore));
 }
 
 module.exports = setupHealthRoute;
