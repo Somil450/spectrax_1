@@ -400,6 +400,45 @@ export const exercises: Record<string, ExerciseConfig> = {
     "Triceps"
   ]
 }
+  },
+  mountainClimber: {
+    key: "mountainClimber",
+    name: "Mountain Climbers",
+    demoUrl: '/assets/demos/mountain_climber.mp4',
+    primaryJoint: "hip",
+    joints: [[11, 23], [23, 25], [12, 24], [24, 26]],
+    downThreshold: 60,
+    upThreshold: 150,
+    feedbackRules: [
+      {
+        condition: (ctx: any) => ctx.hip < 40 && ctx.stage === 'down',
+        message: "Drive knee further forward! ⚡",
+        type: 'warning'
+      },
+      {
+        condition: (ctx: any) => ctx.hip > 160 && ctx.stage === 'up',
+        message: "Extend leg fully back 👍",
+        type: 'warning'
+      }
+    ],
+    guide: {
+      instructions: [
+        "Start in a plank position with hands under shoulders",
+        "Drive one knee toward your chest",
+        "Return to plank and alternate legs",
+        "Keep hips low and core tight throughout"
+      ],
+      commonMistakes: [
+        "Letting hips rise too high",
+        "Moving too fast without control",
+        "Not extending the leg fully before switching"
+      ],
+      targetMuscles: [
+        "Core",
+        "Hip Flexors",
+        "Cardiovascular System"
+      ]
+    }
   }
 };
 
