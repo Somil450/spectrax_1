@@ -13,10 +13,16 @@ const Pose = (window as any).Pose as typeof PoseType;
 
 // ─── Pose Buffer Configuration ────────────────────────────────────────────────
 
+/**
+ * Configuration for the pre-allocated pose ring buffer.
+ * @property landmarkCount - Number of pose landmarks per frame (default 33)
+ * @property components - Values per landmark: x, y, z, visibility (default 4)
+ * @property historySize - Number of historical frames to retain (default 30)
+ */
 export interface PoseBufferConfig {
-  landmarkCount: number;   // default: 33
-  components: number;      // default: 4 (x, y, z, visibility)
-  historySize: number;     // default: 30
+  landmarkCount: number;
+  components: number;
+  historySize: number;
 }
 
 /** BlazePose landmark indices for readable call sites */
@@ -189,6 +195,7 @@ interface SharedLandmarkFrame {
 
 export type PoseSmoothingFilterType = "kalman" | "ema";
 
+/** Kalman filter configuration for landmark smoothing */
 export interface KalmanFilterOptions {
   type: "kalman";
   enabled?: boolean;
@@ -196,12 +203,14 @@ export interface KalmanFilterOptions {
   measurementNoise?: number;
 }
 
+/** EMA (exponential moving average) filter configuration for landmark smoothing */
 export interface EmaFilterOptions {
   type: "ema";
   enabled?: boolean;
   alpha?: number;
 }
 
+/** Discriminated union of supported smoothing filter configurations */
 export type PoseSmoothingFilterConfig =
   | KalmanFilterOptions
   | EmaFilterOptions;
@@ -605,6 +614,18 @@ const createSharedLandmarkFrame = (): SharedLandmarkFrame | null => {
 
 // ─── PoseService Class ────────────────────────────────────────────────────────
 
+/**
+ * Central service for MediaPipe Pose lifecycle management, landmark buffering,
+ * smoothing, interpolation, and shared-memory publishing.
+ *
+ * Features:
+ * - Manages MediaPipe Pose model loading / teardown
+ * - Pre-allocated zero-GC landmark ring buffer with history
+ * - Configurable smoothing pipeline (Kalman / EMA filters)
+ * - Frame interpolation engine for ghost-frame generation
+ * - SharedArrayBuffer publishing for worker-based consumers
+ * - Graceful fallback simulation when WebGL is unavailable
+ */
 export class PoseService {
   private pose: PoseType | null = null;
   private isLoaded: boolean = false;
@@ -666,6 +687,10 @@ export class PoseService {
     }
   }
 
+  /**
+   * Update MediaPipe Pose runtime options (model complexity, confidence
+   * thresholds, etc.). Silently no-ops in fallback mode.
+   */
   setOptions(options: any) {
     if (this.pose) {
       try {
@@ -676,10 +701,15 @@ export class PoseService {
     }
   }
 
+  /** Expose the SharedArrayBuffer for cross-thread landmark access */
   getSharedLandmarkBuffer() {
     return this.sharedLandmarkFrame?.buffer ?? null;
   }
 
+  /**
+   * Read a consistent snapshot of shared landmarks using a sequence-lock
+   * pattern. Retries if a concurrent write is detected.
+   */
   readSharedLandmarksSnapshot(): LandmarkSnapshot | null {
     const sharedFrame = this.sharedLandmarkFrame;
     if (!sharedFrame) return null;
@@ -754,6 +784,10 @@ export class PoseService {
     writePoseToHistory();
   }
 
+  /**
+   * Serialize landmarks into a pooled ArrayBuffer for zero-alloc transfer
+   * between callbacks. Returns null if the pool is exhausted.
+   */
   packLandmarks(
     landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>,
   ): { buf: ArrayBuffer; t0: number } | null {
@@ -775,12 +809,14 @@ export class PoseService {
     return { buf, t0: performance.now() };
   }
 
+  /** Return a previously packed buffer to the pool for reuse */
   returnBuffer(buf: ArrayBuffer) {
     if (this.pool.length < 2) {
       this.pool.push(buf);
     }
   }
 
+  /** Deserialize landmarks from an ArrayBuffer produced by packLandmarks */
   static unpackLandmarks(
     buf: ArrayBuffer,
   ): Array<{ x: number; y: number; z: number; visibility: number }> {
@@ -798,10 +834,12 @@ export class PoseService {
     return out;
   }
 
+  /** Replace the smoothing filter pipeline with a new set of filter configs */
   setSmoothingFilters(filters: PoseSmoothingFilterConfig[]) {
     this.smoothingFilters = filters.map(createFilter);
   }
 
+  /** Enable or disable a specific filter type; creates it first if absent */
   setSmoothingFilterEnabled(type: PoseSmoothingFilterType, enabled: boolean) {
     const existingFilter = this.smoothingFilters.find((filter) => filter.type === type);
 
@@ -816,16 +854,22 @@ export class PoseService {
     existingFilter.enabled = enabled;
   }
 
+  /** Return current filter configs (useful for UI / serialization) */
   getSmoothingFilters() {
     return this.smoothingFilters.map((filter) => filter.toConfig());
   }
 
+  /** Reset all smoothing filter internal states to their initial values */
   resetSmoothingFilters() {
     for (let i = 0; i < this.smoothingFilters.length; i++) {
       this.smoothingFilters[i].reset();
     }
   }
 
+  /**
+   * Enable or disable frame interpolation (ghost frame generation).
+   * Disabling resets the interpolation engine immediately.
+   */
   setInterpolationEnabled(enabled: boolean) {
     this.interpolationEnabled = enabled;
     if (!enabled) {
@@ -833,10 +877,16 @@ export class PoseService {
     }
   }
 
+  /** Whether frame interpolation is currently active */
   getInterpolationEnabled(): boolean {
     return this.interpolationEnabled;
   }
 
+  /**
+   * Register the main pose results callback. Each frame triggers the callback
+   * one or more times: once for the confirmed landmarks and optionally for
+   * interpolated ghost frames when interpolation is enabled.
+   */
   onResults(callback: (results: Results) => void) {
     if (!this.pose) return;
     this.userCallback = callback;
@@ -938,6 +988,11 @@ export class PoseService {
     }
   }
 
+  /**
+   * Send a video / canvas / image frame to the MediaPipe pose model for
+   * processing. In fallback mode, synthesises mock landmarks. Automatically
+   * switches to fallback mode after 10 consecutive errors.
+   */
   async send(
     image: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement,
   ) {
@@ -966,6 +1021,10 @@ export class PoseService {
     }
   }
 
+  /**
+   * Tear down the MediaPipe pose model, release resources, and reset the
+   * frame interpolation engine and GPU angle calculator.
+   */
   async close() {
     if (this.pose) {
       try {
@@ -980,10 +1039,12 @@ export class PoseService {
 
   private depthLandmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null = null;
 
+  /** Provide optional depth-estimated landmarks for downstream consumption */
   setDepthLandmarks(landmarks: Array<{ x: number; y: number; z: number; visibility: number; depthConfidence: number }> | null) {
     this.depthLandmarks = landmarks;
   }
 
+  /** Retrieve the current depth landmarks (may be null) */
   getDepthLandmarks() {
     return this.depthLandmarks;
   }
