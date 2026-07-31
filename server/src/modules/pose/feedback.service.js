@@ -58,6 +58,18 @@ function generateFeedback(angles, exercise) {
       }
       break;
 
+    case "lunge":
+      if (hasValue(angles.knee) && angles.knee < 80) {
+        corrections.push("Do not let knee pass your toes");
+      }
+      if (hasValue(angles.bodyLine) && angles.bodyLine < 150) {
+        corrections.push("Keep your torso upright");
+      }
+      if (hasValue(angles.hipDepth) && angles.hipDepth < 100) {
+        corrections.push("Lower your hips for a deeper lunge");
+      }
+      break;
+
     default:
       break;
   }
