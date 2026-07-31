@@ -44,6 +44,18 @@ We follow a **responsible disclosure** policy:
 - Proof of concept, screenshots, or logs (if applicable)
 - Any suggested fix (optional but appreciated)
 
+## Dependency Vulnerability Status
+
+`npm audit` is run against the frontend (`package.json`) and backend (`server/package.json`) dependency trees. The backend is fully clean after upgrading `vitest` to `4.x`. The frontend still reports advisories that **cannot be resolved without major breaking changes**; they are documented below with their impact assessment.
+
+| Package | Severity | Advisory | Reason not auto-fixed |
+| ------- | -------- | -------- | --------------------- |
+| `brace-expansion` / `minimatch` chain (via `eslint`, `jest`, `@typescript-eslint`, `glob`, `workbox-build`) | High | ReDoS in brace expansion | These are **dev-only** build/lint/test toolchain dependencies. The only non-`--force` resolution is a major upgrade of `eslint` (8.x to 10.x) and `jest`, which changes lint/test configuration and is a breaking change. |
+| `@xenova/transformers` (via `onnxruntime-web` -> `onnx-proto` -> `protobufjs`; `sharp`) | Critical / High | `protobufjs` DoS (critical); `sharp` advisory | `@xenova/transformers` is used at runtime by the pose-estimation workers (`src/workers/`). npm's fix is a downgrade to `1.4.2`, which **drops** the `onnxruntime-web`/`sharp` dependencies and would break the AI pose-estimation feature. |
+| `react-router-dom` / `react-router` | High | GHSA-qwww-vcr4-c8h2 (RSC mode CSRF) | Advisory affects React Router in **RSC (React Server Components) data mode** only. This app is a client-side SPA that does not import `react-router` (routing is state-based in `App.tsx`), so it is not applicable. npm's fix is a downgrade to `7.11.0` (breaking). |
+
+Re-run `npm audit fix` and `npm audit fix` (in `server/`) to pick up any future non-breaking fixes.
+
 ## References
 
 - SpectraX Repository: https://github.com/Somil450/spectrax_1
