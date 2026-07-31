@@ -621,14 +621,21 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 <div className="footer-column">
                   <h4 className="footer-column-title">PRODUCT</h4>
                   <ul className="footer-links">
-                    {["Features", "Usage", "API"].map((item) => (
-                      <li key={item}>
+                    {[
+                      ["Features", "features"],
+                      ["Usage", "usage"],
+                      ["API", "api"],
+                    ].map(([label, screen]) => (
+                      <li key={label}>
                         <a
                           href="#"
                           className="footer-link"
-                          onClick={(e) => e.preventDefault()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigateTo(screen);
+                          }}
                         >
-                          {item}
+                          {label}
                         </a>
                       </li>
                     ))}

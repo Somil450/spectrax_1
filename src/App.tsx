@@ -15,6 +15,7 @@ import About from "./components/About";
 import Contact from "./components/Contact";
 import PrivacyPage from './components/privacy'; // Change to your actual file path
 import TermsAndConditions from './components/terms&conditions'
+import { FeaturesPage, UsagePage, ApiPage } from "./components/infoPages";
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
 
@@ -62,7 +63,10 @@ type Screen =
   | "fitness"
   | "avatar"
   | "privacy"
-  | "terms&conditions";
+  | "terms&conditions"
+  | "features"
+  | "usage"
+  | "api";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
@@ -84,6 +88,9 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   avatar: ["welcome"],
   "privacy": ["welcome"],
   "terms&conditions": ["welcome"],
+  features: ["welcome"],
+  usage: ["welcome"],
+  api: ["welcome"],
 };
 
 
@@ -398,6 +405,22 @@ function App() {
         {currentScreen === "terms&conditions" && (
           <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
             <TermsAndConditions onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+
+        {currentScreen === "features" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Features page.">
+            <FeaturesPage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+        {currentScreen === "usage" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Usage page.">
+            <UsagePage onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+        {currentScreen === "api" && (
+          <PageErrorBoundary fallbackMessage="Failed to load API page.">
+            <ApiPage onBack={() => navigateTo("welcome")} />
           </PageErrorBoundary>
         )}
 
