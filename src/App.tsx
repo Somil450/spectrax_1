@@ -18,9 +18,6 @@ import TermsAndConditions from './components/terms&conditions'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
 
-
-// Start monitoring throttling immediately
-throttleMonitor.start();
 import { useWorkoutSync } from "./hooks/useWorkoutSync";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
@@ -130,6 +127,12 @@ function App() {
   const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    // Start frame-drop throttling monitoring only after React mounts,
+    // instead of at module import time (see #1037).
+    throttleMonitor.start();
+  }, []);
 
   useEffect(() => {
     if (currentScreen !== "workout") {
