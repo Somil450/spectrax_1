@@ -33,7 +33,7 @@ jobs:
 
       # Install Frontend Dependencies
       - name: 📦 Install Frontend Dependencies
-        run: npm install
+        run: npm ci
 
       # Run Frontend Lint
       - name: 🧹 Run Frontend Lint Checks
@@ -51,7 +51,7 @@ jobs:
       - name: 📦 Install Backend Dependencies
         run: |
           cd server
-          npm install
+          npm ci
 
       # Backend Validation
       - name: 🔍 Backend Validation
