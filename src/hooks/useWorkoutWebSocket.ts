@@ -1,10 +1,37 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.meta.env.VITE_BACKEND_URL) {
+interface UseWorkoutWebSocketResult {
+  isConnected: boolean;
+  wsSocketRef: React.MutableRefObject<WebSocket | null>;
+}
+
+const RECONNECT_DELAY_MS = 2000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+
+/**
+ * Maintains a WebSocket connection to the backend's socket.io endpoint and
+ * exposes the current connection state so the UI can warn the user when the
+ * live feed drops (e.g. internet loss or a server restart).
+ *
+ * The connection is tracked in React state and auto-reconnects with an
+ * exponential backoff so reps keep being tracked once the connection is
+ * restored — without requiring a page reload.
+ */
+export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.meta.env.VITE_BACKEND_URL): UseWorkoutWebSocketResult {
   const wsSocketRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+
+    function scheduleReconnect() {
+      if (cancelled) return;
+      const delay = Math.min(RECONNECT_DELAY_MS * Math.pow(2, attempt), MAX_RECONNECT_DELAY_MS);
+      attempt++;
+      reconnectTimer = setTimeout(connect, delay);
+    }
 
     function connect() {
       try {
@@ -23,7 +50,17 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
         const wsSocket = new WebSocket(wsUrl);
         wsSocketRef.current = wsSocket;
 
-        wsSocket.onopen = () => {};
+        wsSocket.onopen = () => {
+          attempt = 0;
+          setIsConnected(true);
+        };
+        wsSocket.onclose = () => {
+          setIsConnected(false);
+          if (wsSocketRef.current === wsSocket) {
+            wsSocketRef.current = null;
+          }
+          scheduleReconnect();
+        };
         wsSocket.onerror = () => {
           console.warn(
             "[SpectraX WS] Could not connect to backend at",
@@ -31,10 +68,12 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
             "— live backend features will be unavailable. " +
             "Check that the server is running and that VITE_BACKEND_URL is correct in .env.local."
           );
-          wsSocketRef.current = null;
+          setIsConnected(false);
         };
       } catch (_) {
         wsSocketRef.current = null;
+        setIsConnected(false);
+        scheduleReconnect();
       }
     }
 
@@ -42,6 +81,9 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
 
     return () => {
       cancelled = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       if (wsSocketRef.current) {
         try {
           wsSocketRef.current.close();
@@ -52,5 +94,5 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
     };
   }, [backendUrlRaw]);
 
-  return wsSocketRef;
+  return { isConnected, wsSocketRef };
 }
