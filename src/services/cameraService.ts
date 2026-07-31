@@ -227,10 +227,99 @@ throttleMonitor.onLevelChange((level) => {
   currentThrottleLevel = level;
 });
 
+// MediaPipe BlazePose full-skeleton connection pairs (33 landmarks).
+const POSE_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
+  // Face / head
+  [0, 1], [1, 2], [2, 3], [3, 7],
+  [0, 4], [4, 5], [5, 6], [6, 8],
+  // Torso
+  [9, 10], [11, 12], [11, 23], [12, 24], [23, 24],
+  // Left arm
+  [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+  // Right arm
+  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+  // Left leg
+  [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
+  // Right leg
+  [24, 26], [26, 28], [28, 30], [30, 32], [28, 32],
+];
+
+// Joints that get a text label (landmark index -> label).
+const POSE_JOINT_LABELS: ReadonlyArray<[number, string]> = [
+  [11, "L_SHOULDER"],
+  [12, "R_SHOULDER"],
+  [13, "L_ELBOW"],
+  [14, "R_ELBOW"],
+  [15, "L_WRIST"],
+  [16, "R_WRIST"],
+  [23, "L_HIP"],
+  [24, "R_HIP"],
+  [25, "L_KNEE"],
+  [26, "R_KNEE"],
+  [27, "L_ANKLE"],
+  [28, "R_ANKLE"],
+];
+
 // Helper drawing functions
-function drawFullSkeleton(_ctx: CanvasRenderingContext2D, _landmarks: any[]) {
-  // Your existing full drawing logic (connections + labels + shadows)
-  // ...
+function drawFullSkeleton(ctx: CanvasRenderingContext2D, landmarks: any[]) {
+  if (!landmarks || landmarks.length < 33) return;
+
+  const canvasW = ctx.canvas.width;
+  const canvasH = ctx.canvas.height;
+  const toXY = (lm: any) => ({
+    x: lm.x * canvasW,
+    y: lm.y * canvasH,
+  });
+
+  // 1. Skeleton connections (with neon glow shadow)
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowColor = "#00ffcc";
+  ctx.shadowBlur = 6;
+
+  ctx.strokeStyle = "rgba(0, 255, 204, 0.85)";
+  ctx.lineWidth = 3;
+  for (const [a, b] of POSE_CONNECTIONS) {
+    const la = landmarks[a];
+    const lb = landmarks[b];
+    if (!la || !lb || la.visibility < 0.3 || lb.visibility < 0.3) continue;
+    const pa = toXY(la);
+    const pb = toXY(lb);
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 2. Joints as filled circles with a soft outer glow
+  for (const lm of landmarks) {
+    if (!lm || lm.visibility < 0.3) continue;
+    const p = toXY(lm);
+    ctx.save();
+    ctx.shadowColor = "#ff3366";
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = "#ff3366";
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 3. Labels for the primary joints (small, low-opacity text)
+  ctx.save();
+  ctx.font = "10px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+  for (const [idx, label] of POSE_JOINT_LABELS) {
+    const lm = landmarks[idx];
+    if (!lm || lm.visibility < 0.3) continue;
+    const p = toXY(lm);
+    ctx.fillText(label, p.x, p.y - 7);
+  }
+  ctx.restore();
 }
 
 function drawReducedSkeleton(ctx: CanvasRenderingContext2D, landmarks: any[]) {
