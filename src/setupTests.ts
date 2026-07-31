@@ -1,4 +1,4 @@
-// Jest setup file for test configuration
+// Vitest setup file for test configuration
 import "@testing-library/jest-dom";
 
 class LocalStorageMock implements Storage {
