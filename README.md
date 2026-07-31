@@ -436,7 +436,13 @@ firebase login
 firebase deploy --only firestore:rules
 ```
 
-> Without deploying these rules, the project runs in Firebase test mode (open access). Always deploy them before going to production.
+Or run the project's setup script, which selects your project and deploys the rules in one step:
+
+```bash
+npm run setup
+```
+
+> Without deploying these rules, the project runs in Firebase test mode (open access). Always deploy them before going to production. The app also checks for test mode at startup (`src/services/firestoreSecurityCheck.ts`) and prints a prominent warning if the rules are not enforced.
 
 ---
 

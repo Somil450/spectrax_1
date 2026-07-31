@@ -10,6 +10,7 @@ import { useAuth } from "./context/AuthContext";
 import { BackToTopButton } from "./components/BackToTopButton";
 import { useBadges } from "./hooks/useBadges";
 import { throttleMonitor } from './services/performanceThrottleService';
+import { verifyFirestoreSecurity } from "./services/firestoreSecurityCheck";
 import NavBar from "./components/NavBar";
 import About from "./components/About";
 import Contact from "./components/Contact";
@@ -130,6 +131,13 @@ function App() {
   const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    // Guard against Firebase test mode (open access) at startup (#1042).
+    if (firebaseConfigured) {
+      verifyFirestoreSecurity();
+    }
+  }, []);
 
   useEffect(() => {
     if (currentScreen !== "workout") {
