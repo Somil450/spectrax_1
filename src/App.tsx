@@ -17,6 +17,9 @@ import PrivacyPage from './components/privacy'; // Change to your actual file pa
 import TermsAndConditions from './components/terms&conditions'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
+import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import type { WorkoutControls } from "./components/WorkoutScreen";
 
 
 // Start monitoring throttling immediately
@@ -146,6 +149,7 @@ function App() {
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
   const setAdaptiveFactor = useState<number>(1.0)[1];
   const [showExitModal, setShowExitModal] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
     totalReps: 0,
@@ -278,6 +282,54 @@ function App() {
       setSelectedExercise(exercises[key]);
     }
   };
+
+  const workoutControlsRef = useRef<WorkoutControls | null>(null);
+  const registerWorkoutControls = useCallback((controls: WorkoutControls | null) => {
+    workoutControlsRef.current = controls;
+  }, []);
+
+  const exerciseShortcutKeys = Object.keys(exercises);
+
+  const switchToExerciseShortcut = useCallback((index: number) => {
+    if (currentScreen === "workout") return;
+    const key = exerciseShortcutKeys[index];
+    if (key && exercises[key]) {
+      setSelectedExercise(exercises[key]);
+    }
+  }, [currentScreen, exerciseShortcutKeys]);
+
+  useKeyboardShortcuts({
+    "?": () => setShowShortcuts(true),
+    Escape: () => {
+      if (showShortcuts) {
+        setShowShortcuts(false);
+      } else if (currentScreen === "workout") {
+        workoutControlsRef.current?.requestExit();
+      }
+    },
+    H: () => {
+      if (currentScreen !== "history") navigateTo("history");
+    },
+    " ": (event) => {
+      if (event.repeat) return;
+      if (currentScreen === "workout") {
+        workoutControlsRef.current?.togglePause();
+      } else if (currentScreen === "welcome") {
+        navigateTo("calibration");
+      }
+    },
+    R: (event) => {
+      if (event.repeat) return;
+      if (currentScreen === "workout") {
+        workoutControlsRef.current?.reset();
+      }
+    },
+    "1": () => switchToExerciseShortcut(0),
+    "2": () => switchToExerciseShortcut(1),
+    "3": () => switchToExerciseShortcut(2),
+    "4": () => switchToExerciseShortcut(3),
+    "5": () => switchToExerciseShortcut(4),
+  });
 
   // Show loading state while auth is being checked
   if (firebaseConfigured && authLoading) {
@@ -413,6 +465,7 @@ function App() {
               onEnd={handleWorkoutEnd}
               onAutoDetect={handleAutoDetect}
               bodyType={bodyType}
+              registerControls={registerWorkoutControls}
             />
           </PageErrorBoundary>
         )}
@@ -504,6 +557,10 @@ function App() {
           always visible regardless of which screen is active */}
       <BadgeNotification badge={newlyEarned} onClose={clearNewlyEarned} />
       <BackToTopButton />
+
+      {showShortcuts && (
+        <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />
+      )}
 
       {(offlineReady || needRefresh) && (
         <div className="pwa-toast glass animate-in" role="alert">

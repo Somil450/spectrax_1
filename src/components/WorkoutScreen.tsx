@@ -42,6 +42,12 @@ const createPoseWorker = () =>
     type: "module",
   });
 
+export interface WorkoutControls {
+  togglePause: () => void;
+  reset: () => void;
+  requestExit: () => void;
+}
+
 interface WorkoutScreenProps {
   exercise: ExerciseConfig;
   onCancel?: () => void;
@@ -62,6 +68,7 @@ interface WorkoutScreenProps {
   onAutoDetect?: (key: string) => void;
   bodyType?: BodyType;
   adaptiveFactor?: number;
+  registerControls?: (controls: WorkoutControls | null) => void;
 }
 
 type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "risk" | "tut";
@@ -174,7 +181,38 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+const createInitialEngineState = (): EngineState => ({
+  reps: 0,
+  stage: "up",
+  feedback: "ESTABLISHING POSTURE...",
+  status: "yellow",
+  lastRepTime: 0,
+  isCalibrated: false,
+  history: [],
+  stageStartTime: 0,
+  frameScore: 0,
+  totalScore: 0,
+  totalFrames: 0,
+  allowRep: false,
+  mistakes: {},
+  currentStreak: 0,
+  bestStreak: 0,
+  isInExercisePosture: false,
+  downAngleReached: 999,
+  totalReps: 0,
+  correctReps: 0,
+  minScoreInRep: 100,
+  repScores: [],
+  repDeviations: [],
+  accuracy: 100,
+  lastDepthResult: null,
+  depthStats: initialSquatDepthStats(),
+  liveDepthFeedback: '',
+  jumpingJackSyncSamples: [],
+  jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
+});
+
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, registerControls }) => {
   const { settings, updateSetting } = useSettings();
   const { user } = useAuth();
   useEffect(() => {
@@ -241,36 +279,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     borderWidth: 0,
   };
 
-  const [engineState, setEngineState] = useState<EngineState>({
-    reps: 0,
-    stage: "up",
-    feedback: "ESTABLISHING POSTURE...",
-    status: "yellow",
-    lastRepTime: 0,
-    isCalibrated: false,
-    history: [],
-    stageStartTime: 0,
-    frameScore: 0,
-    totalScore: 0,
-    totalFrames: 0,
-    allowRep: false,
-    mistakes: {},
-    currentStreak: 0,
-    bestStreak: 0,
-    isInExercisePosture: false,
-    downAngleReached: 999,
-    totalReps: 0,
-    correctReps: 0,
-    minScoreInRep: 100,
-    repScores: [],
-    repDeviations: [],
-    accuracy: 100,
-    lastDepthResult: null,
-    depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: '',
-    jumpingJackSyncSamples: [],
-    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
-  });
+  const [engineState, setEngineState] = useState<EngineState>(createInitialEngineState);
 
   const startTimeRef = useRef<number>(Date.now());
   const frameSkipRef = useRef<number>(0); // frame-skip counter
@@ -316,36 +325,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   }, [onAutoDetect]);
 
   // Use refs for real-time logic to avoid state lags in the pose callback
-  const mutableState = useRef<EngineState>({
-    reps: 0,
-    stage: "up",
-    feedback: "ESTABLISHING POSTURE...",
-    status: "yellow",
-    lastRepTime: 0,
-    isCalibrated: false,
-    history: [],
-    stageStartTime: 0,
-    frameScore: 0,
-    totalScore: 0,
-    totalFrames: 0,
-    allowRep: false,
-    mistakes: {},
-    currentStreak: 0,
-    bestStreak: 0,
-    isInExercisePosture: false,
-    downAngleReached: 999,
-    totalReps: 0,
-    correctReps: 0,
-    minScoreInRep: 100,
-    repScores: [],
-    repDeviations: [],
-    accuracy: 100,
-    lastDepthResult: null,
-    depthStats: initialSquatDepthStats(),
-    liveDepthFeedback: '',
-    jumpingJackSyncSamples: [],
-    jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
-  });
+  const mutableState = useRef<EngineState>(createInitialEngineState());
 
   // ── ARIA Live Region State ────────────────────────────────────────────────────
   // We use THREE separate state variables for announcements.
@@ -872,6 +852,42 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     endSession,
   } = useWorkoutSync();
   endSessionRef.current = endSession;
+
+  const registerControlsRef = useRef<WorkoutScreenProps["registerControls"]>();
+  registerControlsRef.current = registerControls;
+
+  const togglePause = useCallback(() => {
+    if (workoutControlRef.current === "running") {
+      workoutControlRef.current = "paused";
+      setWorkoutControlState("paused");
+    } else if (workoutControlRef.current === "paused") {
+      workoutControlRef.current = "running";
+      setWorkoutControlState("running");
+    }
+  }, []);
+
+  const requestExit = useCallback(() => {
+    setShowExitModal(true);
+  }, []);
+
+  const reset = useCallback(() => {
+    exerciseEngine.reset();
+    injuryRiskEngine.reset();
+    sessionRecorder.start();
+    startSession(exercise.key, exercise.name);
+    startTimeRef.current = Date.now();
+    mutableState.current = createInitialEngineState();
+    setEngineState(createInitialEngineState());
+    setSeconds(0);
+    prevRepsRef.current = 0;
+    workoutControlRef.current = "running";
+    setWorkoutControlState("running");
+  }, [exercise.key, exercise.name, startSession]);
+
+  useEffect(() => {
+    registerControlsRef.current?.({ togglePause, reset, requestExit });
+    return () => registerControlsRef.current?.(null);
+  }, [togglePause, reset, requestExit]);
 
   const {
     startSystem,
