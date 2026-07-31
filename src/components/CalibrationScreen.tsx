@@ -10,6 +10,7 @@ import { bodyTypeEngine, BodyType, BodyTypeResult } from '../services/bodyTypeEn
 import { gestureService, GestureResult } from '../services/gestureService';
 import { useWorkoutHistory } from '../useWorkoutHistory';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
+import { CameraTimeoutRecovery } from './CameraTimeoutRecovery';
 import { useSettings } from '../context/SettingsContext';
 
 interface CalibrationScreenProps {
@@ -144,6 +145,8 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
     const name = (err instanceof Error) ? err.name : '';
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || err.message === 'PERMISSION_DENIED') {
       setError('CAMERA_PERMISSION_DENIED');
+    } else if (name === 'TimeoutError' || err.message === 'CAMERA_TIMEOUT') {
+      setError('CAMERA_INIT_TIMEOUT');
     } else {
       let msg = "Something went wrong starting the camera. Try refreshing the page.";
       if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
@@ -315,6 +318,14 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       {error === 'CAMERA_PERMISSION_DENIED' && (
         <CameraPermissionRecovery onRetry={() => {
           setError(null);
+          startSystem();
+        }} />
+      )}
+
+      {error === 'CAMERA_INIT_TIMEOUT' && (
+        <CameraTimeoutRecovery onRetry={() => {
+          setError(null);
+          setResult(prev => ({ ...prev, message: 'Warming up AI Engine...' }));
           startSystem();
         }} />
       )}

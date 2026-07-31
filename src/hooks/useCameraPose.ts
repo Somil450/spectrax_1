@@ -16,7 +16,16 @@ interface UseCameraPoseOptions {
   onCameraError?: (error: any) => void;
   setupContext?: boolean;
   enableFrameInterpolation?: boolean;
+  initTimeoutMs?: number;
 }
+
+/**
+ * Maximum time (ms) allowed for the whole camera pipeline to start up
+ * (model loading + camera + frame loop). When this is exceeded the
+ * system aborts and reports CAMERA_TIMEOUT so the UI can show timeout
+ * feedback with a retry option instead of loading forever.
+ */
+export const CAMERA_INIT_TIMEOUT_MS = 20000;
 
 export function useCameraPose({
   videoRef: customVideoRef,
@@ -29,6 +38,7 @@ export function useCameraPose({
   onCameraError,
   setupContext = true,
   enableFrameInterpolation = true,
+  initTimeoutMs = CAMERA_INIT_TIMEOUT_MS,
 }: UseCameraPoseOptions) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -52,45 +62,73 @@ export function useCameraPose({
     isMountedRef.current = true;
     frameIndexRef.current = 0;
 
+    // Guard against a slow/never-completing initialization: if the whole
+    // pipeline (model download + camera start) exceeds initTimeoutMs we
+    // abort and report CAMERA_TIMEOUT so callers can show timeout feedback
+    // with a retry option instead of leaving a loading spinner forever.
+    let aborted = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
     try {
-      if (setupContext) {
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) overlayRenderer.setContext(ctx);
-      }
+      const initPromise = (async () => {
+        if (setupContext) {
+          const ctx = canvasRef.current!.getContext('2d');
+          if (ctx) overlayRenderer.setContext(ctx);
+        }
 
-      poseService.setInterpolationEnabled(enableFrameInterpolation);
+        poseService.setInterpolationEnabled(enableFrameInterpolation);
 
-      await depthEstimationEngine.init();
+        await depthEstimationEngine.init();
+        if (aborted) return;
 
-      await cameraService.startCamera(videoRef.current);
+        await cameraService.startCamera(videoRef.current!);
+        if (aborted) {
+          cameraService.stopCamera();
+          return;
+        }
 
-      poseService.onResults((results) => {
-        if (!isMountedRef.current) return;
-        cameraService.onFrameComplete();
-        onResultsRef.current(results);
+        poseService.onResults((results) => {
+          if (!isMountedRef.current) return;
+          cameraService.onFrameComplete();
+          onResultsRef.current(results);
+        });
+
+        cameraService.startFrameLoop(
+          (source) => {
+            if (!isMountedRef.current) return;
+            poseService.send(source);
+            if (onFrameRef.current) {
+              frameIndexRef.current++;
+              onFrameRef.current(frameIndexRef.current);
+            }
+          },
+          initialFpsLimit,
+          minFpsLimit,
+          fpsDecrementStep
+        );
+      })();
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          aborted = true;
+          const err = new Error("CAMERA_TIMEOUT");
+          err.name = "TimeoutError";
+          reject(err);
+        }, initTimeoutMs);
       });
 
-      cameraService.startFrameLoop(
-        (source) => {
-          if (!isMountedRef.current) return;
-          poseService.send(source);
-          if (onFrameRef.current) {
-            frameIndexRef.current++;
-            onFrameRef.current(frameIndexRef.current);
-          }
-        },
-        initialFpsLimit,
-        minFpsLimit,
-        fpsDecrementStep
-      );
+      await Promise.race([initPromise, timeoutPromise]);
     } catch (err) {
+      if (timer) clearTimeout(timer);
+      // Clean up any partially-started camera so a retry can start fresh.
+      cameraService.stopCamera();
       if (isMountedRef.current && onCameraErrorRef.current) {
         onCameraErrorRef.current(err);
       } else {
         throw err;
       }
     }
-  }, [videoRef, canvasRef, setupContext, initialFpsLimit, minFpsLimit, fpsDecrementStep, enableFrameInterpolation]);
+  }, [videoRef, canvasRef, setupContext, initialFpsLimit, minFpsLimit, fpsDecrementStep, enableFrameInterpolation, initTimeoutMs]);
 
   const stopSystem = useCallback(() => {
     isMountedRef.current = false;

@@ -26,36 +26,63 @@ export class CameraService {
 
   /**
    * Requests camera permission and starts the stream.
+   *
+   * The whole flow is raced against a timeout (CAMERA_START_TIMEOUT_MS by
+   * default) so that on slow devices or unstable connections we never leave
+   * the UI stuck on an indefinite "loading" state. If getUserMedia never
+   * resolves, or the video element never fires `loadedmetadata`, we reject
+   * with a CAMERA_TIMEOUT error so callers can show timeout feedback and a
+   * retry option.
+   *
    * @param videoElement The HTML video element to attach the stream to.
+   * @param timeoutMs Optional timeout override (used by tests).
    */
-  async startCamera(videoElement: HTMLVideoElement): Promise<MediaStream> {
+  async startCamera(videoElement: HTMLVideoElement, timeoutMs: number = CAMERA_START_TIMEOUT_MS): Promise<MediaStream> {
     this.videoElement = videoElement;
 
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 },
-        },
-        audio: false,
-      });
+      const stream = await withStartTimeout(
+        navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          },
+          audio: false,
+        }),
+        timeoutMs,
+        "requesting camera access"
+      );
 
-      this.videoElement.srcObject = this.stream;
+      this.stream = stream;
+      this.videoElement.srcObject = stream;
 
-      return new Promise((resolve) => {
-        if (!this.videoElement) return;
+      const ready = new Promise<MediaStream>((resolve, reject) => {
+        if (!this.videoElement) {
+          reject(new Error("CAMERA_TIMEOUT"));
+          return;
+        }
         this.videoElement.onloadedmetadata = () => {
           this.videoElement?.play();
-          resolve(this.stream!);
+          resolve(stream);
+        };
+        this.videoElement.onerror = () => {
+          reject(new Error("CAMERA_TIMEOUT"));
         };
       });
+
+      return await withStartTimeout(ready, timeoutMs, "waiting for video metadata");
     } catch (error: any) {
       console.error("Camera access denied or unavailable:", error);
       if (error.name === 'NotAllowedError') {
         throw new Error("PERMISSION_DENIED");
       } else if (error.name === 'NotFoundError') {
         throw new Error("NO_CAMERA_FOUND");
+      }
+      if (error.message === "CAMERA_TIMEOUT") {
+        // Release any stream that was acquired before the timeout so a retry
+        // can start from a clean state.
+        this.stopCamera();
       }
       throw error;
     }
@@ -216,6 +243,45 @@ export class CameraService {
 }
 
 export const cameraService = new CameraService();
+
+/**
+ * Maximum time (ms) allowed for a camera to finish starting up
+ * (getUserMedia + first video metadata). Prevents the webcam loading
+ * state from staying visible indefinitely on slow devices/networks.
+ */
+export const CAMERA_START_TIMEOUT_MS = 15000;
+
+/**
+ * Races a promise against a timeout so a slow webcam never leaves the
+ * UI stuck on a loading state. Rejects with a CAMERA_TIMEOUT error when
+ * the timeout wins; the timer is cleared once the promise settles.
+ */
+function withStartTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  phase: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const err = new Error("CAMERA_TIMEOUT");
+      err.name = "TimeoutError";
+      console.warn(
+        `[CameraService] Timed out while ${phase} after ${timeoutMs}ms.`
+      );
+      reject(err);
+    }, timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 
 // src/services/cameraService.ts
 import { throttleMonitor } from "./performanceThrottleService";
