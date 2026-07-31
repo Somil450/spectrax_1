@@ -160,5 +160,20 @@ export default defineConfig({
     globals: true,
     exclude: ["server/**", "node_modules/**"],
     setupFiles: ["src/setupTests.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      reportsDirectory: "./coverage",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/__tests__/**",
+        "src/setupTests.ts",
+        "src/workers/**",
+        "src/vite-env.d.ts",
+        // Depends on @tensorflow-models/pose-detection (issue #359); until it
+        // is installed the v8 provider cannot remap this file.
+        "src/services/tfjs.ts",
+      ],
+    },
   },
 } as any);
