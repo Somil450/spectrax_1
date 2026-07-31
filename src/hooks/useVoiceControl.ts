@@ -144,7 +144,6 @@ export function useVoiceControl({ enabled, onCommand }: VoiceControlOptions) {
     };
   // onCommand is intentionally excluded — we access it via onCommandRef to keep
   // this effect stable and avoid restarting recognition on every render.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
   return { isListening };
