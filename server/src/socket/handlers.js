@@ -135,10 +135,10 @@ function setupSocketHandlers(io, sessions) {
     });
 
     // ── Save session on explicit end ──
-    socket.on("session:end", () => {
+    socket.on("session:end", async () => {
       const frames = sessions.get(socket.id) || [];
       if (frames.length > 0) {
-        saveSession(frames, socket.id);
+        await saveSession(frames, socket.id);
       }
       sessions.delete(socket.id);
       console.log(
@@ -146,11 +146,11 @@ function setupSocketHandlers(io, sessions) {
       );
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       // Auto-save on unexpected disconnect
       const frames = sessions.get(socket.id) || [];
       if (frames.length > 0) {
-        saveSession(frames, socket.id);
+        await saveSession(frames, socket.id);
       }
       sessions.delete(socket.id);
 

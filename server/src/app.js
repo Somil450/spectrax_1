@@ -75,12 +75,15 @@ app.use(errorHandler);
 process.on("SIGINT", () => {
   const { saveSession } = require("./modules/sessionStorage");
   console.log("\n[SpectraX] Shutting down — saving all sessions...");
+  const pendingSaves = [];
   for (const [id, frames] of sessions) {
-    if (frames.length > 0) saveSession(frames, id);
+    if (frames.length > 0) pendingSaves.push(saveSession(frames, id));
   }
-  server.close(() => {
-    console.log("[SpectraX] Server closed.");
-    process.exit(0);
+  Promise.allSettled(pendingSaves).finally(() => {
+    server.close(() => {
+      console.log("[SpectraX] Server closed.");
+      process.exit(0);
+    });
   });
 });
 
