@@ -54,7 +54,7 @@ export async function syncOfflineQueue(): Promise<SyncResult> {
     throw new Error("User not authenticated — cannot sync offline queue");
   }
 
-  const queue = getQueue();
+  const queue = await getQueue();
   let synced = 0;
   let failed = 0;
 

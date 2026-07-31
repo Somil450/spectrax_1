@@ -17,6 +17,7 @@ import PrivacyPage from './components/privacy'; // Change to your actual file pa
 import TermsAndConditions from './components/terms&conditions'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
+import { PrivacyShield } from "./components/PrivacyShield";
 
 
 // Start monitoring throttling immediately
@@ -62,7 +63,10 @@ type Screen =
   | "fitness"
   | "avatar"
   | "privacy"
-  | "terms&conditions";
+  | "terms&conditions"
+  | "battle"
+  | "tutorials"
+  | "workoutPlans";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
@@ -84,6 +88,9 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   avatar: ["welcome"],
   "privacy": ["welcome"],
   "terms&conditions": ["welcome"],
+  battle: ["welcome"],
+  tutorials: ["welcome", "calibration"],
+  workoutPlans: ["welcome"],
 };
 
 
