@@ -539,6 +539,78 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             ))}
           </div>
 
+          <div className="features-section" style={{ marginTop: "60px" }}>
+            <div className="section-container">
+              <div className="section-header">
+                <div className="section-badge">
+                  <Sparkles size={14} color="#00f0ff" />
+                  <span>WHY SPECTRAX</span>
+                </div>
+                <h2 className="section-title">Features</h2>
+                <p className="section-description">
+                  Everything you need to train smarter with AI-powered form
+                  tracking
+                </p>
+              </div>
+              <div className="features-grid">
+                {[
+                  {
+                    icon: Target,
+                    title: "AI Form Analysis",
+                    desc: "Real-time pose estimation scores every rep and catches mistakes before they become bad habits.",
+                    color: "#00f0ff",
+                  },
+                  {
+                    icon: Activity,
+                    title: "Live Rep Counting",
+                    desc: "Automatic rep tracking with instant feedback on every movement — no manual counting needed.",
+                    color: "#00ffcc",
+                  },
+                  {
+                    icon: BarChart3,
+                    title: "Progress Analytics",
+                    desc: "Calories, streaks, badges, XP and detailed session summaries to keep you motivated.",
+                    color: "#00f0ff",
+                  },
+                  {
+                    icon: Camera,
+                    title: "3D Skeleton Replay",
+                    desc: "Watch your form from any angle with a full 3D body reconstruction of each workout.",
+                    color: "#00ffcc",
+                  },
+                  {
+                    icon: User,
+                    title: "Personalized Calibration",
+                    desc: "Body-type detection adapts tracking to your build for more accurate measurements.",
+                    color: "#00f0ff",
+                  },
+                  {
+                    icon: Users,
+                    title: "Workout Plans & Tutorials",
+                    desc: "Structured plans and guided tutorials to take your training to the next level.",
+                    color: "#00ffcc",
+                  },
+                ].map((feature, idx) => (
+                  <div key={idx} className="feature-card">
+                    <div
+                      className="feature-icon-wrapper"
+                      style={{ borderColor: `${feature.color}30` }}
+                    >
+                      <feature.icon size={28} color={feature.color} />
+                    </div>
+                    <h3
+                      className="feature-card-title"
+                      style={{ color: feature.color }}
+                    >
+                      {feature.title}
+                    </h3>
+                    <p className="feature-card-description">{feature.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="how-it-works-section" style={{ marginTop: "60px" }}>
             <div className="section-container">
               <div className="section-header">
