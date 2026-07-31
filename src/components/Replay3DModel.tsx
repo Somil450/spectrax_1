@@ -24,6 +24,13 @@ import {
   type BoneEntry,
   type StressVectorRig,
 } from "./sceneBuilders";
+import {
+  buildMotionTrails,
+  updateMotionTrails,
+  disposeMotionTrails,
+  TRAIL_JOINT_BONE_KEYS,
+  type MotionTrailRig,
+} from "./motionTrails";
 
 // ─── Module-Level GLTF Cache ──────────────────────────────────────────────────
 
@@ -107,6 +114,7 @@ export interface Replay3DModelProps {
   hideControls?: boolean;
   skin?: string;
   exerciseName?: string;
+  showTrails?: boolean;
 }
 
 const HUD_JOINTS: { idx: number; boneKey: string; label: string; p1: number; p2: number; p3: number }[] = [
@@ -461,10 +469,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   hideControls = false,
   skin = "Standard Human",
   exerciseName = "squat",
+  showTrails: externalShowTrails,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying]     = useState(false);
   const [_currentFrameIdx, _setCurrentFrameIdx] = useState(0);
+  const [_showTrails, _setShowTrails]   = useState(true);
   const [modelLoaded, setModelLoaded]   = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError]     = useState<string | null>(null);
@@ -482,6 +492,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const isPlaying        = externalIsPlaying   !== undefined ? externalIsPlaying   : _isPlaying;
   const currentFrameIdx  = externalFrameIdx    !== undefined ? externalFrameIdx    : _currentFrameIdx;
   const isFrameControlled = externalFrameIdx   !== undefined;
+  const showTrails       = externalShowTrails  !== undefined ? externalShowTrails  : _showTrails;
   const setIsPlaying     = onPlayToggle ? () => onPlayToggle() : _setIsPlaying;
   const setCurrentFrameIdx = onFrameChange ? onFrameChange : _setCurrentFrameIdx;
 
@@ -508,6 +519,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const axesRef         = useRef<THREE.AxesHelper[]>([]);
   /** Muscle-group stress vector rigs produced by buildStressVectors */
   const stressVectorsRef = useRef<StressVectorRig[]>([]);
+  /** Neon motion-trail rigs produced by buildMotionTrails */
+  const trailRigsRef     = useRef<MotionTrailRig[]>([]);
   const previousJointPositionsRef = useRef<(THREE.Vector3 | null)[]>([]);
 
   // ── Skybox / environment refs ─────────────────────────────────────────────
@@ -889,6 +902,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     stressVectorsRef.current            = buildStressVectors(scene);
     previousJointPositionsRef.current   = new Array(33).fill(null);
 
+    // ── Neon motion trails ────────────────────────────────────────────────
+    trailRigsRef.current                = buildMotionTrails(scene);
+
     // ── GLTF model — cache-first loading ──────────────────────────────────
     setModelLoading(true);
     setModelError(null);
@@ -1145,6 +1161,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       });
       stressVectorsRef.current = [];
       previousJointPositionsRef.current = [];
+
+      // Dispose motion trails
+      disposeMotionTrails(trailRigsRef.current);
+      trailRigsRef.current = [];
 
       // Dispose grid
       if (gridRef.current) {
@@ -1488,13 +1508,25 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
       updateStressVectors(getLm, bodyCenter, shoulderCenter, hipCenter, baseColor, badJoints, exerciseName, time);
 
+      // Neon motion trails — sample the rendered joint positions so the paths
+      // hug whichever skeleton (skinned model bones or fallback joints) is visible.
+      const getTrailPosition = (idx: number): THREE.Vector3 | null => {
+        const boneKey = TRAIL_JOINT_BONE_KEYS[idx];
+        const bone = boneKey ? boneMapRef.current[boneKey] : null;
+        if (modelLoaded && bone) return bone.getWorldPosition(new THREE.Vector3());
+        const jointMesh = jointsRef.current[idx];
+        if (jointMesh) return jointMesh.getWorldPosition(new THREE.Vector3());
+        return getLm(idx);
+      };
+      updateMotionTrails(trailRigsRef.current, getTrailPosition, time * 0.001, showTrails);
+
       if (controlsRef.current) controlsRef.current.update();
       if (sceneRef.current && cameraRef.current) composerRef.current?.render();
     };
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, isPlaying, isFrameControlled, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
+  }, [frames, isPlaying, isFrameControlled, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors, showTrails]);
 
   // ─── No frames guard ─────────────────────────────────────────────────────
   if (!frames || frames.length === 0) {
@@ -1546,6 +1578,23 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         <div style={{ padding: "15px", background: "#222", display: "flex", alignItems: "center", gap: "15px", borderRadius: "8px", marginTop: "10px" }}>
           <button onClick={() => setIsPlaying(!isPlaying)} style={{ padding: "8px 16px", background: "var(--neon-purple, #9D4EDD)", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}>
             {isPlaying ? "PAUSE" : "PLAY"}
+          </button>
+          <button
+            onClick={() => _setShowTrails(!showTrails)}
+            title="Toggle motion trails"
+            style={{
+              padding: "8px 16px",
+              background: showTrails ? "var(--neon-cyan, #00ffcc)" : "#333",
+              color: showTrails ? "#111" : "#aaa",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "0.72rem",
+              letterSpacing: 0.5,
+            }}
+          >
+            TRAILS: {showTrails ? "ON" : "OFF"}
           </button>
           <input type="range" min="0" max={frames.length - 1} value={currentFrameIdx}
             onChange={(e) => { setIsPlaying(false); setCurrentFrameIdx(Number(e.target.value)); }}
