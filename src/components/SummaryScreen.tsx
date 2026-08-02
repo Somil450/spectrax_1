@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
-import { updateWorkoutStreak } from "../utils/streakUtils";
+import { updateWorkoutStreak, getWorkoutStreak, WorkoutStreakData } from "../utils/streakUtils";
 import { useAuth } from '../context/AuthContext';
 import { getLocalWorkouts, WorkoutRecord } from '../services/workoutSyncService';
 
@@ -40,6 +40,13 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
   const [accuracy, setAccuracy] = useState(0);
   const { user } = useAuth();
   const [workouts, setWorkouts] = useState<WorkoutRecord[]>([]);
+  const [streakData, setStreakData] = useState<WorkoutStreakData>(getWorkoutStreak);
+
+  // Record the streak once on mount — persisted state must never be written
+  // during a render pass.
+  useEffect(() => {
+    setStreakData(updateWorkoutStreak());
+  }, []);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -145,7 +152,6 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         stats.repScores.reduce((a, b) => a + b, 0) / stats.repScores.length,
       )
       : 0;
-  const streakData = updateWorkoutStreak();
 
   if (stats.totalReps === 0) {
     return (
