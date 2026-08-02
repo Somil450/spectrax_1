@@ -526,7 +526,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
           {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">
-            {STATS.map(({ value, label }, i) => (
+            {(STATS ?? []).map(({ value, label }, i) => (
               <React.Fragment key={label}>
                 <div className="welcome-stat">
                   <span className="welcome-stat__value">{value}</span>
