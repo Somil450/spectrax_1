@@ -16,8 +16,14 @@ rules_version = '2';
 //   /users/{userId}
 //     { uid, email, displayName?, photoURL?, createdAt, lastLogin }
 //   /users/{userId}/workouts/{workoutId}
-//     { exerciseType, totalReps, accuracyScore, duration, timestamp,
+//     { userId, exerciseType, totalReps, accuracyScore, duration, timestamp,
 //       createdAt, updatedAt }
+//
+// Note on `userId`: every workout document stores the owning UID as a first-class
+// field and the create rule requires `request.resource.data.userId == userId`
+// (the auth UID in the document path). Together with the path-based `isOwner`
+// check this makes it impossible for a client to forge a write into another
+// user's collection.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -75,13 +81,17 @@ service cloud.firestore {
 
         allow create: if isOwner(userId)
           && request.resource.data.keys().hasOnly([
-               'exerciseType', 'totalReps', 'accuracyScore',
+               'userId', 'exerciseType', 'totalReps', 'accuracyScore',
                'duration', 'timestamp', 'createdAt', 'updatedAt'
              ])
           && request.resource.data.keys().hasAll([
-               'exerciseType', 'totalReps', 'accuracyScore',
+               'userId', 'exerciseType', 'totalReps', 'accuracyScore',
                'duration', 'timestamp'
              ])
+          && request.resource.data.userId == userId
+          && request.resource.data.userId is string
+          && request.resource.data.userId.size() > 0
+          && request.resource.data.userId.size() <= 128
           && request.resource.data.exerciseType is string
           && request.resource.data.exerciseType.size() > 0
           && request.resource.data.exerciseType.size() <= 64
