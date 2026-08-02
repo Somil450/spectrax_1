@@ -24,6 +24,8 @@ import SessionCard from "./SessionCard";
 import { BodyMetricsWidget } from "./components/BodyMetricsWidget";
 import { ProgressAnalyticsWidget } from "./components/ProgressAnalyticsWidget";
 import { Dashboard } from "./components/Dashboard/Dashboard";
+import DifficultyInsights from "./components/DifficultyInsights";
+import { analyzeDifficulty } from "./engine/difficultyEngine";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -194,6 +196,11 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
       return matchType && matchCals;
     });
   }, [sessions, filterType, debouncedCalories]);
+
+  const difficultyAssessments = useMemo(() => {
+    if (sessions.length < 2) return [];
+    return analyzeDifficulty(sessions);
+  }, [sessions]);
 
   const handleClear = () => {
     if (showClearConfirm) {
@@ -433,6 +440,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
         {/* ── Dashboard Widgets ── */}
         {!loading && !error && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginBottom: '24px' }}>
+            <DifficultyInsights assessments={difficultyAssessments} />
             <Dashboard sessions={sessions} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
               <ProgressAnalyticsWidget sessions={sessions} />
