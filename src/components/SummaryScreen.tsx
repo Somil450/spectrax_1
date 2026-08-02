@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+import { Award, Clock, RotateCcw, Video, Activity, FileDown } from 'lucide-react';
 import { updateWorkoutStreak } from "../utils/streakUtils";
 import { useAuth } from '../context/AuthContext';
 import { getLocalWorkouts, WorkoutRecord } from '../services/workoutSyncService';
+import { downloadSessionData, ExportableSessionStats } from '../services/sessionExportService';
+import { sessionRecorder, RLDCompressionDriver, FrameData } from '../services/sessionRecorder';
 
 interface SummaryScreenProps {
   stats: {
@@ -111,22 +113,20 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
     return "Needs Calibration ⚙️";
   };
 
-  const exportSessionData = () => {
+  const getRecordedFrames = (): FrameData[] | undefined => {
     try {
-      const jsonData = JSON.stringify(stats, null, 2);
-      const blob = new Blob([jsonData], {
-        type: "application/json",
-      });
+      const archive = sessionRecorder.getArchive();
+      return archive && archive.frames && archive.frames.length > 0
+        ? RLDCompressionDriver.decompress(archive.frames)
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  };
 
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
-      link.href = url;
-      link.download = `workout-session-${timestamp}.json`;
-      link.click();
-      URL.revokeObjectURL(url); 
+  const exportSessionData = (format: 'json' | 'csv') => {
+    try {
+      downloadSessionData(stats as ExportableSessionStats, format, getRecordedFrames());
     } catch (error) {
       console.error("Failed to export session data:", error);
       alert("Unable to export session data. Please try again.");
@@ -909,11 +909,19 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         </button>
 
         <button
-          onClick={exportSessionData}
+          onClick={() => exportSessionData('json')}
           className="btn-outline"
           style={{ flex: 1 }}
         >
-          EXPORT DATA
+          EXPORT JSON
+        </button>
+
+        <button
+          onClick={() => exportSessionData('csv')}
+          className="btn-outline"
+          style={{ flex: 1 }}
+        >
+          <FileDown size={16} /> EXPORT CSV
         </button>
 
         <button
