@@ -1,20 +1,107 @@
 import type { Results } from "@mediapipe/pose";
 
-const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
-const drawConnectors = (window as any).drawConnectors;
-const drawLandmarks = (window as any).drawLandmarks;
-
 import type { Mesh3DVertex } from "../types/pose";
+
+// Standard MediaPipe 33-landmark pose connections
+export const POSE_CONNECTIONS_33: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
+  [9, 10], [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20], [11, 23], [12, 24],
+  [23, 24], [23, 25], [25, 27], [27, 29], [29, 31], [24, 26], [26, 28], [28, 30], [30, 32],
+];
+
+export const SMOOTHING_ALPHA = 0.45;
+export const VISIBILITY_HOLD_THRESHOLD = 0.3;
+export const PULSE_PERIOD_MS = 1600;
+export const SCAN_LINE_SPEED = 0.06;
+
+type LandmarkLike = {
+  x?: number;
+  y?: number;
+  z?: number;
+  visibility?: number;
+};
+
+/**
+ * Smooths landmark positions with exponential moving average (EMA) so the
+ * skeleton glides instead of jumping between frames. Joints with very low
+ * visibility are damped harder (kept near their previous spot) to avoid
+ * snapping to interpolated outliers.
+ */
+export function smoothLandmarks(
+  previous: Array<LandmarkLike | null> | null,
+  next: Array<LandmarkLike | null>,
+  alpha = SMOOTHING_ALPHA,
+): Array<LandmarkLike | null> {
+  if (!next) return [];
+  if (!previous || previous.length !== next.length) return next as any[];
+
+  const out: Array<LandmarkLike | null> = [];
+  for (let i = 0; i < next.length; i++) {
+    const n = next[i];
+    const p = previous[i];
+    if (!n) {
+      out.push(p ?? null);
+      continue;
+    }
+    if (!p || typeof n.x !== "number" || typeof n.y !== "number") {
+      out.push({ ...n });
+      continue;
+    }
+
+    const dampened =
+      typeof n.visibility === "number" && n.visibility < VISIBILITY_HOLD_THRESHOLD
+        ? alpha * 0.25
+        : alpha;
+
+    out.push({
+      x: p.x! + (n.x - p.x!) * dampened,
+      y: p.y! + (n.y - p.y!) * dampened,
+      z:
+        typeof n.z === "number" && typeof p.z === "number"
+          ? p.z + (n.z - p.z) * dampened
+          : n.z ?? p.z,
+      visibility: n.visibility ?? p.visibility,
+    });
+  }
+  return out;
+}
+
+/**
+ * Cosine pulse in [0, 1] used for joint glow/halo animations.
+ */
+export function pulsePhase(now: number, period = PULSE_PERIOD_MS): number {
+  return (Math.cos(((now % period) / period) * Math.PI * 2) + 1) / 2;
+}
+
+/**
+ * Triangle-wave scan line position in [0, height] driven by elapsed time,
+ * so the scan animation stays smooth regardless of the draw call rate.
+ */
+export function scanLineY(
+  height: number,
+  now: number,
+  speed = SCAN_LINE_SPEED,
+): number {
+  if (height <= 0) return 0;
+  const t = now * speed;
+  return Math.abs(((t + height) % (2 * height)) - height);
+}
 
 export class OverlayRenderer {
   private ctx: CanvasRenderingContext2D | null = null;
-  private scanY: number = 0;
-  private scanDirection: number = 1;
   private draw3DEnabled = false;
   private meshVertices: Mesh3DVertex[] | null = null;
+  private smoothingBuffer: Array<LandmarkLike | null> | null = null;
 
   setContext(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
+    this.resetSmoothing();
+  }
+
+  /** Clears per-session visual state (smoothing history). */
+  resetSmoothing() {
+    this.smoothingBuffer = null;
   }
 
   set3DEnabled(enabled: boolean) {
@@ -52,46 +139,117 @@ export class OverlayRenderer {
     const color = this.getStatusColor(status);
     const width = this.ctx.canvas.width;
     const height = this.ctx.canvas.height;
+    const now = performance.now();
+    const pulse = pulsePhase(now);
+
+    // Smooth landmark movement
+    this.smoothingBuffer = smoothLandmarks(
+      this.smoothingBuffer,
+      results.poseLandmarks,
+    );
+    const smoothed = this.smoothingBuffer as any[];
 
     if (this.draw3DEnabled && this.meshVertices) {
       this.draw3DMesh(this.meshVertices, width, height, color);
     }
 
-    if (drawConnectors && POSE_CONNECTIONS && drawLandmarks) {
-      drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-        color: "rgba(255, 255, 255, 0.2)",
-        lineWidth: 2,
-      });
+    this.drawSkeleton(smoothed, color, primaryJoints, errorJoints, pulse, width, height);
 
-      drawConnectors(this.ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-        color: color,
-        lineWidth: 4,
-      });
+    this.drawScanLine(height, now);
+    this.drawCenterOfMass(smoothed);
+  }
 
-      drawLandmarks(this.ctx, results.poseLandmarks, {
-        color: "#ffffff",
-        fillColor: (data: any) => {
-          if (errorJoints.includes(data.index!)) return "#ff0000"; // Bright red for errors
-          if (primaryJoints.includes(data.index!)) return color;
-          if (data.index! >= 11) {
-            if (data.index! % 2 !== 0) return "rgba(0, 240, 255, 0.8)";
-            if (data.index! % 2 === 0) return "rgba(157, 78, 221, 0.8)";
-          }
-          return "rgba(255,255,255,0.5)";
-        },
-        lineWidth: 1,
-        radius: (data: any) => {
-          if (errorJoints.includes(data.index!)) return 8; // Larger radius for errors
-          return primaryJoints.includes(data.index!) ? 6 : 3;
-        },
-      });
-
-      this.ctx.shadowBlur = 15;
-      this.ctx.shadowColor = color;
+  private strokeConnections(
+    landmarks: any[],
+    width: number,
+    height: number,
+    strokeStyle: string,
+    lineWidth: number,
+    connections: Array<[number, number]>,
+  ) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    ctx.beginPath();
+    for (const [i, j] of connections) {
+      const a = landmarks[i];
+      const b = landmarks[j];
+      if (a && b && a.visibility >= VISIBILITY_HOLD_THRESHOLD && b.visibility >= VISIBILITY_HOLD_THRESHOLD) {
+        ctx.moveTo(a.x * width, a.y * height);
+        ctx.lineTo(b.x * width, b.y * height);
+      }
     }
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  }
 
-    this.drawScanningLine();
-    this.drawCenterOfMass(results.poseLandmarks);
+  /**
+   * Draws the skeleton natively: dim base connectors, glowing status-colored
+   * connectors, and joints with pulsing glow halos on primary/error joints.
+   */
+  private drawSkeleton(
+    landmarks: any[],
+    color: string,
+    primaryJoints: number[],
+    errorJoints: number[],
+    pulse: number,
+    width: number,
+    height: number,
+  ) {
+    const ctx = this.ctx;
+    if (!ctx || !landmarks) return;
+
+    // 1) Dim base connectors (subtle silhouette)
+    this.strokeConnections(
+      landmarks, width, height,
+      "rgba(255,255,255,0.15)", 2, POSE_CONNECTIONS_33,
+    );
+
+    // 2) Glowing status-colored connectors
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    this.strokeConnections(
+      landmarks, width, height,
+      color, 4, POSE_CONNECTIONS_33,
+    );
+    ctx.restore();
+
+    // 3) Joints with glow/pulse effects
+    for (let i = 0; i < landmarks.length; i++) {
+      const lm = landmarks[i];
+      if (!lm || typeof lm.x !== "number" || lm.visibility < VISIBILITY_HOLD_THRESHOLD) continue;
+
+      const px = lm.x * width;
+      const py = lm.y * height;
+      const isError = errorJoints.includes(i);
+      const isPrimary = primaryJoints.includes(i);
+
+      if (isError || isPrimary) {
+        // Pulsing glow halo
+        const haloRadius = (isError ? 13 : 11) + pulse * 7;
+        const glowColor = isError ? "#ff3b5c" : color;
+        const halo = ctx.createRadialGradient(px, py, 1, px, py, haloRadius);
+        halo.addColorStop(0, glowColor + "99");
+        halo.addColorStop(1, glowColor + "00");
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(px, py, haloRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.beginPath();
+      ctx.arc(px, py, isError ? 7 : isPrimary ? 5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = isError ? "#ff3b5c" : isPrimary ? color : "rgba(0,240,255,0.85)";
+      ctx.fill();
+      if (isPrimary) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
   }
 
   private draw3DMesh(
@@ -152,23 +310,33 @@ export class OverlayRenderer {
     ctx.restore();
   }
 
-  private drawScanningLine() {
+  /**
+   * Animated scan line driven by elapsed time with a glowing fade-out gradient.
+   */
+  private drawScanLine(height: number, now: number) {
     if (!this.ctx) return;
     const canvas = this.ctx.canvas;
-    this.scanY += 3 * this.scanDirection;
-    if (this.scanY > canvas.height || this.scanY < 0) {
-      this.scanDirection *= -1;
-    }
+    const y = scanLineY(height, now);
+
+    const grad = this.ctx.createLinearGradient(0, 0, canvas.width, 0);
+    grad.addColorStop(0, "rgba(0,240,255,0)");
+    grad.addColorStop(0.5, "rgba(0,240,255,0.55)");
+    grad.addColorStop(1, "rgba(0,240,255,0)");
+
+    this.ctx.save();
     this.ctx.beginPath();
-    this.ctx.moveTo(0, this.scanY);
-    this.ctx.lineTo(canvas.width, this.scanY);
-    this.ctx.strokeStyle = "rgba(0,240,255,0.3)";
-    this.ctx.lineWidth = 1.5;
+    this.ctx.moveTo(0, y);
+    this.ctx.lineTo(canvas.width, y);
+    this.ctx.strokeStyle = grad;
+    this.ctx.lineWidth = 2;
+    this.ctx.shadowColor = "rgba(0,240,255,0.8)";
+    this.ctx.shadowBlur = 8;
     this.ctx.stroke();
+    this.ctx.restore();
   }
 
   private drawCenterOfMass(landmarks: any[]) {
-    if (!this.ctx || landmarks.length < 29) return;
+    if (!this.ctx || !landmarks || landmarks.length < 29) return;
 
     const width = this.ctx.canvas.width;
     const height = this.ctx.canvas.height;
@@ -177,6 +345,8 @@ export class OverlayRenderer {
     const rightShoulder = landmarks[12];
     const leftHip = landmarks[23];
     const rightHip = landmarks[24];
+
+    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) return;
 
     const comX = (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4;
     const comY = (leftShoulder.y + rightShoulder.y + leftHip.y + rightHip.y) / 4;
