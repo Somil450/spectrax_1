@@ -671,7 +671,12 @@ export class ExerciseEngine {
 
       nextLastRepTime = now;
 
-      allowRep = nextMinScoreInRep > 70;
+      // Jumping jacks complete as discrete arm-overhead cycles. The resting
+      // arms-at-side phase always trips the "Raise arms higher" penalty, so
+      // minScoreInRep can never clear the 70-point allowRep gate and the
+      // visible rep counter stays at 0 even though the exercise is performed
+      // correctly (#620). Every completed cycle is a rep — count it.
+      allowRep = config.key === "jumpingJack" ? true : nextMinScoreInRep > 70;
 
       if (allowRep) {
         nextCorrectReps += 1;

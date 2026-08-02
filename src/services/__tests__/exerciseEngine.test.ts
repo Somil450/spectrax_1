@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { calculateJumpingJackSyncMetrics, ExerciseEngine, EngineState } from "../exerciseEngine";
 import { KinematicEngine } from "../kinematicEngine";
 import { resetFeedbackEngine } from "../../engine/feedbackEngine";
@@ -217,6 +217,47 @@ describe("ExerciseEngine", () => {
 
     expect(result.jumpingJackSyncSamples).toHaveLength(1);
     expect(result.jumpingJackSync?.samples).toBe(1);
+  });
+
+  it("counts jumping jack reps through a full rest → jump → rest cycle (#620)", async () => {
+    // Regression: jumping jack rest frames (arms at side) always trip the
+    // "Raise arms higher" penalty, so minScoreInRep can never clear the 70
+    // allowRep gate and the visible rep counter stays at 0. Every completed
+    // overhead cycle must be counted as a rep.
+    let now = 1000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const tick = (deltaMs: number) => { now += deltaMs; };
+    const arms = (angle: number) => ({
+      shoulder: angle,
+      jumpingJackArmOpen: angle > 100 ? 180 : 30,
+      jumpingJackLegSpread: 150,
+    });
+    const run = (a: number) =>
+      engine.process(jumpingJackConfig, arms(a), { shoulder: 1.0 }, stateRef);
+
+    let stateRef = makeState({ isCalibrated: false, history: [] });
+
+    const cycle = async () => {
+      // Rest (arms at side).
+      for (let i = 0; i < 4; i++) { tick(100); stateRef = await run(20); }
+      // Rise to overhead and hold.
+      for (const angle of [40, 70, 110, 150, 180, 180, 180]) { tick(100); stateRef = await run(angle); }
+      // Descend back to rest.
+      for (let i = 0; i < 5; i++) { tick(100); stateRef = await run(20); }
+    };
+
+    // Jumping jacks calibrate from the arms-down posture.
+    for (let i = 0; i < 5; i++) { tick(100); stateRef = await run(20); }
+    expect(stateRef.isCalibrated).toBe(true);
+    expect(stateRef.stage).toBe("down");
+
+    await cycle();
+    expect(stateRef.reps).toBe(1);
+    expect(stateRef.totalReps).toBe(1);
+
+    await cycle();
+    expect(stateRef.reps).toBe(2);
+    expect(stateRef.totalReps).toBe(2);
   });
 
   it("resets KinematicEngine metrics on reset()", () => {
