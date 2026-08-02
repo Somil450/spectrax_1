@@ -23,6 +23,8 @@ export class CameraService {
   private lastResultTime: number = 0;
   private downscaleCanvas: HTMLCanvasElement | null = null;
   private frameCallback: ((source: HTMLVideoElement | HTMLCanvasElement) => void) | null = null;
+  private batteryScale: number = 1.0;
+  private batteryUnsubscribe: (() => void) | null = null;
 
   /**
    * Requests camera permission and starts the stream.
@@ -84,6 +86,14 @@ export class CameraService {
     this.consecutiveLagFrames = 0;
     this.lastResultTime = 0;
 
+    // Battery-aware downscaling (issue #190): frames are shrunk ahead of time
+    // under power-saving conditions, independently of lag-based adaptation.
+    this.batteryScale = batteryDownscaler.getResolutionScale();
+    void batteryDownscaler.init();
+    this.batteryUnsubscribe = batteryDownscaler.subscribe(() => {
+      this.batteryScale = batteryDownscaler.getResolutionScale();
+    });
+
     const loop = (timestamp: number) => {
       if (!this.videoElement || !this.frameCallback) return;
 
@@ -102,14 +112,16 @@ export class CameraService {
 
         let sourceToProcess: HTMLVideoElement | HTMLCanvasElement = this.videoElement;
 
-        if (this.resolutionScale < 1.0) {
+        // Effective scale is the stricter of lag-based and battery-based scales.
+        const effectiveScale = Math.min(this.resolutionScale, this.batteryScale);
+        if (effectiveScale < 1.0) {
           if (!this.downscaleCanvas) {
             this.downscaleCanvas = document.createElement('canvas');
           }
           const canvas = this.downscaleCanvas;
           const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          canvas.width = this.videoElement.videoWidth * this.resolutionScale;
-          canvas.height = this.videoElement.videoHeight * this.resolutionScale;
+          canvas.width = this.videoElement.videoWidth * effectiveScale;
+          canvas.height = this.videoElement.videoHeight * effectiveScale;
           if (ctx) {
             ctx.drawImage(this.videoElement, 0, 0, canvas.width, canvas.height);
             sourceToProcess = canvas;
@@ -196,6 +208,9 @@ export class CameraService {
     this.isProcessing = false;
     this.frameCallback = null;
     this.downscaleCanvas = null;
+    this.batteryUnsubscribe?.();
+    this.batteryUnsubscribe = null;
+    this.batteryScale = 1.0;
   }
 
   /**
@@ -219,6 +234,7 @@ export const cameraService = new CameraService();
 
 // src/services/cameraService.ts
 import { throttleMonitor } from "./performanceThrottleService";
+import { batteryDownscaler } from "./batteryDownscaler";
 
 let currentThrottleLevel = throttleMonitor.getCurrentLevel();
 
