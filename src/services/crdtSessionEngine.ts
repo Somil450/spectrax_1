@@ -8,6 +8,8 @@
 import * as Y from "yjs";
 import { nowHLC, compareHLC, updateHLC, hlcToString, hlcFromString, type HLCTimestamp } from "../utils/hybridLogicalClock";
 import type { EngineState } from "./exerciseEngine";
+import { createRepIdempotencyKey } from "./crdtIdempotencyKey";
+import { IDEMPOTENCY_MAP, reconcileDuplicateReps } from "./crdtReconciliationEngine";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,8 @@ export interface RepOperation {
   depthResult?: any;
   vbtMetrics?: any;
   timestamp: number;
+  /** Deterministic identity so Yjs duplicates can be reconciled post-sync. */
+  idempotencyKey?: string;
 }
 
 export interface SessionSnapshot {
@@ -69,6 +73,7 @@ export class CRDTSessionEngine {
   private doc: Y.Doc;
   private yState: Y.Map<any>;
   private yReps: Y.Array<RepOperation>;
+  private ySeen: Y.Map<number>;
   private sessionId: string;
   private exerciseKey: string;
   private exerciseName: string;
@@ -86,6 +91,7 @@ export class CRDTSessionEngine {
     this.doc = new Y.Doc();
     this.yState = this.doc.getMap("state");
     this.yReps = this.doc.getArray("reps");
+    this.ySeen = this.doc.getMap(IDEMPOTENCY_MAP);
 
     // Track all updates for persistence/sync
     this.updateHandler = (update: Uint8Array) => {
@@ -108,6 +114,7 @@ export class CRDTSessionEngine {
     const hlc = nowHLC();
     this.hlcVector.set(hlc.nodeId, hlc);
 
+    const timestamp = Date.now();
     const op: RepOperation = {
       hlc,
       repNumber: state.reps,
@@ -121,12 +128,19 @@ export class CRDTSessionEngine {
       mistakes: { ...state.mistakes },
       depthResult: state.lastDepthResult,
       vbtMetrics: state.vbtMetrics,
-      timestamp: Date.now(),
+      timestamp,
+      idempotencyKey: createRepIdempotencyKey(this.exerciseKey, { timestamp, repNumber: state.reps, angles }),
     };
 
-    this.yReps.push([op]);
-    this.yState.set("lastUpdate", Date.now());
-    this.yState.set("hlcVector", this.serializeHlcVector());
+    // Single atomic transaction: idempotency check + append + state update.
+    this.doc.transact(() => {
+      if (!this.ySeen.has(op.idempotencyKey!)) {
+        this.yReps.push([op]);
+        this.ySeen.set(op.idempotencyKey!, 1);
+      }
+      this.yState.set("lastUpdate", Date.now());
+      this.yState.set("hlcVector", this.serializeHlcVector());
+    });
 
     return op;
   }
@@ -153,6 +167,14 @@ export class CRDTSessionEngine {
    */
   applyUpdate(update: Uint8Array): void {
     Y.applyUpdate(this.doc, update);
+
+    // Post-sync reconciliation: Yjs merges by insertion order, so a rep that
+    // was recorded offline and again remotely may now appear twice. Drop the
+    // duplicates by idempotency key inside one transaction.
+    this.doc.transact(() => {
+      reconcileDuplicateReps(this.yReps, this.ySeen, this.exerciseKey);
+    });
+
     // Update local HLC to be > remote
     const remoteVector = this.parseHlcVector(this.yState.get("hlcVector") || {});
     for (const [, hlc] of remoteVector) {
@@ -185,6 +207,7 @@ export class CRDTSessionEngine {
     engine.doc = doc;
     engine.yState = yState;
     engine.yReps = doc.getArray("reps");
+    engine.ySeen = doc.getMap(IDEMPOTENCY_MAP);
     engine.sessionId = (yState.get("sessionId") as string) || engine.sessionId;
     engine.startTime = (yState.get("startTime") as number) || engine.startTime;
 
