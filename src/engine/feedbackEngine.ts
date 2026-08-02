@@ -32,7 +32,7 @@ export class GaussianMixtureModel {
 
     for (let iter = 0; iter < iterations; iter++) {
       const responsibilities = (data ?? []).map((x) => {
-        const probs = this.means.map(
+        const probs = this.(means ?? []).map(
           (mean, j) => this.weights[j] * this.pdf(x, mean, this.variances[j])
         );
 
