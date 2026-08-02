@@ -9,9 +9,13 @@ function isLoopbackIp(ip) {
 
 function getHealth(req, res, sessionStore) {
   const healthSecret = process.env.HEALTH_SECRET_TOKEN;
+  const monitorSecret = process.env.HEALTH_MONITOR_SECRET;
   const isLocalhost = isLoopbackIp(req.ip);
   const authHeader = req.get("Authorization") || "";
-  const isAuthorized = healthSecret && authHeader === `Bearer ${healthSecret}`;
+  const monitorHeader = req.get("X-Monitor-Secret") || "";
+  const isAuthorized =
+    (healthSecret && authHeader === `Bearer ${healthSecret}`) ||
+    (monitorSecret && monitorHeader === monitorSecret);
 
   const baseHealth = {
     status: "ok",

@@ -1,11 +1,13 @@
 const { getHealth } = require("../../../../src/modules/health/health.controller");
 
-function mockReq({ ip, hostname, authorization }) {
+function mockReq({ ip, hostname, authorization, monitorSecret }) {
   return {
     ip,
     hostname,
     get(header) {
-      return header === "Authorization" ? authorization || "" : "";
+      if (header === "Authorization") return authorization || "";
+      if (header === "X-Monitor-Secret") return monitorSecret || "";
+      return "";
     },
   };
 }
@@ -55,5 +57,40 @@ describe("getHealth", () => {
       { size: () => 7 },
     );
     expect(res.body.activeSessions).toBe(7);
+  });
+
+  it("returns full metrics for a valid X-Monitor-Secret header", () => {
+    process.env.HEALTH_MONITOR_SECRET = "mon-secret";
+    const res = captureRes();
+    getHealth(
+      mockReq({ ip: "203.0.113.10", monitorSecret: "mon-secret" }),
+      res,
+      { size: () => 7 },
+    );
+    expect(res.body.activeSessions).toBe(7);
+    expect(typeof res.body.uptime).toBe("number");
+  });
+
+  it("does not leak metrics to a remote caller with a wrong X-Monitor-Secret", () => {
+    process.env.HEALTH_MONITOR_SECRET = "mon-secret";
+    const res = captureRes();
+    getHealth(
+      mockReq({ ip: "203.0.113.10", monitorSecret: "wrong" }),
+      res,
+      { size: () => 7 },
+    );
+    expect(res.body).toEqual({ status: "ok" });
+  });
+
+  it("does not leak metrics when no secret is configured", () => {
+    delete process.env.HEALTH_SECRET_TOKEN;
+    delete process.env.HEALTH_MONITOR_SECRET;
+    const res = captureRes();
+    getHealth(
+      mockReq({ ip: "203.0.113.10", monitorSecret: "mon-secret" }),
+      res,
+      { size: () => 7 },
+    );
+    expect(res.body).toEqual({ status: "ok" });
   });
 });
