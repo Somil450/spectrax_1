@@ -25,6 +25,10 @@ class ExercisePluginRegistry {
   has(configKey: string): boolean {
     return this.plugins.has(configKey);
   }
+
+  unregister(configKey: string): boolean {
+    return this.plugins.delete(configKey);
+  }
 }
 
 export const exercisePluginRegistry = new ExercisePluginRegistry();
