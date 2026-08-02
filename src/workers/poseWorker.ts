@@ -1,4 +1,5 @@
 import { OcclusionPredictor } from "../services/occlusionPredictor";
+import { MULTI_PERSON_WARNING_THRESHOLD } from "../services/multiPersonDetection";
 
 const STRIDE = 4;
 const LM_COUNT = 33;
@@ -146,23 +147,6 @@ function selectPrimarySkeleton(candidates: Landmark[][]): Landmark[] | null {
   }
 
   return selected;
-}
-
-function isolatePrimarySkeleton(payload: unknown): Landmark[] | null {
-  const candidates = extractSkeletonCandidates(payload);
-  if (candidates) {
-    return selectPrimarySkeleton(candidates);
-  }
-
-  if (
-    Array.isArray(payload) &&
-    payload.length > 0 &&
-    isLandmarkPoint(payload[0])
-  ) {
-    return normalizeSkeleton(payload);
-  }
-
-  return null;
 }
 
 function unpackLandmarks(buf: ArrayBuffer) {
@@ -592,9 +576,13 @@ self.onmessage = (event: MessageEvent) => {
     return;
   }
 
+  const candidates = extractSkeletonCandidates(rawLandmarks);
   const landmarks =
-    isolatePrimarySkeleton(rawLandmarks) ??
+    (candidates ? selectPrimarySkeleton(candidates) : null) ??
     (buf ? unpackLandmarks(buf) : readSharedLandmarks());
+
+  const peopleCount = candidates ? Math.max(1, candidates.length) : 1;
+  const crowdWarning = peopleCount >= MULTI_PERSON_WARNING_THRESHOLD;
 
   if (!landmarks || landmarks.length === 0) {
     const extrapolatedLandmarks = extrapolateLandmarks();
@@ -627,6 +615,8 @@ self.onmessage = (event: MessageEvent) => {
         wasOccluded: predicted.wasOccluded,
         extrapolated: true,
         dropoutFrames: consecutiveDropoutFrames,
+        peopleCount,
+        crowdWarning,
       };
 
       if (buf) {
@@ -643,6 +633,8 @@ self.onmessage = (event: MessageEvent) => {
       angles: {},
       detectedExercise: "unknown",
       confidence: 0,
+      peopleCount,
+      crowdWarning,
     };
     if (buf) {
       (self as any).postMessage(msg, [buf]);
@@ -685,6 +677,8 @@ self.onmessage = (event: MessageEvent) => {
     ipcMs,
     occlusionConfidence: predicted.confidence,
     wasOccluded: predicted.wasOccluded,
+    peopleCount,
+    crowdWarning,
   };
   if (buf) {
     reply.buf = buf;

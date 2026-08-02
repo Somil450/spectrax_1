@@ -117,4 +117,56 @@ describe("poseWorker OffscreenCanvas + zero-copy frames (#59)", () => {
     expect(frames).toHaveLength(2);
     expect(frames[0].msg.detectedExercise).toBe(frames[1].msg.detectedExercise);
   });
+
+  it("counts multiple people and flags the crowd warning from multi-candidate input (#60)", () => {
+    const toLandmarks = (src: Array<[number, number, number, number]>) =>
+      src.map(([x, y, z, v]) => ({ x, y, z, visibility: v }));
+
+    // Foreground user fills the frame; a background person is smaller + dimmer
+    const big = toLandmarks(buildStandingPose());
+    const small = toLandmarks(
+      buildStandingPose().map(([x, y, z, v]) => [
+        x * 0.4 + 0.3,
+        y * 0.4 + 0.3,
+        z,
+        v * 0.7,
+      ]),
+    );
+
+    handler!({
+      data: { landmarks: { people: [big, small] }, frameId: 3, primaryJoints: [] },
+    });
+
+    const reply = replies[replies.length - 1].msg;
+    expect(reply.peopleCount).toBe(2);
+    expect(reply.crowdWarning).toBe(true);
+    // The primary skeleton (largest) is the one used for angles
+    expect(typeof reply.detectedExercise).toBe("string");
+  });
+
+  it("reports a single person when only one candidate is present (#60)", () => {
+    const single = buildStandingPose().map(([x, y, z, v]) => ({
+      x,
+      y,
+      z,
+      visibility: v,
+    }));
+
+    handler!({
+      data: { landmarks: { people: [single] }, frameId: 4, primaryJoints: [] },
+    });
+
+    const reply = replies[replies.length - 1].msg;
+    expect(reply.peopleCount).toBe(1);
+    expect(reply.crowdWarning).toBe(false);
+  });
+
+  it("defaults to one person when the frame arrives as a bare landmark buffer (#60)", () => {
+    const buf = packLandmarks(buildStandingPose());
+    handler!({ data: { buf, frameId: 5, primaryJoints: [], t0: 2 } });
+
+    const reply = replies[replies.length - 1].msg;
+    expect(reply.peopleCount).toBe(1);
+    expect(reply.crowdWarning).toBe(false);
+  });
 });
