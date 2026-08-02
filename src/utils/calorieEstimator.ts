@@ -81,7 +81,7 @@ export function getSavedUserWeight(): number | null {
   const raw = localStorage.getItem('spectrax_user_weight_kg');
   if (!raw) return null;
   const parsed = parseFloat(raw);
-  return isNaN(parsed) ? null : parsed;
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 /**

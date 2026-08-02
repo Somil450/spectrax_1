@@ -248,7 +248,7 @@ const rules: Record<string, ExerciseRule> = {
     // user is curling without twisting the wrist correctly.
     const supScore: number | undefined = ctx.wristSupinationScore;
 
-    if (typeof supScore === 'number' && !isNaN(supScore)) {
+    if (typeof supScore === 'number' && !Number.isNaN(supScore)) {
       if (ctx.stage === 'down' && supScore < 0.2) {
         // Palm is pronated or neutral at peak of curl
         issues.push({
@@ -494,11 +494,11 @@ if (
 
   // Also track wrist rotation deviation when available
   const supScore = ctx.wristSupinationScore;
-  if (typeof supScore === "number" && !isNaN(supScore)) {
+  if (typeof supScore === "number" && !Number.isNaN(supScore)) {
     jointDeviationProfiler.update(supScore * 100);
   }
 }
-  if (postureMetric !== undefined && postureMetric !== null && !isNaN(postureMetric)) {
+  if (postureMetric !== undefined && postureMetric !== null && !Number.isNaN(postureMetric)) {
    // skeletalSense.update(postureMetric);
   }
 
