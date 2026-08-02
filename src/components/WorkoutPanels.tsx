@@ -1,5 +1,6 @@
 import React from "react";
 import { Activity } from "lucide-react";
+import { VelocityProfile } from "../services/velocityProfiler";
 
 export const FocusPanel = ({ exerciseName }: { exerciseName: string }) => (
   <div className="glass workout-stat-card workout-focus-panel animate-in">
@@ -214,6 +215,145 @@ export const TutPanel = ({
         <span style={{ color: "var(--neon-yellow)" }}>{eccSec}s ↓</span>
         <span>{isoSec}s ◆</span>
         <span style={{ color: statusColor }}>{conSec}s ↑</span>
+      </div>
+    </div>
+  );
+};
+
+export const VelocityPanel = ({
+  profile,
+}: {
+  profile: VelocityProfile | null;
+}) => {
+  if (!profile || profile.samples < 2) return null;
+
+  const tempoColor =
+    profile.tempo === "fast"
+      ? "var(--neon-red)"
+      : profile.tempo === "slow"
+        ? "var(--neon-yellow)"
+        : "var(--neon-green)";
+  const tempoLabel = profile.tempo.toUpperCase();
+
+  const curveMax = profile.curve.length > 0 ? Math.max(...profile.curve) : 0;
+  const reference = Math.max(curveMax, profile.baselineSpeed * 1.5, 0.01);
+  const p = Math.min(1, Math.max(0, profile.currentSpeed / reference));
+
+  const totalArc = 188.49; // 270 degrees on r=40 circle
+  const filledArc = p * totalArc;
+
+  return (
+    <div
+      className="glass workout-stat-card workout-dial-panel animate-in"
+      style={{
+        textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "12px 16px",
+        minWidth: "150px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.65rem",
+          color: "var(--text-dim)",
+          letterSpacing: "2px",
+          textTransform: "uppercase",
+          marginBottom: "4px",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+        }}
+      >
+        <span>TEMPO</span>
+        <span style={{ color: tempoColor, fontWeight: 700 }}>{tempoLabel}</span>
+      </div>
+      <div style={{ position: "relative", width: "120px", height: "120px" }}>
+        <svg
+          width="120"
+          height="120"
+          viewBox="0 0 120 120"
+          style={{ transform: "rotate(90deg)" }}
+        >
+          <defs>
+            <filter id="speed-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <circle
+            cx="60"
+            cy="60"
+            r="40"
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.05)"
+            strokeWidth="8"
+            strokeDasharray="188.49 251.32"
+            strokeLinecap="round"
+            style={{ transformOrigin: "60px 60px", transform: "rotate(45deg)" }}
+          />
+          <circle
+            cx="60"
+            cy="60"
+            r="40"
+            fill="none"
+            stroke={tempoColor}
+            strokeWidth="8"
+            strokeDasharray={`${filledArc} 251.32`}
+            strokeLinecap="round"
+            filter="url(#speed-glow)"
+            style={{
+              transformOrigin: "60px 60px",
+              transform: "rotate(45deg)",
+              transition: "stroke-dasharray 0.15s ease-out, stroke 0.3s ease",
+            }}
+          />
+          <circle cx="60" cy="60" r="5" fill="#fff" filter="url(#speed-glow)" />
+        </svg>
+        <div
+          style={{
+            position: "absolute",
+            top: "60%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            color: "#fff",
+            fontFamily: "var(--font-heading)",
+            fontSize: "1rem",
+            fontWeight: 800,
+            textShadow: `0 0 10px ${tempoColor}`,
+          }}
+        >
+          {profile.currentSpeed.toFixed(2)}
+        </div>
+      </div>
+      <div
+        style={{
+          marginTop: "4px",
+          display: "flex",
+          gap: "8px",
+          fontSize: "0.6rem",
+          color: "var(--text-dim)",
+          letterSpacing: "1px",
+        }}
+      >
+        {profile.decelerating && (
+          <span style={{ color: "var(--neon-red)", fontWeight: 700 }}>
+            DECEL -{Math.round(profile.decelerationPct)}%
+          </span>
+        )}
+        <span
+          style={{
+            color: profile.pacing === "erratic" ? "var(--neon-red)" : "var(--neon-cyan)",
+            fontWeight: 700,
+          }}
+        >
+          PACING: {profile.pacing.toUpperCase()}
+        </span>
       </div>
     </div>
   );

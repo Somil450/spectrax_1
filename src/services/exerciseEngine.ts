@@ -29,6 +29,7 @@ import {
 } from './Pushup_depth_classifier';
 import { BodyType } from './bodyTypeEngine';
 import { VBTMetrics, KinematicEngine } from './kinematicEngine';
+import { VelocityProfile, VelocityProfiler } from './velocityProfiler';
 
 import { getStrategy } from './strategies/StrategyFactory';
 import { ExerciseContext } from './strategies/ExerciseStrategy';
@@ -223,6 +224,9 @@ export interface EngineState {
   // VBT Metrics
   vbtMetrics?: VBTMetrics;
 
+  // Velocity profiling (tempo ring + deceleration/pacing)
+  velocityProfile?: VelocityProfile;
+
   // TUT Metrics
   tutMetrics?: {
     eccentricMs: number;
@@ -278,6 +282,7 @@ export class ExerciseEngine {
   private readonly SMOOTHING_WINDOW = 5;
 
   private kinematicEngine = new KinematicEngine();
+  private velocityProfiler = new VelocityProfiler();
   private readonly MIN_DOWN_DURATION = 150;
 
 
@@ -337,6 +342,11 @@ export class ExerciseEngine {
         Date.now(),
         primaryJointIndex
       );
+    }
+
+    // Feed the normalized joint-centre velocity into the profiler each frame
+    if (updatedVbtMetrics) {
+      this.velocityProfiler.addSample(updatedVbtMetrics.currentVelocity);
     }
 
 
@@ -634,6 +644,7 @@ export class ExerciseEngine {
     let tut: any = undefined;
     if (repJustCounted) {
       this.kinematicEngine.onRepComplete();
+      this.velocityProfiler.onRepComplete();
 
       if (nextTotalReps === 10) {
         neuralFormEngine.calibrate(config.key).catch(console.error);
@@ -780,6 +791,7 @@ export class ExerciseEngine {
       jumpingJackSyncSamples: nextJumpingJackSyncSamples,
       jumpingJackSync: nextJumpingJackSync,
       vbtMetrics: updatedVbtMetrics,
+      velocityProfile: this.velocityProfiler.getProfile(),
       tutMetrics: tut || undefined,
       holdTime: nextHoldTime,
 
@@ -789,6 +801,7 @@ export class ExerciseEngine {
 
   reset(): void {
     this.kinematicEngine.reset();
+    this.velocityProfiler.reset();
   }
 }
 
