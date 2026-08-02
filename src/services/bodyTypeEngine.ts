@@ -1,5 +1,28 @@
 export type BodyType = 'ecto' | 'meso' | 'endo' | 'scanning';
 
+/**
+ * Reference torso-to-femur bone ratio (average human ~1.6). Ratios above it
+ * mean relatively shorter femurs (compact/tight frame); ratios below it mean
+ * relatively longer femurs (extended limbs). Drives the ±10% adaptive shift.
+ */
+export const REFERENCE_TORSO_FEMUR_RATIO = 1.6;
+
+/**
+ * Maps a measured torso-to-femur ratio to an adaptive calibration factor
+ * clamped to a ±10% margin.
+ *
+ *   ratio > reference (short femurs) → factor < 1 (relax thresholds)
+ *   ratio < reference (long femurs)  → factor > 1 (tighten thresholds)
+ */
+export function computeAdaptiveFactor(
+  torsoToFemur: number,
+  reference: number = REFERENCE_TORSO_FEMUR_RATIO,
+): number {
+  if (!Number.isFinite(torsoToFemur) || torsoToFemur <= 0) return 1.0;
+  const factor = reference / torsoToFemur;
+  return Math.min(1.1, Math.max(0.9, factor));
+}
+
 export interface BodyMetrics {
   shoulderWidth: number;
   hipWidth: number;
@@ -36,22 +59,30 @@ class BodyTypeEngine {
     this.history = [];
   }
 
-  private readonly REFERENCE_TORSO_FEMUR_RATIO = 1.6;
+  private dist(p1: any, p2: any): number {
+    return Math.sqrt(
+      Math.pow(p1.x - p2.x, 2) +
+      Math.pow(p1.y - p2.y, 2) +
+      Math.pow(p1.z - p2.z, 2),
+    );
+  }
 
-  public analyze(landmarks: any[]): BodyTypeResult {
-    // We only use visible landmarks > 0.5
-    const checkVis = (...indices: number[]) => indices.every(i => landmarks[i] && landmarks[i].visibility > 0.5);
+  /**
+   * Computes bone lengths and the key body ratios from a single frame, usable
+   * during the calibration phase before the 15-frame history accumulates.
+   * Returns null while key joints aren't all visible.
+   */
+  public computeBoneRatios(landmarks: any[]): BodyMetrics | null {
+    const checkVis = (...indices: number[]) =>
+      indices.every((i) => landmarks[i] && landmarks[i].visibility > 0.5);
 
     if (!checkVis(11, 12, 23, 24, 25, 27, 26, 28, 13, 15, 14, 16)) {
-      return { bodyType: 'scanning', confidence: 0, adaptiveFactor: 1.0, explanation: 'Waiting for full body visibility...' };
+      return null;
     }
 
-    const dist = (p1: any, p2: any) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) + Math.pow(p1.z - p2.z, 2));
+    const shoulderWidth = this.dist(landmarks[11], landmarks[12]);
+    const hipWidth = this.dist(landmarks[23], landmarks[24]);
 
-    const shoulderWidth = dist(landmarks[11], landmarks[12]);
-    const hipWidth = dist(landmarks[23], landmarks[24]);
-    
-    // Midpoints
     const shoulderMid = {
       x: (landmarks[11].x + landmarks[12].x) / 2,
       y: (landmarks[11].y + landmarks[12].y) / 2,
@@ -63,36 +94,65 @@ class BodyTypeEngine {
       z: (landmarks[23].z + landmarks[24].z) / 2,
     };
 
-    const torsoLength = dist(shoulderMid, hipMid);
-    
+    const torsoLength = this.dist(shoulderMid, hipMid);
+
     // Femurs (hip-to-knee) — the key ratio for squat/lunge mechanics
-    const leftFemur = dist(landmarks[23], landmarks[25]);
-    const rightFemur = dist(landmarks[24], landmarks[26]);
+    const leftFemur = this.dist(landmarks[23], landmarks[25]);
+    const rightFemur = this.dist(landmarks[24], landmarks[26]);
     const femurLength = (leftFemur + rightFemur) / 2;
 
     // Full legs (hip-to-knee + knee-to-ankle)
-    const leftLeg = leftFemur + dist(landmarks[25], landmarks[27]);
-    const rightLeg = rightFemur + dist(landmarks[26], landmarks[28]);
+    const leftLeg = leftFemur + this.dist(landmarks[25], landmarks[27]);
+    const rightLeg = rightFemur + this.dist(landmarks[26], landmarks[28]);
     const legLength = (leftLeg + rightLeg) / 2;
 
     // Arms
-    const leftArm = dist(landmarks[11], landmarks[13]) + dist(landmarks[13], landmarks[15]);
-    const rightArm = dist(landmarks[12], landmarks[14]) + dist(landmarks[14], landmarks[16]);
+    const leftArm = this.dist(landmarks[11], landmarks[13]) + this.dist(landmarks[13], landmarks[15]);
+    const rightArm = this.dist(landmarks[12], landmarks[14]) + this.dist(landmarks[14], landmarks[16]);
     const armLength = (leftArm + rightArm) / 2;
 
-    // Prevent div by 0 just in case
-    if (hipWidth === 0 || legLength === 0 || torsoLength === 0 || femurLength === 0) {
-      return { bodyType: 'scanning', confidence: 0, adaptiveFactor: 1.0, explanation: 'Invalid body dimensions...' };
+    if (
+      hipWidth === 0 ||
+      legLength === 0 ||
+      torsoLength === 0 ||
+      femurLength === 0
+    ) {
+      return null;
     }
 
-    const shoulderToHip = shoulderWidth / hipWidth;
-    const torsoToLeg = torsoLength / legLength;
-    const torsoToFemur = torsoLength / femurLength;
-    const armToTorso = armLength / torsoLength;
+    return {
+      shoulderWidth,
+      hipWidth,
+      torsoLength,
+      legLength,
+      femurLength,
+      armLength,
+      ratios: {
+        shoulderToHip: shoulderWidth / hipWidth,
+        torsoToLeg: torsoLength / legLength,
+        torsoToFemur: torsoLength / femurLength,
+        armToTorso: armLength / torsoLength,
+      },
+    };
+  }
+
+  public analyze(landmarks: any[]): BodyTypeResult {
+    const metrics = this.computeBoneRatios(landmarks);
+
+    if (!metrics) {
+      return {
+        bodyType: 'scanning',
+        confidence: 0,
+        adaptiveFactor: 1.0,
+        explanation: 'Waiting for full body visibility...',
+      };
+    }
+
+    const { shoulderToHip, torsoToLeg, torsoToFemur, armToTorso } = metrics.ratios;
 
     // Adaptive calibration factor: body-type-specific ±10% threshold scaling
-    // When torsoToFemur > reference → shorter femurs → thresholds decrease (factor < 1.0)
-    // When torsoToFemur < reference → longer femurs → thresholds increase (factor > 1.0)
+    // When torsoToFemur > reference → shorter femurs → thresholds relax (factor < 1.0)
+    // When torsoToFemur < reference → longer femurs → thresholds tighten (factor > 1.0)
     this.history.push({ shoulderToHip, torsoToLeg, torsoToFemur, armToTorso });
     if (this.history.length > this.HISTORY_SIZE) {
       this.history.shift();
@@ -100,15 +160,23 @@ class BodyTypeEngine {
 
     if (this.history.length < this.HISTORY_SIZE) {
       const pct = Math.round((this.history.length / this.HISTORY_SIZE) * 100);
-      return { bodyType: 'scanning', confidence: 0, adaptiveFactor: 1.0, explanation: `Scanning geometry ${pct}%...` };
+      return {
+        bodyType: 'scanning',
+        confidence: 0,
+        adaptiveFactor: 1.0,
+        explanation: `Scanning geometry ${pct}%...`,
+      };
     }
 
-    const avg = this.history.reduce((acc, curr) => ({
-      shoulderToHip: acc.shoulderToHip + curr.shoulderToHip,
-      torsoToLeg: acc.torsoToLeg + curr.torsoToLeg,
-      torsoToFemur: acc.torsoToFemur + curr.torsoToFemur,
-      armToTorso: acc.armToTorso + curr.armToTorso,
-    }), { shoulderToHip: 0, torsoToLeg: 0, torsoToFemur: 0, armToTorso: 0 });
+    const avg = this.history.reduce(
+      (acc, curr) => ({
+        shoulderToHip: acc.shoulderToHip + curr.shoulderToHip,
+        torsoToLeg: acc.torsoToLeg + curr.torsoToLeg,
+        torsoToFemur: acc.torsoToFemur + curr.torsoToFemur,
+        armToTorso: acc.armToTorso + curr.armToTorso,
+      }),
+      { shoulderToHip: 0, torsoToLeg: 0, torsoToFemur: 0, armToTorso: 0 },
+    );
 
     avg.shoulderToHip /= this.HISTORY_SIZE;
     avg.torsoToLeg /= this.HISTORY_SIZE;
@@ -116,8 +184,7 @@ class BodyTypeEngine {
     avg.armToTorso /= this.HISTORY_SIZE;
 
     // Recompute adaptive factor from smoothed ratios
-    const smoothedFactor = this.REFERENCE_TORSO_FEMUR_RATIO / avg.torsoToFemur;
-    const smoothedAdaptiveFactor = Math.min(1.1, Math.max(0.9, smoothedFactor));
+    const smoothedAdaptiveFactor = computeAdaptiveFactor(avg.torsoToFemur);
 
     let type: BodyType = 'meso';
     let explanation = '';
@@ -152,12 +219,12 @@ class BodyTypeEngine {
       confidence: Math.min(confidence, 0.99),
       adaptiveFactor: smoothedAdaptiveFactor,
       metrics: {
-        shoulderWidth,
-        hipWidth,
-        torsoLength,
-        legLength,
-        femurLength,
-        armLength,
+        shoulderWidth: metrics.shoulderWidth,
+        hipWidth: metrics.hipWidth,
+        torsoLength: metrics.torsoLength,
+        legLength: metrics.legLength,
+        femurLength: metrics.femurLength,
+        armLength: metrics.armLength,
         ratios: {
           shoulderToHip: avg.shoulderToHip,
           torsoToLeg: avg.torsoToLeg,

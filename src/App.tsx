@@ -144,7 +144,7 @@ function App() {
     exercises.squat,
   );
   const [bodyType, setBodyType] = useState<BodyType>("scanning");
-  const setAdaptiveFactor = useState<number>(1.0)[1];
+  const [adaptiveFactor, setAdaptiveFactor] = useState<number>(1.0);
   const [showExitModal, setShowExitModal] = useState(false);
   const [stats, setStats] = useState<WorkoutStats>({
     reps: 0,
@@ -413,6 +413,7 @@ function App() {
               onEnd={handleWorkoutEnd}
               onAutoDetect={handleAutoDetect}
               bodyType={bodyType}
+              adaptiveFactor={adaptiveFactor}
             />
           </PageErrorBoundary>
         )}

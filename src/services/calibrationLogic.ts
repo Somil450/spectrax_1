@@ -1,4 +1,5 @@
 import type { Results } from '@mediapipe/pose';
+import { computeAdaptiveFactor } from './bodyTypeEngine';
 
 /**
  * calibrationLogic.ts
@@ -12,6 +13,7 @@ export interface CalibrationResult {
   visibleCount: number;
   totalCount: number;
   adaptiveFactor: number;
+  torsoToFemur?: number;
 }
 
 export class CalibrationLogic {
@@ -20,8 +22,18 @@ export class CalibrationLogic {
   /**
    * Processes current pose results and returns a calibration status.
    * @param adaptiveFactor - Body-type calibration factor (0.9–1.1) from bodyTypeEngine, applied to thresholds.
+   * @param torsoToFemur - Measured torso-to-femur bone ratio used to derive a live
+   *   ±10% adaptive factor during the calibration phase (overrides `adaptiveFactor`).
    */
-  evaluate(results: Results, adaptiveFactor: number = 1.0): CalibrationResult {
+  evaluate(
+    results: Results,
+    adaptiveFactor: number = 1.0,
+    torsoToFemur?: number,
+  ): CalibrationResult {
+    if (torsoToFemur !== undefined && Number.isFinite(torsoToFemur) && torsoToFemur > 0) {
+      adaptiveFactor = computeAdaptiveFactor(torsoToFemur);
+    }
+
     if (!results.poseLandmarks) {
       return {
         status: 'red',
@@ -29,7 +41,8 @@ export class CalibrationLogic {
         isReady: false,
         visibleCount: 0,
         totalCount: 8,
-        adaptiveFactor
+        adaptiveFactor,
+        torsoToFemur
       };
     }
 
@@ -48,7 +61,8 @@ export class CalibrationLogic {
         isReady: false,
         visibleCount,
         totalCount: requiredIndices.length,
-        adaptiveFactor
+        adaptiveFactor,
+        torsoToFemur
       };
     }
 
@@ -59,7 +73,8 @@ export class CalibrationLogic {
         isReady: false,
         visibleCount,
         totalCount: requiredIndices.length,
-        adaptiveFactor
+        adaptiveFactor,
+        torsoToFemur
       };
     }
 
@@ -72,7 +87,8 @@ export class CalibrationLogic {
         isReady: false,
         visibleCount,
         totalCount: requiredIndices.length,
-        adaptiveFactor
+        adaptiveFactor,
+        torsoToFemur
       };
     }
 
@@ -83,7 +99,8 @@ export class CalibrationLogic {
       isReady: true,
       visibleCount,
       totalCount: requiredIndices.length,
-      adaptiveFactor
+      adaptiveFactor,
+      torsoToFemur
     };
   }
 }
