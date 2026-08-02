@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert, Pause } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { poseService } from '../services/poseService';
@@ -286,6 +286,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const gestureHudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workoutControlRef = useRef<'idle' | 'running' | 'paused'>('idle');
   const [workoutControlState, setWorkoutControlState] = useState<'idle' | 'running' | 'paused'>('idle');
+  const pausedAtRef = useRef<number>(0);
+  const totalPausedMsRef = useRef<number>(0);
   const ghostFramesRef = useRef<FrameData[]>([]);
   const ghostStatsRef = useRef<GhostStats | null>(null);
   const [hasGhost, setHasGhost] = useState(false);
@@ -610,17 +612,34 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     });
   }, [exercise.key, onEnd, seconds, clipResult]);
 
+  const setPaused = useCallback((paused: boolean) => {
+    if (paused) {
+      if (workoutControlRef.current === 'running') {
+        workoutControlRef.current = 'paused';
+        pausedAtRef.current = Date.now();
+        setWorkoutControlState('paused');
+      }
+    } else {
+      if (workoutControlRef.current === 'paused') {
+        if (pausedAtRef.current > 0) {
+          totalPausedMsRef.current += Date.now() - pausedAtRef.current;
+          pausedAtRef.current = 0;
+        }
+        workoutControlRef.current = 'running';
+        setWorkoutControlState('running');
+      }
+    }
+  }, []);
+
   const handleVoiceCommand = useCallback((cmd: 'START' | 'PAUSE' | 'STOP') => {
     if (cmd === 'STOP') {
       handleEnd();
-    } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
-      workoutControlRef.current = 'paused';
-      setWorkoutControlState('paused');
-    } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
-      workoutControlRef.current = 'running';
-      setWorkoutControlState('running');
+    } else if (cmd === 'PAUSE') {
+      setPaused(true);
+    } else if (cmd === 'START') {
+      setPaused(false);
     }
-  }, [handleEnd]);
+  }, [handleEnd, setPaused]);
 
   const { isListening: isVoiceListening } = useVoiceControl({
     enabled: voiceCommandsEnabled && workoutControlState !== 'idle',
@@ -665,12 +684,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         // Trigger the existing end-session flow
         handleEnd();
         return;
-      } else if (cmd === 'PAUSE' && workoutControlRef.current === 'running') {
-        workoutControlRef.current = 'paused';
-        setWorkoutControlState('paused');
-      } else if (cmd === 'START' && workoutControlRef.current !== 'running') {
-        workoutControlRef.current = 'running';
-        setWorkoutControlState('running');
+      } else if (cmd === 'PAUSE') {
+        setPaused(true);
+      } else if (cmd === 'START') {
+        setPaused(false);
       }
     }
 
@@ -854,7 +871,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       
       overlayRenderer.draw(results, nextState.status, primaryJoints, errorJoints);
     }
-  }, [exercise, depth3DEnabled, handleEnd, settings]);
+  }, [exercise, depth3DEnabled, handleEnd, setPaused, settings]);
 
   const handleFrameTick = useCallback((count: number) => {
     setVlmProgress(clipEngine.getProgress());
@@ -898,6 +915,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   useEffect(() => {
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
+    totalPausedMsRef.current = 0;
+    pausedAtRef.current = 0;
+    workoutControlRef.current = 'idle';
+    setWorkoutControlState('idle');
     exerciseEngine.reset();
     injuryRiskEngine.reset();
 
@@ -963,9 +984,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     startWorkout();
 
     const timerRef = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const baseElapsed = Date.now() - startTimeRef.current - totalPausedMsRef.current;
+      const pausedElapsed = pausedAtRef.current > 0 ? Date.now() - pausedAtRef.current : 0;
+      const elapsed = Math.floor((baseElapsed - pausedElapsed) / 1000);
 
-      setSeconds(elapsed);
+      setSeconds(Math.max(0, elapsed));
     }, 1000);
 
     return () => {
@@ -1568,7 +1591,6 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             alignItems: 'center',
             justifyContent: 'center',
             gap: '20px',
-            pointerEvents: 'none',
           }}
           role="status"
           aria-live="polite"
@@ -1596,6 +1618,14 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             Raise <strong>both palms</strong> above your shoulders<br />
             or give a <strong>thumbs-up</strong> to resume
           </div>
+          <button
+            type="button"
+            onClick={() => setPaused(false)}
+            className="btn-neon"
+            style={{ background: 'var(--neon-green)', color: '#000', padding: '12px 28px', fontWeight: 700, letterSpacing: '1px' }}
+          >
+            <ArrowUpCircle size={18} /> RESUME TRACKING
+          </button>
         </div>
       )}
 
@@ -1849,6 +1879,20 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         </div>
       </div>
       <div className="workout-finish-action">
+        <button
+          type="button"
+          onClick={() => setPaused(workoutControlState !== 'paused')}
+          className="btn-neon"
+          style={{
+            background: workoutControlState === 'paused' ? 'var(--neon-green)' : 'var(--neon-yellow, #ffd700)',
+            color: '#000',
+          }}
+          aria-pressed={workoutControlState === 'paused'}
+          aria-label={workoutControlState === 'paused' ? 'Resume tracking' : 'Pause tracking'}
+        >
+          {workoutControlState === 'paused' ? <ArrowUpCircle size={18} /> : <Pause size={18} />}
+          {workoutControlState === 'paused' ? 'RESUME' : 'PAUSE'}
+        </button>
         <button
           onClick={handleEnd}
           className="btn-neon"
