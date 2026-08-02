@@ -946,7 +946,14 @@ export class PoseService {
       return;
     }
 
-    if (!this.pose || !this.isLoaded || this.inProgress) return;
+    // Lazily re-initialize the MediaPipe pose detector after it was released
+    // by close() (e.g. on WorkoutScreen unmount) so subsequent sessions work.
+    if (!this.pose || !this.isLoaded) {
+      this.init();
+      if (!this.pose) return;
+    }
+
+    if (this.inProgress) return;
 
     this.inProgress = true;
 

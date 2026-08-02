@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert, Mic, MicOff } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { poseService } from '../services/poseService';
@@ -972,13 +972,31 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       isMountedRef.current = false;
       stopSystem();
       worker.terminate();
+      workerRef.current = null;
       depthEngineRef.current?.destroy();
       depthEngineRef.current = null;
       clearInterval(timerRef);
+      if (gestureHudTimerRef.current) {
+        clearTimeout(gestureHudTimerRef.current);
+        gestureHudTimerRef.current = null;
+      }
+      // Release MediaPipe pose detector + GPU resources so the garbage
+      // collector can reclaim them (send() re-initializes on next session).
+      void poseService.close();
       gestureService.reset();
       exerciseEngine.reset();
       injuryRiskEngine.reset();
-      if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
+      neuralFormEngine.reset();
+      // Nullify tracking refs to release references to frame/landmark data.
+      workerAnglesRef.current = {};
+      pendingLandmarksRef.current = null;
+      workerInFlightRef.current = false;
+      workerSkipCountRef.current = 0;
+      frameSkipRef.current = 0;
+      lastDepthMapRef.current = null;
+      ghostFramesRef.current = [];
+      ghostStatsRef.current = null;
+      endSessionRef.current = undefined;
     };
   }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession,user?.uid]);
 
