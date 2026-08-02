@@ -39,7 +39,7 @@ export function calculateStreak(isoDateStrings: string[]): number {
 
   // Deduplicate to one entry per calendar day, newest first
   const days = [...new Set(isoDateStrings.map(d => localDayString(new Date(d))))]
-    .sort()
+    .sort((a, b) => a - b)
     .reverse();
 
   const today     = localDayString(new Date());
