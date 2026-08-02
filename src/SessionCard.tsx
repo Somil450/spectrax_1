@@ -1,7 +1,8 @@
 // src/SessionCard.tsx
-import React, { useState } from "react";
-import { Trash2, Clock, Zap, Target, Calendar } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Trash2, Clock, Zap, Target, Calendar, Share2, Check } from "lucide-react";
 import type { WorkoutSession } from "./useWorkoutHistory";
+import { shareSessionCard } from "./utils/shareSession";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,8 @@ interface SessionCardProps {
 
 const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shareState, setShareState] = useState<"idle" | "busy" | "done">("idle");
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const handleDeleteClick = () => {
     if (confirmDelete) {
@@ -49,6 +52,28 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
     } else {
       setConfirmDelete(true);
       setTimeout(() => setConfirmDelete(false), 3000);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!cardRef.current || shareState === "busy") return;
+    setShareState("busy");
+    try {
+      const result = await shareSessionCard(cardRef.current, {
+        exerciseType: session.exerciseType,
+        totalReps: session.totalReps,
+        accuracyScore: session.accuracyScore,
+        duration: session.duration,
+        timestamp: session.timestamp,
+      });
+      if (result.success) {
+        setShareState("done");
+        setTimeout(() => setShareState("idle"), 2500);
+      } else {
+        setShareState("idle");
+      }
+    } catch {
+      setShareState("idle");
     }
   };
 
@@ -63,7 +88,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
   const color = accuracyColor(session.accuracyScore);
 
   return (
-    <div className="session-card">
+    <div className="session-card" ref={cardRef}>
       {/* Left accent bar colored by accuracy */}
       <div className="card-accent" style={{ background: color }} />
 
@@ -72,15 +97,25 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
         <div className="card-header">
           <span className="exercise-badge">{formatExerciseName(session.exerciseType)}</span>
 
-          <button
-            className={`delete-btn ${confirmDelete ? "confirm" : ""} has-tooltip tooltip-left`}
-            onClick={handleDeleteClick}
-            data-tooltip={confirmDelete ? "Confirm delete" : "Delete session"}
-            aria-label="Delete session"
-          >
-            <Trash2 size={15} />
-            {confirmDelete && <span className="confirm-label">Confirm?</span>}
-          </button>
+          <div className="card-actions">
+            <button
+              className={`share-btn ${shareState === "done" ? "shared" : ""} has-tooltip tooltip-left`}
+              onClick={handleShare}
+              data-tooltip={shareState === "done" ? "Shared!" : "Share workout"}
+              aria-label="Share workout"
+            >
+              {shareState === "done" ? <Check size={15} /> : <Share2 size={15} />}
+            </button>
+            <button
+              className={`delete-btn ${confirmDelete ? "confirm" : ""} has-tooltip tooltip-left`}
+              onClick={handleDeleteClick}
+              data-tooltip={confirmDelete ? "Confirm delete" : "Delete session"}
+              aria-label="Delete session"
+            >
+              <Trash2 size={15} />
+              {confirmDelete && <span className="confirm-label">Confirm?</span>}
+            </button>
+          </div>
         </div>
 
         {/* Stats grid */}
@@ -138,6 +173,37 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onDelete }) => {
           display: flex;
           justify-content: space-between;
           align-items: center;
+        }
+        .card-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .share-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: 7px;
+          color: var(--text-secondary);
+          cursor: pointer;
+          padding: 4px 8px;
+          font-size: 12px;
+          transition: all 0.15s ease;
+          min-width: 44px;
+          min-height: 44px;
+          position: relative;
+        }
+        .share-btn:hover {
+          color: var(--neon-cyan);
+          border-color: rgba(0, 240, 255, 0.3);
+          background: rgba(0, 240, 255, 0.08);
+        }
+        .share-btn.shared {
+          color: var(--neon-green);
+          border-color: rgba(34, 197, 94, 0.4);
+          background: rgba(34, 197, 94, 0.1);
         }
         .exercise-badge {
           font-family: 'Space Mono', monospace;
