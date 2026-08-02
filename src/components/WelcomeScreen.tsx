@@ -401,7 +401,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     onChange={(e) => {
                       setUserWeight(e.target.value);
                       const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && val >= 30 && val <= 200)
+                      if (!Number.isNaN(val) && val >= 30 && val <= 200)
                         saveUserWeight(val);
                     }}
                     style={{
