@@ -1482,14 +1482,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             </span>
           </div>
           <p
-            className="pb-4"
             style={{
               fontFamily: "var(--font-heading)",
               fontSize: "1.8rem",
               color: "#fff",
               letterSpacing: "2px",
               margin: "10px 0",
-              paddingBottom: "16px",
+              padding: "0 0 16px",
             }}
             aria-live="assertive"
             aria-atomic="true"
@@ -1500,7 +1499,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             style={{
               marginTop: "15px",
               borderTop: "1px solid rgba(255,255,255,0.1)",
-              paddingTop: "10px",
+              padding: "10px 0 12px",
             }}
           >
             <div
