@@ -1,8 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
+import { Award, Clock, RotateCcw, Video, Activity, FileJson, FileSpreadsheet } from 'lucide-react';
 import { updateWorkoutStreak } from "../utils/streakUtils";
 import { useAuth } from '../context/AuthContext';
 import { getLocalWorkouts, WorkoutRecord } from '../services/workoutSyncService';
+import {
+  buildRepLog,
+  countQualityTiers,
+  longestGoodStreak,
+  exportSessionJSON,
+  exportSessionCSV,
+  type RepLogRow,
+  type RepQualityTier,
+} from '../utils/sessionExport';
 
 interface SummaryScreenProps {
   stats: {
@@ -113,25 +122,20 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
 
   const exportSessionData = () => {
     try {
-      const jsonData = JSON.stringify(stats, null, 2);
-      const blob = new Blob([jsonData], {
-        type: "application/json",
-      });
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
-      link.href = url;
-      link.download = `workout-session-${timestamp}.json`;
-      link.click();
-      URL.revokeObjectURL(url); 
+      exportSessionJSON(stats);
     } catch (error) {
       console.error("Failed to export session data:", error);
       alert("Unable to export session data. Please try again.");
     }
+  };
 
+  const exportSessionCsv = () => {
+    try {
+      exportSessionCSV(stats);
+    } catch (error) {
+      console.error("Failed to export session CSV:", error);
+      alert("Unable to export session CSV. Please try again.");
+    }
   };
 
   // Rep Quality Insights
@@ -146,6 +150,12 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
       )
       : 0;
   const streakData = updateWorkoutStreak();
+
+  // Rep-level breakdown derived from per-rep scores (issue #984)
+  const repLog: RepLogRow[] = useMemo(() => buildRepLog(stats), [stats]);
+  const qualityCounts = useMemo(() => countQualityTiers(repLog), [repLog]);
+  const goodRepStreak = useMemo(() => longestGoodStreak(repLog), [repLog]);
+  const hasRepData = repLog.length > 0;
 
   if (stats.totalReps === 0) {
     return (
@@ -514,6 +524,72 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           </div>
         </div>
       </div>
+
+      {/* Rep Quality Breakdown — issue #984 */}
+      {hasRepData && (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--neon-cyan)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 700, textAlign: 'left' }}>
+            REP QUALITY BREAKDOWN
+          </div>
+          <div style={{ display: 'flex', height: '12px', borderRadius: '6px', overflow: 'hidden', marginBottom: '14px', background: 'rgba(255,255,255,0.05)' }}>
+            {repLog.length > 0 && (
+              <>
+                <div style={{ width: `${(qualityCounts.Good / repLog.length) * 100}%`, background: 'var(--neon-green)', boxShadow: '0 0 8px var(--neon-green)55' }} title={`Good: ${qualityCounts.Good}`} />
+                <div style={{ width: `${(qualityCounts.Acceptable / repLog.length) * 100}%`, background: 'var(--neon-yellow)', boxShadow: '0 0 8px var(--neon-yellow)55' }} title={`Acceptable: ${qualityCounts.Acceptable}`} />
+                <div style={{ width: `${(qualityCounts.Poor / repLog.length) * 100}%`, background: 'var(--neon-red)', boxShadow: '0 0 8px var(--neon-red)55' }} title={`Poor: ${qualityCounts.Poor}`} />
+              </>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-around', gap: '10px', flexWrap: 'wrap' }}>
+            <QualityTierStat label="Good" count={qualityCounts.Good} color="var(--neon-green)" />
+            <QualityTierStat label="Acceptable" count={qualityCounts.Acceptable} color="var(--neon-yellow)" />
+            <QualityTierStat label="Poor" count={qualityCounts.Poor} color="var(--neon-red)" />
+          </div>
+        </div>
+      )}
+
+      {/* Form Score Timeline — issue #984 */}
+      {hasRepData && (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--neon-purple)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 700, textAlign: 'left' }}>
+            FORM SCORE TIMELINE
+          </div>
+          <FormScoreTimeline rows={repLog} />
+        </div>
+      )}
+
+      {/* Rep-by-Rep Details — issue #984 */}
+      {hasRepData && (
+        <div className="glass animate-in" style={{ width: '100%', maxWidth: '600px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--neon-yellow)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '16px', fontWeight: 700, textAlign: 'left' }}>
+            REP-BY-REP DETAILS
+          </div>
+          <div style={{ maxHeight: '260px', overflowY: 'auto', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Space Mono', monospace", fontSize: '0.75rem' }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-dim)', textTransform: 'uppercase', fontSize: '0.62rem', letterSpacing: '1px' }}>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Rep</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Time</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Score</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Tier</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Flagged Issue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {repLog.map((row) => (
+                  <tr key={row.rep} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '7px 10px', color: '#fff' }}>#{row.rep}</td>
+                    <td style={{ padding: '7px 10px', color: 'var(--text-secondary)' }}>{formatTime(row.timestampSec)}</td>
+                    <td style={{ padding: '7px 10px', color: tierColor(row.tier), fontWeight: 700 }}>{row.score}%</td>
+                    <td style={{ padding: '7px 10px', color: 'var(--text-secondary)' }}>{row.tier}</td>
+                    <td style={{ padding: '7px 10px', color: 'var(--text-secondary)' }}>{row.issue}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Form Fatigue Insights */}
       {stats.repDeviations && stats.repDeviations.length > 0 && (
@@ -913,7 +989,15 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
           className="btn-outline"
           style={{ flex: 1 }}
         >
-          EXPORT DATA
+          <FileJson size={16} /> EXPORT JSON
+        </button>
+
+        <button
+          onClick={exportSessionCsv}
+          className="btn-outline"
+          style={{ flex: 1 }}
+        >
+          <FileSpreadsheet size={16} /> EXPORT CSV
         </button>
 
         <button
@@ -923,6 +1007,101 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         >
           VIEW 3D REPLAY <Video size={16} />
         </button>      </div>
+    </div>
+  );
+};
+
+function tierColor(tier: RepQualityTier): string {
+  if (tier === "Good") return "var(--neon-green)";
+  if (tier === "Acceptable") return "var(--neon-yellow)";
+  return "var(--neon-red)";
+}
+
+interface QualityTierStatProps {
+  label: string;
+  count: number;
+  color: string;
+}
+
+const QualityTierStat: React.FC<QualityTierStatProps> = ({ label, count, color }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}88` }} />
+    <span style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '1px', flex: 1 }}>{label}</span>
+    <span style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>{count}</span>
+  </div>
+);
+
+interface FormScoreTimelineProps {
+  rows: RepLogRow[];
+}
+
+const FormScoreTimeline: React.FC<FormScoreTimelineProps> = ({ rows }) => {
+  const width = 560;
+  const height = 180;
+  const padLeft = 30;
+  const padRight = 10;
+  const padTop = 12;
+  const padBottom = 24;
+  const maxScore = 100;
+  const minScore = 0;
+
+  const plotWidth = width - padLeft - padRight;
+  const plotHeight = height - padTop - padBottom;
+
+  const xFor = (index: number) => {
+    if (rows.length === 1) return padLeft + plotWidth / 2;
+    return padLeft + (index / (rows.length - 1)) * plotWidth;
+  };
+  const yFor = (score: number) =>
+    padTop + plotHeight - (score / (maxScore - minScore)) * plotHeight;
+
+  const points = rows.map((row, index) => `${xFor(index)},${yFor(row.score)}`).join(" ");
+  const goodY = yFor(80);
+  const poorY = yFor(60);
+
+  return (
+    <div style={{ width: '100%', overflowX: 'auto' }}>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', minWidth: '320px', height: 'auto', display: 'block' }}>
+        {/* Score zone bands */}
+        <rect x={padLeft} y={goodY} width={plotWidth} height={padTop + plotHeight - goodY} fill="rgba(34,211,160,0.06)" />
+        <rect x={padLeft} y={poorY} width={plotWidth} height={goodY - poorY} fill="rgba(251,191,36,0.05)" />
+        <rect x={padLeft} y={padTop} width={plotWidth} height={poorY - padTop} fill="rgba(239,68,68,0.06)" />
+
+        {/* Gridlines + labels */}
+        {[100, 80, 60, 40, 20, 0].map((score) => (
+          <g key={score}>
+            <line x1={padLeft} y1={yFor(score)} x2={padLeft + plotWidth} y2={yFor(score)} stroke="rgba(255,255,255,0.07)" strokeDasharray="3 3" />
+            <text x={padLeft - 6} y={yFor(score) + 3} textAnchor="end" fontSize="9" fill="var(--text-dim)" fontFamily="'Space Mono', monospace">{score}</text>
+          </g>
+        ))}
+
+        {/* Polyline */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="var(--neon-cyan)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          style={{ filter: 'drop-shadow(0 0 4px rgba(0,240,255,0.5))' }}
+        />
+
+        {/* Rep dots */}
+        {rows.map((row, index) => (
+          <g key={row.rep}>
+            <circle cx={xFor(index)} cy={yFor(row.score)} r="3" fill={tierColor(row.tier)} stroke="#0a0e1a" strokeWidth="1" />
+            {index % Math.ceil(rows.length / 12) === 0 && (
+              <text x={xFor(index)} y={height - 8} textAnchor="middle" fontSize="8.5" fill="var(--text-dim)" fontFamily="'Space Mono', monospace">
+                {row.rep}
+              </text>
+            )}
+          </g>
+        ))}
+
+        <text x={padLeft + plotWidth / 2} y={height - 2} textAnchor="middle" fontSize="9" fill="var(--text-dim)" fontFamily="'Space Mono', monospace">
+          REP →
+        </text>
+      </svg>
     </div>
   );
 };
