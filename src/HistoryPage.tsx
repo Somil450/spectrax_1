@@ -24,6 +24,7 @@ import SessionCard from "./SessionCard";
 import { BodyMetricsWidget } from "./components/BodyMetricsWidget";
 import { ProgressAnalyticsWidget } from "./components/ProgressAnalyticsWidget";
 import { Dashboard } from "./components/Dashboard/Dashboard";
+import { WeeklyActivityChart } from "./components/WeeklyActivityChart";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -254,6 +255,11 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
           />
         </div>
       )}
+
+      {/* ── Weekly Activity Chart ── */}
+      <div style={{ padding: "20px 0 0" }}>
+        <WeeklyActivityChart workouts={sessions} />
+      </div>
 
       {/* ── Sync Status Indicator ── */}
       <div
