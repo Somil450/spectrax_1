@@ -1,11 +1,12 @@
 import React from "react";
+import "../styles/legal.css";
 
 interface PrivacyPageProps {
   onBack: () => void;
 }
 export default function PrivacyPage({onBack}: PrivacyPageProps) {
   return (
-    <main className="max-w-4xl mx-auto px-6 py-12 ">
+    <main className="legal-page">
        
        <button 
         onClick={onBack} 
@@ -201,7 +202,7 @@ export default function PrivacyPage({onBack}: PrivacyPageProps) {
         </div>
 
         <div>
-          <h2 className="text-2xl font-semibold mb-2 style={{  boxShadow: '0 0 28px rgba(168, 85, 247, 0.5), 0 0 60px rgba(168, 85, 247, 0.2)'}}>">Your Rights</h2>
+          <h2 className="text-2xl font-semibold mb-2">Your Rights</h2>
 
           <ul className="list-disc pl-6">
             <li>Access your personal information</li>

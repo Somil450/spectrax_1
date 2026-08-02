@@ -1,11 +1,11 @@
-import { Radius } from "lucide-react";
 import React from "react";
+import "../styles/legal.css";
 interface TermsAndConditionsProps {
   onBack: () => void;
 }
 export default function TermsAndConditions({onBack}:TermsAndConditionsProps) {
   return (
-    <main className="max-w-4xl mx-auto px-6 py-12">
+    <main className="legal-page">
       <button 
         onClick={onBack} 
         style={{height:'40px',width:'130px', background: 'var(--neon-cyan)',  color: 'var(--bg-primary)',borderRadius:"7px",fontWeight:"500",fontSize:"15px",borderColor:'white'}}

@@ -1,0 +1,62 @@
+/* ═══════════════════════════════════════════════════════════════
+   LEGAL PAGES — Privacy Policy & Terms and Conditions
+   Renders the pages with proper layout/typography using the
+   project's design tokens (no Tailwind dependency).
+   ═══════════════════════════════════════════════════════════════ */
+
+.legal-page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: clamp(24px, 4vw, 56px);
+  box-sizing: border-box;
+  color: var(--text-primary, #e2e8f0);
+  font-family: var(--font-body, 'Inter', sans-serif);
+}
+
+.legal-page > button {
+  margin-bottom: 24px;
+}
+
+.legal-page h1 {
+  font-family: var(--font-heading, 'Orbitron', sans-serif);
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--neon-cyan, #00f0ff);
+  margin: 0 0 8px;
+}
+
+.legal-page h2 {
+  font-family: var(--font-heading, 'Orbitron', sans-serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--neon-purple, #9d4edd);
+  margin: 28px 0 10px;
+}
+
+.legal-page h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 16px 0 6px;
+}
+
+.legal-page p {
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+
+.legal-page ul {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 8px 0 12px;
+}
+
+.legal-page li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.legal-page a {
+  color: var(--neon-cyan, #00f0ff);
+  text-decoration: underline;
+}
