@@ -11,6 +11,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
+import { safeUniform } from "../utils/safeUniform";
 
 // ─── Scene builder helpers (extracted from this file) ─────────────────────────
 import {
@@ -632,7 +633,10 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
         const previousPos  = previousPositions[rig.jointIdx];
         const movement     = previousPos ? jointPos.distanceTo(previousPos) : 0;
-        const motionStress = THREE.MathUtils.clamp(movement * 3.25, 0, 1);
+        // NaN-safe: occluded/fast-motion landmarks can produce non-finite
+        // positions whose distanceTo() is NaN — sanitize before upload so the
+        // GLSL shader never receives an out-of-range/NaN uniform (see #1046).
+        const motionStress = safeUniform(movement * 3.25, 0, 1);
         const tensionBoost = badJoints.has(rig.jointIdx) ? 0.38 : 0;
         const groupBoost   = allowedGroups.has(rig.muscleGroup) ? 0.14 : 0.04;
 
@@ -644,7 +648,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           .add(_stressSide.copy(STRESS_SIDE_AXIS).multiplyScalar(0.03))
           .normalize();
 
-        const stress    = THREE.MathUtils.clamp(motionStress * 0.55 + tensionBoost + groupBoost, 0, 1);
+        const stress    = safeUniform(motionStress * 0.55 + tensionBoost + groupBoost, 0, 1);
         const length    = 0.45 + stress * 1.55;
         const thickness = 0.045 + stress * 0.03;
 
@@ -656,7 +660,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         rig.material.uniforms.uStress.value    = stress;
         rig.material.uniforms.uLength.value    = length;
         rig.material.uniforms.uThickness.value = thickness;
-        rig.material.uniforms.uTime.value      = time * 0.001;
+        rig.material.uniforms.uTime.value      = safeUniform(time * 0.001, 0, 1e9);
         rig.material.uniforms.uColor.value.copy(baseColor).lerp(
           badJoints.has(rig.jointIdx) ? STRESS_COLOR_BAD : STRESS_COLOR_GOOD,
           stress,
@@ -684,7 +688,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const speeds    = material.uniforms.uRippleSpeeds.value    as number[];
     const strengths = material.uniforms.uRippleStrengths.value as number[];
 
-    material.uniforms.uTime.value        = timeSeconds;
+    material.uniforms.uTime.value        = safeUniform(timeSeconds, 0, 1e9);
     material.uniforms.uRippleCount.value = activeEvents.length;
 
     for (let i = 0; i < GRID_RIPPLE_MAX; i++) {
@@ -692,8 +696,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       if (event) {
         origins[i].copy(event.origin);
         starts[i]    = event.startTime;
-        speeds[i]    = event.speed;
-        strengths[i] = event.strength;
+        speeds[i]    = safeUniform(event.speed, 0, 1e6);
+        strengths[i] = safeUniform(event.strength, 0, 1);
       } else {
         origins[i].set(-10, -10);
         starts[i] = speeds[i] = strengths[i] = 0;
