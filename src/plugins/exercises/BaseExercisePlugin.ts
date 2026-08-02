@@ -1,4 +1,4 @@
-import { IExercisePlugin, ExerciseContext, RepCompletionResult } from './IExercisePlugin';
+import { CalibrationStage, DepthFeedbackChannel, DepthResultField, IExercisePlugin, ExerciseContext, RepCompletionResult } from './IExercisePlugin';
 import { EngineState } from '../../services/exerciseEngine';
 
 export abstract class BaseExercisePlugin implements IExercisePlugin {
@@ -30,5 +30,17 @@ export abstract class BaseExercisePlugin implements IExercisePlugin {
 
   getWristSupinationScore(_landmarks?: any[]): number {
     return NaN;
+  }
+
+  getCalibrationStage(): CalibrationStage {
+    return 'up';
+  }
+
+  getLiveFeedbackChannel(): DepthFeedbackChannel | null {
+    return null;
+  }
+
+  getDepthResultField(): DepthResultField | null {
+    return null;
   }
 }

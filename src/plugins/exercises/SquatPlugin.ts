@@ -1,4 +1,4 @@
-import { ExerciseContext, RepCompletionResult } from './IExercisePlugin';
+import { DepthFeedbackChannel, DepthResultField, ExerciseContext, RepCompletionResult } from './IExercisePlugin';
 import { BaseExercisePlugin } from './BaseExercisePlugin';
 import { exercisePluginRegistry } from './ExercisePluginRegistry';
 import {
@@ -30,6 +30,14 @@ export class SquatPlugin extends BaseExercisePlugin {
       }
     }
     return undefined;
+  }
+
+  getLiveFeedbackChannel(): DepthFeedbackChannel | null {
+    return 'liveDepthFeedback';
+  }
+
+  getDepthResultField(): DepthResultField | null {
+    return 'lastDepthResult';
   }
 
   onRepComplete(context: ExerciseContext): RepCompletionResult | undefined {

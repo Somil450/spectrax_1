@@ -1,4 +1,4 @@
-import { ExerciseStrategy, ExerciseContext, RepCompletionResult } from '../../services/strategies/ExerciseStrategy';
+import { CalibrationStage, DepthFeedbackChannel, DepthResultField, ExerciseStrategy, ExerciseContext, RepCompletionResult } from '../../services/strategies/ExerciseStrategy';
 
 export interface IExercisePlugin extends ExerciseStrategy {
   readonly id: string;
@@ -7,4 +7,4 @@ export interface IExercisePlugin extends ExerciseStrategy {
   readonly configKey: string;
 }
 
-export type { ExerciseContext, RepCompletionResult };
+export type { CalibrationStage, DepthFeedbackChannel, DepthResultField, ExerciseContext, RepCompletionResult };

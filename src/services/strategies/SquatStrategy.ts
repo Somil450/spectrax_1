@@ -1,4 +1,4 @@
-import { ExerciseContext, RepCompletionResult } from './ExerciseStrategy';
+import { DepthFeedbackChannel, DepthResultField, ExerciseContext, RepCompletionResult } from './ExerciseStrategy';
 import { DefaultStrategy } from './DefaultStrategy';
 import {
   classifySquatDepth,
@@ -25,6 +25,14 @@ export class SquatStrategy extends DefaultStrategy {
       }
     }
     return undefined;
+  }
+
+  getLiveFeedbackChannel(): DepthFeedbackChannel | null {
+    return 'liveDepthFeedback';
+  }
+
+  getDepthResultField(): DepthResultField | null {
+    return 'lastDepthResult';
   }
 
   onRepComplete(context: ExerciseContext): RepCompletionResult | undefined {
