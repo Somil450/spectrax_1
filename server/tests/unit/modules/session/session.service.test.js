@@ -43,6 +43,36 @@ describe('session.service', () => {
     expect(saved.frames).toEqual([{ timestamp: 1 }]);
   });
 
+  it('keeps finalizedSessions tracking isolated per service instance (#595)', async () => {
+    const mkService = () => {
+      const store = createSessionStore();
+      const service = createSessionService({
+        sessionStore: store,
+        sessionPath: path.join(os.tmpdir(), `spectrax-instance-${Date.now()}-${Math.random()}.json`),
+        maxSessionFrames: 5,
+        logger: { info() {}, error() {}, warn() {} },
+      });
+      store.initializeSession('shared-socket');
+      service.appendFrame('shared-socket', { timestamp: 1 });
+      service.appendFrame('shared-socket', { timestamp: 2 });
+      return { store, service };
+    };
+
+    const first = mkService();
+    const second = mkService();
+
+    // Fire both finalizations concurrently: a module-level Set would let the
+    // first call mark 'shared-socket' in-flight and make the second return
+    // early with [] — each instance must track independently.
+    const [firstFrames, secondFrames] = await Promise.all([
+      first.service.finalizeSession('shared-socket'),
+      second.service.finalizeSession('shared-socket'),
+    ]);
+
+    expect(firstFrames).toHaveLength(2);
+    expect(secondFrames).toHaveLength(2);
+  });
+
   it('deletes only old session files and leaves other files untouched', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spectrax-cleanup-'));
     const sessionPath = path.join(dir, 'session.json');
