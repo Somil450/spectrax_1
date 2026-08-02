@@ -5,7 +5,6 @@ class PrivacyModeService {
 
   setMode(mode: PrivacyRenderMode): void {
     this.mode = mode;
-    console.log(`[Privacy] Render mode switched to: ${mode}`);
   }
 
   getMode(): PrivacyRenderMode {

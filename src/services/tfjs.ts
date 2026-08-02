@@ -68,7 +68,6 @@ class TFJSPoseService {
           modelType: 'full',
         }
       );
-      console.log('TFJS Pose Detector initialized successfully.');
     } catch (err) {
       console.error('Failed to initialize TFJS detector:', err);
     }
