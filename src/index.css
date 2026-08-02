@@ -611,12 +611,17 @@ body {
     position: fixed;
     top: 12px;
     right: 12px;
+    max-width: calc(100vw - 24px);
   }
 
   .workout-lock-toggle {
     min-width: auto;
     padding: 6px 12px;
     font-size: 0.58rem;
+  }
+
+  .workout-draggable-panel {
+    max-width: calc(100vw - 16px);
   }
 
   .workout-stat-card {
@@ -634,6 +639,33 @@ body {
   .workout-finish-action {
     right: 18px;
     bottom: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .workout-layout-controls {
+    top: 8px;
+    right: 8px;
+  }
+
+  .workout-lock-toggle {
+    padding: 5px 10px;
+    font-size: 0.54rem;
+    letter-spacing: 1.2px;
+  }
+
+  .workout-stat-card {
+    padding: 8px 12px;
+  }
+
+  .workout-finish-action {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .workout-finish-action .btn-neon {
+    padding: 10px 18px;
+    font-size: 0.65rem;
   }
 }
 
