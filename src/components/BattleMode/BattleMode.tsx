@@ -3,6 +3,8 @@ import { tfjsPoseService } from "../../services/tfjs";
 import { useSettings } from "../../context/SettingsContext";
 import { ArrowLeft, Trophy, Users, ShieldAlert, Award } from "lucide-react";
 import type { Pose } from "@tensorflow-models/pose-detection";
+import { useCameraPermission } from "../../hooks/useCameraPermission";
+import { CameraPermissionRecovery } from "../CameraPermissionRecovery";
 
 interface BattleModeProps {
   onBack: () => void;
@@ -48,8 +50,11 @@ export const BattleMode: React.FC<BattleModeProps> = ({ onBack }) => {
   const p2Stage = useRef<"up" | "down">("up");
   const requestRef = useRef<number | null>(null);
 
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraStarted, setCameraStarted] = useState(false);
+
   // Setup Camera
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480, frameRate: 30 },
@@ -59,10 +64,35 @@ export const BattleMode: React.FC<BattleModeProps> = ({ onBack }) => {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
       }
-    } catch (err) {
+      setCameraError(null);
+      setCameraStarted(true);
+    } catch (err: any) {
       console.error("Camera access failed in BattleMode:", err);
+      if (
+        err?.message === 'PERMISSION_DENIED' ||
+        err?.name === 'NotAllowedError' ||
+        err?.name === 'PermissionDeniedError'
+      ) {
+        setCameraError('CAMERA_PERMISSION_DENIED');
+      } else {
+        setCameraError('UNKNOWN_ERROR');
+      }
+      setCameraStarted(false);
     }
-  };
+  }, []);
+
+  // Proactive permission monitoring: surface a denied state immediately,
+  // and auto-retry the camera the moment the user re-grants access from the
+  // browser's site settings.
+  useCameraPermission({
+    onDenied: () => setCameraError('CAMERA_PERMISSION_DENIED'),
+    onGranted: () => {
+      if (cameraError !== null) {
+        setCameraError(null);
+        startCamera();
+      }
+    },
+  });
 
   useEffect(() => {
     startCamera();
@@ -72,7 +102,7 @@ export const BattleMode: React.FC<BattleModeProps> = ({ onBack }) => {
       const stream = videoRef.current?.srcObject as MediaStream;
       stream?.getTracks().forEach(track => track.stop());
     };
-  }, []);
+  }, [startCamera]);
 
   // Multi-person rep counting loop
   const detectLoop = useCallback(async () => {
@@ -219,6 +249,29 @@ export const BattleMode: React.FC<BattleModeProps> = ({ onBack }) => {
             <div style={{ fontSize: "2rem", fontWeight: "bold", fontFamily: "var(--font-heading)" }}>{p2Reps} reps</div>
           </div>
 
+          {/* Camera Permission Denial Overlay */}
+          {cameraError === 'CAMERA_PERMISSION_DENIED' && (
+            <CameraPermissionRecovery onRetry={() => {
+              setCameraError(null);
+              startCamera();
+            }} />
+          )}
+
+          {cameraError !== null && cameraError !== 'CAMERA_PERMISSION_DENIED' && (
+            <div style={{ position: "absolute", inset: 0, background: "rgba(9,13,39,0.95)", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", padding: "20px", textAlign: "center" }}>
+              <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "rgba(255,59,92,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ShieldAlert size={40} color="var(--neon-red, #ff3b5c)" />
+              </div>
+              <h2 style={{ color: "#ef4444", fontFamily: "var(--font-heading)", margin: 0 }}>CAMERA UNAVAILABLE</h2>
+              <p style={{ color: "#94a3b8", lineHeight: 1.6, maxWidth: "440px", margin: 0 }}>
+                Something went wrong starting the camera. Check that a camera is connected and not in use by another app, then try again.
+              </p>
+              <button onClick={() => startCamera()} className="btn-primary" style={{ padding: "14px 24px", borderRadius: "8px", cursor: "pointer", fontWeight: 600, background: "var(--neon-red, #ff3b5c)", color: "white", border: "none" }}>
+                TRY AGAIN
+              </button>
+            </div>
+          )}
+
           {/* Match HUD / Overlays */}
           {matchState === "lobby" && (
             <div style={{ position: "absolute", inset: 0, background: "rgba(9,13,39,0.85)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px" }}>
@@ -228,7 +281,9 @@ export const BattleMode: React.FC<BattleModeProps> = ({ onBack }) => {
                 <button onClick={() => setExercise("squat")} className={`btn-outline ${exercise === "squat" ? "active" : ""}`} style={{ borderColor: exercise === "squat" ? "var(--neon-cyan)" : "" }}>SQUAT</button>
                 <button onClick={() => setExercise("pushup")} className={`btn-outline ${exercise === "pushup" ? "active" : ""}`} style={{ borderColor: exercise === "pushup" ? "var(--neon-cyan)" : "" }}>PUSH-UP</button>
               </div>
-              <button onClick={() => setMatchState("countdown")} className="btn-neon" style={{ background: "var(--neon-green)", color: "#000", padding: "12px 32px", fontSize: "1rem", fontWeight: "bold" }}>START BATTLE</button>
+              <button onClick={() => setMatchState("countdown")} disabled={!cameraStarted} className="btn-neon" style={{ background: cameraStarted ? "var(--neon-green)" : "rgba(100,116,139,0.4)", color: cameraStarted ? "#000" : "#94a3b8", padding: "12px 32px", fontSize: "1rem", fontWeight: "bold", cursor: cameraStarted ? "pointer" : "not-allowed" }}>
+                {cameraStarted ? "START BATTLE" : "WAITING FOR CAMERA"}
+              </button>
             </div>
           )}
 

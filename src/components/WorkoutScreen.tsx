@@ -3,6 +3,7 @@ import Draggable, { type DraggableData, type DraggableEvent } from 'react-dragga
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
+import { useCameraPermission } from '../hooks/useCameraPermission';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../utils/poseMath';
@@ -216,6 +217,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const [panelsLocked, setPanelsLocked] = useState(true);
   const [currentAngle, setCurrentAngle] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Proactive camera permission monitoring: surface a permission-denied overlay
+  // immediately (before getUserMedia is attempted) and auto-recover the moment
+  // the user re-grants access from the browser's site settings.
+  const cameraPermissionRef = useRef<(() => void) | null>(null);
+  useCameraPermission({
+    onDenied: () => setCameraError('CAMERA_PERMISSION_DENIED'),
+    onGranted: () => {
+      if (cameraPermissionRef.current) {
+        cameraPermissionRef.current();
+      }
+    },
+  });
   const [riskMetrics, setRiskMetrics] = useState({
     riskIndex: 0,
     fatigueIndex: 0,
@@ -898,6 +912,10 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   useEffect(() => {
     isMountedRef.current = true;
     startTimeRef.current = Date.now();
+    cameraPermissionRef.current = () => {
+      setCameraError(null);
+      startSystem();
+    };
     exerciseEngine.reset();
     injuryRiskEngine.reset();
 
