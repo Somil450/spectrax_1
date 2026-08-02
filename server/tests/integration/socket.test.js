@@ -3,7 +3,22 @@ const os = require("os");
 const path = require("path");
 const { io: ioClient } = require("socket.io-client");
 const { createServer } = require("../../src/app/createServer");
-const { buildSessionFilePath } = require("../../src/shared/utils/paths");
+
+function findLatestSessionFile(dir, filePrefix, fileExt) {
+  if (!fs.existsSync(dir)) return null;
+  const candidates = fs
+    .readdirSync(dir)
+    .filter(
+      (file) => file.startsWith(filePrefix) && file.endsWith(fileExt),
+    );
+  if (candidates.length === 0) return null;
+  return candidates
+    .map((file) => ({
+      file,
+      mtime: fs.statSync(path.join(dir, file)).mtimeMs,
+    }))
+    .sort((a, b) => b.mtime - a.mtime)[0].file;
+}
 
 function createLandmarks() {
   return Array.from({ length: 33 }, () => ({ x: 0, y: 0, visibility: 0 }));
@@ -77,17 +92,28 @@ describe("socket flow", () => {
     });
 
     client.emit("session:end");
-    // Poll for file existence with timeout
-    const sessionFile = buildSessionFilePath(sessionPath, client.id);
+    // Poll for file existence with timeout. Session filenames are now
+    // timestamped (`session-<id>-<timestamp>.json`), so locate the newest
+    // matching file in the session directory.
+    const parsedSessionPath = path.parse(sessionPath);
     const startTime = Date.now();
     const maxWait = 1000;
-    while (!fs.existsSync(sessionFile) && Date.now() - startTime < maxWait) {
+    let sessionFile = null;
+    while (Date.now() - startTime < maxWait) {
+      const latest = findLatestSessionFile(
+        parsedSessionPath.dir,
+        `${parsedSessionPath.name}-`,
+        parsedSessionPath.ext || ".json",
+      );
+      if (latest) {
+        sessionFile = path.join(parsedSessionPath.dir, latest);
+        break;
+      }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
-    const saved = JSON.parse(
-      fs.readFileSync(buildSessionFilePath(sessionPath, client.id), "utf8"),
-    );
+    expect(sessionFile).toBeTruthy();
+    const saved = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
     expect(saved.frameCount).toBe(1);
     expect(saved.frames[0].feedback).toBe("Keep your back straight");
 

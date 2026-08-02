@@ -6,6 +6,7 @@ const SUPPORTED_EXERCISES = [
   'pushup',
   'plank',
   'jumpingJack',
+  'flutterKicks',
 ];
 
 module.exports = {

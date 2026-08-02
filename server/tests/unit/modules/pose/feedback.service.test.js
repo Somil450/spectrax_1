@@ -71,4 +71,56 @@ describe("feedback.service", () => {
       corrections: ["Lower your chest to the ground"],
     });
   });
+
+  it("returns green feedback for a clean flutterKicks frame", () => {
+    expect(
+      generateFeedback(
+        { knee: 170, bodyLine: 160, shoulder: 165, elbow: 90 },
+        "flutterKicks",
+      ),
+    ).toEqual({
+      status: "green",
+      message: "Good form ✅",
+      corrections: [],
+    });
+  });
+
+  it("returns corrections for bent legs during flutterKicks", () => {
+    expect(
+      generateFeedback(
+        { knee: 100, bodyLine: 160, shoulder: 165 },
+        "flutterKicks",
+      ),
+    ).toEqual({
+      status: "yellow",
+      message: "Keep your legs straight",
+      corrections: ["Keep your legs straight"],
+    });
+  });
+
+  it("returns corrections for raised hips / poor core engagement", () => {
+    expect(
+      generateFeedback(
+        { knee: 170, bodyLine: 110, shoulder: 165 },
+        "flutterKicks",
+      ),
+    ).toEqual({
+      status: "yellow",
+      message: "Keep legs lower for core engagement",
+      corrections: ["Keep legs lower for core engagement"],
+    });
+  });
+
+  it("returns a torso-flat correction when the torso lifts off the ground", () => {
+    expect(
+      generateFeedback(
+        { knee: 170, bodyLine: 160, shoulder: 100 },
+        "flutterKicks",
+      ),
+    ).toEqual({
+      status: "yellow",
+      message: "Keep your torso flat on the ground",
+      corrections: ["Keep your torso flat on the ground"],
+    });
+  });
 });
