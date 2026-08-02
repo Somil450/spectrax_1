@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
+import { estimateCalories, getSavedUserWeight } from '../utils/calorieEstimator';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../utils/poseMath';
@@ -23,7 +24,7 @@ import { ExitConfirmModal } from './ExitConfirmModal';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { injuryRiskEngine } from '../services/injuryRiskEngine';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, RiskPanel, TutPanel } from './WorkoutPanels';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, RiskPanel, TutPanel, CaloriesPanel } from './WorkoutPanels';
 import { ghostService } from '../services/ghostService';
 import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
@@ -64,7 +65,7 @@ interface WorkoutScreenProps {
   adaptiveFactor?: number;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "risk" | "tut";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "risk" | "tut" | "calories";
 
 type PanelPosition = {
   x: number;
@@ -92,6 +93,7 @@ const getDefaultPanelPositions = (): PanelPositions => {
     dial: { x: Math.max(width - 230, 30), y: 150 },
     risk: { x: Math.max(width - 230, 30), y: 290 },
     tut: { x: Math.max(width - 230, 30), y: 300 },
+    calories: { x: Math.max(width - 230, 30), y: 230 },
   };
 };
 
@@ -208,7 +210,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       sense: React.createRef<HTMLDivElement>(),
       dial: React.createRef<HTMLDivElement>(),
       risk: React.createRef<HTMLDivElement>(),
-      tut: React.createRef<HTMLDivElement>()
+      tut: React.createRef<HTMLDivElement>(),
+      calories: React.createRef<HTMLDivElement>()
     };
   }
 
@@ -271,6 +274,19 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     jumpingJackSyncSamples: [],
     jumpingJackSync: { score: null, lagMs: null, confidence: 0, samples: 0 },
   });
+
+  // Live calorie estimate — updates dynamically as reps, duration, and
+  // accuracy change throughout the session.
+  const liveCalories = useMemo(() => {
+    const res = estimateCalories({
+      exerciseName: exercise.name,
+      totalReps: engineState.totalReps,
+      durationSeconds: seconds,
+      accuracyScore: engineState.accuracy,
+      userWeightKg: getSavedUserWeight() ?? 70,
+    });
+    return res.calories;
+  }, [exercise.name, engineState.totalReps, engineState.accuracy, seconds]);
 
   const startTimeRef = useRef<number>(Date.now());
   const frameSkipRef = useRef<number>(0); // frame-skip counter
@@ -1383,6 +1399,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       <div className="workout-panel-layer">
         {renderDraggablePanel('focus', '', <FocusPanel exerciseName={exercise.name} />)}
         {renderDraggablePanel('timer', '', <TimerPanel seconds={seconds} />)}
+        {renderDraggablePanel('calories', '', <CaloriesPanel calories={liveCalories} />)}
         {renderDraggablePanel('reps', '', <RepsPanel reps={engineState.reps} statusColor={statusColor} />)}
         {renderDraggablePanel('engine', '', <EnginePanel status={engineState.status} statusColor={statusColor} />)}
         {renderDraggablePanel('sense', '', <SensePanel clipEngine={clipEngine} clipResult={clipResult} />)}
