@@ -38,7 +38,7 @@ export function calculateStreak(isoDateStrings: string[]): number {
   if (isoDateStrings.length === 0) return 0;
 
   // Deduplicate to one entry per calendar day, newest first
-  const days = [...new Set(isoDateStrings.map(d => localDayString(new Date(d))))]
+  const days = [...new Set((isoDateStrings ?? []).map(d => localDayString(new Date(d))))]
     .sort((a, b) => a - b)
     .reverse();
 
