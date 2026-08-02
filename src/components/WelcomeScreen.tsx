@@ -15,9 +15,11 @@ import {
   Scale,
   Target,
   Users,
+  Flame,
 } from "lucide-react";
 import { getSavedUserWeight, saveUserWeight } from "../utils/calorieEstimator";
 import { calculateBMI, bmiCategoryColor } from "../utils/fitnessCalculations";
+import { getWorkoutStreak } from "../utils/streakUtils";
 import "../styles/WelcomeScreen.css";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useTheme } from "../context/ThemeContext";
@@ -88,6 +90,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   );
   const [userHeight, setUserHeight] = useState<string>("");
   const prefersReducedMotion = usePrefersReducedMotion();
+  const [streak, setStreak] = useState(() => getWorkoutStreak().currentStreak);
+
+  // Keep the streak counter fresh when returning to the Welcome screen after a workout.
+  useEffect(() => {
+    const refresh = () => setStreak(getWorkoutStreak().currentStreak);
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isMobile || prefersReducedMotion) return;
@@ -221,6 +231,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 </div>
               </div>
             )}
+
+            <div className="welcome-streak" data-testid="welcome-streak">
+              <Flame size={16} aria-hidden="true" />
+              <span>
+                <strong>{streak}</strong>{" "}
+                {streak === 1 ? "day" : "days"} streak
+              </span>
+              {streak === 0 && (
+                <span className="welcome-streak__hint">
+                  Train today to start a streak!
+                </span>
+              )}
+            </div>
 
             <div className="welcome-actions" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button

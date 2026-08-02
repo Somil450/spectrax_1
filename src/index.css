@@ -882,6 +882,33 @@ body {
   box-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
 }
 
+/* Daily streak counter */
+.welcome-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 165, 0, 0.25);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.82rem;
+  margin-bottom: 20px;
+  backdrop-filter: blur(8px);
+}
+
+.welcome-streak strong {
+  color: #ffa500;
+  font-size: 1rem;
+  text-shadow: 0 0 8px rgba(255, 165, 0, 0.5);
+}
+
+.welcome-streak__hint {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+
 /* ── CTA actions ─────────────────────────────────────────────── */
 .welcome-actions {
   display: flex;
