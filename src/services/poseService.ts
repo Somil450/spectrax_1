@@ -268,23 +268,26 @@ interface ConfidenceEntry {
  * confidence values scaled by a safety factor, with a static floor so that
  * extremely low confidence never becomes "normal".
  */
-class JointConfidenceHash {
+export class JointConfidenceHash {
   private readonly entries = new Map<string, ConfidenceEntry>();
   private readonly confidenceWindow: number;
   private readonly thresholdFloor: number;
   private readonly safetyFactor: number;
   private readonly blendFactor: number;
+  private readonly blendStep: number;
 
   constructor(
     confidenceWindow = 10,
     thresholdFloor = 0.45,
     safetyFactor = 0.8,
     blendFactor = 0.3,
+    blendStep = 0.2,
   ) {
     this.confidenceWindow = confidenceWindow;
     this.thresholdFloor = thresholdFloor;
     this.safetyFactor = safetyFactor;
     this.blendFactor = blendFactor;
+    this.blendStep = blendStep;
   }
 
   /**
@@ -330,9 +333,41 @@ class JointConfidenceHash {
   }
 
   /**
+   * Blend the current value toward the last known good value. The longer a
+   * coordinate stays below its safety threshold, the more aggressively the
+   * estimate leans on the last-good value, producing a smooth bypass instead
+   * of a hard snap when tracking is lost.
+   */
+  private interpolate(entry: ConfidenceEntry, currentValue: number): number {
+    const strength = Math.min(
+      1,
+      this.blendFactor + entry.lowConfidenceFrames * this.blendStep,
+    );
+    return entry.lastGoodValue * strength + currentValue * (1 - strength);
+  }
+
+  /**
+   * Current interpolated estimate for a coordinate entry (bypass value).
+   * Returns null when the entry has never seen a good value.
+   */
+  getEstimate(landmarkIndex: number, coordinate: LandmarkCoordinate): number | null {
+    const entry = this.entries.get(this.hash(landmarkIndex, coordinate));
+    if (!entry || !entry.initialized) return null;
+    return this.interpolate(entry, entry.lastGoodValue);
+  }
+
+  /**
+   * Current dynamic safety threshold for a coordinate entry.
+   */
+  getThreshold(landmarkIndex: number, coordinate: LandmarkCoordinate): number {
+    const entry = this.entries.get(this.hash(landmarkIndex, coordinate));
+    return entry?.dynamicThreshold ?? this.thresholdFloor;
+  }
+
+  /**
    * Process all 33 landmarks, checking each (x, y, z) coordinate against its
    * dynamic confidence threshold. Low-confidence coordinates are replaced with
-   * an interpolated estimate (blend of last-good and current).
+   * an interpolated estimate (progressively blended toward last-good).
    */
   process(landmarks: Array<{ x: number; y: number; z?: number; visibility?: number }>): void {
     const limit = Math.min(landmarks.length, 33);
@@ -353,10 +388,8 @@ class JointConfidenceHash {
           entry.lowConfidenceFrames++;
 
           if (entry.initialized) {
-            // Blend toward the last known good value to avoid hard snaps
-            lm[coord] =
-              entry.lastGoodValue * this.blendFactor +
-              currentValue * (1 - this.blendFactor);
+            // Discard the unstable reading and substitute a smoothed estimate
+            lm[coord] = this.interpolate(entry, currentValue);
           }
           // If not initialized, leave the current value as-is
         } else {
