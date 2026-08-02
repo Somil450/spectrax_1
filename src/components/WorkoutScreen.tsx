@@ -3,7 +3,9 @@ import Draggable, { type DraggableData, type DraggableEvent } from 'react-dragga
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
+import { useSpeechVoices } from '../hooks/useSpeechVoices';
 import { poseService } from '../services/poseService';
+import { AudioService } from '../services/audioService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../utils/poseMath';
 import { getPostureErrorCategories } from '../engine/feedbackEngine';
@@ -182,6 +184,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 }, [user?.uid]);
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const voiceCommandsEnabled = settings.voiceCommands;
+  const { voices: availableVoices } = useSpeechVoices(settings.voiceURI);
   const lastSpokenFeedbackRef = useRef<string>("");
   const lastSpokenTimeRef = useRef<number>(0);
   const lastMotivationTimeRef = useRef<number>(0);
@@ -526,10 +529,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     // Execute speech
     if (shouldSpeak && speechCandidate) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(speechCandidate);
-      utterance.rate = 1.05; // Slightly faster for responsiveness
-      window.speechSynthesis.speak(utterance);
+      AudioService.speak(speechCandidate, {
+        rate: 1.05, // Slightly faster for responsiveness
+        interrupt: true,
+        voiceURI: settings.voiceURI,
+      });
 
       lastSpokenFeedbackRef.current = speechCandidate; // Store actual spoken candidate
       lastSpokenTimeRef.current = now;
@@ -538,7 +542,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         lastMotivationTimeRef.current = now;
       }
     }
-  }, [engineState.feedback, engineState.reps, engineState.stage, engineState.lastRepTime, engineState.stageStartTime, engineState.status, voiceFeedbackEnabled, mismatchError]);
+  }, [engineState.feedback, engineState.reps, engineState.stage, engineState.lastRepTime, engineState.stageStartTime, engineState.status, voiceFeedbackEnabled, mismatchError, settings.voiceURI]);
 
   // ── Announce exercise mismatch errors ─────────────────────────────────────────
   // role="alert" with aria-live="assertive" will interrupt the screen reader
@@ -1336,6 +1340,35 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           {voiceFeedbackEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           {voiceFeedbackEnabled ? 'Voice Coach: ON' : 'Voice Coach: OFF'}
         </button>
+        {voiceFeedbackEnabled && availableVoices.length > 0 && (
+          <label
+            className="workout-voice-select"
+            title="Choose TTS voice for coach feedback"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-dim)' }}
+          >
+            Voice
+            <select
+              value={settings.voiceURI || ''}
+              onChange={(e) => updateSetting('voiceURI', e.target.value)}
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                color: 'var(--text-primary, #fff)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '8px',
+                padding: '4px 8px',
+                fontSize: '0.72rem',
+                maxWidth: '160px',
+              }}
+            >
+              <option value="">Auto</option>
+              {availableVoices.map((v) => (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {v.name} ({v.lang})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           type="button"
           className={`workout-lock-toggle ${voiceCommandsEnabled ? 'is-locked' : 'is-unlocked'}`}

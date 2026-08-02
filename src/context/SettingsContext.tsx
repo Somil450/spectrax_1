@@ -20,6 +20,7 @@ export interface UserSettings {
   bodyType: 'ecto' | 'meso' | 'endo' | 'default';
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   calibrationProfile?: CalibrationProfile;
+  voiceURI?: string;
 }
 
 const defaultSettings: UserSettings = {
@@ -32,6 +33,7 @@ const defaultSettings: UserSettings = {
   bodyType: 'default',
   difficulty: 'beginner',
   calibrationProfile: {},
+  voiceURI: '',
 };
 
 interface SettingsContextType {
