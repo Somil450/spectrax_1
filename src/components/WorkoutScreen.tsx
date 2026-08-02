@@ -573,7 +573,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         : 100;
 
     const archive = sessionRecorder.getArchive();
-    ghostService.saveBestGhost(exercise.key, {
+    void ghostService.saveBestGhost(exercise.key, {
       reps: mutableState.current.reps,
       accuracy: accuracy,
       totalReps: mutableState.current.totalReps
@@ -902,16 +902,17 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     injuryRiskEngine.reset();
 
     // Load Ghost Data
-    const ghostData = ghostService.loadGhost(exercise.key);
-    if (ghostData && ghostData.frames && ghostData.frames.length > 0) {
-      ghostFramesRef.current = ghostData.frames;
-      ghostStatsRef.current = ghostData.stats;
-      setHasGhost(true);
-    } else {
-      ghostFramesRef.current = [];
-      ghostStatsRef.current = null;
-      setHasGhost(false);
-    }
+    ghostService.loadGhost(exercise.key).then((ghostData) => {
+      if (ghostData && ghostData.frames && ghostData.frames.length > 0) {
+        ghostFramesRef.current = ghostData.frames;
+        ghostStatsRef.current = ghostData.stats;
+        setHasGhost(true);
+      } else {
+        ghostFramesRef.current = [];
+        ghostStatsRef.current = null;
+        setHasGhost(false);
+      }
+    });
 
     // ── Spawn Web Worker ──────────────────────────────────────────────────────
     const worker = createPoseWorker();
