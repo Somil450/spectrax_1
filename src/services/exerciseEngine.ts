@@ -181,6 +181,74 @@ export function calculateJumpingJackSyncMetrics(
 }
 
 // ─────────────────────────────────────────────
+// Lunge knee-over-toe collision checker (#156)
+// ─────────────────────────────────────────────
+
+const LUNGE_KNEE_MARGIN = 0.025;
+
+export interface LungeKneeState {
+  kneePastToes: 0 | 1;
+  excess: number;
+  frontLeg: "left" | "right" | "none";
+  overshootsLeft: boolean;
+  overshootsRight: boolean;
+}
+
+export function initialLungeKneeState(): LungeKneeState {
+  return {
+    kneePastToes: 0,
+    excess: 0,
+    frontLeg: "none",
+    overshootsLeft: false,
+    overshootsRight: false,
+  };
+}
+
+function forwardDirection(toe: any, heel: any): number {
+  if (!toe || !heel) return 0;
+  if (Math.abs(toe.x - heel.x) < 0.01) return 0;
+  return toe.x > heel.x ? 1 : -1;
+}
+
+/**
+ * Computes whether either front knee extends past its toe boundary along the
+ * horizontal (sagittal) axis. Forward direction is inferred per foot from the
+ * toe-vs-heel offset, so the check is orientation-agnostic (mirrored lunges
+ * work too). Excessive extension past the toe line flags a correction.
+ */
+export function computeLungeKneeOverToe(landmarks: any[] | undefined): LungeKneeState {
+  const state = initialLungeKneeState();
+  if (!landmarks || landmarks.length < 33) return state;
+
+  const kneeL = landmarks[25];
+  const kneeR = landmarks[26];
+  const toeL = landmarks[29];
+  const toeR = landmarks[30];
+  const heelL = landmarks[31];
+  const heelR = landmarks[32];
+
+  const overshoot = (knee: any, toe: any, heel: any): number => {
+    if (!knee || !toe || !heel) return 0;
+    const dir = forwardDirection(toe, heel);
+    if (dir === 0) return 0;
+    const excess = dir > 0 ? knee.x - toe.x : toe.x - knee.x;
+    return Math.max(0, excess);
+  };
+
+  const excessLeft = overshoot(kneeL, toeL, heelL);
+  const excessRight = overshoot(kneeR, toeR, heelR);
+
+  state.overshootsLeft = excessLeft > LUNGE_KNEE_MARGIN;
+  state.overshootsRight = excessRight > LUNGE_KNEE_MARGIN;
+  state.kneePastToes = state.overshootsLeft || state.overshootsRight ? 1 : 0;
+  state.excess = Math.max(excessLeft, excessRight);
+  if (state.overshootsLeft || state.overshootsRight) {
+    state.frontLeg = excessLeft >= excessRight ? "left" : "right";
+  }
+  return state;
+}
+
+// ─────────────────────────────────────────────
 // EngineState
 // ─────────────────────────────────────────────
 
@@ -245,6 +313,9 @@ export interface EngineState {
   holdTime?: number;
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
+
+  // Lunge knee-over-toe collision
+  lungeKnee?: LungeKneeState;
 
   wristSupinationScore?: number;
 
@@ -499,6 +570,9 @@ export class ExerciseEngine {
     const hipSplineDeviation = computeHipSplineDeviation(landmarks);
     const nextPlankSpline = { isCalibrated: true };
 
+    // ───────── LUNGE KNEE-OVER-TOE CHECK ─────────
+    const nextLungeKnee = computeLungeKneeOverToe(landmarks);
+
     const context: any = {
       ...angles,
       stage: nextStage,
@@ -510,6 +584,9 @@ export class ExerciseEngine {
       plankSplineCalibrated: nextPlankSpline.isCalibrated,
       hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
       hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+      kneePastToes: nextLungeKnee.kneePastToes,
+      kneeOvershootExcess: nextLungeKnee.excess,
+      kneePastToesFrontLeg: nextLungeKnee.frontLeg,
       wristSupinationScore,
     };
 
@@ -779,6 +856,7 @@ export class ExerciseEngine {
       lastValidAngles: nextLastValidAngles,
       jumpingJackSyncSamples: nextJumpingJackSyncSamples,
       jumpingJackSync: nextJumpingJackSync,
+      lungeKnee: nextLungeKnee,
       vbtMetrics: updatedVbtMetrics,
       tutMetrics: tut || undefined,
       holdTime: nextHoldTime,
