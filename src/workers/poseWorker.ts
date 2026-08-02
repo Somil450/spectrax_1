@@ -412,6 +412,19 @@ let offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
 let scanY = 0;
 let scanDirection = 1;
 
+function releaseWorkerResources() {
+  // Drop the OffscreenCanvas context reference so the GPU/2D resources
+  // backing it can be reclaimed by the browser.
+  offscreenCtx = null;
+  sharedLandmarkFrame = null;
+  lastObservedFrame = null;
+  previousObservedFrame = null;
+  consecutiveDropoutFrames = 0;
+  scanY = 0;
+  scanDirection = 1;
+  predictor.reset();
+}
+
 function drawSkeleton(
   landmarks: any[],
   status: string,
@@ -579,6 +592,12 @@ self.onmessage = (event: MessageEvent) => {
 
   if (type === "resetPredictor") {
     predictor.reset();
+    return;
+  }
+
+  if (type === "terminate" || type === "cleanup") {
+    releaseWorkerResources();
+    (self as any).close();
     return;
   }
 
