@@ -367,6 +367,8 @@ spectrax_1/
 
 > **Prerequisites**: [Node.js](https://nodejs.org/) v18.x or higher, [npm](https://www.npmjs.com/)
 
+> **Note:** Verify your Node.js and npm versions with `node --version` and `npm --version` before installing the project dependencies.
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/Somil450/spectrax_1.git
