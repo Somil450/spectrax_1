@@ -66,6 +66,8 @@ export const STRESS_VECTOR_ATTACHMENTS: ReadonlyArray<{
 // ─── Shared geometry constants ────────────────────────────────────────────────
 
 const GRID_RIPPLE_MAX = 6;
+/** Ground-plane footprint — large enough to read as an infinite TRON floor. */
+export const GRID_PLANE_SIZE = 60;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,14 +251,14 @@ export function buildSkyboxEnvironment(scene: THREE.Scene): SkyboxAssets {
   scene.add(rimLight);
 
   // ── Grid ─────────────────────────────────────────────────────────────────
-  const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x222222);
+  const grid = new THREE.GridHelper(GRID_PLANE_SIZE, 60, 0x00ffff, 0x222222);
   grid.position.y = -1.01;
   (grid.material as THREE.LineBasicMaterial).transparent = true;
   (grid.material as THREE.LineBasicMaterial).opacity = 0.2;
   scene.add(grid);
 
   // ── Floor plane ───────────────────────────────────────────────────────────
-  const floorGeo = new THREE.PlaneGeometry(10, 10);
+  const floorGeo = new THREE.PlaneGeometry(GRID_PLANE_SIZE, GRID_PLANE_SIZE);
   const floorMat = new THREE.MeshPhongMaterial({
     color: 0x000000,
     emissive: 0x00ffff,
@@ -293,6 +295,7 @@ export function buildRippleGridPlane(scene: THREE.Scene): RippleGridAssets {
       uRippleColor: { value: new THREE.Color(0x85fff4) },
       uGridScale: { value: 7.5 },
       uLineWidth: { value: 0.06 },
+      uScroll: { value: new THREE.Vector2(0, 0) },
       uRippleCount: { value: 0 },
       uRippleOrigins: {
         value: Array.from(
@@ -326,6 +329,7 @@ export function buildRippleGridPlane(scene: THREE.Scene): RippleGridAssets {
       uniform vec3 uRippleColor;
       uniform float uGridScale;
       uniform float uLineWidth;
+      uniform vec2 uScroll;
       uniform int uRippleCount;
       uniform vec2 uRippleOrigins[MAX_RIPPLES];
       uniform float uRippleStarts[MAX_RIPPLES];
@@ -341,8 +345,18 @@ export function buildRippleGridPlane(scene: THREE.Scene): RippleGridAssets {
       }
 
       void main() {
+        // Perspective depth cue: grid lines fade with distance from the avatar
+        // so the plane reads as receding to the horizon, not a finite square.
+        vec2 centered = vUv - 0.5;
+        float dist = length(centered) * 2.0;
+        float fade = 1.0 - smoothstep(0.28, 0.98, dist);
+
+        // uScroll translates the pattern, giving the infinite-scroll TRON feel
+        // as the avatar moves across the floor.
+        vec2 uv = vUv + uScroll;
+
         vec3 base = vec3(0.01, 0.03, 0.05);
-        float grid = gridMask(vUv);
+        float grid = gridMask(uv);
         float rippleGlow = 0.0;
         float rippleCore = 0.0;
 
@@ -350,11 +364,12 @@ export function buildRippleGridPlane(scene: THREE.Scene): RippleGridAssets {
           if (i >= uRippleCount) break;
           float age = max(uTime - uRippleStarts[i], 0.0);
           float radius = age * uRippleSpeeds[i];
-          float dist = distance(vUv, uRippleOrigins[i]);
-          float ring = 1.0 - smoothstep(0.0, 0.035, abs(dist - radius));
-          float pulse = 0.5 + 0.5 * sin((dist - radius) * 65.0);
-          float fade = exp(-age * 1.25) * exp(-dist * 0.8);
-          float strength = uRippleStrengths[i] * ring * pulse * fade;
+          // Ripples stay world-anchored (vUv) so they don't drift with uScroll.
+          float ringDist = distance(vUv, uRippleOrigins[i]);
+          float ring = 1.0 - smoothstep(0.0, 0.035, abs(ringDist - radius));
+          float pulse = 0.5 + 0.5 * sin((ringDist - radius) * 65.0);
+          float rippleFade = exp(-age * 1.25) * exp(-ringDist * 0.8);
+          float strength = uRippleStrengths[i] * ring * pulse * rippleFade;
           rippleGlow += strength;
           rippleCore = max(rippleCore, strength);
         }
@@ -362,8 +377,11 @@ export function buildRippleGridPlane(scene: THREE.Scene): RippleGridAssets {
         vec3 gridColor = mix(base, uGridColor, grid * 0.55);
         vec3 rippleColor = mix(gridColor, uRippleColor, clamp(rippleGlow, 0.0, 1.0));
         rippleColor += uRippleColor * rippleCore * 0.75;
+        // Near the center the glow is bright; towards the horizon it dims but
+        // keeps a faint line so the floor never looks truncated.
+        rippleColor *= 0.55 + 0.45 * fade;
 
-        float alpha = clamp(0.08 + grid * 0.6 + rippleGlow * 0.85, 0.0, 0.95);
+        float alpha = clamp((0.08 + grid * 0.6 + rippleGlow * 0.85) * fade, 0.0, 0.95);
         gl_FragColor = vec4(rippleColor, alpha);
       }
     `,
@@ -374,7 +392,7 @@ export function buildRippleGridPlane(scene: THREE.Scene): RippleGridAssets {
     side: THREE.DoubleSide,
   });
 
-  const geometry = new THREE.PlaneGeometry(10, 10, 1, 1);
+  const geometry = new THREE.PlaneGeometry(GRID_PLANE_SIZE, GRID_PLANE_SIZE, 1, 1);
   const plane = new THREE.Mesh(geometry, material);
   plane.rotation.x = -Math.PI / 2;
   plane.position.y = -1.0;
