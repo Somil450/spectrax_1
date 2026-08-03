@@ -11,6 +11,14 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
+import {
+  STRESS_COLOR_STOPS,
+  stressFromAngle,
+  dynamicThresholds,
+  exponentialSmooth,
+  angleDegreesBetween,
+  type AngleRamp,
+} from "../engine/stressColorEngine";
 
 // ─── Scene builder helpers (extracted from this file) ─────────────────────────
 import {
@@ -357,13 +365,31 @@ const _segmentScale = new THREE.Vector3();
 
 const STRESS_UP_AXIS   = new THREE.Vector3(0, 1, 0);
 const STRESS_SIDE_AXIS = new THREE.Vector3(1, 0, 0);
-const STRESS_COLOR_BAD  = new THREE.Color(0xff3300);
-const STRESS_COLOR_GOOD = new THREE.Color(0x00ffff);
 const _stressOutward = new THREE.Vector3();
 const _stressLimb    = new THREE.Vector3();
 const _stressUp      = new THREE.Vector3();
 const _stressSide    = new THREE.Vector3();
 const _stressDir     = new THREE.Vector3();
+const _stressA       = new THREE.Vector3();
+const _stressB       = new THREE.Vector3();
+
+/**
+ * For each stress-vector attachment, the landmark that completes the
+ * parent → joint → child triple used to compute the joint bend angle.
+ */
+const STRESS_ANGLE_CHILD: Record<number, number> = {
+  13: 15, 14: 16, 25: 27, 26: 28, 23: 25, 24: 26,
+};
+
+/** Base per-muscle-group angle windows fed to the stress color engine. */
+const STRESS_BASE_RAMPS: Record<keyof typeof MUSCLE_JOINT_GROUPS, AngleRamp> = {
+  arms: { low: 55, high: 170, decreasing: true },
+  legs: { low: 60, high: 175, decreasing: true },
+  core: { low: 70, high: 180, decreasing: true },
+};
+
+const STRESS_SMOOTH_K = 0.16;
+const ANGLE_SMOOTH_K = 0.22;
 
 const buildSegmentScaleState = (ratio: number) => {
   const clampedRatio = THREE.MathUtils.clamp(ratio, PROPORTION_MIN_RATIO, PROPORTION_MAX_RATIO);
@@ -509,6 +535,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   /** Muscle-group stress vector rigs produced by buildStressVectors */
   const stressVectorsRef = useRef<StressVectorRig[]>([]);
   const previousJointPositionsRef = useRef<(THREE.Vector3 | null)[]>([]);
+  /** One-pole filtered stress / angle history keyed by joint index (anti-flicker). */
+  const stressHistoryRef = useRef<Record<number, number>>({});
+  const angleHistoryRef = useRef<Record<number, number>>({});
 
   // ── Skybox / environment refs ─────────────────────────────────────────────
   const gridRef         = useRef<THREE.GridHelper | null>(null);
@@ -636,6 +665,34 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         const tensionBoost = badJoints.has(rig.jointIdx) ? 0.38 : 0;
         const groupBoost   = allowedGroups.has(rig.muscleGroup) ? 0.14 : 0.04;
 
+        // ── Joint bend angle (parent → joint → child), filtered for stability ──
+        const childIdx = STRESS_ANGLE_CHILD[rig.jointIdx];
+        const childPos = childIdx !== undefined ? getLm(childIdx) : null;
+        const baseRamp = STRESS_BASE_RAMPS[rig.muscleGroup];
+        let angleDeg = baseRamp.high;
+        if (parentPos !== fallbackCenter && childPos) {
+          const a = _stressA.copy(parentPos).sub(jointPos);
+          const b = _stressB.copy(childPos).sub(jointPos);
+          angleDeg = angleDegreesBetween(a, b);
+        }
+        const smoothedAngle = exponentialSmooth(angleHistoryRef.current[rig.jointIdx], angleDeg, ANGLE_SMOOTH_K);
+        angleHistoryRef.current[rig.jointIdx] = smoothedAngle;
+
+        // ── Dynamic angle thresholds + GPU-oriented angle value ──
+        const dynamic = dynamicThresholds(baseRamp, motionStress);
+        const orientedAngle = dynamic.decreasing
+          ? dynamic.high + dynamic.low - smoothedAngle
+          : smoothedAngle;
+        const angleStress = stressFromAngle(smoothedAngle, dynamic);
+
+        const rawStress = THREE.MathUtils.clamp(
+          angleStress * 0.5 + motionStress * 0.32 + tensionBoost + groupBoost,
+          0,
+          1,
+        );
+        const stress = exponentialSmooth(stressHistoryRef.current[rig.jointIdx], rawStress, STRESS_SMOOTH_K);
+        stressHistoryRef.current[rig.jointIdx] = stress;
+
         const outward  = _stressOutward.copy(jointPos).sub(fallbackCenter).normalize();
         const limbAxis = _stressLimb.copy(jointPos).sub(parentPos).normalize();
         const direction = outward.multiplyScalar(0.55)
@@ -644,7 +701,6 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           .add(_stressSide.copy(STRESS_SIDE_AXIS).multiplyScalar(0.03))
           .normalize();
 
-        const stress    = THREE.MathUtils.clamp(motionStress * 0.55 + tensionBoost + groupBoost, 0, 1);
         const length    = 0.45 + stress * 1.55;
         const thickness = 0.045 + stress * 0.03;
 
@@ -653,13 +709,30 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
         rig.mesh.quaternion.setFromUnitVectors(STRESS_UP_AXIS, direction);
         rig.mesh.renderOrder = 4;
 
-        rig.material.uniforms.uStress.value    = stress;
-        rig.material.uniforms.uLength.value    = length;
-        rig.material.uniforms.uThickness.value = thickness;
-        rig.material.uniforms.uTime.value      = time * 0.001;
-        rig.material.uniforms.uColor.value.copy(baseColor).lerp(
-          badJoints.has(rig.jointIdx) ? STRESS_COLOR_BAD : STRESS_COLOR_GOOD,
-          stress,
+        // Shader uniforms — the GLSL side applies its own smoothstep triple-stop
+        // ramp; we only feed the filtered value + dynamic thresholds.
+        const good = STRESS_COLOR_STOPS.good;
+        rig.material.uniforms.uStress.value        = stress;
+        rig.material.uniforms.uAngle.value         = orientedAngle;
+        rig.material.uniforms.uThresholdLow.value  = dynamic.low;
+        rig.material.uniforms.uThresholdHigh.value = dynamic.high;
+        rig.material.uniforms.uLength.value        = length;
+        rig.material.uniforms.uThickness.value     = thickness;
+        rig.material.uniforms.uTime.value          = time * 0.001;
+        rig.material.uniforms.uColorGood.value.setRGB(
+          good[0] * baseColor.r,
+          good[1] * baseColor.g,
+          good[2] * baseColor.b,
+        );
+        rig.material.uniforms.uColorMid.value.setRGB(
+          STRESS_COLOR_STOPS.mid[0],
+          STRESS_COLOR_STOPS.mid[1],
+          STRESS_COLOR_STOPS.mid[2],
+        );
+        rig.material.uniforms.uColorBad.value.setRGB(
+          STRESS_COLOR_STOPS.bad[0],
+          STRESS_COLOR_STOPS.bad[1],
+          STRESS_COLOR_STOPS.bad[2],
         );
 
         const prevStore = previousPositions[rig.jointIdx];

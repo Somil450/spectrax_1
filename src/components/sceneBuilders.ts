@@ -426,8 +426,13 @@ export function buildStressVectors(scene: THREE.Scene): StressVectorRig[] {
 function createStressVectorMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
-      uColor: { value: new THREE.Color(0x00ffff) },
+      uColorGood: { value: new THREE.Vector3(0.05, 1.0, 0.9) },
+      uColorMid:  { value: new THREE.Vector3(1.0, 0.6, 0.1) },
+      uColorBad:  { value: new THREE.Vector3(1.0, 0.15, 0.05) },
       uStress: { value: 0 },
+      uAngle: { value: 0 },
+      uThresholdLow: { value: 60 },
+      uThresholdHigh: { value: 170 },
       uLength: { value: 1 },
       uThickness: { value: 0.05 },
       uTime: { value: 0 },
@@ -456,15 +461,33 @@ function createStressVectorMaterial(): THREE.ShaderMaterial {
       }
     `,
     fragmentShader: /* glsl */ `
-      uniform vec3 uColor;
+      uniform vec3 uColorGood;
+      uniform vec3 uColorMid;
+      uniform vec3 uColorBad;
       uniform float uStress;
+      uniform float uAngle;
+      uniform float uThresholdLow;
+      uniform float uThresholdHigh;
       varying float vProgress;
       varying float vStress;
 
       void main() {
-        vec3 hot = vec3(1.0, 0.35, 0.12);
-        vec3 cool = uColor;
-        vec3 color = mix(cool, hot, clamp(uStress, 0.0, 1.0));
+        // GPU-side dynamic angle threshold mapping. smoothstep edges make the
+        // transition seamless regardless of how fast uAngle/uThreshold move.
+        float angleStress = smoothstep(uThresholdLow, uThresholdHigh, uAngle);
+        float stress = clamp(mix(vStress, angleStress, 0.45), 0.0, 1.0);
+
+        // Triple-stop color ramp (good -> mid -> bad), each leg smoothstep-eased
+        // so there is no banding or flicker at the 0.5 crossover.
+        vec3 color;
+        if (stress < 0.5) {
+          float k = smoothstep(0.0, 0.5, stress);
+          color = mix(uColorGood, uColorMid, k);
+        } else {
+          float k = smoothstep(0.5, 1.0, stress);
+          color = mix(uColorMid, uColorBad, k);
+        }
+
         float shaft = smoothstep(0.0, 0.18, vProgress)
                     * (1.0 - smoothstep(0.82, 1.0, vProgress));
         float glow = mix(0.35, 0.95, vStress);
