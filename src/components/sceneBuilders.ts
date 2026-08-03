@@ -223,29 +223,34 @@ export function buildSkyboxEnvironment(scene: THREE.Scene): SkyboxAssets {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
   scene.add(ambientLight);
 
+  // Key light is the only shadow-casting light — a single low-res shadow map
+  // keeps the scene GPU-cheap while still grounding the avatar.
   const keyLight = new THREE.DirectionalLight(0x00ffff, 1.2);
   keyLight.position.set(2, 4, 3);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.width = 1024;
   keyLight.shadow.mapSize.height = 1024;
-  keyLight.shadow.camera.left = -5;
-  keyLight.shadow.camera.right = 5;
-  keyLight.shadow.camera.top = 5;
-  keyLight.shadow.camera.bottom = -5;
+  keyLight.shadow.camera.left = -3;
+  keyLight.shadow.camera.right = 3;
+  keyLight.shadow.camera.top = 3;
+  keyLight.shadow.camera.bottom = -3;
   keyLight.shadow.camera.near = 0.1;
-  keyLight.shadow.camera.far = 50;
+  keyLight.shadow.camera.far = 12;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.normalBias = 0.02;
+  // Target must live in the scene for the shadow camera to track it; the
+  // animation loop repositions both light and target to orbit the avatar.
+  scene.add(keyLight.target);
   scene.add(keyLight);
 
+  // Fill + rim lights illuminate without casting shadows (no extra shadow
+  // passes), and are re-positioned every frame by updateDynamicLighting.
   const fillLight = new THREE.DirectionalLight(0x9d4edd, 0.7);
   fillLight.position.set(-2, 2, 2);
-  fillLight.castShadow = true;
-  fillLight.shadow.mapSize.width = 512;
-  fillLight.shadow.mapSize.height = 512;
   scene.add(fillLight);
 
   const rimLight = new THREE.PointLight(0xffffff, 1);
   rimLight.position.set(0, 3, -4);
-  rimLight.castShadow = true;
   scene.add(rimLight);
 
   // ── Grid ─────────────────────────────────────────────────────────────────

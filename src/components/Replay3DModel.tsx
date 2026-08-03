@@ -22,6 +22,7 @@ import {
   buildStressVectors,
   MUSCLE_JOINT_GROUPS,
   type BoneEntry,
+  type SkyboxAssets,
   type StressVectorRig,
 } from "./sceneBuilders";
 
@@ -364,6 +365,8 @@ const _stressLimb    = new THREE.Vector3();
 const _stressUp      = new THREE.Vector3();
 const _stressSide    = new THREE.Vector3();
 const _stressDir     = new THREE.Vector3();
+const _lightPos      = new THREE.Vector3();
+const _lightTarget   = new THREE.Vector3();
 
 const buildSegmentScaleState = (ratio: number) => {
   const clampedRatio = THREE.MathUtils.clamp(ratio, PROPORTION_MIN_RATIO, PROPORTION_MAX_RATIO);
@@ -513,6 +516,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   // ── Skybox / environment refs ─────────────────────────────────────────────
   const gridRef         = useRef<THREE.GridHelper | null>(null);
   const gridTargetRef   = useRef<THREE.Vector3>(new THREE.Vector3());
+  /** Lighting rig returned by buildSkyboxEnvironment (driven per-frame). */
+  const skyboxRef = useRef<SkyboxAssets | null>(null);
   /** Ripple-grid plane and its shader material produced by buildRippleGridPlane */
   const ripplePlaneRef    = useRef<THREE.Mesh | null>(null);
   const rippleMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
@@ -722,6 +727,52 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     grid.position.lerp(gridTargetRef.current, 0.08);
   }, []);
 
+  /**
+   * Dynamic lighting: orbits the key/fill/rim lights around the avatar's body
+   * center and slides the shadow camera box to keep it tight on the model.
+   * Highlights and shadows therefore follow the 3D model as it moves, while the
+   * single low-res shadow map stays crisp and cheap.
+   */
+  const updateDynamicLighting = useCallback(
+    (bodyCenter: THREE.Vector3 | null, timeSeconds: number) => {
+      const skybox = skyboxRef.current;
+      if (!skybox) return;
+      const c = bodyCenter ?? _lightTarget.set(0, 0, 0);
+      const t = timeSeconds * 0.35;
+
+      // Key light orbits up-right; slow bob keeps it feeling alive.
+      const keyPos = _lightPos.set(
+        c.x + Math.cos(t) * 3.6,
+        Math.max(c.y + 3.4 + Math.sin(t * 0.7) * 0.45, 2.0),
+        c.z + Math.sin(t) * 3.6,
+      );
+      skybox.keyLight.position.lerp(keyPos, 0.06);
+      _lightTarget.set(c.x, c.y + 0.4, c.z);
+      skybox.keyLight.target.position.lerp(_lightTarget, 0.06);
+
+      // Shadow camera hugs the avatar → sharp, low-res shadows.
+      const cam = skybox.keyLight.shadow.camera as THREE.OrthographicCamera;
+      cam.left = c.x - 2.5;
+      cam.right = c.x + 2.5;
+      cam.top = c.y + 2.5;
+      cam.bottom = c.y - 2.5;
+      cam.near = 0.1;
+      cam.far = 12;
+      cam.updateProjectionMatrix();
+
+      // Counter-orbit fill light and bobbing rim light.
+      skybox.fillLight.position.lerp(
+        _lightPos.set(c.x - Math.cos(t) * 3.0, c.y + 2.2, c.z - Math.sin(t) * 3.0),
+        0.06,
+      );
+      skybox.rimLight.position.lerp(
+        _lightPos.set(c.x, c.y + 2.6 + Math.sin(timeSeconds * 1.3) * 0.3, c.z - 4.0),
+        0.06,
+      );
+    },
+    [],
+  );
+
   // ─── Post-processing rebuild ─────────────────────────────────────────────
   const rebuildPasses = useCallback(
     (preset: GraphicsPreset, forceWidth?: number, forceHeight?: number) => {
@@ -867,6 +918,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     // ── Environment assets (background, lights, grid, floor) ──────────────
     // Built by the dedicated helper — keeps this useEffect focused on wiring
     const skybox = buildSkyboxEnvironment(scene);
+    skyboxRef.current = skybox;
     gridRef.current = skybox.grid;
 
     // ── Ripple-grid animated ground plane ─────────────────────────────────
@@ -1310,6 +1362,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       updateGridPosition(bodyCenter);
+      updateDynamicLighting(bodyCenter, timeSeconds);
 
       if (modelLoaded) {
         if (!modelGroupRef.current) return;
@@ -1494,7 +1547,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, isPlaying, isFrameControlled, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
+  }, [frames, isPlaying, isFrameControlled, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateDynamicLighting, updateSegmentScaleAdaptor, updateStressVectors]);
 
   // ─── No frames guard ─────────────────────────────────────────────────────
   if (!frames || frames.length === 0) {
