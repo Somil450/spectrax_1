@@ -83,7 +83,7 @@ export const MIN_SAFE_CALORIES = 1200;
 export function calculateBMI(weightKg: number, heightCm: number): BMIResult {
   const heightM = heightCm / 100;
   const bmi = Number.isFinite(weightKg) && heightM > 0 ? weightKg / (heightM * heightM) : 0;
-  const rounded = Math.round(bmi * 10) / 10;
+  const rounded = Math.round(bmi * 10 + Number.EPSILON) / 10;
 
   let category: BMICategory;
   if (bmi < 18.5) category = 'Underweight';
