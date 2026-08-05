@@ -246,7 +246,7 @@ function buildHumanReadable(
 
   if (hot.length === 0) return 'Slight deviation from your typical pattern.';
   if (hot.length === 1) return `Your ${hot[0]} looks off — check your form here.`;
-  return `Unusual ${hot.slice(0, -1).join(', ')} and ${hot[hot.length - 1]} — possible form breakdown.`;
+  return `Unusual ${hot.slice(0, -1).join(', ')} and ${hot.at(-1)} — possible form breakdown.`;
 }
 
 function scoreToLabel(score: number, threshold: number): AnomalyResult['label'] {
