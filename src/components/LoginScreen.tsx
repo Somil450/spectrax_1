@@ -64,7 +64,7 @@ export function LoginScreen({
     const attemptsKey = `auth_attempts_login_${email}`;
     const lockoutKey = `auth_lockout_login_${email}`;
 
-    const storedAttempts = parseInt(safeGetItem(attemptsKey) || "0", 10);
+    const storedAttempts = parseInt(safeGetItem(attemptsKey, 10) || "0", 10);
     const storedLockout = parseInt(safeGetItem(lockoutKey) || "0", 10);
 
     setFailedAttempts(storedAttempts);
