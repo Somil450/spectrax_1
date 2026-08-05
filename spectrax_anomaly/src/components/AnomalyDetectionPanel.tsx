@@ -343,7 +343,7 @@ export const AnomalyDetectionPanel: React.FC<AnomalyDetectionPanelProps> = ({
                   </p>
                   {simResults.map((sr, i) => {
                     const r = results.find(x => x.frameId === sr.frameId);
-                    const simPct = Math.round(sr.similarity * 100);
+                    const simPct = Math.round(sr.similarity * 100 + Number.EPSILON);
                     return (
                       <div
                         key={sr.frameId}
