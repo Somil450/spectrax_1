@@ -74,7 +74,7 @@ spectrax_1/
 ├── vite.config.ts                # Build, PWA (vite-plugin-pwa), SharedArrayBuffer
 │                                 # COOP/COEP headers for dev + preview servers
 ├── package.json                  # Frontend deps: React 18, Three.js, MediaPipe,
-│                                 # Firebase, @xenova/transformers, Socket.io-client
+│                                 # Firebase, @huggingface/transformers, Socket.io-client
 ├── tsconfig.json / tsconfig.node.json
 ├── jest.config.cjs               # Jest config for unit tests
 ├── firebase.json                 # Firebase Hosting + Firestore deploy config

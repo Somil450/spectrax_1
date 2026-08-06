@@ -1,7 +1,7 @@
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline, env } from '@huggingface/transformers';
 
 // Skip local model check (fetch from Hugging Face)
-(env as any).allowLocalModels = false;
+env.allowLocalModels = false;
 
 const PIPELINE_TYPE = 'zero-shot-image-classification';
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
@@ -30,7 +30,7 @@ function getErrorMessage(error: unknown): string {
 
 async function createClassifier(quantized: boolean) {
   return pipeline(PIPELINE_TYPE as any, MODEL_ID, {
-    quantized,
+    dtype: quantized ? "q8" : "fp32",
     progress_callback: (data: any) => {
       if (data.status === 'progress') {
         self.postMessage({ type: 'progress', progress: data.progress });

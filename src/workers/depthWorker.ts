@@ -1,11 +1,11 @@
 /**
  * depthWorker.ts
  * Web Worker for monocular depth estimation.
- * Loads Depth-Anything/MiDaS via @xenova/transformers pipeline API.
- * Falls back to CPU if WebGPU compute is unavailable.
+ * Loads Depth-Anything/MiDaS via @huggingface/transformers pipeline API.
+ * Runs fp16 inference on WebGPU when available, falling back to WASM.
  */
 
-import { pipeline, RawImage } from "@xenova/transformers";
+import { pipeline, RawImage } from "@huggingface/transformers";
 import type { DepthEstimationConfig, DepthMapResult } from "../types/pose";
 
 let depthPipeline: any = null;
@@ -206,15 +206,39 @@ function smoothDepthMap(
   }
 }
 
+/**
+ * Loads the depth-estimation model at fp16 precision on WebGPU to halve
+ * memory usage, falling back to the default (quantized) WASM backend when
+ * WebGPU compute is unavailable or fp16 inference fails.
+ */
+async function createDepthPipeline(modelName: string) {
+  const webgpuAvailable = await initWebGPUCompute();
+  if (webgpuAvailable) {
+    try {
+      return await pipeline("depth-estimation", modelName, {
+        device: "webgpu",
+        dtype: "fp16",
+      });
+    } catch (error) {
+      console.warn(
+        "[DepthWorker] WebGPU fp16 inference unavailable, falling back to WASM:",
+        error
+      );
+    }
+  }
+  return pipeline("depth-estimation", modelName, {
+    device: "wasm",
+    dtype: "auto",
+  });
+}
+
 self.onmessage = async (event: MessageEvent) => {
   const { type } = event.data;
 
   if (type === "init") {
     config = event.data.config as DepthEstimationConfig;
     try {
-      depthPipeline = await pipeline("depth-estimation", config.modelName, {
-        dtype: "fp16",
-      } as any);
+      depthPipeline = await createDepthPipeline(config.modelName);
       (self as any).postMessage({ type: "ready" });
     } catch (err: any) {
       (self as any).postMessage({
@@ -257,8 +281,8 @@ self.onmessage = async (event: MessageEvent) => {
       rawImage.data.set(imageData.data);
 
       const result = await depthPipeline(rawImage);
-      const depthData = result.depth.data as Float32Array;
-      const [h, w] = result.depth.dims as [number, number];
+      const depthData = result.predicted_depth.data as Float32Array;
+      const [h, w] = result.predicted_depth.dims as [number, number];
 
       if (w !== depthWidth || h !== depthHeight) {
         depthWidth = w;
