@@ -173,7 +173,7 @@ graph TB
 |---|---|
 | **Frontend** | React 18, TypeScript, Vite |
 | **3D Rendering** | Three.js, WebGL, GLSL Shaders |
-| **AI / ML** | MediaPipe Pose, Transformers.js (`@xenova/transformers`) |
+| **AI / ML** | MediaPipe Pose, Transformers.js (`@huggingface/transformers`) |
 | **Backend** | Node.js, Express.js, Socket.io |
 | **Auth & Database** | Firebase Auth, Firestore, Firebase App Check |
 | **State Management** | React Context API, Custom Hooks |

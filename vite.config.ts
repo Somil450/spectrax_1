@@ -146,8 +146,8 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("node_modules/three")) return "vendor-three";
           if (id.includes("node_modules/firebase")) return "vendor-firebase";
-          if (id.includes("node_modules/@xenova")) return "vendor-xenova";
-          if (id.includes("src/workers/depthWorker")) return "vendor-xenova";
+          if (id.includes("node_modules/@huggingface")) return "vendor-transformers";
+          if (id.includes("src/workers/depthWorker")) return "vendor-transformers";
           if (id.includes("node_modules/@mediapipe")) return "vendor-mediapipe";
           if (id.includes("node_modules/react")) return "vendor-react";
         },
