@@ -9,7 +9,70 @@
   padding: 0;
   box-sizing: border-box;
 }
+/* Custom Cursor Global Styles */
+.cursor-halo {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  will-change: transform;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
 
+.cursor-core {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  will-change: transform;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.cursor-orbit {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  will-change: transform;
+  opacity: 0;
+  margin-top: -23px;
+  margin-left: -23px;
+}
+
+.cursor-sparks {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9997;
+  overflow: hidden;
+}
+
+.cursor-spark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform, opacity;
+  opacity: 0;
+}
 :root {
   /* Fonts */
   --font-heading: 'Orbitron', sans-serif;
