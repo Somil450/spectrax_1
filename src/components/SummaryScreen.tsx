@@ -3,6 +3,8 @@ import { Award, Clock, RotateCcw, Video, Activity } from 'lucide-react';
 import { updateWorkoutStreak } from "../utils/streakUtils";
 import { useAuth } from '../context/AuthContext';
 import { getLocalWorkouts, WorkoutRecord } from '../services/workoutSyncService';
+import { exportWorkoutCSV, exportSummaryPNG, exportWorkoutPDF } from '../utils/exportUtils';
+import { FileDown, Image, FileText } from 'lucide-react';
 
 interface SummaryScreenProps {
   stats: {
@@ -38,6 +40,7 @@ interface SummaryScreenProps {
 
 export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, onRestart, onViewReplay }) => {
   const [accuracy, setAccuracy] = useState(0);
+  const [isExporting, setIsExporting] = useState<'csv' | 'png' | 'pdf' | null>(null);
   const { user } = useAuth();
   const [workouts, setWorkouts] = useState<WorkoutRecord[]>([]);
 
@@ -111,27 +114,37 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
     return "Needs Calibration ⚙️";
   };
 
-  const exportSessionData = () => {
+  const handleExportCSV = () => {
+    setIsExporting('csv');
     try {
-      const jsonData = JSON.stringify(stats, null, 2);
-      const blob = new Blob([jsonData], {
-        type: "application/json",
-      });
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
-      link.href = url;
-      link.download = `workout-session-${timestamp}.json`;
-      link.click();
-      URL.revokeObjectURL(url); 
-    } catch (error) {
-      console.error("Failed to export session data:", error);
-      alert("Unable to export session data. Please try again.");
+      exportWorkoutCSV(stats);
+    } catch (err) {
+      console.error('[SpectraX] CSV export failed:', err);
+    } finally {
+      setIsExporting(null);
     }
+  };
 
+  const handleExportPNG = async () => {
+    setIsExporting('png');
+    try {
+      await exportSummaryPNG('summary-export-target');
+    } catch (err) {
+      console.error('[SpectraX] PNG export failed:', err);
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setIsExporting('pdf');
+    try {
+      await exportWorkoutPDF(stats, 'summary-export-target');
+    } catch (err) {
+      console.error('[SpectraX] PDF export failed:', err);
+    } finally {
+      setIsExporting(null);
+    }
   };
 
   // Rep Quality Insights
@@ -893,6 +906,52 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         </p>
       </div>
 
+      {/* Export Toolbar */}
+      <div
+        className="glass animate-in"
+        id="summary-export-target"
+        style={{
+          width: '100%',
+          maxWidth: '600px',
+          padding: '16px 20px',
+          marginBottom: '16px',
+          borderColor: 'rgba(255,255,255,0.1)',
+        }}
+      >
+        <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px', textAlign: 'center' }}>
+          Export Results
+        </div>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <button
+            onClick={handleExportCSV}
+            disabled={isExporting !== null}
+            className="btn-outline"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: isExporting === 'csv' ? 0.6 : 1 }}
+          >
+            <FileDown size={14} />
+            {isExporting === 'csv' ? '...' : 'CSV'}
+          </button>
+          <button
+            onClick={handleExportPNG}
+            disabled={isExporting !== null}
+            className="btn-outline"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: isExporting === 'png' ? 0.6 : 1 }}
+          >
+            <Image size={14} />
+            {isExporting === 'png' ? '...' : 'PNG'}
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={isExporting !== null}
+            className="btn-outline"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: isExporting === 'pdf' ? 0.6 : 1 }}
+          >
+            <FileText size={14} />
+            {isExporting === 'pdf' ? '...' : 'PDF'}
+          </button>
+        </div>
+      </div>
+
       {/* Action Buttons */}
       <div
         className="animate-in"
@@ -907,22 +966,14 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
         <button onClick={onRestart} className="btn-outline" style={{ flex: 1 }}>
           <RotateCcw size={16} /> RESTART
         </button>
-
-        <button
-          onClick={exportSessionData}
-          className="btn-outline"
-          style={{ flex: 1 }}
-        >
-          EXPORT DATA
-        </button>
-
         <button
           onClick={onViewReplay}
           className="btn-neon"
           style={{ flex: 1, background: "var(--neon-purple)", color: "#fff" }}
         >
           VIEW 3D REPLAY <Video size={16} />
-        </button>      </div>
+        </button>
+      </div>
     </div>
   );
 };
