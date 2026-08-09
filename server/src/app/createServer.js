@@ -6,9 +6,7 @@ const { SOCKET_AUTH_TOKEN } = require("../config/constants");
 const { createSessionStore } = require("../modules/session/session.store");
 const { createSessionService } = require("../modules/session/session.service");
 const { registerPoseSocketHandlers } = require("../modules/pose/pose.socket");
-const {
-  registerSessionSocketHandlers,
-} = require("../modules/session/session.socket");
+const { registerCollaborationHandlers } = require('../modules/collaboration/collaboration.socket');
 const { createApp } = require("./createApp");
 const { logger: defaultLogger } = require("../shared/utils/logger");
 
@@ -97,6 +95,11 @@ function createServer(overrides = {}) {
       sessionService,
       logger,
     });
+
+    // Collaboration namespace — isolated from the main pose namespace
+  const collabNamespace = io.of('/collab');
+  registerCollaborationHandlers(collabNamespace, logger);
+  
   });
 
   function start() {

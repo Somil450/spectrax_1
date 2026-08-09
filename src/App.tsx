@@ -17,7 +17,7 @@ import PrivacyPage from './components/privacy'; // Change to your actual file pa
 import TermsAndConditions from './components/terms&conditions'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
-
+import { CollaborationPanel } from './components/CollaborationPanel';
 
 // Start monitoring throttling immediately
 throttleMonitor.start();
@@ -532,6 +532,7 @@ function App() {
               Close
             </button>
           </div>
+          <CollaborationPanel />
         </div>
       )}
       {showExitModal && (
