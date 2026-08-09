@@ -232,6 +232,22 @@ We are happy to help contributors learn and grow 🌱
 
 ---
 
+## ✅ CI Requirements
+
+All pull requests must pass the automated CI pipeline before they can be reviewed or merged.
+
+Before submitting your PR, run these checks locally:
+
+```bash
+npm run lint     # Must pass with no errors
+npm run build    # Must complete successfully  
+npm test         # All tests must pass
+```
+
+The CI badge on the README always reflects the current health of the `main` branch.
+
+---
+
 # ❤️ Thank You
 
 Thank you for contributing to SpectraX and being part of the open-source community.

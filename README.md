@@ -562,6 +562,8 @@ The backend is a standalone Express + Socket.io server. Deploy to any Node.js-co
 
 ## 🤝 Contributing
 
+[![CI](https://github.com/Somil450/spectrax_1/actions/workflows/ci.yml/badge.svg)](https://github.com/Somil450/spectrax_1/actions/workflows/ci.yml)
+
 SpectraX is a **GSSoC 2026** project and we welcome contributors of all experience levels!
 
 1. **Read** the [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md)
