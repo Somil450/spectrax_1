@@ -5,60 +5,73 @@ on:
     branches:
       - main
       - master
-
   pull_request:
     branches:
       - main
       - master
 
 jobs:
-  build-and-test:
+  frontend:
+    name: 🧩 Frontend Build & Test
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [20.x, 22.x]
 
     steps:
-      # Checkout Repository
-      - name: 📥 Checkout Repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Node.js
       - name: 🟢 Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
-      # Install Frontend Dependencies
-      - name: 📦 Install Frontend Dependencies
-        run: npm install
+      - name: 📦 Install dependencies
+        run: npm ci
 
-      # Run Frontend Lint
-      - name: 🧹 Run Frontend Lint Checks
+      - name: 🧹 Lint
         run: npm run lint
 
-      # Build Frontend
-      - name: 🏗️ Build Frontend
+      - name: 🔍 Type check
+        run: npx tsc --noEmit
+
+      - name: 🏗️ Build
         run: npm run build
 
-      # Run Frontend Tests
-      - name: 🧪 Run Frontend Tests
+      - name: 🧪 Run tests
         run: npm test
 
-      # Install Backend Dependencies
-      - name: 📦 Install Backend Dependencies
-        run: |
-          cd server
-          npm install
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-node${{ matrix.node-version }}
+          path: dist/
+          retention-days: 7
 
-      # Backend Validation
-      - name: 🔍 Backend Validation
-        run: |
-          cd server
-          npm test --if-present
+  backend:
+    name: ⚙️ Backend Validation
+    runs-on: ubuntu-latest
 
-      # Success Message
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: 📦 Install backend dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: 🧪 Run backend tests (if any)
+        working-directory: server
+        run: npm test --if-present
+
       - name: ✅ CI Completed Successfully
         run: echo "SpectraX CI pipeline completed successfully!"
