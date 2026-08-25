@@ -1449,11 +1449,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         <div
           className="glass animate-in"
           style={{
-            padding: "24px 40px",
+            padding: "clamp(16px, 4vw, 24px) clamp(20px, 6vw, 40px)",
             borderBottom: `4px solid ${statusColor}`,
             textAlign: "center",
             background: "rgba(10, 10, 26, 0.8)",
-            minWidth: "320px",
+            minWidth: "min(320px, 90vw)",
           }}
         >
           <div
@@ -1604,7 +1604,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         style={{
           position: 'absolute',
           top: '50%',
-          right: '24px',
+          right: 'clamp(12px, 3vw, 24px)',
           transform: 'translateY(-50%)',
           zIndex: 150,
           display: 'flex',
@@ -1706,18 +1706,18 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         style={{
           position: "relative",
           zIndex: 10,
-          padding: "40px",
+          padding: "clamp(16px, 4vw, 40px)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: "20px",
+          gap: "clamp(12px, 2vw, 20px)",
         }}
       >
         <div className="rep-counter" style={{ textAlign: "center" }}>
           <div
             style={{
               fontFamily: "var(--font-heading)",
-              fontSize: "7rem",
+              fontSize: "clamp(4rem, 15vw, 7rem)",
               fontWeight: 900,
               lineHeight: 1,
               color: "#fff",
@@ -1744,10 +1744,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-end",
+            flexWrap: "wrap",
+            gap: "clamp(8px, 2vw, 20px)",
             pointerEvents: "all",
           }}
         >
-          <div style={{ display: "flex", gap: "20px" }}>
+          <div style={{ display: "flex", gap: "clamp(8px, 2vw, 20px)", flexWrap: "wrap" }}>
             <div
               className="glass animate-in"
               style={{

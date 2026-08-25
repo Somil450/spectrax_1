@@ -31,7 +31,7 @@ export const RepsPanel = ({ reps, statusColor, isStatic, holdTime }: { reps: num
       aria-atomic="true"
       style={{
         fontFamily: 'var(--font-heading)',
-        fontSize: '7rem',
+        fontSize: 'clamp(4rem, 15vw, 7rem)',
         fontWeight: 900,
         lineHeight: 1,
         color: '#fff',
