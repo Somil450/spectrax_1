@@ -38,6 +38,7 @@ const CALIBRATION_FRAMES = 30;
 const MAX_MIRROR_CONFIDENCE = 0.85;
 const MAX_TEMPORAL_CONFIDENCE = 0.65;
 const BONE_LENGTH_TOLERANCE = 0.15;
+const SMOOTH_FACTOR = 0.4;
 
 const PAIRS: [number, number][] = [
   [11, 12], [13, 14], [15, 16], [17, 18], [19, 20], [21, 22],
@@ -58,6 +59,7 @@ export class OcclusionPredictor {
   private history: HistoryFrame[] = [];
   private boneLengths: BoneLengthMap = this.freshBoneLengths();
   private calibFrames = 0;
+  private smoothedPredictions: Array<Landmark | null> = new Array(33).fill(null);
 
   private freshBoneLengths(): BoneLengthMap {
     return {
@@ -75,6 +77,7 @@ export class OcclusionPredictor {
     this.history = [];
     this.boneLengths = this.freshBoneLengths();
     this.calibFrames = 0;
+    this.smoothedPredictions = new Array(33).fill(null);
   }
 
   predict(landmarks: Landmark[]): PredictedLandmarks {
@@ -95,34 +98,73 @@ export class OcclusionPredictor {
       if (result[i].visibility >= OCCLUSION_THRESHOLD) continue;
 
       wasOccluded[i] = true;
-      let bestPos: { x: number; y: number; z: number } | null = null;
-      let bestConf = 0;
 
       const mirrorPos = this.mirrorPredict(i, landmarks, midlineX);
-      if (mirrorPos) {
-        bestPos = mirrorPos;
-        bestConf = MAX_MIRROR_CONFIDENCE;
-      }
-
       const temporalPos = this.temporalPredict(i);
-      if (temporalPos && temporalPos.confidence > bestConf) {
-        bestPos = temporalPos.position;
-        bestConf = temporalPos.confidence;
-      }
 
-      if (bestPos) {
-        result[i].x = bestPos.x;
-        result[i].y = bestPos.y;
-        result[i].z = bestPos.z;
+      const fused = this.fuse(mirrorPos, temporalPos);
+      if (fused) {
+        result[i].x = fused.position.x;
+        result[i].y = fused.position.y;
+        result[i].z = fused.position.z;
         result[i].visibility = Math.max(result[i].visibility, 0.5);
+        confidence[i] = fused.confidence;
+      } else {
+        confidence[i] = 0.3;
       }
-
-      confidence[i] = bestConf > 0 ? bestConf : 0.3;
     }
 
     this.boneLengthRefine(result, landmarks);
+    this.smoothOccluded(result, wasOccluded);
 
     return { landmarks: result, confidence, wasOccluded };
+  }
+
+  private fuse(
+    mirrorPos: { x: number; y: number; z: number } | null,
+    temporalPos: { position: { x: number; y: number; z: number }; confidence: number } | null,
+  ): { position: { x: number; y: number; z: number }; confidence: number } | null {
+    if (!mirrorPos && !temporalPos) return null;
+    if (mirrorPos && !temporalPos) {
+      return { position: mirrorPos, confidence: MAX_MIRROR_CONFIDENCE };
+    }
+    if (!mirrorPos && temporalPos) return temporalPos;
+
+    const mirrorConf = MAX_MIRROR_CONFIDENCE;
+    const temporalConf = temporalPos!.confidence;
+    const total = mirrorConf + temporalConf;
+    if (total <= 0) return temporalPos;
+
+    const mw = mirrorConf / total;
+    return {
+      position: {
+        x: mirrorPos!.x * mw + temporalPos!.position.x * (1 - mw),
+        y: mirrorPos!.y * mw + temporalPos!.position.y * (1 - mw),
+        z: mirrorPos!.z * mw + temporalPos!.position.z * (1 - mw),
+      },
+      confidence: Math.max(mirrorConf, temporalConf),
+    };
+  }
+
+  private smoothOccluded(result: Landmark[], wasOccluded: boolean[]): void {
+    for (let i = 0; i < result.length; i++) {
+      if (!wasOccluded[i]) {
+        this.smoothedPredictions[i] = null;
+        continue;
+      }
+      const prev = this.smoothedPredictions[i];
+      if (prev) {
+        result[i].x = prev.x + (result[i].x - prev.x) * SMOOTH_FACTOR;
+        result[i].y = prev.y + (result[i].y - prev.y) * SMOOTH_FACTOR;
+        result[i].z = prev.z + (result[i].z - prev.z) * SMOOTH_FACTOR;
+      }
+      this.smoothedPredictions[i] = {
+        x: result[i].x,
+        y: result[i].y,
+        z: result[i].z,
+        visibility: result[i].visibility,
+      };
+    }
   }
 
   private computeMidlineX(landmarks: Landmark[]): number {

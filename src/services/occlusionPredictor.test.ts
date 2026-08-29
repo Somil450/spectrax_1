@@ -187,4 +187,66 @@ describe("OcclusionPredictor", () => {
     expect(ratio).toBeGreaterThan(0.5);
     expect(ratio).toBeLessThan(2);
   });
+
+  it("fuses mirror and temporal predictions when both are available", () => {
+    const lms = fullBody();
+
+    // Feed frames where the left elbow moves rightward (builds temporal history)
+    for (let frame = 0; frame < 5; frame++) {
+      lms[13] = makeLandmark(0.35 + frame * 0.02, 0.24, 0, 0.95);
+      predictor.predict(lms);
+    }
+
+    // Occlude left elbow → mirror estimate 0.4, temporal estimate 0.45
+    lms[13] = makeLandmark(0.4, 0.24, 0, 0.05);
+    const result = predictor.predict(lms);
+
+    expect(result.wasOccluded[13]).toBe(true);
+    const fusedX = result.landmarks[13].x;
+    // Fused estimate must fall strictly between the mirror and temporal estimates
+    expect(fusedX).toBeGreaterThan(0.4);
+    expect(fusedX).toBeLessThan(0.45);
+  });
+
+  it("smooths occluded predictions across frames to avoid flapping", () => {
+    const lms = fullBody();
+
+    // Frame 1: left elbow occluded, right elbow at x = 0.52 → mirror at x = 0.48
+    lms[13] = makeLandmark(0.4, 0.24, 0, 0.05);
+    lms[14] = makeLandmark(0.52, 0.22, 0, 0.95);
+    const first = predictor.predict(lms);
+    const firstX = first.landmarks[13].x;
+    expect(firstX).toBeCloseTo(0.48, 2);
+
+    // Frame 2: right elbow jumps to x = 0.9 → raw mirror would be x = 0.1
+    lms[14] = makeLandmark(0.9, 0.22, 0, 0.95);
+    const second = predictor.predict(lms);
+    const secondX = second.landmarks[13].x;
+
+    // Output must be damped toward the previous prediction, not jump to the raw 0.1
+    expect(secondX).toBeGreaterThan(0.1);
+    expect(secondX).toBeLessThan(0.48);
+    expect(Math.abs(secondX - firstX)).toBeLessThan(Math.abs(0.1 - firstX));
+  });
+
+  it("clears the smoothing cache once a joint becomes visible again", () => {
+    const lms = fullBody();
+
+    // Frame 1: left elbow occluded → predicted, cached
+    lms[13] = makeLandmark(0.4, 0.24, 0, 0.05);
+    predictor.predict(lms);
+
+    // Frame 2: left elbow visible → cache cleared
+    lms[13] = makeLandmark(0.4, 0.24, 0, 0.95);
+    predictor.predict(lms);
+
+    // Frame 3: occluded again, with the mirror joint far away (raw mirror 0.1)
+    // and temporal pulled toward the last visible position (0.4) → fresh blend ≈ 0.2
+    lms[13] = makeLandmark(0.4, 0.24, 0, 0.05);
+    lms[14] = makeLandmark(0.9, 0.22, 0, 0.95);
+    const result = predictor.predict(lms);
+
+    // If a stale cache were kept, smoothing would hold the output near 0.32+
+    expect(result.landmarks[13].x).toBeLessThan(0.26);
+  });
 });
