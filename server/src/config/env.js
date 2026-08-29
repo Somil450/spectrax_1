@@ -2,7 +2,7 @@ const { resolveSessionPath } = require("../shared/utils/paths");
 
 function safeParseInt(value, fallback) {
   const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? fallback : parsed;
+  return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 function getConfig(overrides = {}) {
