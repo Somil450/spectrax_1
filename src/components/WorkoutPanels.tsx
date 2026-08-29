@@ -64,7 +64,7 @@ export const SensePanel = ({ clipEngine, clipResult }: { clipEngine: any, clipRe
     <div className="glass workout-stat-card workout-sense-panel animate-in">
       <div className="radar-ping" style={{ width: '8px', height: '8px', background: '#9D4EDD', borderRadius: '50%' }}></div>
       <div style={{ fontSize: '0.75rem', color: '#9D4EDD', fontWeight: 700 }}>
-        VLM SENSE: {clipResult ? clipResult.label.toUpperCase() : 'SCANNING...'} ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
+        VLM SENSE: {clipResult ? clipResult.label.toUpperCase() : 'SCANNING...'} ({clipResult ? Math.round(clipResult.confidence * 100 + Number.EPSILON) : 0}%)
       </div>
     </div>
   ) : (
