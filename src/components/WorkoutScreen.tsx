@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
-import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
+import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert, WifiOff } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { poseService } from '../services/poseService';
@@ -553,7 +553,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const workerAnglesRef = useRef<Record<string, number>>({});
   const offscreenEnabledRef = useRef<boolean>(false);
   const { initOffscreenCanvas } = useOffscreenCanvas();
-  useWorkoutWebSocket();
+  const { isConnected } = useWorkoutWebSocket();
 
 
   const depthEngineRef = useRef<DepthEstimationEngine | null>(null);
@@ -1072,6 +1072,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         <div style={{ position: "absolute", top: "20px", left: "50%", transform: "translateX(-50%)", background: "rgba(239, 68, 68, 0.9)", color: "#fff", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold", zIndex: 1100, display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>
           <ShieldAlert size={16} />
           <span>SIMULATED FALLBACK MODE (WEBGL UNSUPPORTED)</span>
+        </div>
+      )}
+      {!isConnected && (
+        <div className="connection-banner" role="alert">
+          <WifiOff size={16} aria-hidden="true" />
+          <span>CONNECTION LOST. RECONNECTING...</span>
         </div>
       )}
       <CameraErrorBoundary>
