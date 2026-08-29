@@ -16,6 +16,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { assertWorkoutOwnedByUser } from "./workoutOwnership";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & Interfaces
@@ -263,10 +264,15 @@ export async function uploadWorkoutToFirestore(
       throw new Error("User not authenticated");
     }
 
+    // Defense-in-depth: never write to a collection that is not the current
+    // user's own (mirrors the `request.auth.uid == userId` Firestore rule).
+    assertWorkoutOwnedByUser(workout.userId, userId);
+
     const db = getFirestore();
     const workoutsRef = collection(db, "users", userId, "workouts");
 
     const docRef = await addDoc(workoutsRef, {
+      userId,
       exerciseType: workout.exerciseType,
       totalReps: workout.totalReps,
       accuracyScore: workout.accuracyScore,
@@ -553,8 +559,12 @@ export async function bulkUploadWorkouts(
     const uploadedIds: string[] = [];
 
     workouts.forEach((workout) => {
+      // Defense-in-depth: refuse to batch-write into another user's collection.
+      assertWorkoutOwnedByUser(workout.userId, userId);
+
       const workoutRef = doc(collection(db, "users", userId, "workouts"));
       batch.set(workoutRef, {
+        userId,
         exerciseType: workout.exerciseType,
         totalReps: workout.totalReps,
         accuracyScore: workout.accuracyScore,
