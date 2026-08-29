@@ -6,7 +6,7 @@ import { useCameraPose } from '../hooks/useCameraPose';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
 import { getJointAngles, getJointVisibility } from '../utils/poseMath';
-import { getPostureErrorCategories } from '../engine/feedbackEngine';
+import { getPostureErrorCategories, FeedbackPriority, FeedbackPriorityQueue, type QueuedFeedback } from '../engine/feedbackEngine';
 import { exerciseEngine, EngineState } from '../services/exerciseEngine';
 import { CameraView } from './CameraView/CameraView';
 import { ExerciseConfig } from '../config/exercises';
@@ -182,9 +182,13 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 }, [user?.uid]);
   const voiceFeedbackEnabled = settings.voiceFeedback;
   const voiceCommandsEnabled = settings.voiceCommands;
-  const lastSpokenFeedbackRef = useRef<string>("");
-  const lastSpokenTimeRef = useRef<number>(0);
-  const lastMotivationTimeRef = useRef<number>(0);
+const lastSpokenFeedbackRef = useRef<string>("");
+const lastSpokenTimeRef = useRef<number>(0);
+const lastMotivationTimeRef = useRef<number>(0);
+const feedbackQueueRef = useRef<FeedbackPriorityQueue | null>(null);
+if (feedbackQueueRef.current === null) {
+  feedbackQueueRef.current = new FeedbackPriorityQueue();
+}
   const consecutiveMistakeStartRef = useRef<number>(0);
   const lastDownStruggleSpokenRef = useRef<boolean>(false);
   const lastUpPauseSpokenRef = useRef<boolean>(false);
@@ -385,6 +389,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
+      feedbackQueueRef.current?.clear();
       return;
     }
 
@@ -524,12 +529,37 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       }
     }
 
-    // Execute speech
+    // Execute speech via the priority queue (prevents overlapping announcements;
+    // warnings override regular rep increments)
     if (shouldSpeak && speechCandidate) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(speechCandidate);
-      utterance.rate = 1.05; // Slightly faster for responsiveness
-      window.speechSynthesis.speak(utterance);
+      const queue = feedbackQueueRef.current!;
+      const priority = mismatchError
+        ? FeedbackPriority.CRITICAL
+        : isSafetyWarning
+          ? FeedbackPriority.HIGH
+          : repCompleted && isCoachingCue
+            ? FeedbackPriority.MEDIUM
+            : FeedbackPriority.LOW;
+
+      const speakQueued = (item: QueuedFeedback) => {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(item.text);
+        utterance.rate = 1.05; // Slightly faster for responsiveness
+        utterance.onend = () => {
+          const next = queue.complete(item.id);
+          if (next) speakQueued(next);
+        };
+        utterance.onerror = () => {
+          const next = queue.complete(item.id);
+          if (next) speakQueued(next);
+        };
+        window.speechSynthesis.speak(utterance);
+      };
+
+      const toSpeak = queue.enqueue(speechCandidate, priority);
+      if (toSpeak) {
+        speakQueued(toSpeak);
+      }
 
       lastSpokenFeedbackRef.current = speechCandidate; // Store actual spoken candidate
       lastSpokenTimeRef.current = now;

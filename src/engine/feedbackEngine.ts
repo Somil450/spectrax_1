@@ -446,6 +446,111 @@ const severityWeight = {
   low: 2,
 };
 
+// --- Adaptive Feedback Priority Queue ---
+//
+// Serializes spoken announcements so alerts never overlap. Higher-priority
+// items (safety warnings, exercise mismatches) preempt and override lower-
+// priority ones (rep increments, praise, motivation).
+
+export enum FeedbackPriority {
+  LOW = 0, // rep increments, praise, motivational phrases
+  MEDIUM = 1, // coaching/guidance cues
+  HIGH = 2, // form warnings (back straight, knee past toes, red status)
+  CRITICAL = 3, // exercise mismatch / safety alerts
+}
+
+export interface QueuedFeedback {
+  id: number;
+  text: string;
+  priority: FeedbackPriority;
+  enqueuedAt: number;
+}
+
+export class FeedbackPriorityQueue {
+  private queue: QueuedFeedback[] = [];
+  private current: QueuedFeedback | null = null;
+  private nextId = 1;
+  private maxQueueSize: number;
+
+  constructor(maxQueueSize: number = 8) {
+    this.maxQueueSize = maxQueueSize;
+  }
+
+  get size(): number {
+    return this.queue.length + (this.current ? 1 : 0);
+  }
+
+  get active(): QueuedFeedback | null {
+    return this.current;
+  }
+
+  /**
+   * Enqueues a feedback announcement. Returns the item that should be spoken
+   * right now (interrupting the current utterance if it has higher priority),
+   * or null when the item is merely queued behind an active announcement.
+   */
+  enqueue(text: string, priority: FeedbackPriority): QueuedFeedback | null {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    // Dedupe: never queue text that is already spoken or pending
+    if (this.current && this.current.text === trimmed) return null;
+    if (this.queue.some((q) => q.text === trimmed)) return null;
+
+    const item: QueuedFeedback = {
+      id: this.nextId++,
+      text: trimmed,
+      priority,
+      enqueuedAt: Date.now(),
+    };
+
+    // Preempt: a higher-priority alert overrides the active announcement
+    if (this.current && priority > this.current.priority) {
+      this.current = item;
+      return item;
+    }
+
+    // Insert in descending priority order (stable for equal priorities)
+    const idx = this.queue.findIndex((q) => q.priority < priority);
+    if (idx === -1) this.queue.push(item);
+    else this.queue.splice(idx, 0, item);
+
+    // Drop the lowest-priority tail when overflowing
+    if (this.queue.length > this.maxQueueSize) {
+      this.queue.length = this.maxQueueSize;
+    }
+
+    // If nothing is speaking, promote the head of the queue
+    if (!this.current) {
+      this.current = this.queue.shift()!;
+      return this.current;
+    }
+    return null;
+  }
+
+  /**
+   * Marks the given announcement as finished and promotes the next pending
+   * item. Stale completions for already-overridden items are ignored.
+   */
+  complete(id: number): QueuedFeedback | null {
+    if (this.current && this.current.id === id) {
+      this.current = null;
+    }
+    this.queue = this.queue.filter((q) => q.id !== id);
+    if (!this.current && this.queue.length > 0) {
+      this.current = this.queue.shift()!;
+      return this.current;
+    }
+    return null;
+  }
+
+  /** Drops any active utterance and clears all pending announcements. */
+  clear(): void {
+    this.current = null;
+    this.queue = [];
+  }
+}
+
 // --- Main Engine Function ---
 
 
