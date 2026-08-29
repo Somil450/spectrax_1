@@ -35,6 +35,12 @@ function generateFeedback(angles, exercise) {
       if (angles.shoulder < 70) corrections.push("Raise arms fully overhead");
       break;
 
+    case "lunge":
+      if (angles.knee < 80) corrections.push("Do not let knee pass your toes");
+      if (angles.bodyLine < 150) corrections.push("Keep your torso upright");
+      if (angles.hipDepth < 100) corrections.push("Lower your hips for a deeper lunge");
+      break;
+
     case "flutterKicks":
       if (angles.knee > 160) corrections.push("Keep your legs straight");
       if (angles.bodyLine < 130)
