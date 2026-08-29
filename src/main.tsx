@@ -7,6 +7,10 @@ import { SettingsProvider } from "./context/SettingsContext.tsx";
 import "./index.css";
 import { registerSW } from 'virtual:pwa-register';
 import { SmoothScroller } from "./components/SmoothScroller";
+import { restoreCustomExercises } from "./services/customExerciseLoader";
+
+// Register SW + any persisted custom exercise layouts before first render
+restoreCustomExercises();
 
 // Register PWA Service Worker for offline support
 registerSW({
