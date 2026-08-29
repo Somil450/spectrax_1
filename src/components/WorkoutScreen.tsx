@@ -42,6 +42,35 @@ const createPoseWorker = () =>
     type: "module",
   });
 
+// Pack MediaPipe landmarks into a transferable Float32Array buffer so the pose
+// worker receives them zero-copy (no structured clone) via postMessage.
+const LM_COUNT = 33;
+const LM_STRIDE = 4;
+
+const packLandmarks = (
+  landmarks?: Array<{
+    x?: number;
+    y?: number;
+    z?: number;
+    visibility?: number;
+  }>,
+): ArrayBuffer => {
+  const buf = new ArrayBuffer(LM_COUNT * LM_STRIDE * 4);
+  const view = new Float32Array(buf);
+  if (landmarks) {
+    for (let i = 0; i < LM_COUNT; i++) {
+      const lm = landmarks[i];
+      if (!lm) continue;
+      const o = i * LM_STRIDE;
+      view[o] = lm.x ?? 0;
+      view[o + 1] = lm.y ?? 0;
+      view[o + 2] = lm.z ?? 0;
+      view[o + 3] = lm.visibility ?? 0;
+    }
+  }
+  return buf;
+};
+
 interface WorkoutScreenProps {
   exercise: ExerciseConfig;
   onCancel?: () => void;
@@ -278,6 +307,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
   const workerInFlightRef = useRef<boolean>(false); // a frame is awaiting a worker reply
   const workerSkipCountRef = useRef<number>(0); // consecutive frames skipped under backpressure
+  const workerIpcCountRef = useRef<number>(0); // frames measured for IPC round-trip telemetry
+  const workerIpcSumRef = useRef<number>(0); // cumulative IPC round-trip ms
   const [mismatchError, setMismatchError] = useState<string | null>(null);
 
   const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
@@ -749,13 +780,17 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     } else {
       workerInFlightRef.current = true;
       workerSkipCountRef.current = 0;
-      workerRef.current?.postMessage({
-        landmarks: results.poseLandmarks,
-        exercise: exercise.key,
-        frameId: frameSkipRef.current,
-        status: mutableState.current.status,
-        primaryJoints: primaryJoints,
-      });
+      const buf = packLandmarks(results.poseLandmarks);
+      workerRef.current?.postMessage(
+        {
+          buf,
+          frameId: frameSkipRef.current,
+          status: mutableState.current.status,
+          primaryJoints: primaryJoints,
+          t0: performance.now(),
+        },
+        [buf],
+      );
     }
 
     // Use last worker result for angles (may be 1 frame stale — acceptable)
@@ -918,12 +953,31 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     workerRef.current = worker;
 
     worker.onmessage = (event: MessageEvent) => {
-      const { angles, frameId } = event.data;
+      if (event.data?.type === "canvasReady") {
+        console.debug(
+          `[poseWorker] canvas ready: ${event.data.supported ? "OffscreenCanvas 2D" : "no 2D context"}`,
+        );
+        return;
+      }
+
+      const { angles, frameId, ipcMs } = event.data;
       if (angles) {
         workerAnglesRef.current = angles;
       }
       if (frameId !== undefined) {
         workerInFlightRef.current = false;
+      }
+      if (typeof ipcMs === "number") {
+        workerIpcCountRef.current++;
+        workerIpcSumRef.current += ipcMs;
+        if (workerIpcCountRef.current >= 120) {
+          const avg = workerIpcSumRef.current / workerIpcCountRef.current;
+          console.debug(
+            `[poseWorker] avg IPC round-trip: ${avg.toFixed(1)}ms over ${workerIpcCountRef.current} frames`,
+          );
+          workerIpcCountRef.current = 0;
+          workerIpcSumRef.current = 0;
+        }
       }
     };
 

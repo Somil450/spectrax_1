@@ -568,7 +568,17 @@ self.onmessage = (event: MessageEvent) => {
   } = event.data;
 
   if (type === "initCanvas") {
-    offscreenCtx = canvas.getContext("2d");
+    const ctx =
+      canvas && typeof canvas.getContext === "function"
+        ? canvas.getContext("2d")
+        : null;
+    offscreenCtx = ctx || null;
+    (self as any).postMessage({
+      type: "canvasReady",
+      supported: !!ctx,
+      width: ctx?.canvas?.width ?? 0,
+      height: ctx?.canvas?.height ?? 0,
+    });
     return;
   }
 
