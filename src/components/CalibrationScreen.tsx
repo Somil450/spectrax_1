@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { overlayRenderer } from '../services/overlayRenderer';
-import { calibrationLogic, CalibrationResult } from '../services/calibrationLogic';
+import { calibrationLogic, CalibrationResult, CALIBRATION_JOINTS, calculateJointAngle, trackMovementRange, buildCalibrationProfile } from '../services/calibrationLogic';
 import { Camera, AlertCircle, Dumbbell, Hand, User, StopCircle, Activity, ShieldAlert, Check } from 'lucide-react';
 import { ExercisePreviewOverlay } from './ExercisePreviewOverlay';
 import { poseService } from '../services/poseService';
@@ -34,14 +34,6 @@ const srOnly: React.CSSProperties = {
   clipPath: 'inset(50%)',
   whiteSpace: 'nowrap',
   border: 0,
-};
-
-const EXERCISE_JOINTS: Record<string, { a: number, b: number, c: number }> = {
-  squat: { a: 23, b: 25, c: 27 },
-  pushup: { a: 11, b: 13, c: 15 },
-  bicepCurl: { a: 11, b: 13, c: 15 },
-  lunge: { a: 23, b: 25, c: 27 },
-  shoulderPress: { a: 11, b: 13, c: 15 },
 };
 
 export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
@@ -92,22 +84,6 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   const countdownIntervalRef = useRef<any>(null);
 
-
-  const calculateJointAngle = (landmarks: any[], aIdx: number, bIdx: number, cIdx: number) => {
-    const a = landmarks[aIdx];
-    const b = landmarks[bIdx];
-    const c = landmarks[cIdx];
-    if (!a || !b || !c) return 0;
-    const ab = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
-    const cb = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
-    const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
-    const magAB = Math.sqrt(ab.x * ab.x + ab.y * ab.y + ab.z * ab.z);
-    const magCB = Math.sqrt(cb.x * cb.x + cb.y * cb.y + cb.z * cb.z);
-    if (magAB < 1e-6 || magCB < 1e-6) return 0;
-    const cos = dot / (magAB * magCB);
-    return Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
-  };
-
   const handleResults = useCallback((results: any) => {
     let adaptiveFactor = 1.0;
 
@@ -124,12 +100,10 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
       // Track movement range of motion
       if (phase === 'movement') {
-        const joint = EXERCISE_JOINTS[selectedExercise.key] || { a: 23, b: 25, c: 27 };
+        const joint = CALIBRATION_JOINTS[selectedExercise.key] || { a: 23, b: 25, c: 27 };
         const currentAngle = calculateJointAngle(results.poseLandmarks, joint.a, joint.b, joint.c);
-        if (currentAngle > 5 && currentAngle < 179) {
-          setMinAngle((prev) => Math.min(prev, currentAngle));
-          setMaxAngle((prev) => Math.max(prev, currentAngle));
-        }
+        setMinAngle((prev) => trackMovementRange(currentAngle, prev, prev).minAngle);
+        setMaxAngle((prev) => trackMovementRange(currentAngle, prev, prev).maxAngle);
       }
     }
 
@@ -274,18 +248,16 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
 
   useEffect(() => {
     if (phase === 'summary') {
-      const range = maxAngle - minAngle;
-      // Set target threshold at 90% of dynamic range
-      const calibratedThreshold = range > 10 ? Math.round(maxAngle - range * 0.90) : selectedExercise.downThreshold;
-      setCalibratedVal(calibratedThreshold);
+      const profile = buildCalibrationProfile(
+        selectedExercise.key,
+        minAngle,
+        maxAngle,
+        selectedExercise.downThreshold
+      );
+      setCalibratedVal(profile[selectedExercise.key].calibratedThreshold);
 
       const currentProfile = settings.calibrationProfile || {};
-      currentProfile[selectedExercise.key] = {
-        minAngle: Math.round(minAngle),
-        maxAngle: Math.round(maxAngle),
-        calibratedThreshold,
-      };
-      updateSetting('calibrationProfile', { ...currentProfile });
+      updateSetting('calibrationProfile', { ...currentProfile, ...profile });
     }
   }, [phase, minAngle, maxAngle, selectedExercise.key]);
 
