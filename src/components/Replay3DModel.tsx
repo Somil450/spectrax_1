@@ -24,6 +24,7 @@ import {
   type BoneEntry,
   type StressVectorRig,
 } from "./sceneBuilders";
+import { interpolateFrames } from "../utils/splineInterpolation";
 
 // ─── Module-Level GLTF Cache ──────────────────────────────────────────────────
 
@@ -50,53 +51,6 @@ export interface ReplayFrame {
   repCount?: number;
 }
 
-function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return 0.5 * (
-    (2 * p1) +
-    (-p0 + p2) * t +
-    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
-  );
-}
-
-function getInterpolatedLandmarks(
-  frames: ReplayFrame[],
-  floatIdx: number,
-): { x: number; y: number; z: number; visibility?: number }[] | null {
-  const n = frames.length;
-  if (n === 0) return null;
-  const idx = Math.floor(floatIdx);
-  const frac = floatIdx - idx;
-  if (idx < 0 || idx >= n) return frames[idx]?.landmarks ?? null;
-  if (frac < 0.001) return frames[idx].landmarks;
-  const i0 = Math.max(0, idx - 1);
-  const i1 = idx;
-  const i2 = Math.min(n - 1, idx + 1);
-  const i3 = Math.min(n - 1, idx + 2);
-  const f0 = frames[i0].landmarks;
-  const f1 = frames[i1].landmarks;
-  const f2 = frames[i2].landmarks;
-  const f3 = frames[i3].landmarks;
-  const count = Math.min(f1.length, f2.length, 33);
-  const result: { x: number; y: number; z: number; visibility?: number }[] = [];
-  for (let i = 0; i < count; i++) {
-    const lm1 = f1[i];
-    const lm2 = f2[i];
-    if (!lm1 || !lm2) { result.push(lm1 || lm2 || { x: 0, y: 0, z: 0 }); continue; }
-    const lm0 = f0[i] || lm1;
-    const lm3 = f3[i] || lm2;
-    result.push({
-      x: catmullRom(lm0.x, lm1.x, lm2.x, lm3.x, frac),
-      y: catmullRom(lm0.y, lm1.y, lm2.y, lm3.y, frac),
-      z: catmullRom(lm0.z, lm1.z, lm2.z, lm3.z, frac),
-      visibility: lm1.visibility ?? lm2.visibility,
-    });
-  }
-  return result;
-}
-
 export interface Replay3DModelProps {
   frames: ReplayFrame[];
   modelUrl?: string;
@@ -107,6 +61,7 @@ export interface Replay3DModelProps {
   hideControls?: boolean;
   skin?: string;
   exerciseName?: string;
+  playbackSpeed?: number;
 }
 
 const HUD_JOINTS: { idx: number; boneKey: string; label: string; p1: number; p2: number; p3: number }[] = [
@@ -461,6 +416,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   hideControls = false,
   skin = "Standard Human",
   exerciseName = "squat",
+  playbackSpeed: externalPlaybackSpeed = 1,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [_isPlaying, _setIsPlaying]     = useState(false);
@@ -479,6 +435,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   const frameFloatRef     = useRef(0);
   const currentFrameIdxRef = useRef(0);
 
+  // Playback speed — fractional advances drive the spline interpolator so
+  // slow-motion replay stays silky smooth (issue #175).
+  const [_playbackSpeed, _setPlaybackSpeed] = useState(1);
+  const playbackSpeed = externalPlaybackSpeed !== undefined ? externalPlaybackSpeed : _playbackSpeed;
+  const setPlaybackSpeed = (v: number) => _setPlaybackSpeed(v);
+  const playbackSpeedRef = useRef(1);
+  useEffect(() => { playbackSpeedRef.current = playbackSpeed; }, [playbackSpeed]);
+
   const isPlaying        = externalIsPlaying   !== undefined ? externalIsPlaying   : _isPlaying;
   const currentFrameIdx  = externalFrameIdx    !== undefined ? externalFrameIdx    : _currentFrameIdx;
   const isFrameControlled = externalFrameIdx   !== undefined;
@@ -488,6 +452,12 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
   useEffect(() => { graphicsPresetRef.current = graphicsPreset; }, [graphicsPreset]);
   useEffect(() => { autoAdaptRef.current      = autoAdapt; },     [autoAdapt]);
   useEffect(() => { currentFrameIdxRef.current = currentFrameIdx; }, [currentFrameIdx]);
+
+  // Stable view of landmark arrays — avoids re-mapping on every render loop tick.
+  const frameLandmarks = React.useMemo(
+    () => (frames && frames.length ? frames.map((f) => f.landmarks) : []),
+    [frames],
+  );
 
   // ── Three.js refs ─────────────────────────────────────────────────────────
   const sceneRef    = useRef<THREE.Scene | null>(null);
@@ -1236,7 +1206,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       if (isPlaying && !isFrameControlled && time - lastTimeRef.current > 1000 / 8) {
-        const nextFloat = ((frameFloatRef.current ?? currentFrameIdxRef.current) + 1) % frames.length;
+        const step = Math.max(0.05, playbackSpeedRef.current);
+        const nextFloat = ((frameFloatRef.current ?? currentFrameIdxRef.current) + step) % frames.length;
         frameFloatRef.current = nextFloat;
         const nextIdx = Math.round(nextFloat) % frames.length;
         setCurrentFrameIdx(nextIdx);
@@ -1244,7 +1215,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       }
 
       const renderFloat = isPlaying && !isFrameControlled ? (frameFloatRef.current ?? currentFrameIdxRef.current) : currentFrameIdxRef.current;
-      const interpolatedLm = getInterpolatedLandmarks(frames, renderFloat);
+      const interpolatedLm = interpolateFrames(frameLandmarks, renderFloat);
       if (!interpolatedLm) {
         rendererRef.current?.render(sceneRef.current!, cameraRef.current!);
         return;
@@ -1494,7 +1465,7 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
 
     reqIdRef.current = requestAnimationFrame(renderLoop);
     return () => cancelAnimationFrame(reqIdRef.current);
-  }, [frames, isPlaying, isFrameControlled, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
+  }, [frames, frameLandmarks, isPlaying, isFrameControlled, modelLoaded, setCurrentFrameIdx, skin, applyPreset, emitRipple, exerciseName, syncRippleUniforms, updateFallbackSkeletonOcclusion, updateGridPosition, updateSegmentScaleAdaptor, updateStressVectors]);
 
   // ─── No frames guard ─────────────────────────────────────────────────────
   if (!frames || frames.length === 0) {
@@ -1553,6 +1524,20 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           <span style={{ color: "#aaa", fontSize: "0.85rem", minWidth: "80px", textAlign: "right" }}>
             {currentFrameIdx} / {frames.length - 1}
           </span>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", color: "#aaa", fontSize: "0.8rem", fontFamily: "'JetBrains Mono', monospace" }}>
+            <span>SPEED</span>
+            <select
+              value={playbackSpeed}
+              aria-label="Playback speed"
+              onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
+              style={{ background: "#111", color: "#00ffcc", border: "1px solid #444", borderRadius: "4px", padding: "5px 6px", fontSize: "0.78rem", cursor: "pointer", outline: "none" }}
+            >
+              <option value={0.25}>0.25×</option>
+              <option value={0.5}>0.5×</option>
+              <option value={1}>1×</option>
+              <option value={2}>2×</option>
+            </select>
+          </label>
         </div>
       )}
     </div>

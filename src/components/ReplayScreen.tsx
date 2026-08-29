@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LayoutDashboard, Play, Pause, CheckCircle2, AlertTriangle, Palette } from 'lucide-react';
 import { Replay3DModel } from './Replay3DModel';
 import { sessionRecorder } from '../services/sessionRecorder';
@@ -20,7 +20,16 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
   const frames = (sessionRecorder as any).frames || [];
   const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [selectedSkin, setSelectedSkin] = useState<string>(AVATAR_SKINS.STANDARD_HUMAN);
+
+  // Fractional frame pointer — drives the 3D model's cubic-spline interpolator
+  // so slow-motion playback (0.25×) renders smooth poses instead of snapped frames.
+  const floatFrameRef = useRef(0);
+
+  useEffect(() => {
+    floatFrameRef.current = currentFrameIdx;
+  }, [currentFrameIdx]);
 
   // Stable session ID (was Math.random() inline in JSX — wrong)
   const [sessionId] = useState(() =>
@@ -84,20 +93,22 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
     });
   }, [currentFrameIdx, kneeAngle, elbowAngle, shoulderAngle, hipAngle, bodyline, lm]);
 
-  // Auto-advance frames when playing
+  // Auto-advance frames when playing — advances by a fractional step so the
+  // 3D model's spline interpolation is exercised during playback.
   useEffect(() => {
     if (!isPlaying || frames.length === 0) return;
     const interval = setInterval(() => {
-      setCurrentFrameIdx((prev) => {
-        if (prev >= frames.length - 1) {
-          setIsPlaying(false);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 66); // ~15fps
+      floatFrameRef.current += playbackSpeed;
+      if (floatFrameRef.current >= frames.length - 1) {
+        floatFrameRef.current = frames.length - 1;
+        setCurrentFrameIdx(frames.length - 1);
+        setIsPlaying(false);
+        return;
+      }
+      setCurrentFrameIdx(Math.round(floatFrameRef.current));
+    }, 66); // ~15fps tick, scaled by playbackSpeed
     return () => clearInterval(interval);
-  }, [isPlaying, frames.length]);
+  }, [isPlaying, frames.length, playbackSpeed]);
 
   return (
     <div
@@ -480,12 +491,13 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
       <div style={{ position: 'absolute', inset: 0 }}>
         <Replay3DModel
           frames={frames}
-          currentFrameIdx={currentFrameIdx}
+          currentFrameIdx={floatFrameRef.current}
           isPlaying={isPlaying}
           onFrameChange={setCurrentFrameIdx}
           onPlayToggle={() => setIsPlaying((p) => !p)}
           hideControls
           skin={selectedSkin}
+          playbackSpeed={playbackSpeed}
         />
       </div>
 
@@ -530,6 +542,35 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
           {isPlaying ? <Pause size={16} fill="#fff" color="#fff" /> : <Play size={16} fill="#fff" color="#fff" />}
         </button>
 
+        {/* Playback speed toggle — cycles 0.25× → 0.5× → 1× → 2× */}
+        <button
+          onClick={() => {
+            const speeds = [0.25, 0.5, 1, 2];
+            const next = speeds[(speeds.indexOf(playbackSpeed) + 1) % speeds.length];
+            setPlaybackSpeed(next);
+          }}
+          className="has-tooltip tooltip-top"
+          data-tooltip={`Playback speed: ${playbackSpeed}×`}
+          aria-label={`Playback speed ${playbackSpeed}x`}
+          style={{
+            height: '40px',
+            padding: '0 14px',
+            borderRadius: '20px',
+            background: 'rgba(0,0,0,0.55)',
+            border: '1px solid rgba(0,255,255,0.4)',
+            color: '#00ffff',
+            cursor: 'pointer',
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '0.78rem',
+            fontWeight: 700,
+            letterSpacing: 1,
+            boxShadow: playbackSpeed < 1 ? '0 0 12px rgba(0,255,255,0.35)' : 'none',
+            flexShrink: 0,
+          }}
+        >
+          {playbackSpeed}×
+        </button>
+
         {/* Scrubber */}
         <div style={{ flex: 1, position: 'relative', height: '4px' }}>
           <input
@@ -541,7 +582,9 @@ export const ReplayScreen: React.FC<ReplayScreenProps> = ({
             aria-valuetext={`Frame ${currentFrameIdx + 1} of ${frames.length}`}
             onChange={(e) => {
               setIsPlaying(false);
-              setCurrentFrameIdx(Number(e.target.value));
+              const v = Number(e.target.value);
+              floatFrameRef.current = v;
+              setCurrentFrameIdx(v);
             }}
             style={{
               width: '100%',
