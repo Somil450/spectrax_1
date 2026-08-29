@@ -971,7 +971,15 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     return () => {
       isMountedRef.current = false;
       stopSystem();
-      worker.terminate();
+      // Gracefully release worker resources (OffscreenCanvas context, shared
+      // buffers, predictor state); the worker self-terminates after cleanup.
+      worker.onmessage = null;
+      try {
+        worker.postMessage({ type: "terminate" });
+      } catch {
+        // Worker already closed or errored; nothing left to release.
+      }
+      workerRef.current = null;
       depthEngineRef.current?.destroy();
       depthEngineRef.current = null;
       clearInterval(timerRef);
