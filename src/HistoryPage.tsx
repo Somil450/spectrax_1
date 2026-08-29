@@ -1,8 +1,9 @@
 // src/HistoryPage.tsx
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { History, Trash2, ArrowLeft, TrendingUp, Filter, Loader2, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
+import { History, Trash2, ArrowLeft, TrendingUp, Filter, Loader2, WifiOff, CheckCircle2, AlertCircle, Flame } from "lucide-react";
 import { useWorkoutHistory, type WorkoutSession } from "./useWorkoutHistory";
 import { EmptyState } from "./components/EmptyState";
+import { getWorkoutStreak } from "./utils/streakUtils";
 
 // ── Debounce Hook ─────────────────────────────────────────────────────────────
 function useDebounce<T>(value: T, delay: number): T {
@@ -59,6 +60,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
   } = useWorkoutHistory();
   const { syncStatus, manualSync } = useWorkoutSync();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Read-only streak display; recomputed whenever the history changes so a
+  // freshly completed workout is reflected immediately.
+  const streakData = useMemo(() => getWorkoutStreak(), [sessions]);
 
   // Offline replay queue state
   const [offlineSyncState, setOfflineSyncState] = useState<OfflineSyncState>("idle");
@@ -251,6 +256,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onBack }) => {
             label="Avg Accuracy"
             value={`${avgAccuracy(filteredSessions)}%`}
             icon={<TrendingUp size={12} />}
+          />
+          <div className="summary-divider" />
+          <SummaryPill
+            label="Streak"
+            value={`${streakData.currentStreak} day${streakData.currentStreak === 1 ? "" : "s"}`}
+            icon={<Flame size={12} />}
           />
         </div>
       )}
