@@ -581,7 +581,7 @@ export const SummaryScreen: React.FC<SummaryScreenProps> = ({ stats, leveling, o
               </div>
             </div>
             <div>
-              <div style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 900 }}>{Math.round(stats.jumpingJackSync.confidence * 100)}%</div>
+              <div style={{ color: '#fff', fontSize: '1.6rem', fontWeight: 900 }}>{Math.round(stats.jumpingJackSync.confidence * 100 + Number.EPSILON)}%</div>
               <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase' }}>Confidence</div>
             </div>
           </div>
