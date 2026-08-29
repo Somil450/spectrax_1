@@ -401,7 +401,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     onChange={(e) => {
                       setUserWeight(e.target.value);
                       const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && val >= 30 && val <= 200)
+                      if (!Number.isNaN(val) && val >= 30 && val <= 200)
                         saveUserWeight(val);
                     }}
                     style={{
@@ -526,7 +526,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
           {/* ── Stat strip (From maintainer's branch) ── */}
           <div className="welcome-stats">
-            {STATS.map(({ value, label }, i) => (
+            {(STATS ?? []).map(({ value, label }, i) => (
               <React.Fragment key={label}>
                 <div className="welcome-stat">
                   <span className="welcome-stat__value">{value}</span>
