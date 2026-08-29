@@ -1,4 +1,4 @@
-import { ExerciseContext } from './ExerciseStrategy';
+import { CalibrationStage, ExerciseContext } from './ExerciseStrategy';
 import { DefaultStrategy } from './DefaultStrategy';
 import { EngineState, calculateJumpingJackSyncMetrics } from '../exerciseEngine';
 
@@ -7,6 +7,10 @@ const JUMPING_JACK_SYNC_WINDOW = 160;
 export class JumpingJackStrategy extends DefaultStrategy {
   constructor() {
     super(15); // Left Wrist
+  }
+
+  getCalibrationStage(): CalibrationStage {
+    return 'down';
   }
 
   updateCustomState(context: ExerciseContext, nextState: Partial<EngineState>): void {

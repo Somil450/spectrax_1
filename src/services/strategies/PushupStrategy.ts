@@ -1,4 +1,4 @@
-import { ExerciseContext, RepCompletionResult } from './ExerciseStrategy';
+import { DepthFeedbackChannel, DepthResultField, ExerciseContext, RepCompletionResult } from './ExerciseStrategy';
 import { DefaultStrategy } from './DefaultStrategy';
 import {
   classifyPushupDepth,
@@ -24,6 +24,14 @@ export class PushupStrategy extends DefaultStrategy {
       }
     }
     return undefined;
+  }
+
+  getLiveFeedbackChannel(): DepthFeedbackChannel | null {
+    return 'livePushupDepthFeedback';
+  }
+
+  getDepthResultField(): DepthResultField | null {
+    return 'lastPushupDepthResult';
   }
 
   onRepComplete(context: ExerciseContext): RepCompletionResult | undefined {

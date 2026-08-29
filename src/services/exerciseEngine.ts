@@ -401,14 +401,15 @@ export class ExerciseEngine {
     const smoothedAngle = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
 
     if (!isCalibrated) {
+      const calibrationStage = strategy.getCalibrationStage();
       const isUpPosture = smoothedAngle > config.upThreshold - 5;
       const isDownPosture = smoothedAngle < config.downThreshold + 5;
-      const fromDown = config.key === "jumpingJack" && isDownPosture;
-
+      const fromDown = calibrationStage === "down" && isDownPosture;
 
       const shouldCalibrateFromDown =
-        config.key === "jumpingJack" && isDownPosture;
-      const shouldCalibrateFromUp = config.key !== "jumpingJack" && isUpPosture;
+        calibrationStage === "down" && isDownPosture;
+      const shouldCalibrateFromUp =
+        calibrationStage !== "down" && isUpPosture;
 
       if (
         (shouldCalibrateFromDown || shouldCalibrateFromUp) &&
@@ -592,9 +593,10 @@ export class ExerciseEngine {
 
     const liveFeedback = strategy.getLiveFeedback(exerciseContext);
     if (liveFeedback) {
-      if (/squat/i.test(config.key)) {
+      const channel = strategy.getLiveFeedbackChannel();
+      if (channel === 'liveDepthFeedback') {
         liveDepthFeedback = liveFeedback;
-      } else if (/pushup/i.test(config.key)) {
+      } else if (channel === 'livePushupDepthFeedback') {
         livePushupDepthFeedback = liveFeedback;
       }
     }
@@ -709,12 +711,13 @@ export class ExerciseEngine {
     }
 
     // Show depth classification feedback right after a rep completes
-    if (repJustCounted && nextLastDepthResult && /squat/i.test(config.key)) {
+    const depthResultField = strategy.getDepthResultField();
+    if (repJustCounted && depthResultField === 'lastDepthResult' && nextLastDepthResult) {
       const classMsg = nextLastDepthResult.feedback;
       displayFeedback = classMsg;
       displayStatus =
         nextLastDepthResult.isFullDepth ? 'green' : 'red';
-    } else if (repJustCounted && nextLastPushupDepthResult && /pushup/i.test(config.key)) {
+    } else if (repJustCounted && depthResultField === 'lastPushupDepthResult' && nextLastPushupDepthResult) {
       const classMsg = nextLastPushupDepthResult.feedback;
       displayFeedback = classMsg;
       displayStatus =

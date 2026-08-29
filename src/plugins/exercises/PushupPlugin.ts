@@ -1,4 +1,4 @@
-import { ExerciseContext, RepCompletionResult } from './IExercisePlugin';
+import { DepthFeedbackChannel, DepthResultField, ExerciseContext, RepCompletionResult } from './IExercisePlugin';
 import { BaseExercisePlugin } from './BaseExercisePlugin';
 import { exercisePluginRegistry } from './ExercisePluginRegistry';
 import {
@@ -30,6 +30,14 @@ export class PushupPlugin extends BaseExercisePlugin {
       }
     }
     return undefined;
+  }
+
+  getLiveFeedbackChannel(): DepthFeedbackChannel | null {
+    return 'livePushupDepthFeedback';
+  }
+
+  getDepthResultField(): DepthResultField | null {
+    return 'lastPushupDepthResult';
   }
 
   onRepComplete(context: ExerciseContext): RepCompletionResult | undefined {

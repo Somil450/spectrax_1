@@ -1,4 +1,4 @@
-import { ExerciseContext, ExerciseStrategy, RepCompletionResult } from './ExerciseStrategy';
+import { CalibrationStage, DepthFeedbackChannel, DepthResultField, ExerciseContext, ExerciseStrategy, RepCompletionResult } from './ExerciseStrategy';
 import { EngineState } from '../exerciseEngine';
 
 export class DefaultStrategy implements ExerciseStrategy {
@@ -26,5 +26,17 @@ export class DefaultStrategy implements ExerciseStrategy {
 
   getWristSupinationScore(_landmarks?: any[]): number {
     return NaN;
+  }
+
+  getCalibrationStage(): CalibrationStage {
+    return 'up';
+  }
+
+  getLiveFeedbackChannel(): DepthFeedbackChannel | null {
+    return null;
+  }
+
+  getDepthResultField(): DepthResultField | null {
+    return null;
   }
 }

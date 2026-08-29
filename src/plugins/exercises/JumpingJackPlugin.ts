@@ -1,4 +1,4 @@
-import { ExerciseContext } from './IExercisePlugin';
+import { CalibrationStage, ExerciseContext } from './IExercisePlugin';
 import { BaseExercisePlugin } from './BaseExercisePlugin';
 import { exercisePluginRegistry } from './ExercisePluginRegistry';
 import { EngineState } from '../../services/exerciseEngine';
@@ -14,6 +14,10 @@ export class JumpingJackPlugin extends BaseExercisePlugin {
 
   constructor() {
     super(15);
+  }
+
+  getCalibrationStage(): CalibrationStage {
+    return 'down';
   }
 
   updateCustomState(context: ExerciseContext, nextState: Partial<EngineState>): void {
