@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { getAuth } from 'firebase/auth';
 
 export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.meta.env.VITE_BACKEND_URL) {
-  const wsSocketRef = useRef<WebSocket | null>(null);
+  const wsSocketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    function connect() {
+    async function connect() {
       try {
         if (!backendUrlRaw) {
           console.warn(
@@ -19,12 +21,30 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
         const backendUrl = (backendUrlRaw ?? "http://localhost:3001").replace(/\/+$/, "");
 
         if (cancelled) return;
-        const wsUrl = backendUrl.replace(/^http/, "ws") + "/socket.io/?EIO=4&transport=websocket";
-        const wsSocket = new WebSocket(wsUrl);
+
+        // Get Firebase ID token for authentication
+        let firebaseToken: string | undefined;
+        try {
+          const auth = getAuth();
+          const user = auth.currentUser;
+          if (user) {
+            firebaseToken = await user.getIdToken();
+          }
+        } catch (tokenError) {
+          console.warn("[SpectraX WS] Failed to get Firebase ID token:", tokenError);
+        }
+
+        if (cancelled) return;
+
+        // Use Socket.IO client with auth option instead of URL query parameter
+        const wsSocket = io(backendUrl, {
+          auth: firebaseToken ? { token: firebaseToken } : undefined,
+          transports: ['websocket'],
+          reconnection: false,
+        });
         wsSocketRef.current = wsSocket;
 
-        wsSocket.onopen = () => {};
-        wsSocket.onerror = () => {
+        wsSocket.on('connect_error', () => {
           console.warn(
             "[SpectraX WS] Could not connect to backend at",
             backendUrl,
@@ -32,7 +52,7 @@ export function useWorkoutWebSocket(backendUrlRaw: string | undefined = import.m
             "Check that the server is running and that VITE_BACKEND_URL is correct in .env.local."
           );
           wsSocketRef.current = null;
-        };
+        });
       } catch (_) {
         wsSocketRef.current = null;
       }
