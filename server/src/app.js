@@ -20,6 +20,7 @@ const errorHandler = require("./middleware/errorHandler");
 // ─── Socket & Route Imports ────────────────────────────────────────────────
 const setupSocketHandlers = require("./socket/handlers");
 const setupHealthRoute = require("./modules/healthRoute");
+const workoutRoutes = require("./modules/workout/workout.routes");
 
 // ─── App Setup ─────────────────────────────────────────────────────────────
 const corsConfig = createCorsOptions({
@@ -66,7 +67,7 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 // ─── Setup Routes & Socket Handlers ────────────────────────────────────────
 setupHealthRoute(app, sessions);
 setupSocketHandlers(io, sessions);
-app.use("/api/workouts", require("./api/workouts"));
+app.use("/api/workouts", workoutRoutes);
 
 // ─── Global Error Handler ─────────────────────────────────────────────────
 app.use(errorHandler);
