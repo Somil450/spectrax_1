@@ -20,6 +20,7 @@ import {
   buildSkyboxEnvironment,
   buildRippleGridPlane,
   buildStressVectors,
+  GRID_PLANE_SIZE,
   MUSCLE_JOINT_GROUPS,
   type BoneEntry,
   type StressVectorRig,
@@ -350,7 +351,6 @@ const PROPORTION_MIN_RATIO = 0.78;
 const PROPORTION_MAX_RATIO = 1.26;
 const GRID_RIPPLE_MAX      = 6;
 const GRID_RIPPLE_LIFETIME = 2.8;
-const GRID_SIZE            = 10;
 
 const ONE_SCALE = new THREE.Vector3(1, 1, 1);
 const _segmentScale = new THREE.Vector3();
@@ -720,6 +720,14 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
     const targetZ = bodyCenter ? bodyCenter.z : 0;
     gridTargetRef.current.set(targetX, -1.01, targetZ);
     grid.position.lerp(gridTargetRef.current, 0.08);
+
+    // Scroll the TRON pattern with the avatar so the floor reads as an
+    // infinite plane that carries the runner (never reaches an edge).
+    const mat = rippleMaterialRef.current;
+    if (mat) {
+      const scroll = mat.uniforms.uScroll;
+      if (scroll) scroll.value.set(-targetX * 0.02, -targetZ * 0.02);
+    }
   }, []);
 
   // ─── Post-processing rebuild ─────────────────────────────────────────────
@@ -1301,8 +1309,8 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
           const intervalSeconds   = lastCompletion ? timeSeconds - lastCompletion : 1.0;
           const tempo             = THREE.MathUtils.clamp(1.8 / Math.max(intervalSeconds, 0.25), 0.7, 1.6);
           const rippleOrigin      = new THREE.Vector2(
-            THREE.MathUtils.clamp(footCenter.x / GRID_SIZE + 0.5, 0.05, 0.95),
-            THREE.MathUtils.clamp(footCenter.y / GRID_SIZE + 0.5, 0.05, 0.95),
+            THREE.MathUtils.clamp(footCenter.x / GRID_PLANE_SIZE + 0.5, 0.05, 0.95),
+            THREE.MathUtils.clamp(footCenter.y / GRID_PLANE_SIZE + 0.5, 0.05, 0.95),
           );
           emitRipple(rippleOrigin, 0.5 + tempo * 0.55, 0.65 + tempo * 0.35, timeSeconds);
         }
