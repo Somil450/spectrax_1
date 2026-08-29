@@ -11,6 +11,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { createBaseMaterialForSkin } from "../utils/avatarSkins";
+import { disposeScene } from "../services/threeDisposal";
 
 // ─── Scene builder helpers (extracted from this file) ─────────────────────────
 import {
@@ -1189,20 +1190,9 @@ export const Replay3DModel: React.FC<Replay3DModelProps> = ({
       hasOrbitPelvisTargetRef.current  = false;
 
       if (sceneRef.current) {
-        sceneRef.current.traverse((obj) => {
-          const mesh = obj as THREE.Mesh;
-          if (mesh.isMesh) {
-            mesh.geometry?.dispose();
-            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            for (const mat of materials) {
-              if (mat) {
-                Object.values(mat).forEach((value) => { if (value instanceof THREE.Texture) value.dispose(); });
-                mat.dispose();
-              }
-            }
-          }
-        });
-        sceneRef.current.clear();
+        // Recursive disposal — meshes, geometries, materials AND textures held
+        // in material maps / ShaderMaterial uniforms (see threeDisposal.ts).
+        disposeScene(sceneRef.current);
         sceneRef.current = null;
       }
     };
