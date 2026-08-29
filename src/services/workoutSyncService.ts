@@ -456,7 +456,8 @@ export function initializeAutoSync(userId: string): void {
         return (reg as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('workout-sync');
       }
     }).then(() => {
-      console.log('Background Sync registered successfully.');
+      // Background Sync registered (no-op) — registration is verified by the
+      // sync event itself.
     }).catch((err) => {
       console.error('Failed to register Background Sync:', err);
     });
@@ -465,8 +466,7 @@ export function initializeAutoSync(userId: string): void {
   // Fallback to standard online/offline event handlers
   onlineHandler = async () => {
     try {
-      const syncedCount = await syncWorkoutsToFirestore(userId);
-      console.log(`Successfully synced ${syncedCount} workouts.`);
+      await syncWorkoutsToFirestore(userId);
     } catch (err) {
       console.error("Auto-sync failed:", err);
     }
