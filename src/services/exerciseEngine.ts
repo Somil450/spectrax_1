@@ -54,42 +54,125 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+// ─────────────────────────────────────────────
+// Plank spine alignment regression (#155)
+// ─────────────────────────────────────────────
+
+const PLANK_SPINE_CALIBRATION_FRAMES = 30;
+const PLANK_SPINE_THRESHOLD_PCT = 12;
+
+export interface PlankSpineState {
+  isCalibrated: boolean;
+  calibrationFrames: number;
+  baselineDeviation: number;
+  currentDeviation: number;
+  deviationPct: number;
+  status: "ok" | "sagging" | "hyperextension";
+}
+
+export function initialPlankSpineState(): PlankSpineState {
+  return {
+    isCalibrated: false,
+    calibrationFrames: 0,
+    baselineDeviation: 0,
+    currentDeviation: 0,
+    deviationPct: 0,
+    status: "ok",
+  };
+}
+
+function leastSquaresFit(xs: number[], ys: number[]): { m: number; b: number } | null {
+  const n = xs.length;
+  if (n < 2) return null;
+  const meanX = xs.reduce((sum, value) => sum + value, 0) / n;
+  const meanY = ys.reduce((sum, value) => sum + value, 0) / n;
+  let numerator = 0;
+  let denominator = 0;
+  for (let i = 0; i < n; i += 1) {
+    numerator += (xs[i] - meanX) * (ys[i] - meanY);
+    denominator += (xs[i] - meanX) ** 2;
+  }
+  if (Math.abs(denominator) < 1e-6) return null;
+  const m = numerator / denominator;
+  return { m, b: meanY - m * meanX };
+}
+
 /**
- * Compute hip spline deviation for plank posture.
- * Measures how far the hip midpoint deviates from the line
- * between shoulder midpoint and knee midpoint.
- * Positive = sagging (hips too low), negative = hyperextension (hips too high).
+ * Linear spline regression over shoulder-hip-knee midpoints. Fits a
+ * least-squares line through all three points (on the more dominant axis) and
+ * returns the hip's signed residual from that line. Positive = hip low
+ * (sagging), negative = hip high (hyperextension).
  */
-function computeHipSplineDeviation(landmarks: any[] | undefined): number {
+export function computePlankSpineRegression(landmarks: any[] | undefined): number {
   if (!landmarks || landmarks.length < 27) return 0;
 
-  const lShoulder = landmarks[11];
-  const rShoulder = landmarks[12];
-  const lHip = landmarks[23];
-  const rHip = landmarks[24];
-  const lKnee = landmarks[25];
-  const rKnee = landmarks[26];
+  const midpoint = (a: any, b: any): { x: number; y: number } | null => {
+    if (!a || !b) return null;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
 
-  if (!lShoulder || !rShoulder || !lHip || !rHip || !lKnee || !rKnee) return 0;
+  const s = midpoint(landmarks[11], landmarks[12]);
+  const h = midpoint(landmarks[23], landmarks[24]);
+  const k = midpoint(landmarks[25], landmarks[26]);
+  if (!s || !h || !k) return 0;
 
-  const shoulderY = (lShoulder.y + rShoulder.y) / 2;
-  const hipY = (lHip.y + rHip.y) / 2;
-  const kneeY = (lKnee.y + rKnee.y) / 2;
+  const xs = [s.x, h.x, k.x];
+  const ys = [s.y, h.y, k.y];
+  const spreadX = Math.max(...xs) - Math.min(...xs);
+  const spreadY = Math.max(...ys) - Math.min(...ys);
 
-  // Line from shoulder midpoint to knee midpoint
-  // At the hip's x position, what y value would a straight line give?
-  const shoulderX = (lShoulder.x + rShoulder.x) / 2;
-  const hipX = (lHip.x + rHip.x) / 2;
-  const kneeX = (lKnee.x + rKnee.x) / 2;
+  if (spreadX >= spreadY) {
+    const fit = leastSquaresFit(xs, ys);
+    if (!fit) return 0;
+    return h.y - (fit.m * h.x + fit.b);
+  }
 
-  const dx = kneeX - shoulderX;
-  if (Math.abs(dx) < 0.001) return 0;
+  const fit = leastSquaresFit(ys, xs);
+  if (!fit) return 0;
+  return h.x - (fit.m * h.y + fit.b);
+}
 
-  // Linear interpolation: expectedY at hipX along shoulder→knee line
-  const tHip = (hipX - shoulderX) / dx;
-  const expectedY = shoulderY + tHip * (kneeY - shoulderY);
+/**
+ * Accumulates baseline deviation during the first 30 plank frames, then flags
+ * sagging/hyperextension once the current deviation strays past ±12% beyond the
+ * calibrated baseline.
+ */
+export function updatePlankSpineState(
+  prev: PlankSpineState,
+  deviation: number,
+  isPlank: boolean,
+): PlankSpineState {
+  if (!isPlank) return prev;
 
-  return hipY - expectedY;
+  if (!prev.isCalibrated) {
+    const k = prev.calibrationFrames;
+    const nextBaseline = (prev.baselineDeviation * k + deviation) / (k + 1);
+    const nextFrames = k + 1;
+    return {
+      ...prev,
+      calibrationFrames: nextFrames,
+      baselineDeviation: nextBaseline,
+      isCalibrated: nextFrames >= PLANK_SPINE_CALIBRATION_FRAMES,
+      currentDeviation: deviation,
+      deviationPct: 0,
+      status: "ok",
+    };
+  }
+
+  const deviationPct =
+    ((Math.abs(deviation) - Math.abs(prev.baselineDeviation)) /
+      (Math.abs(prev.baselineDeviation) + 1e-6)) *
+    100;
+  let status: PlankSpineState["status"] = "ok";
+  if (deviationPct > PLANK_SPINE_THRESHOLD_PCT) {
+    status = deviation > 0 ? "sagging" : "hyperextension";
+  }
+  return {
+    ...prev,
+    currentDeviation: deviation,
+    deviationPct,
+    status,
+  };
 }
 
 function normalizeSeries(values: number[]): number[] | null {
@@ -245,6 +328,9 @@ export interface EngineState {
   holdTime?: number;
   jumpingJackSyncSamples?: JumpingJackSyncSample[];
   jumpingJackSync?: JumpingJackSyncMetrics;
+
+  // Plank spine alignment regression (calibrated baseline + threshold)
+  plankSpine?: PlankSpineState;
 
   wristSupinationScore?: number;
 
@@ -495,9 +581,12 @@ export class ExerciseEngine {
     // ───────── WRIST ROTATION DETECTION ─────────
     const wristSupinationScore = strategy.getWristSupinationScore(landmarks);
 
-    const PLANK_DEVIATION_THRESHOLD = 0.05;
-    const hipSplineDeviation = computeHipSplineDeviation(landmarks);
-    const nextPlankSpline = { isCalibrated: true };
+    const isPlank = /plank/i.test(config.key);
+    const nextPlankSpine = updatePlankSpineState(
+      currentState.plankSpine ?? initialPlankSpineState(),
+      computePlankSpineRegression(landmarks),
+      isPlank,
+    );
 
     const context: any = {
       ...angles,
@@ -506,10 +595,10 @@ export class ExerciseEngine {
       hipDepth: angles.hipDepth,
       horizontalStretch: angles.horizontalStretch,
       downAngleReached,
-      hipSplineDeviation,
-      plankSplineCalibrated: nextPlankSpline.isCalibrated,
-      hipSagging: hipSplineDeviation > PLANK_DEVIATION_THRESHOLD,
-      hipHyperextension: hipSplineDeviation < -PLANK_DEVIATION_THRESHOLD,
+      hipSplineDeviation: nextPlankSpine.currentDeviation,
+      plankSplineCalibrated: nextPlankSpine.isCalibrated,
+      hipSagging: nextPlankSpine.status === "sagging",
+      hipHyperextension: nextPlankSpine.status === "hyperextension",
       wristSupinationScore,
     };
 
@@ -779,6 +868,7 @@ export class ExerciseEngine {
       lastValidAngles: nextLastValidAngles,
       jumpingJackSyncSamples: nextJumpingJackSyncSamples,
       jumpingJackSync: nextJumpingJackSync,
+      plankSpine: nextPlankSpine,
       vbtMetrics: updatedVbtMetrics,
       tutMetrics: tut || undefined,
       holdTime: nextHoldTime,
