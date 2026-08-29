@@ -7,19 +7,17 @@ export const Tracker: React.FC = () => {
 
   return (
     <div
+      className="tracker-pill"
       style={{
         display: "flex",
         alignItems: "center",
         gap: "8px",
-        padding: "6px 12px",
         borderRadius: "20px",
         background: isOnline ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
         border: `1px solid ${isOnline ? "var(--neon-green, #22c55e)" : "var(--neon-red, #ef4444)"}`,
         color: isOnline ? "var(--neon-green, #22c55e)" : "var(--neon-red, #ef4444)",
         fontFamily: "var(--font-heading, inherit)",
-        fontSize: "0.75rem",
         fontWeight: "bold",
-        letterSpacing: "1px",
         boxShadow: `0 0 10px ${isOnline ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
         transition: "all 0.3s ease",
       }}

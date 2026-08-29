@@ -23,6 +23,13 @@
   pointer-events: none;
 }
 
+.tracker-pill {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
 .spectrax-navbar .nav-left {
   display: flex;
   align-items: center;
@@ -73,6 +80,64 @@
   .nav-center { display: none; }
   .mobile-menu { display: inline-flex; }
   .nav-center.open { display: flex; position: absolute; left: 12px; right: 12px; top: 64px; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; }
+
+  .spectrax-navbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 12px;
+    max-width: calc(100vw - 16px);
+    margin: 8px 8px 0;
+  }
+
+  .spectrax-navbar .nav-left {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .spectrax-navbar .nav-right {
+    gap: 6px;
+  }
+
+  .spectrax-navbar .nav-brand {
+    white-space: nowrap;
+  }
+
+  .spectrax-navbar .theme-toggle {
+    padding: 8px 12px;
+  }
+
+  .tracker-pill {
+    padding: 5px 10px;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .spectrax-navbar {
+    padding: 6px 10px;
+  }
+
+  .spectrax-navbar .theme-toggle {
+    padding: 8px 10px;
+  }
+
+  .spectrax-navbar .theme-toggle .nav-label {
+    display: none;
+  }
+
+  .tracker-pill {
+    padding: 4px 8px;
+    font-size: 0.62rem;
+    letter-spacing: 0.5px;
+  }
+
+  .tracker-pill span {
+    display: none;
+  }
+
+  .nav-brand .brand-text {
+    font-size: 0.9rem;
+  }
 }
 
 .theme-toggle { display: inline-flex; gap: 8px; align-items: center; }
