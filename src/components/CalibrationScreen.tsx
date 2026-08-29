@@ -133,7 +133,11 @@ export const CalibrationScreen: React.FC<CalibrationScreenProps> = ({
       }
     }
 
-    const evaluation = calibrationLogic.evaluate(results, adaptiveFactor);
+    const torsoToFemur =
+      results.poseLandmarks && results.poseLandmarks.length > 28
+        ? bodyTypeEngine.computeBoneRatios(results.poseLandmarks)?.ratios.torsoToFemur
+        : undefined;
+    const evaluation = calibrationLogic.evaluate(results, adaptiveFactor, torsoToFemur);
     setResult(evaluation);
 
     const primaryJoints = selectedExercise.joints?.flat() || [];

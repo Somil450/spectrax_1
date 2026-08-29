@@ -174,7 +174,7 @@ const getProgressiveSpeech = (rawMsg: string, durationMs: number): string => {
   }
 };
 
-export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType }) => {
+export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, onAutoDetect, bodyType, adaptiveFactor }) => {
   const { settings, updateSetting } = useSettings();
   const { user } = useAuth();
   useEffect(() => {
@@ -766,19 +766,21 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
 
     const visibility = getJointVisibility(results.poseLandmarks);
 
-    // Adjust structural thresholds dynamically based on active detected body type or calibrated profile
+    // Adjust structural thresholds dynamically based on continuous body-type
+    // calibration (torso-to-femur ratio, ±10%) or a manually calibrated profile.
     const activeConfig = { ...exercise };
     const calib = settings.calibrationProfile?.[exercise.key];
+    const thresholdScale = (() => {
+      const factor = adaptiveFactor ?? 1.0;
+      if (!Number.isFinite(factor) || factor <= 0) return 1.0;
+      const scale = 1 / Math.min(1.1, Math.max(0.9, factor));
+      return Math.min(1.1, Math.max(0.9, scale));
+    })();
     if (calib && calib.calibratedThreshold) {
       activeConfig.downThreshold = calib.calibratedThreshold;
-    } else {
-      if (bodyTypeRef.current === "endo" && activeConfig.key === "squat") {
-        activeConfig.downThreshold += 5; // Softer extension limit due to compacted torso proportions
-      } else if (bodyTypeRef.current === "ecto" && activeConfig.key === "squat") {
-        activeConfig.downThreshold -= 5; // Stricter requirement for longer limbs to reach true parallel
-      } else if (bodyTypeRef.current === "endo" && activeConfig.key === "pushup") {
-        activeConfig.downThreshold -= 5; // Wider torsos reach absolute down plane sooner
-      }
+    } else if (thresholdScale !== 1.0) {
+      activeConfig.downThreshold *= thresholdScale;
+      if (activeConfig.upThreshold) activeConfig.upThreshold *= thresholdScale;
     }
 
     // 2. Process through multi-exercise engine (stays on main thread — manages state)
