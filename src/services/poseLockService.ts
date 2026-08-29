@@ -21,12 +21,25 @@ export class PoseLockService {
   private lastSeenTime = 0;
   private confidenceHistory: number[] = [];
   private readonly CONFIDENCE_WINDOW = 5;
+  private releaseReason: "confidence" | "movement" | "scale" | null = null;
+
+  /**
+   * Returns why the lock was last released this frame:
+   * - "confidence": the tracked user was lost (visibility dropped)
+   * - "movement" | "scale": the pose jumped/disappeared — the detector likely
+   *   switched to a different person (used to detect multi-person scenes)
+   */
+  getLastReleaseReason() {
+    return this.releaseReason;
+  }
 
   /**
    * Evaluates if the current pose results belong to the "locked" user.
    * If not locked, it will lock onto the first high-confidence pose detected.
    */
   filter(results: Results): Results | null {
+    this.releaseReason = null;
+
     if (!results.poseLandmarks) {
       if (Date.now() - this.lastSeenTime > this.UNLOCK_TIME_THRESHOLD) {
         this.reset();
@@ -56,6 +69,7 @@ export class PoseLockService {
     // 2. Confidence release check — requires very low confidence to release
     if (smoothedConfidence < this.UNLOCK_THRESHOLD) {
       this.reset();
+      this.releaseReason = "confidence";
       return null;
     }
 
@@ -69,7 +83,10 @@ export class PoseLockService {
       const areaChange = Math.abs(currentArea - this.lastArea) / (this.lastArea || 1);
 
       if (distance > this.MOVEMENT_RELEASE_THRESHOLD || areaChange > this.SCALE_RELEASE_THRESHOLD) {
+        const reason: "movement" | "scale" =
+          distance > this.MOVEMENT_RELEASE_THRESHOLD ? "movement" : "scale";
         this.reset();
+        this.releaseReason = reason;
         return null;
       }
     }

@@ -13,6 +13,7 @@ import { ExerciseConfig } from '../config/exercises';
 import { sessionRecorder, type FrameData } from '../services/sessionRecorder';
 import { skeletalSense } from '../services/skeletalSense'; // Kept on main thread for reliable auto-detect
 import { poseLockService } from '../services/poseLockService';
+import { MultiPersonMonitor, type MultiPersonState } from '../services/multiPersonDetection';
 import { clipEngine } from '../services/clipEngine';
 import { BodyType} from '../services/bodyTypeEngine';
 import { initialSquatDepthStats } from '../services/Squat_depth_classifier';
@@ -41,6 +42,35 @@ const createPoseWorker = () =>
   new Worker(new URL("../workers/poseWorker.ts", import.meta.url), {
     type: "module",
   });
+
+// Pack MediaPipe landmarks into a transferable Float32Array buffer so the pose
+// worker receives them zero-copy (no structured clone) via postMessage.
+const LM_COUNT = 33;
+const LM_STRIDE = 4;
+
+const packLandmarks = (
+  landmarks?: Array<{
+    x?: number;
+    y?: number;
+    z?: number;
+    visibility?: number;
+  }>,
+): ArrayBuffer => {
+  const buf = new ArrayBuffer(LM_COUNT * LM_STRIDE * 4);
+  const view = new Float32Array(buf);
+  if (landmarks) {
+    for (let i = 0; i < LM_COUNT; i++) {
+      const lm = landmarks[i];
+      if (!lm) continue;
+      const o = i * LM_STRIDE;
+      view[o] = lm.x ?? 0;
+      view[o + 1] = lm.y ?? 0;
+      view[o + 2] = lm.z ?? 0;
+      view[o + 3] = lm.visibility ?? 0;
+    }
+  }
+  return buf;
+};
 
 interface WorkoutScreenProps {
   exercise: ExerciseConfig;
@@ -278,7 +308,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
   const pendingLandmarksRef = useRef<any>(null); // latest landmarks for worker
   const workerInFlightRef = useRef<boolean>(false); // a frame is awaiting a worker reply
   const workerSkipCountRef = useRef<number>(0); // consecutive frames skipped under backpressure
+  const workerIpcCountRef = useRef<number>(0); // frames measured for IPC round-trip telemetry
+  const workerIpcSumRef = useRef<number>(0); // cumulative IPC round-trip ms
   const [mismatchError, setMismatchError] = useState<string | null>(null);
+  const [multiplePeopleWarning, setMultiplePeopleWarning] = useState(false);
+  const multiplePeopleWarningRef = useRef(false);
+  const multiPersonMonitorRef = useRef<MultiPersonMonitor>(new MultiPersonMonitor());
 
   const [gestureConfidences, setGestureConfidences] = useState<Record<string, number>>({});
   const [lastGestureCommand, setLastGestureCommand] = useState<GestureCommand | null>(null);
@@ -627,10 +662,32 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     onCommand: handleVoiceCommand,
   });
 
+  const syncMultiPersonWarning = useCallback((state: MultiPersonState) => {
+    if (state.crowdWarning !== multiplePeopleWarningRef.current) {
+      multiplePeopleWarningRef.current = state.crowdWarning;
+      setMultiplePeopleWarning(state.crowdWarning);
+    }
+  }, []);
+
   const handlePoseResults = useCallback(async (results: any) => {
     // ── SINGLE USER LOCK: Filter out erratic detections or second people ──
     const filteredResults = poseLockService.filter(results);
-    if (!filteredResults || !filteredResults.poseLandmarks) return;
+    if (!filteredResults || !filteredResults.poseLandmarks) {
+      const releaseReason = poseLockService.getLastReleaseReason();
+      syncMultiPersonWarning(
+        multiPersonMonitorRef.current.observe({
+          peopleCount: 1,
+          personSwitch: releaseReason === "movement" || releaseReason === "scale",
+        }),
+      );
+      return;
+    }
+    syncMultiPersonWarning(
+      multiPersonMonitorRef.current.observe({
+        peopleCount: 1,
+        personSwitch: false,
+      }),
+    );
 
     if (depth3DEnabled && videoRef.current && depthEngineRef.current) {
       const video = videoRef.current;
@@ -749,13 +806,17 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     } else {
       workerInFlightRef.current = true;
       workerSkipCountRef.current = 0;
-      workerRef.current?.postMessage({
-        landmarks: results.poseLandmarks,
-        exercise: exercise.key,
-        frameId: frameSkipRef.current,
-        status: mutableState.current.status,
-        primaryJoints: primaryJoints,
-      });
+      const buf = packLandmarks(results.poseLandmarks);
+      workerRef.current?.postMessage(
+        {
+          buf,
+          frameId: frameSkipRef.current,
+          status: mutableState.current.status,
+          primaryJoints: primaryJoints,
+          t0: performance.now(),
+        },
+        [buf],
+      );
     }
 
     // Use last worker result for angles (may be 1 frame stale — acceptable)
@@ -854,7 +915,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       
       overlayRenderer.draw(results, nextState.status, primaryJoints, errorJoints);
     }
-  }, [exercise, depth3DEnabled, handleEnd, settings]);
+  }, [exercise, depth3DEnabled, handleEnd, settings, syncMultiPersonWarning]);
 
   const handleFrameTick = useCallback((count: number) => {
     setVlmProgress(clipEngine.getProgress());
@@ -918,12 +979,39 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     workerRef.current = worker;
 
     worker.onmessage = (event: MessageEvent) => {
-      const { angles, frameId } = event.data;
+      if (event.data?.type === "canvasReady") {
+        console.debug(
+          `[poseWorker] canvas ready: ${event.data.supported ? "OffscreenCanvas 2D" : "no 2D context"}`,
+        );
+        return;
+      }
+
+      const { angles, frameId, ipcMs } = event.data;
       if (angles) {
         workerAnglesRef.current = angles;
       }
       if (frameId !== undefined) {
         workerInFlightRef.current = false;
+      }
+      if (typeof ipcMs === "number") {
+        workerIpcCountRef.current++;
+        workerIpcSumRef.current += ipcMs;
+        if (workerIpcCountRef.current >= 120) {
+          const avg = workerIpcSumRef.current / workerIpcCountRef.current;
+          console.debug(
+            `[poseWorker] avg IPC round-trip: ${avg.toFixed(1)}ms over ${workerIpcCountRef.current} frames`,
+          );
+          workerIpcCountRef.current = 0;
+          workerIpcSumRef.current = 0;
+        }
+      }
+      if (typeof event.data?.peopleCount === "number") {
+        syncMultiPersonWarning(
+          multiPersonMonitorRef.current.observe({
+            peopleCount: event.data.peopleCount,
+            personSwitch: false,
+          }),
+        );
       }
     };
 
@@ -980,7 +1068,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       injuryRiskEngine.reset();
       if (gestureHudTimerRef.current) clearTimeout(gestureHudTimerRef.current);
     };
-  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession,user?.uid]);
+  }, [exercise, startSystem, stopSystem, initOffscreenCanvas, startSession,user?.uid, syncMultiPersonWarning]);
 
   useEffect(() => {
     setPanelPositions((currentPositions) => clampPanelPositions(currentPositions));
@@ -1431,6 +1519,45 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           </div>
           <div style={{ fontSize: "0.6rem", marginTop: "5px" }}>
             SWITCHING DISABLED MID-SET
+          </div>
+        </div>
+      )}
+
+      {/* MULTI-PERSON DETECTED ALERT */}
+      {multiplePeopleWarning && (
+        <div
+          style={{
+            position: "absolute",
+            top: 160,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(255, 170, 0, 0.95)",
+            color: "#111",
+            padding: "13px 36px",
+            borderRadius: "40px",
+            boxShadow: "0 0 50px rgba(255, 170, 0, 0.55)",
+            zIndex: 100,
+            border: "2px solid #fff",
+            textAlign: "center",
+            animation: "shake-alert 0.4s ease-in-out",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: 800,
+              letterSpacing: "3px",
+              opacity: 0.85,
+              marginBottom: "4px",
+            }}
+          >
+            MULTI-PERSON DETECTED
+          </div>
+          <div style={{ fontSize: "1rem", fontWeight: 900 }}>
+            KEEP ONLY ONE PERSON IN FRAME
+          </div>
+          <div style={{ fontSize: "0.6rem", marginTop: "4px" }}>
+            TRACKING FOCUSED ON THE FOREGROUND USER
           </div>
         </div>
       )}
