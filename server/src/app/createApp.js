@@ -20,6 +20,23 @@ function createSecurityHeaders() {
   };
 }
 
+function createErrorHandler() {
+  // eslint-disable-next-line no-unused-vars
+  return (err, req, res, next) => {
+    const status = err.status || err.statusCode || 500;
+
+    if (status >= 500) {
+      // Server errors: log the stack, return a generic JSON message.
+      console.error("[SpectraX] Unhandled error:", err.stack || err);
+      res.status(status).json({ error: "Internal Server Error" });
+      return;
+    }
+
+    // Client errors (e.g. malformed JSON body from express.json): echo a safe message.
+    res.status(status).json({ error: err.message || "Bad Request" });
+  };
+}
+
 function createApp({ sessionStore, config = getConfig() }) {
   const app = express();
 
@@ -32,6 +49,10 @@ function createApp({ sessionStore, config = getConfig() }) {
   app.use(express.json({ limit: PAYLOAD_LIMIT }));
   app.use(createSecurityHeaders());
   app.use(createHealthRouter({ sessionStore }));
+
+  // Global error handler — restores the structured JSON 500 contract the legacy
+  // middleware/errorHandler.js provided (see #582).
+  app.use(createErrorHandler());
 
   return app;
 }
