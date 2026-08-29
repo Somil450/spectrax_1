@@ -1,5 +1,5 @@
 import React from "react";
-import { Activity } from "lucide-react";
+import { Activity, Flame } from "lucide-react";
 
 export const FocusPanel = ({ exerciseName }: { exerciseName: string }) => (
   <div className="glass workout-stat-card workout-focus-panel animate-in">
@@ -55,6 +55,18 @@ export const EnginePanel = ({ status, statusColor }: { status: string, statusCol
   <div className="glass workout-stat-card animate-in" style={{ borderLeft: `3px solid ${statusColor}` }}>
     <div style={{ fontSize: '0.75rem', color: statusColor, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700 }}>
       <Activity size={14} /> AI ENGINE: {status === 'green' ? 'STABLE' : 'CORRECTION REQUIRED'}
+    </div>
+  </div>
+);
+
+export const CaloriesPanel = ({ calories }: { calories: number }) => (
+  <div className="glass workout-stat-card workout-calories-panel animate-in">
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', marginBottom: '4px' }}>
+      <Flame size={14} color="#ffa500" />
+      <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase' }}>Calories</span>
+    </div>
+    <div style={{ fontFamily: 'var(--font-heading)', color: '#ffa500', fontSize: '1.5rem' }}>
+      {calories}<span style={{ fontSize: '0.9rem', opacity: 0.7 }}> kcal</span>
     </div>
   </div>
 );
