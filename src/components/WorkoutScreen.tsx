@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Draggable, { type DraggableData, type DraggableEvent } from 'react-draggable';
 import { StopCircle, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Activity, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { CameraPermissionRecovery } from './CameraPermissionRecovery';
+import { CameraTimeoutRecovery } from './CameraTimeoutRecovery';
 import { useCameraPose } from '../hooks/useCameraPose';
 import { poseService } from '../services/poseService';
 import { overlayRenderer } from '../services/overlayRenderer';
@@ -889,6 +890,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       console.error("Workout camera error callback:", err);
       if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setCameraError('CAMERA_PERMISSION_DENIED');
+      } else if (err.message === 'CAMERA_TIMEOUT' || err.name === 'TimeoutError') {
+        setCameraError('CAMERA_TIMEOUT');
       } else {
         setCameraError('UNKNOWN_ERROR');
       }
@@ -954,6 +957,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
         console.error("Workout camera error:", err);
         if (err.message === 'PERMISSION_DENIED' || err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           setCameraError('CAMERA_PERMISSION_DENIED');
+        } else if (err.message === 'CAMERA_TIMEOUT' || err.name === 'TimeoutError') {
+          setCameraError('CAMERA_TIMEOUT');
         } else {
           setCameraError('UNKNOWN_ERROR');
         }
@@ -1064,6 +1069,12 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
     >
       {cameraError === 'CAMERA_PERMISSION_DENIED' && (
         <CameraPermissionRecovery onRetry={() => {
+          setCameraError(null);
+          startSystem();
+        }} />
+      )}
+      {cameraError === 'CAMERA_TIMEOUT' && (
+        <CameraTimeoutRecovery onRetry={() => {
           setCameraError(null);
           startSystem();
         }} />
