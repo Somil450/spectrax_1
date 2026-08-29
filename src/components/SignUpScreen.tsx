@@ -63,8 +63,8 @@ export function SignUpScreen({
     const attemptsKey = `auth_attempts_signup_${email}`;
     const lockoutKey = `auth_lockout_signup_${email}`;
 
-    const storedAttempts = parseInt(safeGetItem(attemptsKey) || "0", 10);
-    const storedLockout = parseInt(safeGetItem(lockoutKey) || "0", 10);
+    const storedAttempts = parseInt(safeGetItem(attemptsKey, 10) || "0", 10);
+    const storedLockout = parseInt(safeGetItem(lockoutKey, 10) || "0", 10);
 
     setFailedAttempts(storedAttempts);
 
