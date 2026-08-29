@@ -26,6 +26,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { estimateCalories, getSavedUserWeight } from "./utils/calorieEstimator";
 import { CursorGlow } from "./components/CursorGlow";
 import { PageErrorBoundary } from "./components/PageErrorBoundary";
+import { FeatureTour } from "./components/FeatureTour";
 import type { ActivePlan } from "./components/WorkoutPlansScreen";
 const WelcomeScreen = lazy(() => import("./components/WelcomeScreen").then(m => ({ default: m.WelcomeScreen })));
 const SummaryScreen = lazy(() => import("./components/SummaryScreen").then(m => ({ default: m.SummaryScreen })));
@@ -328,6 +329,7 @@ function App() {
     >
       {/* Global neon cursor trail — pointer-events:none, touch/motion-safe */}
       <CursorGlow />
+      <FeatureTour />
       <NavBar navigateTo={navigateTo} theme={theme} setTheme={setTheme} />
       <PrivacyShield />
       <div
