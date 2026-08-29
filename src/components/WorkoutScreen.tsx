@@ -1803,7 +1803,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
                   {clipResult
                     ? clipResult.label.toUpperCase()
                     : "SCANNING..."}{" "}
-                  ({clipResult ? Math.round(clipResult.confidence * 100) : 0}%)
+                  ({clipResult ? Math.round(clipResult.confidence * 100 + Number.EPSILON) : 0}%)
                 </div>
               </div>
             ) : (
