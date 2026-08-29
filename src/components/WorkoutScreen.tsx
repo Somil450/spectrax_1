@@ -23,7 +23,7 @@ import { ExitConfirmModal } from './ExitConfirmModal';
 import { useWorkoutWebSocket } from '../hooks/useWorkoutWebSocket';
 import { useOffscreenCanvas } from '../hooks/useOffscreenCanvas';
 import { injuryRiskEngine } from '../services/injuryRiskEngine';
-import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, RiskPanel, TutPanel } from './WorkoutPanels';
+import { FocusPanel, TimerPanel, RepsPanel, EnginePanel, SensePanel, AngleDialPanel, RiskPanel, TutPanel, VelocityPanel } from './WorkoutPanels';
 import { ghostService } from '../services/ghostService';
 import type { GhostStats } from '../services/ghostService';
 import { DepthEstimationEngine } from '../services/depthEstimationEngine';
@@ -64,7 +64,7 @@ interface WorkoutScreenProps {
   adaptiveFactor?: number;
 }
 
-type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "risk" | "tut";
+type WorkoutPanelId = "focus" | "timer" | "reps" | "engine" | "sense" | "dial" | "risk" | "tut" | "velocity";
 
 type PanelPosition = {
   x: number;
@@ -92,6 +92,7 @@ const getDefaultPanelPositions = (): PanelPositions => {
     dial: { x: Math.max(width - 230, 30), y: 150 },
     risk: { x: Math.max(width - 230, 30), y: 290 },
     tut: { x: Math.max(width - 230, 30), y: 300 },
+    velocity: { x: 40, y: Math.max(height - 230, 30) },
   };
 };
 
@@ -208,7 +209,8 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
       sense: React.createRef<HTMLDivElement>(),
       dial: React.createRef<HTMLDivElement>(),
       risk: React.createRef<HTMLDivElement>(),
-      tut: React.createRef<HTMLDivElement>()
+      tut: React.createRef<HTMLDivElement>(),
+      velocity: React.createRef<HTMLDivElement>()
     };
   }
 
@@ -1394,6 +1396,7 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({ exercise, onEnd, o
           recommendedStopRep={riskMetrics.recommendedStopRep} 
         />)}
         {renderDraggablePanel('tut', '', <TutPanel tutMetrics={engineState.tutMetrics} statusColor={statusColor} />)}
+        {renderDraggablePanel('velocity', '', <VelocityPanel profile={engineState.velocityProfile} />)}
       </div>
 
       {/* MID-SET MISMATCH ALERT */}
