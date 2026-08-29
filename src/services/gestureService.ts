@@ -224,13 +224,23 @@ class GestureService {
     this.pushBuffer('START', bothUp || thumbsUp);
     this.pushBuffer('PAUSE', singleUp);
 
+    // Log intermediate confidence values when chaos diagnostics are enabled
+    this.logChaos('confidences', {
+      START: this.bufferConfidence('START'),
+      PAUSE: this.bufferConfidence('PAUSE'),
+      STOP:  this.bufferConfidence('STOP'),
+    });
+
     const now = Date.now();
 
-    // Evaluate in priority order
+    // Evaluate in priority order. A command may only fire once its buffer has
+    // filled to GESTURE_BUFFER_SIZE frames — otherwise a single noisy positive
+    // frame would report confidence 1/1 = 1.0 and trigger a spurious command.
     const candidates: GestureCommand[] = ['STOP', 'START', 'PAUSE'];
     for (const cmd of candidates) {
       const conf = this.bufferConfidence(cmd);
       if (
+        this.buffers[cmd].length >= GESTURE_BUFFER_SIZE &&
         conf >= GESTURE_CONFIDENCE_THRESHOLD &&
         now - this.lastEmitted[cmd] >= COMMAND_COOLDOWN_MS
       ) {
@@ -296,13 +306,14 @@ class GestureService {
     if (this._legacyBuffer.length > GESTURE_BUFFER_SIZE) this._legacyBuffer.shift();
     const legacyConf = this._legacyBuffer.filter(Boolean).length / this._legacyBuffer.length;
 
-    // Command dispatch
+    // Command dispatch (same full-buffer guard as parseCommand)
     const now = Date.now();
     let firedCommand: GestureCommand | null = null;
     const candidates: GestureCommand[] = ['STOP', 'START', 'PAUSE'];
     for (const cmd of candidates) {
       const conf = this.bufferConfidence(cmd);
       if (
+        this.buffers[cmd].length >= GESTURE_BUFFER_SIZE &&
         conf >= GESTURE_CONFIDENCE_THRESHOLD &&
         now - this.lastEmitted[cmd] >= COMMAND_COOLDOWN_MS
       ) {
@@ -340,6 +351,25 @@ class GestureService {
 
   // Private legacy buffer field (initialised lazily)
   private _legacyBuffer: boolean[] = [];
+
+  // ── Chaos-mode diagnostics (issue #961) ────────────────────────────────────
+
+  private _chaosMode = false;
+
+  /**
+   * Enable/disable chaos diagnostics. When enabled, `parseCommand` logs the
+   * intermediate per-gesture buffer confidences on every call so chaos tests
+   * and debugging sessions can inspect why a command did (or did not) fire.
+   */
+  setChaosMode(enabled: boolean): void {
+    this._chaosMode = enabled;
+  }
+
+  private logChaos(message: string, ...args: unknown[]): void {
+    if (this._chaosMode) {
+      console.debug(`[gestureChaos] ${message}`, ...args);
+    }
+  }
 }
 
 export const gestureService = new GestureService();
