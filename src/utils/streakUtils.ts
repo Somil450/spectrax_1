@@ -64,7 +64,7 @@ export function updateWorkoutStreak(): WorkoutStreakData {
     lastDate = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
   } else {
     const parsed = new Date(lastWorkoutDate);
-    lastDate = isNaN(parsed.getTime()) ? today : parsed;
+    lastDate = Number.isNaN(parsed.getTime()) ? today : parsed;
   }
 
   const diffDays = localDayNumber(today) - localDayNumber(lastDate);
