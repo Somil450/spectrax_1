@@ -647,8 +647,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     </li>
                     <li>
                       <a
-                        href="https://github.com/Somil450/spectrax_1/blob/main/README.md"
+                        href="#"
                         className="footer-link"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigateTo("docs");
+                        }}
                       >
                         <FileText size={14} /> Documentation
                       </a>

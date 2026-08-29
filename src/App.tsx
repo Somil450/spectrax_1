@@ -15,6 +15,7 @@ import About from "./components/About";
 import Contact from "./components/Contact";
 import PrivacyPage from './components/privacy'; // Change to your actual file path
 import TermsAndConditions from './components/terms&conditions'
+import DocsScreen from './components/DocsScreen'
 import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { PerformanceMonitor } from "./components/PerformanceMonitor";
 import { CollaborationPanel } from './components/CollaborationPanel';
@@ -62,12 +63,13 @@ type Screen =
   | "fitness"
   | "avatar"
   | "privacy"
-  | "terms&conditions";
+  | "terms&conditions"
+  | "docs";
 
 type ScreenTransitionMap = Record<Screen, readonly Screen[]>;
 
 const SCREEN_TRANSITIONS: ScreenTransitionMap = {
-  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "workoutPlans", "privacy", "terms&conditions", "battle", "tutorials"],
+  welcome: ["calibration", "history", "trophy", "profile", "login", "fitness", "about", "contact", "avatar", "workoutPlans", "privacy", "terms&conditions", "battle", "tutorials", "docs"],
   calibration: ["workout", "welcome", "login"],
   workout: ["summary", "welcome"],
   summary: ["replay", "welcome"],
@@ -84,6 +86,7 @@ const SCREEN_TRANSITIONS: ScreenTransitionMap = {
   avatar: ["welcome"],
   "privacy": ["welcome"],
   "terms&conditions": ["welcome"],
+  docs: ["welcome"],
 };
 
 
@@ -398,6 +401,12 @@ function App() {
         {currentScreen === "terms&conditions" && (
           <PageErrorBoundary fallbackMessage="Failed to load Terms page.">
             <TermsAndConditions onBack={() => navigateTo("welcome")} />
+          </PageErrorBoundary>
+        )}
+
+        {currentScreen === "docs" && (
+          <PageErrorBoundary fallbackMessage="Failed to load Documentation page.">
+            <DocsScreen onBack={() => navigateTo("welcome")} />
           </PageErrorBoundary>
         )}
 
