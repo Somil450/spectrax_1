@@ -21,26 +21,27 @@ try {
 }
 
 // Local File Helper Functions
-function readLocalWorkouts() {
-  if (!fs.existsSync(WORKOUTS_FILE)) {
-    return [];
-  }
+async function readLocalWorkouts() {
   try {
-    const data = fs.readFileSync(WORKOUTS_FILE, 'utf-8');
+    const data = await fs.promises.readFile(WORKOUTS_FILE, 'utf-8');
     return JSON.parse(data || '[]');
   } catch (err) {
-    console.error('Failed to read local workouts file:', err);
+    if (err.code !== 'ENOENT') {
+      console.error('Failed to read local workouts file:', err);
+    }
     return [];
   }
 }
 
-function writeLocalWorkouts(workouts) {
+async function writeLocalWorkouts(workouts) {
   try {
     const dir = path.dirname(WORKOUTS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(WORKOUTS_FILE, JSON.stringify(workouts, null, 2), 'utf-8');
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(
+      WORKOUTS_FILE,
+      JSON.stringify(workouts, null, 2),
+      'utf-8',
+    );
   } catch (err) {
     console.error('Failed to write local workouts file:', err);
   }
@@ -52,14 +53,14 @@ async function saveWorkout(data) {
     const w = new WorkoutModel(data);
     return await w.save();
   } else {
-    const local = readLocalWorkouts();
+    const local = await readLocalWorkouts();
     const newWorkout = {
       _id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       ...data,
       timestamp: data.timestamp || Date.now(),
     };
     local.push(newWorkout);
-    writeLocalWorkouts(local);
+    await writeLocalWorkouts(local);
     return newWorkout;
   }
 }
@@ -69,7 +70,7 @@ async function getWorkouts(userId) {
   if (isMongoConnected && WorkoutModel) {
     return await WorkoutModel.find({ userId }).sort({ timestamp: -1 });
   } else {
-    const local = readLocalWorkouts();
+    const local = await readLocalWorkouts();
     return local
       .filter((w) => w.userId === userId)
       .sort((a, b) => b.timestamp - a.timestamp);
@@ -81,9 +82,9 @@ async function deleteWorkout(userId, workoutId) {
   if (isMongoConnected && WorkoutModel) {
     return await WorkoutModel.deleteOne({ _id: workoutId, userId });
   } else {
-    const local = readLocalWorkouts();
+    const local = await readLocalWorkouts();
     const updated = local.filter((w) => !(w._id === workoutId && w.userId === userId));
-    writeLocalWorkouts(updated);
+    await writeLocalWorkouts(updated);
     return { deletedCount: local.length - updated.length };
   }
 }
