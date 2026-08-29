@@ -59,7 +59,8 @@ function registerPoseSocketHandlers({ socket, sessionService }) {
     }
 
     const normalizedData = {
-      ...data,
+      landmarks: data.landmarks,
+      timestamp: data.timestamp,
       exercise: exerciseSupported
         ? data.exercise
         : DEFAULT_EXERCISE,
