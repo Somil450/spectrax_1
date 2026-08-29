@@ -5,8 +5,10 @@ export { SquatPlugin } from './SquatPlugin';
 export { PushupPlugin } from './PushupPlugin';
 export { JumpingJackPlugin } from './JumpingJackPlugin';
 export { BicepCurlPlugin } from './BicepCurlPlugin';
+export { MountainClimberPlugin } from './MountainClimberPlugin';
 
 import './SquatPlugin';
 import './PushupPlugin';
 import './JumpingJackPlugin';
 import './BicepCurlPlugin';
+import './MountainClimberPlugin';

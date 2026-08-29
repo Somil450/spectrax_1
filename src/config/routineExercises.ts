@@ -83,6 +83,18 @@ export const ROUTINE_EXERCISES_CATALOG: Record<string, RoutineExerciseMetadata> 
     defaultRestSecs: 20,
     instructions: 'Hold forearm plank position with tight abs and flat back.',
   },
+  mountain_climber: {
+    key: 'mountain_climber',
+    name: 'Mountain Climbers',
+    muscleGroup: 'cardio',
+    difficulty: 'intermediate',
+    avgSecsPerRep: 1.0,
+    caloriesPerRep: 0.3,
+    defaultReps: 20,
+    defaultRestSecs: 25,
+    instructions: 'Drive alternate knees toward chest in plank position with controlled tempo.',
+    isWarmup: true,
+  },
   cooldown_stretch: {
     key: 'cooldown_stretch',
     name: 'Full Body Cooldown Stretch',
