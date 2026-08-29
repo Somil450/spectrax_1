@@ -48,3 +48,5 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+.catch(err => console.error("Promise.all failed:", err));
