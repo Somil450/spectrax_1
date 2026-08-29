@@ -1,0 +1,23 @@
+name: Contributor Wall
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 0 * * 1"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: akhilmhdh/contributors-readme-action@v2.3.10
+        with:
+          image_size: 80
+          readme_path: README.md
+          committer_username: github-actions[bot]
+          committer_email: github-actions[bot]@users.noreply.github.com
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
