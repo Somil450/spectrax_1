@@ -1,4 +1,5 @@
 import React from "react";
+import { ScanFrameOverlay } from "./ScanFrameOverlay";
 
 interface CameraViewProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -41,6 +42,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
           transform: "scaleX(-1)",
         }}
       />
+      <ScanFrameOverlay status={status} />
       {status === "red" && (
         <div
           className="workout-error-flash"
