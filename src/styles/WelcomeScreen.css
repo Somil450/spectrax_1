@@ -436,6 +436,98 @@
 }
 
 /* =============================================
+   Features Section
+   ============================================= */
+.features-section {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 40px 40px 100px;
+  position: relative;
+  z-index: 5;
+  border: none;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 32px;
+}
+
+.feature-card {
+  background: rgba(10, 20, 30, 0.4);
+  backdrop-filter: blur(10px);
+  border-radius: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  border: 1px solid rgba(0, 240, 255, 0.1);
+  transition: all 0.3s ease;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(0, 240, 255, 0.4);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(0, 240, 255, 0.1);
+  background: rgba(10, 20, 30, 0.6);
+}
+
+.feature-icon-wrapper {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.1), rgba(0, 240, 255, 0.02));
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover .feature-icon-wrapper {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+}
+
+.feature-card-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.feature-card-description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.welcome-container[data-theme="light"] .features-section {
+  background: transparent;
+}
+
+.welcome-container[data-theme="light"] .feature-card {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(0, 150, 200, 0.15);
+}
+
+.welcome-container[data-theme="light"] .feature-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.welcome-container[data-theme="light"] .feature-card-description {
+  color: rgba(0, 20, 30, 0.7);
+}
+
+.welcome-container[data-theme-style="retro"] .feature-card {
+  border-radius: 8px;
+  border-color: rgba(255, 200, 0, 0.2);
+}
+
+/* =============================================
    Footer Section - SMOOTH TRANSITION
    ============================================= */
 .footer {
