@@ -21,6 +21,8 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
   async function saveSession(frames, socketId) {
     try {
       const resolvedSessionPath = buildSessionFilePath(sessionPath, socketId);
+      const sessionDir = path.dirname(resolvedSessionPath);
+      await fs.promises.mkdir(sessionDir, { recursive: true });
       const sessionData = {
         savedAt: new Date().toISOString(),
         socketId,
@@ -40,12 +42,15 @@ function createSessionService({ sessionStore, sessionPath, maxSessionFrames, log
     try {
       const parsed = path.parse(sessionPath);
       const sessionDir = parsed.dir;
-      const filePrefix = `${parsed.name}-`;
-      const fileExt = parsed.ext || '.json';
 
       if (!fs.existsSync(sessionDir)) {
         return;
       }
+
+      await fs.promises.mkdir(sessionDir, { recursive: true });
+
+      const filePrefix = `${parsed.name}-`;
+      const fileExt = parsed.ext || '.json';
       const files = await fs.promises.readdir(sessionDir);
       const now = Date.now();
       const ttlMs = SESSION_FILE_TTL_DAYS * 24 * 60 * 60 * 1000;
