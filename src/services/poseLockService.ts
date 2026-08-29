@@ -22,6 +22,15 @@ export class PoseLockService {
   private confidenceHistory: number[] = [];
   private readonly CONFIDENCE_WINDOW = 5;
 
+  // Dual-threshold hysteresis debounce: a state change only commits after the
+  // signal stays on the qualifying side for N consecutive frames, so brief
+  // confidence/continuity spikes near the boundary cannot flicker the lock.
+  private readonly LOCK_CONFIRM_FRAMES = 3;
+  private readonly UNLOCK_CONFIRM_FRAMES = 3;
+  private acquireFrames = 0;
+  private releaseFrames = 0;
+  private continuityBreachFrames = 0;
+
   /**
    * Evaluates if the current pose results belong to the "locked" user.
    * If not locked, it will lock onto the first high-confidence pose detected.
@@ -41,25 +50,40 @@ export class PoseLockService {
     const rawConfidence = this.calculateAvgConfidence(results.poseLandmarks);
     const smoothedConfidence = this.smoothedConfidence(rawConfidence);
 
-    // 1. Initial Locking — requires high confidence to acquire
+    // 1. Initial Locking — requires high confidence for consecutive frames
     if (!this.isLocked) {
       if (smoothedConfidence > this.LOCK_THRESHOLD) {
-        this.lastCentroid = currentCentroid;
-        this.lastArea = currentArea;
-        this.isLocked = true;
-        this.lastSeenTime = now;
-        return results;
+        this.acquireFrames += 1;
+        if (this.acquireFrames >= this.LOCK_CONFIRM_FRAMES) {
+          this.lastCentroid = currentCentroid;
+          this.lastArea = currentArea;
+          this.isLocked = true;
+          this.lastSeenTime = now;
+          this.acquireFrames = 0;
+          return results;
+        }
+      } else {
+        this.acquireFrames = 0;
       }
       return null;
     }
 
-    // 2. Confidence release check — requires very low confidence to release
+    // 2. Confidence release check — requires very low confidence for
+    // consecutive frames, so a single dip can't drop the lock
     if (smoothedConfidence < this.UNLOCK_THRESHOLD) {
-      this.reset();
-      return null;
+      this.releaseFrames += 1;
+      if (this.releaseFrames >= this.UNLOCK_CONFIRM_FRAMES) {
+        this.reset();
+        return null;
+      }
+    } else {
+      this.releaseFrames = 0;
     }
 
-    // 3. Continuity check — use more forgiving thresholds while locked
+    // 3. Continuity check — use more forgiving thresholds while locked and
+    // debounce breaches so extreme-but-brief motion doesn't flicker the lock.
+    // While a breach is pending, keep the reference anchor fixed so a sustained
+    // departure actually accumulates instead of re-anchoring to the new pose.
     if (this.lastCentroid && this.lastArea !== null) {
       const distance = Math.sqrt(
         Math.pow(currentCentroid.x - this.lastCentroid.x, 2) +
@@ -69,9 +93,15 @@ export class PoseLockService {
       const areaChange = Math.abs(currentArea - this.lastArea) / (this.lastArea || 1);
 
       if (distance > this.MOVEMENT_RELEASE_THRESHOLD || areaChange > this.SCALE_RELEASE_THRESHOLD) {
-        this.reset();
-        return null;
+        this.continuityBreachFrames += 1;
+        if (this.continuityBreachFrames >= this.UNLOCK_CONFIRM_FRAMES) {
+          this.reset();
+          return null;
+        }
+        this.lastSeenTime = now;
+        return results;
       }
+      this.continuityBreachFrames = 0;
     }
 
     // 4. Update state
@@ -87,6 +117,9 @@ export class PoseLockService {
     this.lastArea = null;
     this.lastSeenTime = 0;
     this.confidenceHistory = [];
+    this.acquireFrames = 0;
+    this.releaseFrames = 0;
+    this.continuityBreachFrames = 0;
   }
 
   private smoothedConfidence(raw: number): number {
