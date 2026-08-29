@@ -6,6 +6,11 @@ const drawLandmarks = (window as any).drawLandmarks;
 
 import type { Mesh3DVertex } from "../types/pose";
 
+/**
+ * Renders pose landmarks, skeleton connections, 3D mesh overlay, and balance
+ * indicators onto a 2D canvas. Provides real-time visual feedback for the
+ * workout camera feed.
+ */
 export class OverlayRenderer {
   private ctx: CanvasRenderingContext2D | null = null;
   private scanY: number = 0;
@@ -13,23 +18,28 @@ export class OverlayRenderer {
   private draw3DEnabled = false;
   private meshVertices: Mesh3DVertex[] | null = null;
 
+  /** Assign the canvas rendering context for drawing */
   setContext(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
   }
 
+  /** Toggle 3D mesh overlay rendering */
   set3DEnabled(enabled: boolean) {
     this.draw3DEnabled = enabled;
   }
 
+  /** Provide 3D mesh vertices for the volumetric overlay */
   setMeshVertices(vertices: Mesh3DVertex[] | null) {
     this.meshVertices = vertices;
   }
 
+  /** Clear the entire canvas */
   clear() {
     if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
   }
 
+  /** Map status level to neon hex color */
   private getStatusColor(status: "green" | "yellow" | "red") {
     switch (status) {
       case "green": return "#00ff88";
@@ -39,6 +49,15 @@ export class OverlayRenderer {
     }
   }
 
+  /**
+   * Draw the full overlay: 3D mesh, skeleton connectors, landmarks, scanning
+   * line, and center-of-mass indicator.
+   *
+   * @param results - MediaPipe pose results containing landmarks
+   * @param status - Overall form status affecting accent color
+   * @param primaryJoints - Landmark indices to highlight as primary joints
+   * @param errorJoints - Landmark indices to highlight as errors (red)
+   */
   draw(
     results: Results,
     status: "green" | "yellow" | "red" = "green",
@@ -71,7 +90,7 @@ export class OverlayRenderer {
       drawLandmarks(this.ctx, results.poseLandmarks, {
         color: "#ffffff",
         fillColor: (data: any) => {
-          if (errorJoints.includes(data.index!)) return "#ff0000"; // Bright red for errors
+          if (errorJoints.includes(data.index!)) return "#ff0000";
           if (primaryJoints.includes(data.index!)) return color;
           if (data.index! >= 11) {
             if (data.index! % 2 !== 0) return "rgba(0, 240, 255, 0.8)";
@@ -81,7 +100,7 @@ export class OverlayRenderer {
         },
         lineWidth: 1,
         radius: (data: any) => {
-          if (errorJoints.includes(data.index!)) return 8; // Larger radius for errors
+          if (errorJoints.includes(data.index!)) return 8;
           return primaryJoints.includes(data.index!) ? 6 : 3;
         },
       });
@@ -94,6 +113,7 @@ export class OverlayRenderer {
     this.drawCenterOfMass(results.poseLandmarks);
   }
 
+  /** Project 3D vertices to 2D canvas space and draw dashed skeleton lines */
   private draw3DMesh(
     vertices: Mesh3DVertex[],
     canvasWidth: number,
@@ -152,6 +172,7 @@ export class OverlayRenderer {
     ctx.restore();
   }
 
+  /** Animate a horizontal cyber-scanning line that oscillates top-to-bottom */
   private drawScanningLine() {
     if (!this.ctx) return;
     const canvas = this.ctx.canvas;
@@ -167,6 +188,11 @@ export class OverlayRenderer {
     this.ctx.stroke();
   }
 
+  /**
+   * Compute and render the center of mass relative to the base of support.
+   * Draws a dot at the CoM, a dotted line down to the support base, and a
+   * deviation percentage label.
+   */
   private drawCenterOfMass(landmarks: any[]) {
     if (!this.ctx || landmarks.length < 29) return;
 
