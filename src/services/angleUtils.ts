@@ -191,4 +191,147 @@ export function getJointVisibility(landmarks: any): Record<string, number> {
   return visibility;
 }
 
+/**
+ * Normalization options that compensate for camera recording conditions so
+ * that skeletal angle computations stay consistent regardless of how far the
+ * user stands from the webcam, the focal length, the camera height, or the
+ * frame's aspect ratio.
+ */
+export interface NormalizationOptions {
+  /** Frame width / height. Corrects the x axis so 1 unit of x equals 1 unit of y. */
+  aspectRatio?: number;
+  /** Perspective proxy (focal length). Compresses z relative to x/y. Default 1.0. */
+  focalScale?: number;
+  /** Camera height bias (0..1 in normalized frame units). Removes a fixed y offset. */
+  cameraHeight?: number;
+}
+
+/**
+ * Unified normalization matrix for 2D/3D landmark coordinates:
+ *   - anchor: stable body reference (mid-hip / pelvis center)
+ *   - scale:  body-reference length (torso length preferred, shoulder width fallback)
+ *   - aspectRatio: applied x multiplier so x/y share physical units
+ */
+export interface NormalizationMatrix {
+  anchor: { x: number; y: number; z: number };
+  scale: number;
+  aspectRatio: number;
+}
+
+export function getBodyAnchor(landmarks: any): { x: number; y: number; z: number } | null {
+  if (!landmarks || landmarks.length < 29) return null;
+  const lh = landmarks[23];
+  const rh = landmarks[24];
+  if (!lh || !rh) return null;
+  return {
+    x: (lh.x + rh.x) / 2,
+    y: (lh.y + rh.y) / 2,
+    z: (lh.z + rh.z) / 2,
+  };
+}
+
+export function getBodyScale(landmarks: any): number | null {
+  if (!landmarks || landmarks.length < 29) return null;
+  const ls = landmarks[11];
+  const rs = landmarks[12];
+  const lh = landmarks[23];
+  const rh = landmarks[24];
+  if (!ls || !rs || !lh || !rh) return null;
+
+  // Torso length (shoulder-mid → hip-mid) — robust to limb extension/pose.
+  const sm = { x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2, z: (ls.z + rs.z) / 2 };
+  const hm = { x: (lh.x + rh.x) / 2, y: (lh.y + rh.y) / 2, z: (lh.z + rh.z) / 2 };
+  const dx = sm.x - hm.x;
+  const dy = sm.y - hm.y;
+  const dz = sm.z - hm.z;
+  const torso = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+  if (torso > 1e-6) return torso;
+
+  // Fallback: shoulder width when torso is degenerate (e.g. lying flat).
+  const sx = ls.x - rs.x;
+  const sy = ls.y - rs.y;
+  const sz = ls.z - rs.z;
+  const shoulder = Math.sqrt(sx * sx + sy * sy + sz * sz);
+  return shoulder > 1e-6 ? shoulder : null;
+}
+
+/**
+ * Builds the unified normalization matrix for a frame of pose landmarks.
+ * Returns null when the pose has no usable body reference.
+ */
+export function getNormalizationMatrix(
+  landmarks: any,
+  options?: NormalizationOptions
+): NormalizationMatrix | null {
+  const anchor = getBodyAnchor(landmarks);
+  const scale = getBodyScale(landmarks);
+  if (!anchor || !scale) return null;
+
+  const aspectRatio =
+    options && typeof options.aspectRatio === 'number' && options.aspectRatio > 0
+      ? options.aspectRatio
+      : 1;
+
+  if (options && typeof options.cameraHeight === 'number') {
+    anchor.y -= options.cameraHeight;
+  }
+
+  return { anchor, scale, aspectRatio };
+}
+
+/**
+ * Normalizes pose landmarks into a body-relative, scale-invariant coordinate
+ * space. Each landmark is translated around the mid-hip anchor and scaled by
+ * the torso reference length so poses at any camera distance produce the same
+ * normalized skeleton. z is scaled by the same reference (optionally divided
+ * by focalScale) so 2D and 3D paths stay consistent. Visibility is preserved.
+ */
+export function normalizeLandmarks(
+  landmarks: any,
+  options?: NormalizationOptions
+): NormalizedLandmark[] | null {
+  if (!landmarks || landmarks.length === 0) return null;
+  const matrix = getNormalizationMatrix(landmarks, options);
+  if (!matrix) return null;
+
+  const focalScale =
+    options && typeof options.focalScale === 'number' && options.focalScale > 0
+      ? options.focalScale
+      : 1;
+
+  const { anchor, scale, aspectRatio } = matrix;
+  const out: NormalizedLandmark[] = new Array(landmarks.length);
+
+  for (let i = 0; i < landmarks.length; i++) {
+    const lm = landmarks[i];
+    if (!lm) {
+      out[i] = lm;
+      continue;
+    }
+    const nx = ((lm.x - anchor.x) / scale) * aspectRatio;
+    const ny = (lm.y - anchor.y) / scale;
+    const nz = typeof lm.z === 'number' ? (lm.z - anchor.z) / (scale / focalScale) : 0;
+    out[i] = { x: nx, y: ny, z: nz, visibility: lm.visibility || 0 } as NormalizedLandmark;
+  }
+
+  return out;
+}
+
+/**
+ * Distance/AR-invariant variant of getJointAngles. Runs the full angle +
+ * derived-metric pipeline against body-relative normalized landmarks so
+ * outputs (hipDepth, lateralScore, horizontalStretch, joint angles) no longer
+ * depend on how close the user is to the camera. Falls back to raw landmarks
+ * when the pose cannot be normalized.
+ */
+export function getJointAnglesNormalized(
+  landmarks: any,
+  options?: NormalizationOptions
+): Record<string, number> {
+  if (!landmarks) return getJointAngles(landmarks);
+  const normalized = normalizeLandmarks(landmarks, options);
+  return getJointAngles(normalized || landmarks);
+}
+
 // TODO: Consider adding more comprehensive JSDoc comments
